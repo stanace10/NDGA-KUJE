@@ -837,6 +837,7 @@ class ITStaffDetailView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
     def get_context_data(self, **kwargs):
         from apps.academics.models import FormTeacherAssignment, TeacherSubjectAssignment
         from apps.dashboard.intelligence import build_teacher_performance_analytics
+        from apps.results.analytics import build_teacher_ranking
         from apps.results.models import ResultSheet, ResultSheetStatus
         from apps.setup_wizard.services import get_setup_state
 
@@ -868,6 +869,13 @@ class ITStaffDetailView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
             "submitted": sheet_qs.filter(status=ResultSheetStatus.SUBMITTED_TO_DEAN).count(),
             "published": sheet_qs.filter(status=ResultSheetStatus.PUBLISHED).count(),
         }
+        teacher_rank_row = None
+        if setup_state.current_session_id and setup_state.current_term_id:
+            for row in build_teacher_ranking(session=setup_state.current_session, term=setup_state.current_term).get("rows", []):
+                if row["teacher"].id == self.target_user.id:
+                    teacher_rank_row = row
+                    break
+        context["teacher_rank_row"] = teacher_rank_row
         context["result_sheet_rows"] = list(
             sheet_qs.select_related("academic_class", "subject").order_by("academic_class__code", "subject__name")
         )

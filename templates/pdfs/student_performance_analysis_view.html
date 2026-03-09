@@ -15,11 +15,13 @@
     </article>
 
     {% if payload.available %}
-      <div class="mt-6 grid gap-4 md:grid-cols-4">
+      <div class="mt-6 grid gap-4 md:grid-cols-3 xl:grid-cols-6">
         <article class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4"><p class="text-xs uppercase tracking-[0.14em] text-emerald-700">Highest Average</p><p class="mt-1 text-3xl font-bold text-emerald-900">{{ payload.highest_average }}</p></article>
         <article class="rounded-2xl border border-sky-200 bg-sky-50 p-4"><p class="text-xs uppercase tracking-[0.14em] text-sky-700">Student Average</p><p class="mt-1 text-3xl font-bold text-sky-900">{{ payload.student_average }}</p></article>
         <article class="rounded-2xl border border-rose-200 bg-rose-50 p-4"><p class="text-xs uppercase tracking-[0.14em] text-rose-700">Lowest Average</p><p class="mt-1 text-3xl font-bold text-rose-900">{{ payload.lowest_average }}</p></article>
         <article class="rounded-2xl border border-amber-200 bg-amber-50 p-4"><p class="text-xs uppercase tracking-[0.14em] text-amber-700">Improvement</p><p class="mt-1 text-3xl font-bold text-amber-900">{{ payload.improvement_delta }}</p></article>
+        <article class="rounded-2xl border border-indigo-200 bg-indigo-50 p-4"><p class="text-xs uppercase tracking-[0.14em] text-indigo-700">Attendance</p><p class="mt-1 text-3xl font-bold text-indigo-900">{{ payload.attendance_percentage }}%</p></article>
+        <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p class="text-xs uppercase tracking-[0.14em] text-slate-600">Gap To Top</p><p class="mt-1 text-3xl font-bold text-slate-900">{{ payload.average_gap_to_top }}</p></article>
       </div>
 
       <div class="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">

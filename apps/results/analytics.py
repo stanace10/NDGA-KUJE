@@ -8,6 +8,7 @@ from django.db.models import Avg, Count, Q, Sum
 from apps.academics.models import AcademicClass, AcademicSession, StudentClassEnrollment, Term, TeacherSubjectAssignment
 from apps.accounts.models import User
 from apps.dashboard.intelligence import build_student_academic_analytics, build_teacher_performance_analytics
+from apps.dashboard.models import SchoolProfile
 from apps.results.insights import build_result_comment_bundle
 from apps.results.models import (
     ClassCompilationStatus,
@@ -378,6 +379,34 @@ def build_award_listing(*, session, term, academic_class=None):
         )
     best_in_subject.sort(key=lambda item: item["subject"].lower())
 
+    subject_leaderboards = []
+    for subject_name, items in grouped_subjects.items():
+        ranked_rows = []
+        previous_rank = 0
+        previous_score = None
+        for index, item in enumerate(sorted(items, key=lambda row: (-float(row["score"] or 0), row["student_id"])), start=1):
+            score_value = _to_float(item["score"])
+            if score_value != previous_score:
+                previous_rank = index
+                previous_score = score_value
+            student = student_map.get(item["student_id"])
+            if student is None:
+                continue
+            enrollment = enrollment_map.get(student.id)
+            ranked_rows.append(
+                {
+                    "position": previous_rank,
+                    "student_name": _student_label(student),
+                    "student_number": getattr(getattr(student, "student_profile", None), "student_number", student.username),
+                    "class_name": (enrollment.academic_class.display_name or enrollment.academic_class.code) if enrollment else "-",
+                    "score": score_value,
+                }
+            )
+            if len(ranked_rows) >= 5:
+                break
+        subject_leaderboards.append({"subject": subject_name, "rows": ranked_rows})
+    subject_leaderboards.sort(key=lambda item: item["subject"].lower())
+
     best_in_class = []
     best_in_level = []
     grouped_classes = defaultdict(list)
@@ -403,6 +432,8 @@ def build_award_listing(*, session, term, academic_class=None):
         "best_in_subject": best_in_subject,
         "most_improved": most_improved[:5],
         "top_students": student_rows[:10],
+        "position_board": student_rows[:25],
+        "subject_leaderboards": subject_leaderboards,
     }
 
 
@@ -422,6 +453,10 @@ def build_student_performance_report(*, student, session=None, term=None):
     )
     if compilation is None:
         return {"available": False}
+
+    record = compilation.student_records.filter(student=student).first()
+    attendance_percentage = Decimal(str(getattr(record, "attendance_percentage", 0) or 0)).quantize(Decimal("0.01"))
+    school_profile = SchoolProfile.load()
 
     cohort_student_ids = list(compilation.student_records.values_list("student_id", flat=True))
     score_rows = list(
@@ -444,24 +479,30 @@ def build_student_performance_report(*, student, session=None, term=None):
         if current is None:
             continue
         scores = [float(row.grand_total or 0) for row in items]
+        score_value = _to_float(current.grand_total)
         current_rows.append(
             {
                 "subject": subject_name,
-                "score": _to_float(current.grand_total),
+                "score": score_value,
                 "highest": round(max(scores), 2) if scores else 0,
                 "lowest": round(min(scores), 2) if scores else 0,
                 "average": round(sum(scores) / len(scores), 2) if scores else 0,
                 "grade": current.grade or "-",
-                "remark": "Excellent" if float(current.grand_total or 0) >= 70 else ("Good" if float(current.grand_total or 0) >= 50 else "Needs Support"),
+                "remark": "Excellent" if score_value >= 70 else ("Good" if score_value >= 50 else "Needs Support"),
             }
         )
     current_rows.sort(key=lambda item: item["subject"].lower())
 
+    strongest_subjects = sorted(current_rows, key=lambda item: (-item["score"], item["subject"].lower()))[:3]
+
     class_rows = _student_average_rows(session=compilation.session, term=compilation.term, academic_class=compilation.academic_class)
     highest_average = class_rows[0]["average"] if class_rows else 0
     lowest_average = class_rows[-1]["average"] if class_rows else 0
+    class_average = _to_float(sum(row["average"] for row in class_rows) / len(class_rows)) if class_rows else 0
     student_average_row = next((row for row in class_rows if row["student"].id == student.id), None)
     student_average = student_average_row["average"] if student_average_row else 0
+    average_gap_to_top = round(float(highest_average or 0) - float(student_average or 0), 2)
+    average_gap_from_class = round(float(student_average or 0) - float(class_average or 0), 2)
 
     historical_compilations = list(
         ClassResultCompilation.objects.filter(
@@ -487,8 +528,10 @@ def build_student_performance_report(*, student, session=None, term=None):
             }
         )
     improvement_delta = 0.0
+    previous_term_label = ""
     if len(rank_trend_rows) >= 2:
         improvement_delta = round(rank_trend_rows[-1]["average"] - rank_trend_rows[-2]["average"], 2)
+        previous_term_label = rank_trend_rows[-2]["label"]
 
     analytics = build_student_academic_analytics(
         student=student,
@@ -499,11 +542,36 @@ def build_student_performance_report(*, student, session=None, term=None):
     comment_bundle = build_result_comment_bundle(
         student_name=_student_label(student),
         average_score=Decimal(str(student_average or 0)),
-        attendance_percentage=Decimal("0.00"),
+        attendance_percentage=attendance_percentage,
         fail_count=len([row for row in current_rows if row["grade"] == "F"]),
         weak_subjects=weak_subjects,
         predicted_score=(analytics.get("prediction") or {}).get("score"),
         risk_label=(analytics.get("risk") or {}).get("label"),
+        strongest_subjects=[row["subject"] for row in strongest_subjects],
+        improvement_delta=improvement_delta,
+        teacher_guidance=school_profile.teacher_comment_guidance or school_profile.auto_comment_guidance,
+        dean_guidance=school_profile.dean_comment_guidance or school_profile.auto_comment_guidance,
+        principal_guidance=school_profile.principal_comment_guidance or school_profile.auto_comment_guidance,
+    )
+
+    if student_average >= 75:
+        performance_band = "Outstanding"
+    elif student_average >= 60:
+        performance_band = "Strong"
+    elif student_average >= 50:
+        performance_band = "Steady"
+    else:
+        performance_band = "Intervention Required"
+
+    subject_strength_summary = (
+        f"Strongest subjects: {', '.join(row['subject'] for row in strongest_subjects)}."
+        if strongest_subjects
+        else "No strong subject cluster is available yet."
+    )
+    watch_summary = (
+        f"Watch subjects: {', '.join(weak_subjects[:3])}."
+        if weak_subjects
+        else "No urgent watch subject flagged for this student."
     )
 
     return {
@@ -512,14 +580,23 @@ def build_student_performance_report(*, student, session=None, term=None):
         "student": student,
         "analytics": analytics,
         "subject_rows": current_rows,
+        "strongest_subjects": strongest_subjects,
+        "subject_strength_summary": subject_strength_summary,
         "highest_average": highest_average,
         "student_average": student_average,
         "lowest_average": lowest_average,
+        "class_average": class_average,
+        "average_gap_to_top": average_gap_to_top,
+        "average_gap_from_class": average_gap_from_class,
+        "attendance_percentage": _to_float(attendance_percentage),
+        "performance_band": performance_band,
         "class_rows": class_rows,
         "class_position": student_average_row["position"] if student_average_row else None,
         "rank_trend_rows": rank_trend_rows,
+        "previous_term_label": previous_term_label,
         "improvement_delta": improvement_delta,
         "watch_subjects": weak_subjects,
+        "watch_summary": watch_summary,
         "comment_bundle": comment_bundle,
     }
 

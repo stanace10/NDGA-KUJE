@@ -578,7 +578,7 @@ Use this as the production baseline for first public go-live:
 
 2. LAN node (offline exam authority)
 - Windows 11 school server using Docker Compose from `deploy/docker/`
-- runtime env file: `deploy/docker/.env.lan` (LAN writes locally to the `db` service and syncs outward through the app-level outbox)
+- runtime env file: root `.env` on the LAN machine (same filename as cloud, but LAN-specific values; LAN writes locally to the `db` service and syncs outward through the app-level outbox)
 - Services: `nginx + django + postgres + redis + celery (+ minio when needed)`
 - Primary role: CBT + Election runtime and local writes during internet outage
 
@@ -589,10 +589,9 @@ Use this as the production baseline for first public go-live:
 
 ### EC2 Docker deployment files
 
-For the AWS Ubuntu cloud node, use the Docker deployment package in `deploy/docker/` with `deploy/docker/.env.cloud` on the server:
+For the AWS Ubuntu cloud node, use the Docker deployment package in `deploy/docker/` with a single root `.env` on the server:
 
 - `deploy/docker/docker-compose.cloud.yml`
-- `deploy/docker/.env.cloud`
 - `deploy/docker/Dockerfile.prod`
 - `deploy/docker/entrypoint.prod.sh`
 - `deploy/docker/nginx.prod.conf`
@@ -600,31 +599,31 @@ For the AWS Ubuntu cloud node, use the Docker deployment package in `deploy/dock
 
 Recommended EC2 flow from the repo root:
 
-1. Open `deploy/docker/.env.cloud` on the server and fill every blank secret before first boot. Keep `DJANGO_SETTINGS_MODULE=core.settings.prod`, `DB_HOST=db`, and the live domain/S3 values.
+1. Open the root `.env` on the server and fill every blank secret before first boot. Keep `DJANGO_SETTINGS_MODULE=core.settings.prod`, `DB_HOST=db`, and the live domain/S3 values. Use the same root `.env` filename on the LAN machine too, but with LAN-specific values such as `SYNC_NODE_ROLE=LAN`.
 2. Start the stack:
 
 ```bash
-docker compose --env-file deploy/docker/.env.cloud -f deploy/docker/docker-compose.cloud.yml up -d --build
+docker compose --env-file .env -f deploy/docker/docker-compose.cloud.yml up -d --build
 ```
 
 3. Confirm services:
 
 ```bash
-docker compose --env-file deploy/docker/.env.cloud -f deploy/docker/docker-compose.cloud.yml ps
+docker compose --env-file .env -f deploy/docker/docker-compose.cloud.yml ps
 ```
 
 4. Run first-boot commands if needed:
 
 ```bash
-docker compose --env-file deploy/docker/.env.cloud -f deploy/docker/docker-compose.cloud.yml exec web python manage.py migrate --noinput
-docker compose --env-file deploy/docker/.env.cloud -f deploy/docker/docker-compose.cloud.yml exec web python manage.py collectstatic --noinput
+docker compose --env-file .env -f deploy/docker/docker-compose.cloud.yml exec web python manage.py migrate --noinput
+docker compose --env-file .env -f deploy/docker/docker-compose.cloud.yml exec web python manage.py collectstatic --noinput
 ```
 
 5. Point host nginx/Certbot to `127.0.0.1:8080` using `deploy/nginx/ndga.conf`.
 
 Auto-deploy path:
 
-- `scripts/auto_deploy.sh` now uses `deploy/docker/.env.cloud` and the cloud compose file directly.
+- `scripts/auto_deploy.sh` now uses the root `.env` and the cloud compose file directly.
 - The GitHub Action in `.github/workflows/deploy-cloud.yml` SSHes into `~/NDGA`, `~/ndga`, or `~/ndga-platform` and runs that script on every push to `main`.
 - On EC2, still enable Docker on boot with `sudo systemctl enable docker`.
 

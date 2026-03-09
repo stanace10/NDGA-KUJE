@@ -70,8 +70,11 @@
 
     <div class="section-title">AI Insight Summary</div>
     <div class="note">{{ payload.analytics.headline }}</div>
-    <div class="note"><strong>Watch Subjects:</strong> {% for subject in payload.watch_subjects %}{{ subject }}{% if not forloop.last %}, {% endif %}{% empty %}-{% endfor %}</div>
+    <div class="note"><strong>Attendance:</strong> {{ payload.attendance_percentage }}% | <strong>Gap To Top:</strong> {{ payload.average_gap_to_top }} | <strong>Band:</strong> {{ payload.performance_band }}</div>
+    <div class="note"><strong>Strength Summary:</strong> {{ payload.subject_strength_summary }}</div>
+    <div class="note"><strong>Watch Subjects:</strong> {{ payload.watch_summary }}</div>
     <div class="note"><strong>Teacher Comment Suggestion:</strong> {{ payload.comment_bundle.teacher_comment }}</div>
+    <div class="note"><strong>Dean Comment Suggestion:</strong> {{ payload.comment_bundle.dean_comment }}</div>
     <div class="note"><strong>Principal Comment Suggestion:</strong> {{ payload.comment_bundle.principal_comment }}</div>
 
     <div class="footer">

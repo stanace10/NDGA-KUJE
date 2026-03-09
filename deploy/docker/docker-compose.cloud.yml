@@ -51,7 +51,7 @@ services:
       dockerfile: deploy/docker/Dockerfile.prod
     restart: always
     env_file:
-      - .env.cloud
+      - ../../.env
     command: ["/app/deploy/docker/entrypoint.prod.sh"]
     depends_on:
       db:
@@ -76,7 +76,7 @@ services:
       dockerfile: deploy/docker/Dockerfile.prod
     restart: always
     env_file:
-      - .env.cloud
+      - ../../.env
     command:
       [
         "celery",
@@ -104,7 +104,7 @@ services:
       dockerfile: deploy/docker/Dockerfile.prod
     restart: always
     env_file:
-      - .env.cloud
+      - ../../.env
     command: ["celery", "-A", "core", "beat", "--loglevel=INFO"]
     depends_on:
       db:

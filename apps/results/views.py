@@ -2636,8 +2636,16 @@ class ResultSettingsView(ResultsAccessMixin, TemplateView):
         context["principal_signature_record"] = principal_signature_record
         context["principal_signature_owner"] = principal_user
         context["can_manage_result_settings"] = self._can_manage()
-        context["grade_scale_rows"] = list(GradeScale.objects.filter(is_default=True).order_by("sort_order", "grade"))
+        grade_scale_rows = list(GradeScale.objects.filter(is_default=True).order_by("sort_order", "grade"))
+        context["grade_scale_rows"] = grade_scale_rows
+        context["grade_scale_next_sort_order"] = (grade_scale_rows[-1].sort_order + 1) if grade_scale_rows else 1
         context["setup_state"] = setup_state
+        context["setup_summary"] = {
+            "main_levels": AcademicClass.objects.filter(is_active=True, base_class__isnull=True).count(),
+            "arm_classes": AcademicClass.objects.filter(is_active=True, base_class__isnull=False).count(),
+            "subjects": Subject.objects.filter(is_active=True).count(),
+            "grade_bands": len(grade_scale_rows),
+        }
         context["setup_shortcuts"] = [
             {"label": "Session & Calendar", "url": reverse("setup_wizard:session-term-manage")},
             {"label": "Classes", "url": reverse("academics:it-classes")},
@@ -2711,6 +2719,63 @@ class ResultSettingsView(ResultsAccessMixin, TemplateView):
             profile.save(update_fields=["show_on_result_pdf", "updated_by", "updated_at"])
             state = "enabled" if profile.show_on_result_pdf else "disabled"
             messages.success(request, f"Bank details on result PDF {state}.")
+            return redirect("results:result-settings")
+
+        if action == "create_grade_scale":
+            grade = (request.POST.get("grade") or "").strip().upper()
+            try:
+                min_score = int((request.POST.get("min_score") or "0").strip())
+                max_score = int((request.POST.get("max_score") or "0").strip())
+                sort_order = int((request.POST.get("sort_order") or "1").strip())
+            except ValueError:
+                messages.error(request, "Grade scale values must be valid numbers.")
+                return redirect("results:result-settings")
+            if not grade:
+                messages.error(request, "Grade label is required.")
+                return redirect("results:result-settings")
+            row = GradeScale(
+                grade=grade,
+                min_score=min_score,
+                max_score=max_score,
+                sort_order=max(sort_order, 1),
+                is_default=True,
+            )
+            try:
+                row.full_clean()
+            except ValidationError as exc:
+                messages.error(request, exc.message_dict.get("__all__", exc.messages)[0])
+                return redirect("results:result-settings")
+            row.save()
+            messages.success(request, "Grade scale band added.")
+            return redirect("results:result-settings")
+
+        if action == "update_grade_scale":
+            row = get_object_or_404(GradeScale, pk=request.POST.get("grade_scale_id"), is_default=True)
+            grade = (request.POST.get("grade") or row.grade).strip().upper()
+            try:
+                min_score = int((request.POST.get("min_score") or str(row.min_score)).strip())
+                max_score = int((request.POST.get("max_score") or str(row.max_score)).strip())
+                sort_order = int((request.POST.get("sort_order") or str(row.sort_order)).strip())
+            except ValueError:
+                messages.error(request, "Grade scale values must be valid numbers.")
+                return redirect("results:result-settings")
+            row.grade = grade
+            row.min_score = min_score
+            row.max_score = max_score
+            row.sort_order = max(sort_order, 1)
+            try:
+                row.full_clean()
+            except ValidationError as exc:
+                messages.error(request, exc.message_dict.get("__all__", exc.messages)[0])
+                return redirect("results:result-settings")
+            row.save(update_fields=["grade", "min_score", "max_score", "sort_order", "updated_at"])
+            messages.success(request, "Grade scale band updated.")
+            return redirect("results:result-settings")
+
+        if action == "delete_grade_scale":
+            row = get_object_or_404(GradeScale, pk=request.POST.get("grade_scale_id"), is_default=True)
+            row.delete()
+            messages.success(request, "Grade scale band deleted.")
             return redirect("results:result-settings")
 
         if action == "save_school_profile":

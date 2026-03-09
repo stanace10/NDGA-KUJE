@@ -42,7 +42,12 @@ class SchoolProfile(TimeStampedModel):
     assignment_label = models.CharField(max_length=40, default="Project/Assignment")
     promotion_average_threshold = models.DecimalField(max_digits=5, decimal_places=2, default=40)
     promotion_attendance_threshold = models.DecimalField(max_digits=5, decimal_places=2, default=75)
+    promotion_policy_note = models.TextField(blank=True)
     auto_comment_guidance = models.TextField(blank=True)
+    teacher_comment_guidance = models.TextField(blank=True)
+    dean_comment_guidance = models.TextField(blank=True)
+    principal_comment_guidance = models.TextField(blank=True)
+    doctor_remark_guidance = models.TextField(blank=True)
     require_result_access_pin = models.BooleanField(default=False)
     school_logo = models.ImageField(upload_to="branding/school/", blank=True, null=True)
     school_stamp = models.ImageField(upload_to="branding/stamp/", blank=True, null=True)
@@ -72,7 +77,12 @@ class SchoolProfile(TimeStampedModel):
         self.ca2_label = (self.ca2_label or "2nd CA").strip()
         self.ca3_label = (self.ca3_label or "3rd CA").strip()
         self.assignment_label = (self.assignment_label or "Project/Assignment").strip()
+        self.promotion_policy_note = (self.promotion_policy_note or "").strip()
         self.auto_comment_guidance = (self.auto_comment_guidance or "").strip()
+        self.teacher_comment_guidance = (self.teacher_comment_guidance or "").strip()
+        self.dean_comment_guidance = (self.dean_comment_guidance or "").strip()
+        self.principal_comment_guidance = (self.principal_comment_guidance or "").strip()
+        self.doctor_remark_guidance = (self.doctor_remark_guidance or "").strip()
 
     @classmethod
     def load(cls):

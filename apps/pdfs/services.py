@@ -545,6 +545,7 @@ def build_term_report_payload(*, student, compilation):
     position_summary = _class_position_summary(compilation=compilation, target_student_id=student.id)
     fail_count = len([row for row in subject_rows if (row.get("grade") or "F") == "F"])
     weak_subjects = [row["subject"] for row in subject_rows if Decimal(row["total"] or 0) < Decimal("60")][:3]
+    profile = school_profile()
     comment_bundle = build_result_comment_bundle(
         student_name=student_display_name(student),
         average_score=average,
@@ -553,6 +554,9 @@ def build_term_report_payload(*, student, compilation):
         weak_subjects=weak_subjects,
         predicted_score=average,
         risk_label=_risk_label(average=float(average), attendance=float(attendance_percentage), fail_count=fail_count),
+        teacher_guidance=profile.teacher_comment_guidance or profile.auto_comment_guidance,
+        dean_guidance=profile.dean_comment_guidance or profile.auto_comment_guidance,
+        principal_guidance=profile.principal_comment_guidance or profile.auto_comment_guidance,
     )
 
     school_days = int(attendance_snapshot.get("valid_school_days", 0) or 0) if attendance_snapshot else 0
@@ -581,6 +585,7 @@ def build_term_report_payload(*, student, compilation):
         "behavior_rows": behavior_rows,
         "cognitive_rows": _cognitive_domain_rows(subject_rows),
         "teacher_comment": record.teacher_comment if record else "",
+        "dean_comment": comment_bundle["dean_comment"],
         "principal_comment": comment_bundle["principal_comment"],
         "comment_headline": comment_bundle["headline"],
         "subject_rows": subject_rows,

@@ -2,7 +2,7 @@ from django.test import Client, TestCase
 
 from apps.accounts.constants import ROLE_BURSAR, ROLE_FORM_TEACHER, ROLE_IT_MANAGER, ROLE_PRINCIPAL, ROLE_VP
 from apps.accounts.models import Role, User
-from apps.academics.models import AcademicSession, Term
+from apps.academics.models import AcademicSession, GradeScale, Term
 from apps.dashboard.models import PrincipalSignature, SchoolProfile
 from apps.setup_wizard.models import SetupStateCode, SystemSetupState
 
@@ -81,7 +81,12 @@ class ResultSettingsEnhancementTests(TestCase):
                 "assignment_label": "Project/Assignment",
                 "promotion_average_threshold": "45",
                 "promotion_attendance_threshold": "75",
+                "promotion_policy_note": "Promotion requires both academics and conduct review.",
                 "auto_comment_guidance": "Keep comments concise.",
+                "teacher_comment_guidance": "Sound warm but direct.",
+                "dean_comment_guidance": "Focus on intervention and academic compliance.",
+                "principal_comment_guidance": "Keep it governance-aware.",
+                "doctor_remark_guidance": "Keep health remarks brief.",
                 "require_result_access_pin": "on",
             },
             follow=False,
@@ -90,6 +95,8 @@ class ResultSettingsEnhancementTests(TestCase):
         profile = SchoolProfile.load()
         self.assertTrue(profile.require_result_access_pin)
         self.assertEqual(profile.contact_email, "office@ndgakuje.org")
+        self.assertEqual(profile.teacher_comment_guidance, "Sound warm but direct.")
+        self.assertEqual(profile.dean_comment_guidance, "Focus on intervention and academic compliance.")
 
         signature_data = (
             "data:image/png;base64,"
@@ -114,6 +121,24 @@ class ResultSettingsEnhancementTests(TestCase):
         response = client.get("/results/settings/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "View-only access")
+
+    def test_it_can_manage_grade_scale_bands(self):
+        client = Client(HTTP_HOST="it.ndgakuje.org")
+        client.force_login(self.it_user)
+
+        response = client.post(
+            "/results/settings/",
+            {
+                "action": "create_grade_scale",
+                "grade": "E",
+                "min_score": "35",
+                "max_score": "39",
+                "sort_order": "5",
+            },
+            follow=False,
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(GradeScale.objects.filter(grade="E", min_score=35, max_score=39, is_default=True).exists())
 
     def test_bursar_can_open_report_analytics_and_send_results(self):
         client = Client(HTTP_HOST="bursar.ndgakuje.org")

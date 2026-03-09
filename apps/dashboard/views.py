@@ -8,7 +8,7 @@ from django.contrib import messages
 from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.files.base import ContentFile
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.urls import reverse
@@ -67,7 +67,7 @@ from apps.dashboard.intelligence import (
     build_student_academic_analytics,
     build_teacher_performance_analytics,
 )
-from apps.dashboard.models import PrincipalSignature, SchoolProfile
+from apps.dashboard.models import PrincipalSignature, SchoolProfile, StudentClubMembership
 from apps.dashboard.navigation import build_portal_navigation
 
 
@@ -794,6 +794,25 @@ def _leadership_school_payload(request):
         class_map.setdefault(row.student_id, row.academic_class.display_name or row.academic_class.code)
     class_filtered_student_ids = set(class_map.keys()) if class_filter else None
 
+    club_count_map = {}
+    club_qs = StudentClubMembership.objects.filter(is_active=True)
+    if current_session:
+        club_qs = club_qs.filter(session=current_session)
+    for row in club_qs.values("student_id").annotate(total=Count("id")):
+        club_count_map[row["student_id"]] = row["total"]
+
+    result_count_map = {}
+    published_result_qs = ClassResultCompilation.objects.filter(
+        status=ClassCompilationStatus.PUBLISHED,
+        student_records__student__isnull=False,
+    )
+    if current_session:
+        published_result_qs = published_result_qs.filter(session=current_session)
+    if current_term:
+        published_result_qs = published_result_qs.filter(term=current_term)
+    for row in published_result_qs.values("student_records__student_id").annotate(total=Count("id")):
+        result_count_map[row["student_records__student_id"]] = row["total"]
+
     student_qs = User.objects.select_related("student_profile").filter(
         primary_role__code=ROLE_STUDENT,
         is_active=True,
@@ -828,8 +847,48 @@ def _leadership_school_payload(request):
                 "guardian_name": profile.guardian_name if profile else "",
                 "guardian_phone": profile.guardian_phone if profile else "",
                 "guardian_email": profile.guardian_email if profile else "",
+                "lifecycle": profile.get_lifecycle_state_display() if profile else "-",
+                "club_count": club_count_map.get(student.id, 0),
+                "result_count": result_count_map.get(student.id, 0),
+                "medical_flag": bool((profile.medical_notes or "").strip()) if profile else False,
+                "discipline_flag": bool((profile.disciplinary_notes or "").strip()) if profile else False,
             }
         )
+
+    assignment_qs = TeacherSubjectAssignment.objects.filter(is_active=True)
+    if current_session:
+        assignment_qs = assignment_qs.filter(session=current_session)
+    if current_term:
+        assignment_qs = assignment_qs.filter(term=current_term)
+    assignments = list(assignment_qs.select_related("academic_class", "subject"))
+    sheet_qs = ResultSheet.objects.none()
+    if current_session and current_term:
+        sheet_qs = ResultSheet.objects.filter(session=current_session, term=current_term).select_related("academic_class", "subject")
+    sheet_map = {(row.academic_class_id, row.subject_id): row for row in sheet_qs}
+    form_count_map = {}
+    form_qs = FormTeacherAssignment.objects.filter(is_active=True)
+    if current_session:
+        form_qs = form_qs.filter(session=current_session)
+    for row in form_qs.values("teacher_id").annotate(total=Count("id")):
+        form_count_map[row["teacher_id"]] = row["total"]
+    staff_metric_map = {}
+    for assignment in assignments:
+        metric_row = staff_metric_map.setdefault(
+            assignment.teacher_id,
+            {
+                "subject_workload": 0,
+                "submitted_count": 0,
+                "published_count": 0,
+                "levels": set(),
+            },
+        )
+        metric_row["subject_workload"] += 1
+        metric_row["levels"].add(assignment.academic_class.level_display_name)
+        sheet = sheet_map.get((assignment.academic_class_id, assignment.subject_id))
+        if sheet and sheet.status != ResultSheetStatus.DRAFT:
+            metric_row["submitted_count"] += 1
+        if sheet and sheet.status == ResultSheetStatus.PUBLISHED:
+            metric_row["published_count"] += 1
 
     staff_qs = (
         User.objects.select_related("staff_profile", "primary_role")
@@ -851,6 +910,9 @@ def _leadership_school_payload(request):
     staff_members = []
     for staff in staff_qs:
         profile = getattr(staff, "staff_profile", None)
+        metrics = staff_metric_map.get(staff.id, {"subject_workload": 0, "submitted_count": 0, "published_count": 0, "levels": set()})
+        workload = metrics["subject_workload"] or 0
+        completion_rate = round((metrics["submitted_count"] / workload) * 100, 2) if workload else 0
         staff_members.append(
             {
                 "id": staff.id,
@@ -861,6 +923,13 @@ def _leadership_school_payload(request):
                 "designation": profile.designation if profile else "",
                 "phone": profile.phone_number if profile else "",
                 "email": staff.email or "",
+                "employment_status": profile.get_employment_status_display() if profile else "-",
+                "subject_workload": workload,
+                "form_class_count": form_count_map.get(staff.id, 0),
+                "submitted_count": metrics["submitted_count"],
+                "published_count": metrics["published_count"],
+                "completion_rate": completion_rate,
+                "levels": sorted(metrics["levels"]),
             }
         )
 
@@ -1362,11 +1431,27 @@ class StaffProfileView(StaffPortalBaseView):
             is_active=True,
         )
         form_assignment_qs = FormTeacherAssignment.objects.filter(teacher=self.request.user, is_active=True).select_related("academic_class", "session")
+        current_session, current_term = _current_window()
+        window_assignments = TeacherSubjectAssignment.objects.none()
+        result_sheet_qs = ResultSheet.objects.none()
+        if current_session and current_term:
+            window_assignments = assignment_qs.filter(session=current_session, term=current_term).select_related("academic_class", "subject")
+            pair_filter = Q(pk__in=[])
+            for row in window_assignments:
+                pair_filter |= Q(academic_class_id=row.academic_class_id, subject_id=row.subject_id)
+            result_sheet_qs = ResultSheet.objects.filter(pair_filter, session=current_session, term=current_term)
         context["staff_profile"] = staff_profile
         context["teaching_assignment_count"] = assignment_qs.count()
         context["teaching_classes"] = sorted(
             set((row.display_name or row.code) for row in AcademicClass.objects.filter(id__in=assignment_qs.values_list("academic_class_id", flat=True).distinct()))
         )
+        context["current_subjects"] = sorted(set(window_assignments.values_list("subject__name", flat=True))) if current_session and current_term else []
+        context["current_levels"] = sorted(set(row.academic_class.level_display_name for row in window_assignments)) if current_session and current_term else []
+        context["result_status_counts"] = {
+            "draft": result_sheet_qs.filter(status=ResultSheetStatus.DRAFT).count(),
+            "submitted": result_sheet_qs.exclude(status=ResultSheetStatus.DRAFT).count(),
+            "published": result_sheet_qs.filter(status=ResultSheetStatus.PUBLISHED).count(),
+        }
         context["form_assignments"] = form_assignment_qs.order_by("-session__name", "academic_class__code")
         return context
 

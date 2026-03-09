@@ -62,12 +62,12 @@ Files added:
 - `deploy/docker/docker-compose.lan.yml`
 - `deploy/docker/Dockerfile.lan`
 - `deploy/docker/nginx.lan.conf`
-- `deploy/docker/.env.lan`
+- root `.env` on the LAN machine
 
 Start:
 
 ```powershell
-docker compose -f .\deploy\docker\docker-compose.lan.yml --env-file .\deploy\docker\.env.lan up -d --build
+docker compose -f .\deploy\docker\docker-compose.lan.yml --env-file .\.env up -d --build
 ```
 
 This runs:

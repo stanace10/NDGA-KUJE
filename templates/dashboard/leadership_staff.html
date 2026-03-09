@@ -40,6 +40,8 @@
               <th class="px-3 py-2 text-left font-semibold text-slate-700">Name</th>
               <th class="px-3 py-2 text-left font-semibold text-slate-700">Staff ID</th>
               <th class="px-3 py-2 text-left font-semibold text-slate-700">Role</th>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Workload</th>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Result Status</th>
               <th class="px-3 py-2 text-left font-semibold text-slate-700">Contact</th>
             </tr>
           </thead>
@@ -51,14 +53,26 @@
                   <p class="text-xs text-slate-500">{{ row.designation|default:"-" }}</p>
                 </td>
                 <td class="px-3 py-2 text-slate-700">{{ row.staff_id }}</td>
-                <td class="px-3 py-2 text-slate-700">{{ row.role }}</td>
+                <td class="px-3 py-2 text-slate-700">
+                  <p>{{ row.role }}</p>
+                  <p class="text-xs text-slate-500">{{ row.employment_status }}</p>
+                </td>
+                <td class="px-3 py-2 text-slate-700">
+                  <p>Subjects: {{ row.subject_workload }}</p>
+                  <p class="text-xs text-slate-500">Form classes: {{ row.form_class_count }}</p>
+                  <p class="text-xs text-slate-500">{{ row.levels|join:", "|default:"-" }}</p>
+                </td>
+                <td class="px-3 py-2 text-slate-700">
+                  <p>{{ row.completion_rate }}% complete</p>
+                  <p class="text-xs text-slate-500">Submitted {{ row.submitted_count }} | Published {{ row.published_count }}</p>
+                </td>
                 <td class="px-3 py-2 text-slate-700">
                   <p>{{ row.phone|default:"-" }}</p>
                   <p class="text-xs text-slate-500">{{ row.email|default:"-" }}</p>
                 </td>
               </tr>
             {% empty %}
-              <tr><td colspan="4" class="px-3 py-8 text-center text-slate-500">No staff records found.</td></tr>
+              <tr><td colspan="6" class="px-3 py-8 text-center text-slate-500">No staff records found.</td></tr>
             {% endfor %}
           </tbody>
         </table>

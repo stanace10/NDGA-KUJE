@@ -31,7 +31,6 @@ class Command(BaseCommand):
             root_dir / "deploy" / "systemd" / "ndga-celery-beat.service",
             root_dir / "deploy" / "docker" / "docker-compose.lan.yml",
             root_dir / "deploy" / "docker" / "Dockerfile.lan",
-            root_dir / "deploy" / "docker" / ".env.lan",
             root_dir / "docs" / "STAGE20_DEPLOYMENT_BLUEPRINT.md",
             root_dir / "docs" / "GO_LIVE_CHECKLIST.md",
             root_dir / "docs" / "OFFLINE_LAN_AND_PORTABLE_BACKUPS.md",
@@ -44,6 +43,11 @@ class Command(BaseCommand):
         for path in required_files:
             if not path.exists():
                 failures.append(f"Missing required artifact: {path}")
+
+        root_env = root_dir / ".env"
+        legacy_lan_env = root_dir / "deploy" / "docker" / ".env.lan"
+        if not root_env.exists() and not legacy_lan_env.exists():
+            failures.append("Missing runtime environment file: create a root .env for cloud or LAN deployment.")
 
         if settings.DEBUG:
             failures.append("DEBUG=True is not allowed for production settings.")

@@ -9,7 +9,7 @@
         <div class="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 class="text-xl font-bold text-ndga-navy">School Profile & Result Setup</h1>
-            <p class="mt-2 text-sm text-slate-600">Manage result branding, CA labels, promotion thresholds, psychomotor metrics, and setup shortcuts from one place.</p>
+            <p class="mt-2 text-sm text-slate-600">Manage school branding, academic rules, AI comment templates, psychomotor metrics, grade scale bands, and setup shortcuts from one place.</p>
           </div>
           <div class="rounded-2xl border px-4 py-3 text-sm {% if can_manage_result_settings %}border-emerald-200 bg-emerald-50 text-emerald-900{% else %}border-slate-200 bg-slate-50 text-slate-700{% endif %}">
             {% if can_manage_result_settings %}
@@ -19,9 +19,13 @@
             {% endif %}
           </div>
         </div>
-        <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+        <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p class="text-xs uppercase tracking-[0.14em] text-slate-500">Current Session</p><p class="mt-1 text-sm font-semibold text-slate-900">{{ setup_state.current_session.name|default:'-' }}</p></div>
           <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p class="text-xs uppercase tracking-[0.14em] text-slate-500">Current Term</p><p class="mt-1 text-sm font-semibold text-slate-900">{% if setup_state.current_term %}{{ setup_state.current_term.get_name_display }}{% else %}-{% endif %}</p></div>
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p class="text-xs uppercase tracking-[0.14em] text-slate-500">Main Levels</p><p class="mt-1 text-sm font-semibold text-slate-900">{{ setup_summary.main_levels }}</p></div>
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p class="text-xs uppercase tracking-[0.14em] text-slate-500">Arms / Streams</p><p class="mt-1 text-sm font-semibold text-slate-900">{{ setup_summary.arm_classes }}</p></div>
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p class="text-xs uppercase tracking-[0.14em] text-slate-500">Subjects</p><p class="mt-1 text-sm font-semibold text-slate-900">{{ setup_summary.subjects }}</p></div>
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p class="text-xs uppercase tracking-[0.14em] text-slate-500">Grade Bands</p><p class="mt-1 text-sm font-semibold text-slate-900">{{ setup_summary.grade_bands }}</p></div>
           <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p class="text-xs uppercase tracking-[0.14em] text-slate-500">Promotion Average</p><p class="mt-1 text-sm font-semibold text-slate-900">{{ school_profile.promotion_average_threshold }}%</p></div>
           <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p class="text-xs uppercase tracking-[0.14em] text-slate-500">Attendance Threshold</p><p class="mt-1 text-sm font-semibold text-slate-900">{{ school_profile.promotion_attendance_threshold }}%</p></div>
           <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p class="text-xs uppercase tracking-[0.14em] text-slate-500">Psychomotor Metrics</p><p class="mt-1 text-sm font-semibold text-slate-900">{{ active_metric_count }}</p></div>
@@ -108,16 +112,52 @@
 
       <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 class="text-lg font-semibold text-slate-900">Default Grade Scale</h2>
+        <p class="mt-2 text-sm text-slate-600">Edit the grade bands that power report card grade labels, ranking views, and analytics summaries.</p>
         <div class="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
           <table class="min-w-full divide-y divide-slate-200 text-sm">
-            <thead class="bg-slate-50"><tr><th class="px-3 py-2 text-left">Grade</th><th class="px-3 py-2 text-left">Min</th><th class="px-3 py-2 text-left">Max</th></tr></thead>
+            <thead class="bg-slate-50"><tr><th class="px-3 py-2 text-left">Grade</th><th class="px-3 py-2 text-left">Min</th><th class="px-3 py-2 text-left">Max</th><th class="px-3 py-2 text-left">Sort</th><th class="px-3 py-2 text-left">Actions</th></tr></thead>
             <tbody class="divide-y divide-slate-100 bg-white">
               {% for row in grade_scale_rows %}
-                <tr><td class="px-3 py-2 font-semibold text-slate-900">{{ row.grade }}</td><td class="px-3 py-2">{{ row.min_score }}</td><td class="px-3 py-2">{{ row.max_score }}</td></tr>
+                <tr>
+                  <td class="px-3 py-2 font-semibold text-slate-900">{{ row.grade }}</td>
+                  <td class="px-3 py-2">{{ row.min_score }}</td>
+                  <td class="px-3 py-2">{{ row.max_score }}</td>
+                  <td class="px-3 py-2">{{ row.sort_order }}</td>
+                  <td class="px-3 py-2">
+                    {% if can_manage_result_settings %}
+                      <form method="post" class="grid gap-2 md:grid-cols-4">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="update_grade_scale">
+                        <input type="hidden" name="grade_scale_id" value="{{ row.id }}">
+                        <input type="text" name="grade" value="{{ row.grade }}" class="rounded-lg border border-slate-300 px-2 py-1 text-xs">
+                        <input type="number" min="0" max="100" name="min_score" value="{{ row.min_score }}" class="rounded-lg border border-slate-300 px-2 py-1 text-xs">
+                        <input type="number" min="0" max="100" name="max_score" value="{{ row.max_score }}" class="rounded-lg border border-slate-300 px-2 py-1 text-xs">
+                        <input type="number" min="1" name="sort_order" value="{{ row.sort_order }}" class="rounded-lg border border-slate-300 px-2 py-1 text-xs">
+                        <div class="md:col-span-4 flex flex-wrap gap-2">
+                          <button type="submit" class="ndga-btn ndga-btn-secondary !rounded-lg !px-2.5 !py-1.5 !text-xs">Save</button>
+                          <button type="submit" name="action" value="delete_grade_scale" class="ndga-btn !rounded-lg !border-rose-200 !bg-rose-50 !px-2.5 !py-1.5 !text-xs !text-rose-700">Delete</button>
+                        </div>
+                      </form>
+                    {% else %}
+                      <span class="text-xs text-slate-500">View only</span>
+                    {% endif %}
+                  </td>
+                </tr>
               {% endfor %}
             </tbody>
           </table>
         </div>
+        {% if can_manage_result_settings %}
+          <form method="post" class="mt-4 grid gap-3 sm:grid-cols-4">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create_grade_scale">
+            <input type="text" name="grade" placeholder="Grade" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+            <input type="number" min="0" max="100" name="min_score" placeholder="Min" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+            <input type="number" min="0" max="100" name="max_score" placeholder="Max" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+            <input type="number" min="1" name="sort_order" value="{{ grade_scale_next_sort_order }}" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+            <div class="sm:col-span-4"><button type="submit" class="ndga-btn ndga-btn-primary">Add Grade Band</button></div>
+          </form>
+        {% endif %}
 
         <h2 class="mt-6 text-lg font-semibold text-slate-900">Finance Profile Visibility</h2>
         <p class="mt-2 text-sm text-slate-600">Control whether bursar bank details appear on result PDF exports.</p>
@@ -140,7 +180,7 @@
 
       <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:col-span-2">
         <h2 class="text-lg font-semibold text-slate-900">School Profile & Result Branding</h2>
-        <p class="mt-2 text-sm text-slate-600">Manage the school identity, CA labels, principal signature name, report footer, promotion thresholds, PIN rule, and branding used on report cards.</p>
+        <p class="mt-2 text-sm text-slate-600">Manage the school identity, CA labels, promotion thresholds, promotion policy note, branding assets, and AI comment guidance used on report cards and analysis exports.</p>
 
         <form method="post" enctype="multipart/form-data" class="mt-4 grid gap-4 lg:grid-cols-2">
           {% csrf_token %}

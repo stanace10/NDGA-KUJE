@@ -93,14 +93,24 @@ class SchoolProfileForm(_StyledFormMixin, forms.ModelForm):
             "assignment_label",
             "promotion_average_threshold",
             "promotion_attendance_threshold",
+            "promotion_policy_note",
             "auto_comment_guidance",
+            "teacher_comment_guidance",
+            "dean_comment_guidance",
+            "principal_comment_guidance",
+            "doctor_remark_guidance",
             "require_result_access_pin",
             "school_logo",
             "school_stamp",
         )
         widgets = {
             "address": forms.Textarea(attrs={"rows": 3}),
+            "promotion_policy_note": forms.Textarea(attrs={"rows": 3}),
             "auto_comment_guidance": forms.Textarea(attrs={"rows": 4}),
+            "teacher_comment_guidance": forms.Textarea(attrs={"rows": 3}),
+            "dean_comment_guidance": forms.Textarea(attrs={"rows": 3}),
+            "principal_comment_guidance": forms.Textarea(attrs={"rows": 3}),
+            "doctor_remark_guidance": forms.Textarea(attrs={"rows": 3}),
         }
 
     def __init__(self, *args, **kwargs):

@@ -21,7 +21,7 @@
           <p class="mt-1 text-center text-xs text-slate-500">{{ user_identifier }}</p>
           <div class="mt-4 rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-700">
             <p><span class="font-semibold">Role:</span> {{ request.user.primary_role.name|default:request.user.primary_role.code }}</p>
-            <p class="mt-1"><span class="font-semibold">Class Subjects:</span> {{ teaching_assignment_count }}</p>
+            <p class="mt-1"><span class="font-semibold">Assigned Subjects:</span> {{ teaching_assignment_count }}</p>
             <p class="mt-1"><span class="font-semibold">Employment:</span> {% if staff_profile %}{{ staff_profile.get_employment_status_display }}{% else %}-{% endif %}</p>
           </div>
         </aside>
@@ -66,8 +66,28 @@
               </p>
             </div>
             <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3 xl:col-span-3">
+              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Current Session Subjects</p>
+              <p class="mt-1 text-sm font-semibold text-slate-900">{% if current_subjects %}{{ current_subjects|join:", " }}{% else %}-{% endif %}</p>
+            </div>
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3 xl:col-span-3">
+              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Current Levels</p>
+              <p class="mt-1 text-sm font-semibold text-slate-900">{% if current_levels %}{{ current_levels|join:", " }}{% else %}-{% endif %}</p>
+            </div>
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3 xl:col-span-3">
               <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Form Classes</p>
               <p class="mt-1 text-sm font-semibold text-slate-900">{% for row in form_assignments %}{{ row.academic_class.display_name|default:row.academic_class.code }} ({{ row.session.name }}){% if not forloop.last %}, {% endif %}{% empty %}-{% endfor %}</p>
+            </div>
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Draft Sheets</p>
+              <p class="mt-1 text-sm font-semibold text-slate-900">{{ result_status_counts.draft }}</p>
+            </div>
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Submitted Sheets</p>
+              <p class="mt-1 text-sm font-semibold text-slate-900">{{ result_status_counts.submitted }}</p>
+            </div>
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Published Sheets</p>
+              <p class="mt-1 text-sm font-semibold text-slate-900">{{ result_status_counts.published }}</p>
             </div>
             <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3 xl:col-span-3">
               <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Lifecycle Note</p>
