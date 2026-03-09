@@ -6,7 +6,9 @@ __pycache__/
 .env.*
 deploy/env/.env.prod
 deploy/docker/.env.lan
+!deploy/docker/.env.lan
 deploy/docker/.env.cloud
+!deploy/docker/.env.cloud
 node_modules/
 staticfiles/
 media/

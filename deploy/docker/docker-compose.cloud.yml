@@ -1,7 +1,7 @@
 services:
   db:
     image: postgres:16
-    restart: unless-stopped
+    restart: always
     environment:
       POSTGRES_DB: ${DB_NAME:-ndga_db}
       POSTGRES_USER: ${DB_USER:-ndga_user}
@@ -18,7 +18,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    restart: unless-stopped
+    restart: always
     command:
       [
         "redis-server",
@@ -49,9 +49,9 @@ services:
     build:
       context: ../..
       dockerfile: deploy/docker/Dockerfile.prod
-    restart: unless-stopped
+    restart: always
     env_file:
-      - ../../.env
+      - .env.cloud
     command: ["/app/deploy/docker/entrypoint.prod.sh"]
     depends_on:
       db:
@@ -74,9 +74,9 @@ services:
     build:
       context: ../..
       dockerfile: deploy/docker/Dockerfile.prod
-    restart: unless-stopped
+    restart: always
     env_file:
-      - ../../.env
+      - .env.cloud
     command:
       [
         "celery",
@@ -102,9 +102,9 @@ services:
     build:
       context: ../..
       dockerfile: deploy/docker/Dockerfile.prod
-    restart: unless-stopped
+    restart: always
     env_file:
-      - ../../.env
+      - .env.cloud
     command: ["celery", "-A", "core", "beat", "--loglevel=INFO"]
     depends_on:
       db:
@@ -118,7 +118,7 @@ services:
 
   nginx:
     image: nginx:1.27-alpine
-    restart: unless-stopped
+    restart: always
     depends_on:
       web:
         condition: service_healthy

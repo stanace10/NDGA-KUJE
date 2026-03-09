@@ -1,0 +1,33 @@
+name: Deploy Cloud
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    if: ${{ secrets.EC2_HOST != '' && secrets.EC2_USER != '' && secrets.EC2_SSH_KEY != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to EC2 over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: ${{ secrets.EC2_PORT }}
+          script: |
+            if [ -d "$HOME/NDGA" ]; then
+              cd "$HOME/NDGA"
+            elif [ -d "$HOME/ndga" ]; then
+              cd "$HOME/ndga"
+            elif [ -d "$HOME/ndga-platform" ]; then
+              cd "$HOME/ndga-platform"
+            else
+              echo "NDGA repo directory not found on server"
+              exit 1
+            fi
+            chmod +x scripts/auto_deploy.sh
+            ./scripts/auto_deploy.sh

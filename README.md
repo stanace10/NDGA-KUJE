@@ -530,16 +530,17 @@ Use a dual-mode approach:
   - `GET /sync/api/outbox/feed/?after_id=<id>&limit=<n>` (generic incremental outbox feed)
   - `GET /sync/api/content/cbt/?after_id=<id>&limit=<n>` (incremental CBT authoring feed)
 - Sync pull cursors are persisted (`SyncPullCursor`) so restarts continue from the last remote event id for both generic outbox events and CBT content.
-- Full-app sync-enabled writes enqueue to `SyncQueue`; CBT authoring changes also persist to `SyncContentChange` for the CBT feed.
+- Sync-enabled writes from the explicit outbox producers and the models listed in `apps/sync/model_sync.py` enqueue to `SyncQueue`; CBT authoring changes also persist to `SyncContentChange` for the CBT feed.
 - USB transfer fallback remains supported for emergency movement
+- Media sync is event-driven, not raw Postgres or filesystem replication: sync payloads move record data, workflow state, and queued file/object references for sync-enabled records instead of mirroring `/media/` every few seconds.
 
 ## 16.4 Automatic mode configuration (no manual backup windows)
 
 Set these in cloud and LAN environments:
 
 - `SYNC_ENDPOINT_AUTH_TOKEN=<shared-secret>`
-- `SYNC_CLOUD_ENDPOINT=https://<cloud-sync-host>/sync/api`
-- `SYNC_PULL_ENABLED=True`
+- `SYNC_CLOUD_ENDPOINT=https://<cloud-sync-host>/sync/api` on the LAN node; leave it empty on the cloud node to avoid self-pull
+- `SYNC_PULL_ENABLED=True` on the LAN node; keep it `False` on the cloud node unless the cloud node must consume another upstream feed
 - `SYNC_PULL_BATCH_LIMIT=200`
 - `SYNC_PULL_MAX_PAGES_PER_RUN=4`
 - `SYNC_PULL_TIMEOUT_SECONDS=5`
@@ -551,7 +552,7 @@ Set these in cloud and LAN environments:
 
 Behavior:
 
-- Every sync-enabled create/update/delete writes to the outbox automatically.
+- Every registered sync-enabled create/update/delete writes to the outbox automatically.
 - Background workers process outbound and inbound batches every few seconds with retry/backoff.
 - LAN pushes attempts/votes/simulation attempt events and all sync-enabled portal records through the outbox worker.
 - LAN pulls generic remote changes plus teacher-created CBT updates automatically through feed workers.
@@ -577,6 +578,7 @@ Use this as the production baseline for first public go-live:
 
 2. LAN node (offline exam authority)
 - Windows 11 school server using Docker Compose from `deploy/docker/`
+- runtime env file: `deploy/docker/.env.lan` (LAN writes locally to the `db` service and syncs outward through the app-level outbox)
 - Services: `nginx + django + postgres + redis + celery (+ minio when needed)`
 - Primary role: CBT + Election runtime and local writes during internet outage
 
@@ -587,9 +589,10 @@ Use this as the production baseline for first public go-live:
 
 ### EC2 Docker deployment files
 
-For the AWS Ubuntu cloud node, use the Docker deployment package in `deploy/docker/` together with a real root `.env` kept only on the server:
+For the AWS Ubuntu cloud node, use the Docker deployment package in `deploy/docker/` with `deploy/docker/.env.cloud` on the server:
 
 - `deploy/docker/docker-compose.cloud.yml`
+- `deploy/docker/.env.cloud`
 - `deploy/docker/Dockerfile.prod`
 - `deploy/docker/entrypoint.prod.sh`
 - `deploy/docker/nginx.prod.conf`
@@ -597,24 +600,37 @@ For the AWS Ubuntu cloud node, use the Docker deployment package in `deploy/dock
 
 Recommended EC2 flow from the repo root:
 
-1. Create a real root `.env` on the server. Set `DJANGO_SETTINGS_MODULE=core.settings.prod`, the live database/Redis values, S3 settings, SMTP keys, and a non-default `DJANGO_SECRET_KEY`.
+1. Open `deploy/docker/.env.cloud` on the server and fill every blank secret before first boot. Keep `DJANGO_SETTINGS_MODULE=core.settings.prod`, `DB_HOST=db`, and the live domain/S3 values.
 2. Start the stack:
 
 ```bash
-docker compose -f deploy/docker/docker-compose.cloud.yml up -d --build
+docker compose --env-file deploy/docker/.env.cloud -f deploy/docker/docker-compose.cloud.yml up -d --build
 ```
 
 3. Confirm services:
 
 ```bash
-docker compose -f deploy/docker/docker-compose.cloud.yml ps
+docker compose --env-file deploy/docker/.env.cloud -f deploy/docker/docker-compose.cloud.yml ps
 ```
 
-4. Point host nginx/Certbot to `127.0.0.1:8080` using `deploy/nginx/ndga.conf`.
+4. Run first-boot commands if needed:
+
+```bash
+docker compose --env-file deploy/docker/.env.cloud -f deploy/docker/docker-compose.cloud.yml exec web python manage.py migrate --noinput
+docker compose --env-file deploy/docker/.env.cloud -f deploy/docker/docker-compose.cloud.yml exec web python manage.py collectstatic --noinput
+```
+
+5. Point host nginx/Certbot to `127.0.0.1:8080` using `deploy/nginx/ndga.conf`.
+
+Auto-deploy path:
+
+- `scripts/auto_deploy.sh` now uses `deploy/docker/.env.cloud` and the cloud compose file directly.
+- The GitHub Action in `.github/workflows/deploy-cloud.yml` SSHes into `~/NDGA`, `~/ndga`, or `~/ndga-platform` and runs that script on every push to `main`.
+- On EC2, still enable Docker on boot with `sudo systemctl enable docker`.
 
 Notes:
 
-- The production entrypoint now refuses to boot with `core.settings.local` or the default development secret key.
+- The production entrypoint refuses to boot with `core.settings.local` or an empty/default development secret key.
 - The production entrypoint automatically ensures the fixed `VP`, `Principal`, and `Bursar` accounts exist on first boot.
 - Production settings accept either `DATABASE_URL` or the simpler `DB_NAME` / `DB_USER` / `DB_PASSWORD` / `DB_HOST` / `DB_PORT` pattern.
 - `AWS_REGION` is accepted as a fallback alias for `AWS_S3_REGION_NAME`.
