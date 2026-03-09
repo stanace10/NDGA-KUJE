@@ -1,0 +1,356 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Student Registration{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+    <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm animate-soft-reveal sm:p-8">
+      <p class="text-xs font-semibold uppercase tracking-[0.2em] text-ndga-navy/70">Administration</p>
+      <h1 class="mt-2 text-3xl font-bold text-ndga-navy">Create Student User</h1>
+      <p class="mt-2 text-sm text-slate-600">Create student accounts only on this page.</p>
+      <div class="mt-4 flex flex-wrap gap-2">
+        <a href="{{ student_management_url }}" class="ndga-btn ndga-btn-secondary">Back to Student Management</a>
+      </div>
+    </div>
+
+    {% if generated_student_credentials %}
+      <div class="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+        <p><span class="font-semibold">Account created successfully.</span> Save these now (shown once).</p>
+        <p class="mt-1"><span class="font-semibold">Portal Username:</span> {{ generated_student_credentials.username }}</p>
+        <p><span class="font-semibold">Student ID Login:</span> {{ generated_student_credentials.student_number }}</p>
+        <p><span class="font-semibold">Login Password:</span> {{ generated_student_credentials.password }}</p>
+      </div>
+    {% endif %}
+
+    <article class="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <h2 class="text-xl font-semibold text-ndga-navy">Create Student Account</h2>
+      <form method="post" enctype="multipart/form-data" class="mt-4 space-y-3" id="student-registration-form">
+        {% csrf_token %}
+        {% for field in student_form %}
+          <div {% if field.name == "webcam_image_data" %}class="hidden"{% endif %}>
+            <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% if field.help_text %}<p class="mt-1 text-xs text-slate-500">{{ field.help_text }}</p>{% endif %}
+            {% if field.errors %}<p class="mt-1 text-xs text-rose-700">{{ field.errors|striptags }}</p>{% endif %}
+          </div>
+        {% endfor %}
+
+        <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <p class="text-sm font-semibold text-slate-700">Webcam Capture</p>
+          <p class="mt-1 text-xs text-slate-500">Capture profile image directly. If camera is blocked on HTTP subdomain, use upload or open via localhost/HTTPS.</p>
+          <p id="camera-status" class="mt-2 text-xs font-semibold text-slate-600">Camera idle.</p>
+          <div class="mt-3 grid gap-3 sm:grid-cols-2">
+            <video id="camera-preview" class="h-52 w-full rounded-xl border border-slate-300 bg-slate-100 object-cover" autoplay playsinline muted></video>
+            <canvas id="camera-canvas" class="hidden"></canvas>
+            <img id="captured-preview" class="h-52 w-full rounded-xl border border-slate-300 bg-slate-100 object-cover" alt="Captured preview">
+          </div>
+          <div class="mt-3 flex flex-wrap gap-2">
+            <button type="button" id="camera-start" class="ndga-btn ndga-btn-secondary">Start Camera</button>
+            <button type="button" id="camera-capture" class="ndga-btn ndga-btn-primary">Capture</button>
+            <button type="button" id="camera-clear" class="ndga-btn ndga-btn-secondary">Clear Capture</button>
+            <button type="button" id="mobile-capture-start" class="ndga-btn ndga-btn-secondary">Use Phone Camera</button>
+          </div>
+          <div id="mobile-capture-panel" class="mt-3 hidden rounded-xl border border-slate-300 bg-white p-3">
+            <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Phone Capture Link</p>
+            <p class="mt-1 text-xs text-slate-600">Open this link on your phone or scan the QR. After upload, this page auto-fills.</p>
+            <a id="mobile-capture-link" href="#" target="_blank" rel="noopener" class="mt-2 block break-all text-xs font-semibold text-ndga-navy"></a>
+            <div class="mt-2 flex flex-wrap items-center gap-2">
+              <button type="button" id="mobile-capture-copy" class="ndga-btn ndga-btn-secondary !px-3 !py-1.5 !text-xs">Copy Link</button>
+              <button type="button" id="mobile-capture-share" class="ndga-btn ndga-btn-secondary !px-3 !py-1.5 !text-xs">Share Link</button>
+              <span id="mobile-capture-expiry" class="text-xs font-semibold text-amber-700">Expires in --:--</span>
+            </div>
+            <img id="mobile-capture-qr" class="mt-3 hidden h-24 w-24 rounded-lg border border-slate-200 bg-white p-1" alt="Capture QR">
+            <p id="mobile-capture-status" class="mt-2 text-xs font-semibold text-slate-600">Waiting for phone upload.</p>
+          </div>
+        </div>
+
+        {% if student_form.non_field_errors %}
+          <p class="text-xs text-rose-700">{{ student_form.non_field_errors|striptags }}</p>
+        {% endif %}
+        <button type="submit" class="ndga-btn ndga-btn-primary">Create Student Account</button>
+      </form>
+    </article>
+  </section>
+
+  <script>
+    (() => {
+      const video = document.getElementById("camera-preview");
+      const canvas = document.getElementById("camera-canvas");
+      const capturedPreview = document.getElementById("captured-preview");
+      const hiddenField = document.getElementById("id_webcam_image_data");
+      const uploadField = document.getElementById("id_profile_photo");
+      const startBtn = document.getElementById("camera-start");
+      const captureBtn = document.getElementById("camera-capture");
+      const clearBtn = document.getElementById("camera-clear");
+      const statusNode = document.getElementById("camera-status");
+      const mobileStartBtn = document.getElementById("mobile-capture-start");
+      const mobilePanel = document.getElementById("mobile-capture-panel");
+      const mobileLink = document.getElementById("mobile-capture-link");
+      const mobileQr = document.getElementById("mobile-capture-qr");
+      const mobileStatusNode = document.getElementById("mobile-capture-status");
+      const mobileCopyBtn = document.getElementById("mobile-capture-copy");
+      const mobileShareBtn = document.getElementById("mobile-capture-share");
+      const mobileExpiryNode = document.getElementById("mobile-capture-expiry");
+      let stream = null;
+      let mobileToken = "";
+      let mobilePollTimer = null;
+      let mobileCountdownTimer = null;
+      let mobileExpiresAtMs = 0;
+
+      const mobileSessionUrl = "{% url 'accounts:it-mobile-capture-session' %}";
+      const mobileStatusUrl = "{% url 'accounts:it-mobile-capture-status' %}";
+
+      function getCsrfToken() {
+        return document.querySelector('input[name="csrfmiddlewaretoken"]')?.value || "";
+      }
+
+      function setStatus(text) {
+        if (statusNode) {
+          statusNode.textContent = text;
+        }
+      }
+
+      function setMobileStatus(text, isError) {
+        if (!mobileStatusNode) {
+          return;
+        }
+        mobileStatusNode.textContent = text;
+        mobileStatusNode.classList.remove("text-slate-600", "text-rose-700", "text-emerald-700");
+        if (isError) {
+          mobileStatusNode.classList.add("text-rose-700");
+          return;
+        }
+        if ((text || "").toLowerCase().includes("received") || (text || "").toLowerCase().includes("ready")) {
+          mobileStatusNode.classList.add("text-emerald-700");
+          return;
+        }
+        mobileStatusNode.classList.add("text-slate-600");
+      }
+
+      function secureContextOk() {
+        return window.isSecureContext || location.hostname === "localhost" || location.hostname === "127.0.0.1";
+      }
+
+      async function startCamera() {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          setStatus("Camera API unavailable here. Use upload field.");
+          return;
+        }
+        if (!secureContextOk()) {
+          setStatus("Webcam needs secure context (HTTPS/localhost). Use upload field on this host.");
+          return;
+        }
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          video.srcObject = stream;
+          setStatus("Camera ready.");
+        } catch (_error) {
+          setStatus("Camera blocked or unavailable. Use upload field.");
+        }
+      }
+
+      function captureFrame() {
+        if (!video.videoWidth || !video.videoHeight) {
+          setStatus("No camera frame yet. Click Start Camera first.");
+          return;
+        }
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
+        hiddenField.value = dataUrl;
+        capturedPreview.src = dataUrl;
+        setStatus("Image captured successfully.");
+        if (uploadField) {
+          uploadField.value = "";
+        }
+      }
+
+      function clearCapture() {
+        hiddenField.value = "";
+        capturedPreview.removeAttribute("src");
+        setStatus("Captured image cleared.");
+      }
+
+      function stopMobilePolling() {
+        if (mobilePollTimer) {
+          window.clearInterval(mobilePollTimer);
+          mobilePollTimer = null;
+        }
+      }
+
+      function stopMobileCountdown() {
+        if (mobileCountdownTimer) {
+          window.clearInterval(mobileCountdownTimer);
+          mobileCountdownTimer = null;
+        }
+      }
+
+      function formatSeconds(totalSeconds) {
+        const safe = Math.max(0, Math.floor(totalSeconds));
+        const mins = Math.floor(safe / 60);
+        const secs = safe % 60;
+        return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+      }
+
+      function renderCountdown() {
+        if (!mobileExpiryNode) {
+          return;
+        }
+        if (!mobileExpiresAtMs) {
+          mobileExpiryNode.textContent = "Expires in --:--";
+          return;
+        }
+        const remaining = Math.max(0, Math.floor((mobileExpiresAtMs - Date.now()) / 1000));
+        mobileExpiryNode.textContent = `Expires in ${formatSeconds(remaining)}`;
+        if (remaining <= 0) {
+          stopMobilePolling();
+          stopMobileCountdown();
+          setMobileStatus("Capture link expired. Start a new phone session.", true);
+        }
+      }
+
+      function startMobileCountdown(seconds) {
+        stopMobileCountdown();
+        mobileExpiresAtMs = Date.now() + (Math.max(1, Number(seconds) || 1) * 1000);
+        renderCountdown();
+        mobileCountdownTimer = window.setInterval(renderCountdown, 1000);
+      }
+
+      async function pollMobileCaptureStatus() {
+        if (!mobileToken) {
+          return;
+        }
+        try {
+          const response = await fetch(`${mobileStatusUrl}?token=${encodeURIComponent(mobileToken)}`, {
+            method: "GET",
+            credentials: "same-origin",
+          });
+          const data = await response.json();
+          if (!response.ok || !data.ok) {
+            throw new Error(data.error || "Status check failed.");
+          }
+          if (data.ready && data.data_url) {
+            hiddenField.value = data.data_url;
+            capturedPreview.src = data.data_url;
+            if (uploadField) {
+              uploadField.value = "";
+            }
+            setStatus("Phone capture received.");
+            setMobileStatus("Capture received. Ready to submit.", false);
+            stopMobilePolling();
+          }
+        } catch (error) {
+          setMobileStatus(String(error && error.message ? error.message : error), true);
+        }
+      }
+
+      async function startMobileCaptureSession() {
+        stopMobilePolling();
+        mobileToken = "";
+        try {
+          const response = await fetch(mobileSessionUrl, {
+            method: "POST",
+            headers: {
+              "X-CSRFToken": getCsrfToken(),
+            },
+            credentials: "same-origin",
+          });
+          const data = await response.json();
+          if (!response.ok || !data.ok) {
+            throw new Error(data.error || "Could not create phone capture session.");
+          }
+          mobileToken = data.token || "";
+          if (!mobileToken) {
+            throw new Error("No capture token returned.");
+          }
+          if (mobilePanel) {
+            mobilePanel.classList.remove("hidden");
+          }
+          if (mobileLink) {
+            mobileLink.href = data.capture_url || "#";
+            mobileLink.textContent = data.capture_url || "";
+          }
+          if (mobileQr) {
+            if (data.qr_data_url) {
+              mobileQr.src = data.qr_data_url;
+              mobileQr.classList.remove("hidden");
+            } else {
+              mobileQr.classList.add("hidden");
+            }
+          }
+          setMobileStatus("Session ready. Open the link on phone and upload.", false);
+          startMobileCountdown(data.expires_seconds || 900);
+          await pollMobileCaptureStatus();
+          mobilePollTimer = window.setInterval(pollMobileCaptureStatus, 2000);
+        } catch (error) {
+          setMobileStatus(String(error && error.message ? error.message : error), true);
+        }
+      }
+
+      async function copyMobileLink() {
+        const url = (mobileLink && mobileLink.href) || "";
+        if (!url || url === "#") {
+          setMobileStatus("Start phone session first to get a link.", true);
+          return;
+        }
+        try {
+          await navigator.clipboard.writeText(url);
+          setMobileStatus("Capture link copied.", false);
+        } catch (_error) {
+          setMobileStatus("Could not copy link automatically. Copy it manually.", true);
+        }
+      }
+
+      async function shareMobileLink() {
+        const url = (mobileLink && mobileLink.href) || "";
+        if (!url || url === "#") {
+          setMobileStatus("Start phone session first to get a link.", true);
+          return;
+        }
+        if (navigator.share) {
+          try {
+            await navigator.share({ title: "NDGA Mobile Capture", text: "Open this link to capture photo.", url });
+            setMobileStatus("Share dialog opened.", false);
+            return;
+          } catch (_error) {
+            // Fall through to copy.
+          }
+        }
+        await copyMobileLink();
+      }
+
+      function loadUploadPreview(file) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          capturedPreview.src = event.target?.result || "";
+        };
+        reader.readAsDataURL(file);
+      }
+
+      if (uploadField) {
+        uploadField.addEventListener("change", () => {
+          if (uploadField.files && uploadField.files.length > 0) {
+            hiddenField.value = "";
+            loadUploadPreview(uploadField.files[0]);
+            setStatus("Image selected from upload.");
+          }
+        });
+      }
+      if (!secureContextOk()) {
+        setStatus("Webcam disabled on this insecure host. Use upload or run via localhost/HTTPS.");
+      }
+      startBtn?.addEventListener("click", startCamera);
+      captureBtn?.addEventListener("click", captureFrame);
+      clearBtn?.addEventListener("click", clearCapture);
+      mobileStartBtn?.addEventListener("click", startMobileCaptureSession);
+      mobileCopyBtn?.addEventListener("click", copyMobileLink);
+      mobileShareBtn?.addEventListener("click", shareMobileLink);
+      window.addEventListener("beforeunload", () => {
+        stopMobilePolling();
+        stopMobileCountdown();
+      });
+    })();
+  </script>
+{% endblock %}

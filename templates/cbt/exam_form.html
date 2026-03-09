@@ -1,0 +1,290 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Create CBT Entry{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+    <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <h1 class="text-2xl font-bold text-ndga-navy">Create CBT Entry</h1>
+      <p class="mt-2 text-sm text-slate-600">
+        Step 1: choose class + subject and setup. Step 2 opens the dedicated page for question entry or simulation selection.
+      </p>
+      <form method="post" class="mt-5 space-y-5" id="cbtSetupForm">
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+          <div class="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-700">
+            {{ form.non_field_errors|striptags }}
+          </div>
+        {% endif %}
+        {% if form.errors %}
+          <div class="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-700">
+            <p class="mb-1 font-semibold">Fix the fields below:</p>
+            <ul class="list-disc pl-4">
+              {% for field in form %}
+                {% if field.errors %}
+                  <li>{{ field.label }}: {{ field.errors|striptags }}</li>
+                {% endif %}
+              {% endfor %}
+            </ul>
+          </div>
+        {% endif %}
+
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ form.assignment.id_for_label }}">Class & Subject</label>
+            {{ form.assignment }}
+            {% if form.assignment.errors %}<p class="mt-1 text-xs text-rose-700">{{ form.assignment.errors|striptags }}</p>{% endif %}
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ form.title.id_for_label }}">{{ form.title.label }}</label>
+            {{ form.title }}
+            {% if form.title.errors %}<p class="mt-1 text-xs text-rose-700">{{ form.title.errors|striptags }}</p>{% endif %}
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ form.exam_type.id_for_label }}">{{ form.exam_type.label }}</label>
+            {{ form.exam_type }}
+            {% if form.exam_type.errors %}<p class="mt-1 text-xs text-rose-700">{{ form.exam_type.errors|striptags }}</p>{% endif %}
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ form.authoring_mode.id_for_label }}">{{ form.authoring_mode.label }}</label>
+            {{ form.authoring_mode }}
+            {% if form.authoring_mode.errors %}<p class="mt-1 text-xs text-rose-700">{{ form.authoring_mode.errors|striptags }}</p>{% endif %}
+          </div>
+        </div>
+
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" id="timeSetupBlock">
+          <div>
+            <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ form.duration_minutes.id_for_label }}">{{ form.duration_minutes.label }}</label>
+            {{ form.duration_minutes }}
+            {% if form.duration_minutes.errors %}<p class="mt-1 text-xs text-rose-700">{{ form.duration_minutes.errors|striptags }}</p>{% endif %}
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ form.schedule_start.id_for_label }}">{{ form.schedule_start.label }}</label>
+            {{ form.schedule_start }}
+            {% if form.schedule_start.errors %}<p class="mt-1 text-xs text-rose-700">{{ form.schedule_start.errors|striptags }}</p>{% endif %}
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ form.schedule_end.id_for_label }}">{{ form.schedule_end.label }}</label>
+            {{ form.schedule_end }}
+            {% if form.schedule_end.errors %}<p class="mt-1 text-xs text-rose-700">{{ form.schedule_end.errors|striptags }}</p>{% endif %}
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ form.calculator_mode.id_for_label }}">{{ form.calculator_mode.label }}</label>
+            {{ form.calculator_mode }}
+            {% if form.calculator_mode.errors %}<p class="mt-1 text-xs text-rose-700">{{ form.calculator_mode.errors|striptags }}</p>{% endif %}
+          </div>
+        </div>
+
+        <div id="structureBlock" class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <h2 class="text-sm font-semibold uppercase tracking-[0.14em] text-slate-500">Question Setup</h2>
+          <div class="mt-3 grid gap-4 sm:grid-cols-2">
+            <div>
+              <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ form.flow_type.id_for_label }}">{{ form.flow_type.label }}</label>
+              {{ form.flow_type }}
+              {% if form.flow_type.errors %}<p class="mt-1 text-xs text-rose-700">{{ form.flow_type.errors|striptags }}</p>{% endif %}
+            </div>
+            <div id="caTargetField">
+              <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ form.ca_target.id_for_label }}">{{ form.ca_target.label }}</label>
+              {{ form.ca_target }}
+              {% if form.ca_target.errors %}<p class="mt-1 text-xs text-rose-700">{{ form.ca_target.errors|striptags }}</p>{% endif %}
+              <p id="caTargetHint" class="mt-1 text-xs text-slate-500">CA2 / CA3 is joint: Objective writes to CA2, Theory writes to CA3.</p>
+            </div>
+            <div id="objectiveCountField">
+              <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ form.objective_question_count.id_for_label }}">{{ form.objective_question_count.label }}</label>
+              {{ form.objective_question_count }}
+              {% if form.objective_question_count.errors %}<p class="mt-1 text-xs text-rose-700">{{ form.objective_question_count.errors|striptags }}</p>{% endif %}
+            </div>
+            <div id="theoryCountField">
+              <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ form.theory_question_count.id_for_label }}">{{ form.theory_question_count.label }}</label>
+              {{ form.theory_question_count }}
+              {% if form.theory_question_count.errors %}<p class="mt-1 text-xs text-rose-700">{{ form.theory_question_count.errors|striptags }}</p>{% endif %}
+            </div>
+            <div id="theoryModeField" class="sm:col-span-2">
+              <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ form.theory_response_mode.id_for_label }}">{{ form.theory_response_mode.label }}</label>
+              {{ form.theory_response_mode }}
+              {% if form.theory_response_mode.errors %}<p class="mt-1 text-xs text-rose-700">{{ form.theory_response_mode.errors|striptags }}</p>{% endif %}
+            </div>
+            <label id="manualSplitField" class="sm:col-span-2 inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+              {{ form.manual_score_split }} {{ form.manual_score_split.label }}
+            </label>
+            <div id="objectiveTargetField">
+              <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ form.objective_target_max.id_for_label }}">{{ form.objective_target_max.label }}</label>
+              {{ form.objective_target_max }}
+              {% if form.objective_target_max.errors %}<p class="mt-1 text-xs text-rose-700">{{ form.objective_target_max.errors|striptags }}</p>{% endif %}
+            </div>
+            <div id="theoryTargetField">
+              <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ form.theory_target_max.id_for_label }}">{{ form.theory_target_max.label }}</label>
+              {{ form.theory_target_max }}
+              {% if form.theory_target_max.errors %}<p class="mt-1 text-xs text-rose-700">{{ form.theory_target_max.errors|striptags }}</p>{% endif %}
+            </div>
+          </div>
+          <p class="mt-3 text-xs text-slate-500" id="modeHint"></p>
+        </div>
+
+        <details class="rounded-2xl border border-slate-200 bg-white p-4">
+          <summary class="cursor-pointer text-sm font-semibold text-slate-700">Advanced Options</summary>
+          <div class="mt-3 grid gap-4 sm:grid-cols-2">
+            <div>
+              <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ form.max_attempts.id_for_label }}">{{ form.max_attempts.label }}</label>
+              {{ form.max_attempts }}
+              {% if form.max_attempts.errors %}<p class="mt-1 text-xs text-rose-700">{{ form.max_attempts.errors|striptags }}</p>{% endif %}
+            </div>
+            <label class="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+              {{ form.shuffle_questions }} Shuffle Questions
+            </label>
+            <label class="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+              {{ form.shuffle_options }} Shuffle Options
+            </label>
+            <div class="sm:col-span-2">
+              <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ form.instructions.id_for_label }}">{{ form.instructions.label }}</label>
+              {{ form.instructions }}
+              {% if form.instructions.errors %}<p class="mt-1 text-xs text-rose-700">{{ form.instructions.errors|striptags }}</p>{% endif %}
+            </div>
+            <div class="sm:col-span-2">
+              <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ form.description.id_for_label }}">{{ form.description.label }}</label>
+              {{ form.description }}
+              {% if form.description.errors %}<p class="mt-1 text-xs text-rose-700">{{ form.description.errors|striptags }}</p>{% endif %}
+            </div>
+          </div>
+        </details>
+
+        <div class="flex flex-wrap gap-2">
+          <button id="createCbtBtn" type="submit" class="ndga-btn ndga-btn-primary">Create</button>
+          <a href="{% url 'cbt:authoring-home' %}" class="ndga-btn ndga-btn-secondary">Back</a>
+        </div>
+      </form>
+    </article>
+  </section>
+
+  <script>
+    (function() {
+      var examType = document.getElementById("{{ form.exam_type.id_for_label }}");
+      var authoringMode = document.getElementById("{{ form.authoring_mode.id_for_label }}");
+      var authoringModeField = authoringMode ? authoringMode.parentElement : null;
+      var flowType = document.getElementById("{{ form.flow_type.id_for_label }}");
+      var structureBlock = document.getElementById("structureBlock");
+      var objectiveCountField = document.getElementById("objectiveCountField");
+      var theoryCountField = document.getElementById("theoryCountField");
+      var theoryModeField = document.getElementById("theoryModeField");
+      var caTargetField = document.getElementById("caTargetField");
+      var caTargetSelect = document.getElementById("{{ form.ca_target.id_for_label }}");
+      var manualSplitField = document.getElementById("manualSplitField");
+      var manualSplitInput = document.getElementById("{{ form.manual_score_split.id_for_label }}");
+      var objectiveTargetField = document.getElementById("objectiveTargetField");
+      var theoryTargetField = document.getElementById("theoryTargetField");
+      var modeHint = document.getElementById("modeHint");
+      var caTargetHint = document.getElementById("caTargetHint");
+      var createBtn = document.getElementById("createCbtBtn");
+
+      function setVisible(node, visible) {
+        if (!node) return;
+        node.style.display = visible ? "" : "none";
+      }
+
+      function refresh() {
+        var exam = (examType && examType.value) || "";
+        var mode = (authoringMode && authoringMode.value) || "";
+        var flow = (flowType && flowType.value) || "";
+
+        if (exam === "EXAM" && flowType && flowType.value !== "OBJECTIVE_THEORY") {
+          flowType.value = "OBJECTIVE_THEORY";
+          flow = "OBJECTIVE_THEORY";
+        }
+        if ((exam === "CA" || exam === "PRACTICAL") && flowType && !flow) {
+          flowType.value = "OBJECTIVE_THEORY";
+          flow = "OBJECTIVE_THEORY";
+        }
+
+        var isSimulationFlow = (flow === "SIMULATION") && (exam === "CA" || exam === "PRACTICAL");
+        var isFreeTest = exam === "FREE_TEST";
+        var isUploadOrAi = mode === "UPLOAD" || mode === "AI";
+        var isScratch = mode === "SCRATCH";
+        var hasTheory = flow === "OBJECTIVE_THEORY" || flow === "THEORY_ONLY";
+        var hasObjective = flow === "OBJECTIVE_ONLY" || flow === "OBJECTIVE_THEORY";
+
+        if (isSimulationFlow && authoringMode) {
+          authoringMode.value = "SCRATCH";
+          mode = "SCRATCH";
+          isScratch = true;
+        }
+        if (isSimulationFlow && manualSplitInput) {
+          manualSplitInput.checked = false;
+        }
+        setVisible(authoringModeField, !isSimulationFlow);
+        setVisible(structureBlock, !isUploadOrAi);
+        setVisible(
+          flowType ? flowType.parentElement : null,
+          isScratch && !isFreeTest && (exam === "CA" || exam === "PRACTICAL")
+        );
+        setVisible(objectiveCountField, isScratch && hasObjective && !isSimulationFlow);
+        setVisible(theoryCountField, isScratch && hasTheory && !isSimulationFlow && !isFreeTest);
+        setVisible(theoryModeField, isScratch && hasTheory && !isSimulationFlow && !isFreeTest);
+        setVisible(caTargetField, (exam === "CA" || exam === "PRACTICAL"));
+        if (caTargetSelect) {
+          var ca3Option = caTargetSelect.querySelector("option[value='CA3']");
+          if (ca3Option) {
+            ca3Option.hidden = !isSimulationFlow;
+            ca3Option.disabled = !isSimulationFlow;
+            if (!isSimulationFlow && caTargetSelect.value === "CA3") {
+              caTargetSelect.value = "CA2";
+            }
+          }
+        }
+        setVisible(manualSplitField, isScratch && !isSimulationFlow && !isFreeTest);
+        var showManualTargets = isScratch && !isSimulationFlow && !isFreeTest && manualSplitInput && manualSplitInput.checked;
+        setVisible(objectiveTargetField, showManualTargets && hasObjective);
+        setVisible(theoryTargetField, showManualTargets && hasTheory);
+        if (caTargetHint) {
+          caTargetHint.textContent = isSimulationFlow
+            ? "Simulation writeback target can be CA1, CA2, CA3, or CA4."
+            : "CA2 / CA3 is joint: Objective writes to CA2, Theory writes to CA3.";
+        }
+
+        var calculatorModeNode = document.getElementById("{{ form.calculator_mode.id_for_label }}");
+        var calculatorMode = (calculatorModeNode && calculatorModeNode.value) || "NONE";
+
+        var objectiveCountInput = document.getElementById("{{ form.objective_question_count.id_for_label }}");
+        if (isFreeTest && objectiveCountInput) {
+          objectiveCountInput.max = "100";
+          if (!objectiveCountInput.value || parseInt(objectiveCountInput.value, 10) <= 0) {
+            objectiveCountInput.value = "25";
+          }
+          if (parseInt(objectiveCountInput.value, 10) > 100) {
+            objectiveCountInput.value = "100";
+          }
+        } else if (objectiveCountInput) {
+          objectiveCountInput.max = "400";
+        }
+
+        if (isSimulationFlow) {
+          modeHint.textContent = "Simulation practical: next page shows approved simulation cards and CA target writeback.";
+          if (createBtn) createBtn.textContent = "Continue";
+        } else if (isFreeTest) {
+          modeHint.textContent = "Free Test: objective practice only, no graded writeback, direct IT publishing flow.";
+          if (createBtn) createBtn.textContent = "Create";
+        } else if (isUploadOrAi) {
+          modeHint.textContent = "Upload/AI mode: set only timing. Questions and structure are generated from your content.";
+          if (createBtn) createBtn.textContent = "Continue";
+        } else if (hasTheory) {
+          modeHint.textContent = "Objective questions are entered first, then theory questions.";
+          if (createBtn) createBtn.textContent = "Create";
+        } else {
+          modeHint.textContent = "Configure question counts, then continue to objective and theory pages.";
+          if (createBtn) createBtn.textContent = "Create";
+        }
+        if (calculatorMode && calculatorMode !== "NONE") {
+          modeHint.textContent += " " + calculatorMode + " calculator will be available during student attempt.";
+        }
+      }
+
+      if (examType) examType.addEventListener("change", refresh);
+      if (authoringMode) authoringMode.addEventListener("change", refresh);
+      if (flowType) flowType.addEventListener("change", refresh);
+      if (manualSplitInput) manualSplitInput.addEventListener("change", refresh);
+      var calculatorModeNode = document.getElementById("{{ form.calculator_mode.id_for_label }}");
+      if (calculatorModeNode) calculatorModeNode.addEventListener("change", refresh);
+      refresh();
+    })();
+  </script>
+{% endblock %}

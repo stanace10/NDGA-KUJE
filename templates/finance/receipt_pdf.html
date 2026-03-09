@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <style>
+    @page {
+      size: A4;
+      margin: 14mm 12mm 14mm 12mm;
+    }
+    body {
+      font-family: "DejaVu Sans", Arial, sans-serif;
+      color: #0f172a;
+      font-size: 11px;
+      line-height: 1.4;
+      margin: 0;
+    }
+    .sheet {
+      position: relative;
+    }
+    .watermark {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      opacity: 0.06;
+      z-index: -1;
+    }
+    .watermark img {
+      width: 360px;
+      height: auto;
+    }
+    .header {
+      display: grid;
+      grid-template-columns: 72px 1fr 140px;
+      gap: 10px;
+      align-items: center;
+      border-bottom: 2px solid #0b1f51;
+      padding-bottom: 8px;
+      margin-bottom: 10px;
+    }
+    .header-logo {
+      width: 62px;
+      height: 62px;
+      border-radius: 999px;
+      border: 1px solid #d1d5db;
+      background: #ffffff;
+      padding: 4px;
+      object-fit: contain;
+    }
+    .school-title {
+      margin: 0;
+      font-size: 18px;
+      color: #0b1f51;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+    }
+    .school-subtitle {
+      margin: 2px 0 0;
+      color: #374151;
+      font-size: 11px;
+    }
+    .doc-tag {
+      text-align: right;
+      font-size: 9px;
+      color: #475569;
+    }
+    .doc-tag strong {
+      display: block;
+      color: #0b1f51;
+      font-size: 11px;
+      margin-bottom: 2px;
+    }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .meta-card {
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 8px;
+      background: #ffffff;
+    }
+    .meta-card h3 {
+      margin: 0 0 6px;
+      color: #0b1f51;
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .meta-row {
+      display: grid;
+      grid-template-columns: 95px 1fr;
+      margin-bottom: 2px;
+      gap: 6px;
+    }
+    .meta-row .label {
+      color: #475569;
+      font-weight: 600;
+    }
+    .payment-box {
+      margin-top: 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #ffffff;
+    }
+    .payment-box table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .payment-box thead {
+      background: #0b1f51;
+      color: #ffffff;
+    }
+    .payment-box th,
+    .payment-box td {
+      padding: 6px;
+      border-bottom: 1px solid #e2e8f0;
+      text-align: left;
+      font-size: 10px;
+    }
+    .payment-box tbody tr:last-child td {
+      border-bottom: none;
+    }
+    .payment-box td.value {
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .total-row {
+      background: #f8fafc;
+      font-weight: 700;
+    }
+    .footer {
+      margin-top: 10px;
+      display: grid;
+      grid-template-columns: 1fr 120px;
+      gap: 8px;
+      align-items: end;
+    }
+    .note-box {
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 8px;
+      min-height: 74px;
+      background: #ffffff;
+    }
+    .note-box h4 {
+      margin: 0 0 4px;
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #0b1f51;
+    }
+    .qr-box {
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      text-align: center;
+      padding: 6px 4px;
+      background: #ffffff;
+    }
+    .qr-box img {
+      width: 76px;
+      height: 76px;
+      display: block;
+      margin: 0 auto 4px;
+    }
+    .qr-box p {
+      margin: 0;
+      font-size: 8px;
+      color: #475569;
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+  <div class="sheet">
+    <div class="watermark">
+      {% if watermark_data_uri %}
+        <img src="{{ watermark_data_uri }}" alt="">
+      {% endif %}
+    </div>
+
+    <header class="header">
+      <div>
+        {% if logo_data_uri %}
+          <img src="{{ logo_data_uri }}" alt="NDGA Logo" class="header-logo">
+        {% endif %}
+      </div>
+      <div>
+        <p class="school-title">NOTRE DAME GIRLS ACADEMY</p>
+        <p class="school-subtitle">Kuje, Abuja | Official Finance Receipt</p>
+      </div>
+      <div class="doc-tag">
+        <strong>RECEIPT</strong>
+        Issued: {{ receipt.issued_at|date:"d M Y, H:i" }}<br>
+        Generated: {{ generated_at|date:"d M Y, H:i" }}
+      </div>
+    </header>
+
+    <section class="meta-grid">
+      <article class="meta-card">
+        <h3>Payer Details</h3>
+        <div class="meta-row"><span class="label">Student Name</span><span>{{ payment.student.get_full_name|default:payment.student.username }}</span></div>
+        <div class="meta-row"><span class="label">Student ID</span><span>{% if student_profile %}{{ student_profile.student_number }}{% else %}{{ payment.student.username }}{% endif %}</span></div>
+        <div class="meta-row"><span class="label">Account</span><span>{{ payment.student.username }}</span></div>
+        <div class="meta-row"><span class="label">Receipt No</span><span>{{ receipt.receipt_number }}</span></div>
+        <div class="meta-row"><span class="label">Receipt ID</span><span>{{ receipt.id }}</span></div>
+      </article>
+      <article class="meta-card">
+        <h3>Academic Window</h3>
+        <div class="meta-row"><span class="label">Session</span><span>{% if payment.session %}{{ payment.session.name }}{% else %}-{% endif %}</span></div>
+        <div class="meta-row"><span class="label">Term</span><span>{% if payment.term %}{{ payment.term.get_name_display }}{% else %}-{% endif %}</span></div>
+        <div class="meta-row"><span class="label">Payment Date</span><span>{{ payment.payment_date }}</span></div>
+        <div class="meta-row"><span class="label">Method</span><span>{{ payment.get_payment_method_display }}</span></div>
+        <div class="meta-row"><span class="label">Reference</span><span>{{ payment.gateway_reference|default:"-" }}</span></div>
+      </article>
+    </section>
+
+    <section class="payment-box">
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 28%">Description</th>
+            <th style="width: 22%">Value</th>
+            <th style="width: 28%">Description</th>
+            <th style="width: 22%">Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Amount Paid</td>
+            <td class="value">{{ payment.amount }}</td>
+            <td>Recorded By</td>
+            <td class="value">{% if payment.received_by %}{{ payment.received_by.username }}{% else %}System{% endif %}</td>
+          </tr>
+          <tr>
+            <td>Void Status</td>
+            <td class="value">{% if payment.is_void %}VOID{% else %}VALID{% endif %}</td>
+            <td>Payload Hash</td>
+            <td class="value">{{ receipt.payload_hash|slice:":18" }}...</td>
+          </tr>
+          <tr class="total-row">
+            <td>Total</td>
+            <td class="value">{{ payment.amount }}</td>
+            <td>Verification</td>
+            <td class="value">QR + Hash</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <footer class="footer">
+      <div class="note-box">
+        <h4>Remarks</h4>
+        <p>{{ payment.note|default:"Payment captured in NDGA bursar portal." }}</p>
+        {% if show_bank_on_receipt %}
+          <p style="margin-top: 8px; font-size: 9px; color: #0f172a;">
+            <strong>School Account:</strong><br>
+            {{ finance_profile.school_bank_name }}<br>
+            {{ finance_profile.school_account_name }}<br>
+            {{ finance_profile.school_account_number }}
+          </p>
+        {% endif %}
+        <p style="margin-top: 8px; font-size: 9px; color: #475569;">This receipt is verifiable by QR scan and hash signature.</p>
+      </div>
+      <div class="qr-box">
+        {% if verification_qr_data_uri %}
+          <img src="{{ verification_qr_data_uri }}" alt="Verification QR">
+        {% endif %}
+        <p>Hash: {{ receipt.payload_hash }}</p>
+      </div>
+    </footer>
+  </div>
+</body>
+</html>

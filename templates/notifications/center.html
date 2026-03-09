@@ -1,0 +1,113 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Notifications{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Notification Center</p>
+          <h1 class="mt-2 text-2xl font-bold text-ndga-navy">Alerts and Updates</h1>
+          <p class="mt-1 text-sm text-slate-600">
+            Results publishing, finance receipts, and election broadcasts appear here.
+          </p>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+          <span class="font-semibold">{{ unread_count }}</span> unread
+        </div>
+      </div>
+
+      <form method="get" class="mt-4 grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div>
+          <label for="status" class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Status</label>
+          <select id="status" name="status" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+            <option value="all" {% if status_filter == "all" %}selected{% endif %}>All</option>
+            <option value="unread" {% if status_filter == "unread" %}selected{% endif %}>Unread</option>
+          </select>
+        </div>
+        <div>
+          <label for="category" class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Category</label>
+          <select id="category" name="category" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+            <option value="all" {% if category_filter == "ALL" %}selected{% endif %}>All Categories</option>
+            {% for category_code, category_label in category_choices %}
+              <option value="{{ category_code }}" {% if category_filter == category_code %}selected{% endif %}>
+                {{ category_label }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="window" class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Time Window</label>
+          <select id="window" name="window" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+            <option value="all" {% if window_filter == "all" %}selected{% endif %}>All Time</option>
+            <option value="30d" {% if window_filter == "30d" %}selected{% endif %}>Last 30 Days</option>
+            <option value="90d" {% if window_filter == "90d" %}selected{% endif %}>Last 90 Days</option>
+            <option value="365d" {% if window_filter == "365d" %}selected{% endif %}>Last 365 Days</option>
+          </select>
+        </div>
+        <div class="flex items-end gap-2">
+          <button type="submit" class="ndga-btn ndga-btn-primary">Apply Filter</button>
+          <a href="{% url 'notifications:center' %}" class="ndga-btn ndga-btn-secondary">Reset</a>
+        </div>
+      </form>
+
+      <div class="mt-3">
+        <form method="post" action="{% url 'notifications:mark-all-read' %}">
+          {% csrf_token %}
+          <button type="submit" class="ndga-btn ndga-btn-secondary">Mark All Read</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="mt-6 space-y-3">
+      {% for notice in page_obj %}
+        <article class="rounded-2xl border {% if notice.is_read %}border-slate-200 bg-white{% else %}border-amber-200 bg-amber-50/40{% endif %} p-4 shadow-sm">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p class="text-sm font-semibold text-slate-900">{{ notice.title }}</p>
+              <p class="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{{ notice.get_category_display }}</p>
+            </div>
+            <p class="text-xs text-slate-500">{{ notice.created_at|date:"d M Y, H:i" }}</p>
+          </div>
+          <p class="mt-2 text-sm text-slate-700">{{ notice.message }}</p>
+          <div class="mt-3 flex flex-wrap items-center gap-3">
+            <a href="{% url 'notifications:detail' notice.id %}" class="text-sm font-semibold text-ndga-navy hover:text-ndga-gold">
+              Open
+            </a>
+            {% if not notice.is_read %}
+              <form method="post" action="{% url 'notifications:mark-read' notice.id %}">
+                {% csrf_token %}
+                <button type="submit" class="text-sm font-semibold text-slate-700 hover:text-slate-900">
+                  Mark read
+                </button>
+              </form>
+            {% else %}
+              <span class="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500">Read</span>
+            {% endif %}
+          </div>
+        </article>
+      {% empty %}
+        <div class="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm">
+          No notifications yet.
+        </div>
+      {% endfor %}
+    </div>
+
+    {% if page_obj.paginator.num_pages > 1 %}
+      <div class="mt-6 flex items-center justify-between">
+        <div class="text-sm text-slate-500">
+          Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+        </div>
+        <div class="flex gap-2">
+          {% if page_obj.has_previous %}
+            <a href="?status={{ status_filter }}&category={{ category_filter|lower }}&window={{ window_filter }}&page={{ page_obj.previous_page_number }}" class="ndga-btn ndga-btn-secondary">Previous</a>
+          {% endif %}
+          {% if page_obj.has_next %}
+            <a href="?status={{ status_filter }}&category={{ category_filter|lower }}&window={{ window_filter }}&page={{ page_obj.next_page_number }}" class="ndga-btn ndga-btn-secondary">Next</a>
+          {% endif %}
+        </div>
+      </div>
+    {% endif %}
+  </section>
+{% endblock %}

@@ -1,0 +1,107 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Staff Management{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm animate-soft-reveal sm:p-8">
+      <p class="text-xs font-semibold uppercase tracking-[0.2em] text-ndga-navy/70">Administration</p>
+      <h1 class="mt-2 text-3xl font-bold text-ndga-navy">Staff Management</h1>
+      <p class="mt-2 text-sm text-slate-600">View and manage already registered staff accounts only on this page. VP, Bursar, and Principal are hidden.</p>
+      <div class="mt-4 flex flex-wrap gap-2">
+        <a href="{{ staff_create_url }}" class="ndga-btn ndga-btn-primary">Create New User</a>
+      </div>
+    </div>
+
+    <article class="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="mb-3 flex items-center justify-between">
+        <h2 class="text-base font-semibold text-slate-900">Staff List</h2>
+        <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Total: {{ total_staff }}</p>
+      </div>
+      <form method="get" class="grid gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:grid-cols-6">
+        <input type="text" name="q" value="{{ search_query }}" placeholder="Search username/name/staff ID" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+        <select name="role" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+          <option value="">All Roles</option>
+          {% for role_code in role_filter_options %}
+            <option value="{{ role_code }}" {% if role_filter == role_code %}selected{% endif %}>{{ role_code }}</option>
+          {% endfor %}
+        </select>
+        <select name="status" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+          <option value="">All Status</option>
+          <option value="active" {% if status_filter == "active" %}selected{% endif %}>Active</option>
+          <option value="inactive" {% if status_filter == "inactive" %}selected{% endif %}>Inactive</option>
+        </select>
+        <select name="employment_status" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+          <option value="">All Employment States</option>
+          {% for state_value, state_label in employment_status_options %}
+            <option value="{{ state_value }}" {% if employment_status_filter == state_value %}selected{% endif %}>{{ state_label }}</option>
+          {% endfor %}
+        </select>
+        <select name="page_size" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+          {% for size in staff_page_size_options %}
+            <option value="{{ size }}" {% if staff_page_size == size %}selected{% endif %}>{{ size }} / page</option>
+          {% endfor %}
+          <option value="all" {% if staff_page_size == "all" %}selected{% endif %}>View all</option>
+        </select>
+        <button type="submit" class="ndga-btn ndga-btn-secondary">Filter</button>
+      </form>
+
+      <div class="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+          <thead>
+            <tr class="bg-slate-50 text-left text-slate-500">
+              <th class="px-3 py-2">Username</th>
+              <th class="px-3 py-2">Staff ID</th>
+              <th class="px-3 py-2">Name</th>
+              <th class="px-3 py-2">Role</th>
+              <th class="px-3 py-2">Status</th><th class="px-3 py-2">Employment</th>
+              <th class="px-3 py-2">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            {% for row in latest_staff %}
+              <tr>
+                <td class="px-3 py-2 font-semibold text-slate-800">{{ row.username }}</td>
+                <td class="px-3 py-2 text-slate-700">{{ row.staff_profile.staff_id|default:"-" }}</td>
+                <td class="px-3 py-2 text-slate-700">{{ row.get_full_name|default:"-" }}</td>
+                <td class="px-3 py-2 text-slate-700">{{ row.primary_role.code|default:"-" }}</td>
+                <td class="px-3 py-2 text-slate-700">{% if row.is_active %}Active{% else %}Inactive{% endif %}</td><td class="px-3 py-2 text-slate-700">{{ row.staff_profile.get_employment_status_display|default:"-" }}</td>
+                <td class="px-3 py-2">
+                  <div class="flex flex-wrap gap-1.5">
+                    <a href="{% url 'accounts:it-staff-detail' row.id %}" class="ndga-btn ndga-btn-secondary !rounded-lg !px-2.5 !py-1.5 !text-xs">View</a><a href="{% url 'accounts:it-staff-edit' row.id %}" class="ndga-btn ndga-btn-secondary !rounded-lg !px-2.5 !py-1.5 !text-xs">Edit</a>
+                    <form method="post" action="{% url 'accounts:it-user-toggle-status' row.id %}">
+                      {% csrf_token %}
+                      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                      <button type="submit" class="ndga-btn ndga-btn-secondary !rounded-lg !px-2.5 !py-1.5 !text-xs">{% if row.is_active %}Deactivate{% else %}Activate{% endif %}</button>
+                    </form>
+                    <form method="post" action="{% url 'accounts:it-user-delete' row.id %}" data-confirm-message="Delete this account permanently?">
+                      {% csrf_token %}
+                      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                      <button type="submit" class="ndga-btn !rounded-lg !bg-rose-600 !px-2.5 !py-1.5 !text-xs !text-white hover:!bg-rose-700">Delete</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="7" class="px-3 py-4 text-slate-500">No staff accounts yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {% if staff_page_obj %}
+        <div class="mt-3 flex items-center justify-between gap-2">
+          <p class="text-xs text-slate-500">Page {{ staff_page_obj.number }} of {{ staff_page_obj.paginator.num_pages }}</p>
+          <div class="flex items-center gap-2">
+            {% if staff_page_obj.has_previous %}
+              <a href="?{% if staff_list_base_query %}{{ staff_list_base_query }}&{% endif %}page={{ staff_page_obj.previous_page_number }}" class="ndga-btn ndga-btn-secondary !px-3 !py-1.5 !text-xs">&lt;</a>
+            {% endif %}
+            {% if staff_page_obj.has_next %}
+              <a href="?{% if staff_list_base_query %}{{ staff_list_base_query }}&{% endif %}page={{ staff_page_obj.next_page_number }}" class="ndga-btn ndga-btn-secondary !px-3 !py-1.5 !text-xs">&gt;</a>
+            {% endif %}
+          </div>
+        </div>
+      {% endif %}
+    </article>
+  </section>
+{% endblock %}

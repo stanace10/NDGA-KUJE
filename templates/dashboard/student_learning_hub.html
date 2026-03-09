@@ -1,0 +1,135 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Student Learning Hub{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-[96rem] px-4 py-5 sm:px-6 lg:px-8">
+    <div class="grid gap-5 xl:grid-cols-[1.35fr_0.85fr]">
+      <div class="space-y-5">
+        <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Learning Hub</p>
+              <h1 class="mt-2 text-2xl font-bold text-slate-900">Assignments, Study Materials, And Practice Support</h1>
+              <p class="mt-1 text-sm text-slate-600">Only resources for {{ current_class_code }} and your enrolled subjects are shown here.</p>
+            </div>
+            <a href="{{ practice_exam_url }}" class="ndga-btn ndga-btn-primary">Open Practice CBT</a>
+          </div>
+        </article>
+
+        <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 class="text-base font-semibold text-slate-900">Published Learning Resources</h2>
+          <div class="mt-4 grid gap-3 lg:grid-cols-2">
+            {% for row in resource_rows %}
+              <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div class="flex items-start justify-between gap-2">
+                  <div>
+                    <p class="text-sm font-semibold text-slate-900">{{ row.title }}</p>
+                    <p class="mt-1 text-xs uppercase tracking-[0.14em] text-slate-500">{{ row.get_category_display }}{% if row.subject %} | {{ row.subject.name }}{% endif %}</p>
+                  </div>
+                  {% if row.due_date %}
+                    <span class="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800">Due {{ row.due_date }}</span>
+                  {% endif %}
+                </div>
+                {% if row.description %}<p class="mt-2 text-sm text-slate-600">{{ row.description }}</p>{% endif %}
+                {% if row.content_text %}<p class="mt-2 whitespace-pre-line text-sm text-slate-700">{{ row.content_text|truncatechars:280 }}</p>{% endif %}
+                <div class="mt-3 flex flex-wrap gap-2 text-sm">
+                  {% if row.resource_file %}
+                    <a href="{{ row.resource_file.url }}" class="font-semibold text-ndga-navy hover:text-ndga-gold">Open File</a>
+                  {% endif %}
+                  {% if row.external_url %}
+                    <a href="{{ row.external_url }}" target="_blank" rel="noreferrer" class="font-semibold text-ndga-navy hover:text-ndga-gold">External Link</a>
+                  {% endif %}
+                </div>
+              </article>
+            {% empty %}
+              <p class="text-sm text-slate-500 lg:col-span-2">No learning resources are published for your current class yet.</p>
+            {% endfor %}
+          </div>
+        </article>
+
+        <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 class="text-base font-semibold text-slate-900">AI Lesson And Assignment Feed</h2>
+          <div class="mt-4 space-y-3">
+            {% for row in lesson_rows %}
+              <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div class="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <p class="text-sm font-semibold text-slate-900">{{ row.subject.name }}: {{ row.topic }}</p>
+                    <p class="mt-1 text-xs text-slate-500">By {{ row.teacher.get_full_name|default:row.teacher.username }}{% if row.assignment_due_date %} | Due {{ row.assignment_due_date }}{% endif %}</p>
+                  </div>
+                </div>
+                <div class="mt-3 grid gap-3 lg:grid-cols-2">
+                  <div class="rounded-2xl border border-slate-200 bg-white p-3">
+                    <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Objectives</p>
+                    <p class="mt-2 whitespace-pre-line text-sm text-slate-700">{{ row.lesson_objectives }}</p>
+                  </div>
+                  <div class="rounded-2xl border border-slate-200 bg-white p-3">
+                    <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Assignment</p>
+                    <p class="mt-2 whitespace-pre-line text-sm text-slate-700">{{ row.assignment_text|default:"No assignment attached yet." }}</p>
+                  </div>
+                </div>
+              </article>
+            {% empty %}
+              <p class="text-sm text-slate-500">No lesson-planner resources have been published for your class yet.</p>
+            {% endfor %}
+          </div>
+        </article>
+      </div>
+
+      <aside class="space-y-5">
+        <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <h2 class="text-base font-semibold text-slate-900">Weekly Challenge</h2>
+              <p class="mt-1 text-sm text-slate-600">Short brain teaser prompts for your class level.</p>
+            </div>
+            <a href="{{ weekly_challenge_url }}" class="ndga-btn ndga-btn-secondary">Open Challenge</a>
+          </div>
+          <div class="mt-4 space-y-3">
+            {% for row in challenge_rows %}
+              <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">{{ row.week_label }}</p>
+                <p class="mt-1 text-sm font-semibold text-slate-900">{{ row.title }}</p>
+                <p class="mt-2 text-sm text-slate-700">{{ row.question_text|truncatechars:120 }}</p>
+              </article>
+            {% empty %}
+              <p class="text-sm text-slate-500">No active weekly challenge for your class yet.</p>
+            {% endfor %}
+          </div>
+        </article>
+
+        <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 class="text-base font-semibold text-slate-900">AI Tutor</h2>
+          <p class="mt-1 text-sm text-slate-600">Ask for revision help in your current subjects.</p>
+          <form method="post" class="mt-4 space-y-3">
+            {% csrf_token %}
+            <div>
+              <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ tutor_form.subject.id_for_label }}">Subject</label>
+              {{ tutor_form.subject }}
+            </div>
+            <div>
+              <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ tutor_form.question.id_for_label }}">Question</label>
+              {{ tutor_form.question }}
+              {% if tutor_form.question.errors %}<p class="mt-1 text-xs text-rose-700">{{ tutor_form.question.errors|striptags }}</p>{% endif %}
+            </div>
+            <button type="submit" class="ndga-btn ndga-btn-primary">Ask Tutor</button>
+          </form>
+        </article>
+
+        {% if tutor_reply %}
+          <article class="rounded-3xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
+            <h2 class="text-base font-semibold text-emerald-900">Tutor Reply</h2>
+            <p class="mt-2 text-sm text-emerald-900">{{ tutor_reply.answer }}</p>
+            <div class="mt-3 space-y-2 text-sm text-emerald-900">
+              {% for row in tutor_reply.steps %}
+                <div class="rounded-2xl border border-emerald-200 bg-white px-3 py-2">{{ row }}</div>
+              {% endfor %}
+            </div>
+            <p class="mt-3 text-sm font-semibold text-emerald-900">Practice tip: {{ tutor_reply.practice_tip }}</p>
+          </article>
+        {% endif %}
+      </aside>
+    </div>
+  </section>
+{% endblock %}

@@ -1,0 +1,76 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Result Entry - {{ selected_class.code }}{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+    <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 class="text-2xl font-bold text-ndga-navy">{{ selected_class.code }} - Subjects</h1>
+          {% if current_session and current_term %}
+            <p class="mt-1 text-xs font-semibold text-slate-500">{{ current_session.name }} | {{ current_term.get_name_display }}</p>
+          {% endif %}
+        </div>
+        <a href="{{ grade_entry_home_url }}" class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+          Back To Classes
+        </a>
+      </div>
+      <form method="get" action="{{ class_page_base_url }}" class="mt-4 flex flex-wrap items-end gap-2">
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500" for="session_id">Session</label>
+          <select id="session_id" name="session_id" class="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm">
+            {% for session in available_sessions %}
+              <option value="{{ session.id }}" {% if selected_session and selected_session.id == session.id %}selected{% endif %}>{{ session.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500" for="term_id">Term</label>
+          <select id="term_id" name="term_id" class="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm">
+            {% for term in available_terms %}
+              <option value="{{ term.id }}" {% if selected_term and selected_term.id == term.id %}selected{% endif %}>{{ term.get_name_display }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button type="submit" class="ndga-btn ndga-btn-secondary !px-3 !py-2 !text-xs">Apply</button>
+      </form>
+    </div>
+
+    <div class="mt-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <h2 class="text-base font-semibold text-slate-900">Select Subject</h2>
+      <div class="mt-4 space-y-3">
+        {% for row in assignment_rows %}
+          <div class="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <p class="text-base font-semibold text-slate-900">{{ row.assignment.subject.name }}</p>
+              <span class="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700">
+                {{ row.result_sheet.get_status_display }}
+              </span>
+            </div>
+            <p class="mt-1 text-xs text-slate-600">{{ row.score_count }} record{{ row.score_count|pluralize }} saved</p>
+
+            <div class="mt-3 flex flex-wrap gap-2">
+              <a href="{% url 'results:assignment-scores' row.assignment.id %}{% if filter_query %}?{{ filter_query }}{% endif %}" class="ndga-btn ndga-btn-secondary !px-3 !py-1.5 !text-xs">
+                Open Entry
+              </a>
+              <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="assignment_id" value="{{ row.assignment.id }}">
+                {% if selected_session %}<input type="hidden" name="session_id" value="{{ selected_session.id }}">{% endif %}
+                {% if selected_term %}<input type="hidden" name="term_id" value="{{ selected_term.id }}">{% endif %}
+                <button type="submit" class="ndga-btn ndga-btn-primary !px-3 !py-1.5 !text-xs" {% if not row.can_submit %}disabled{% endif %}>
+                  Submit To Dean
+                </button>
+              </form>
+            </div>
+          </div>
+        {% empty %}
+          <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            No subjects found for this class.
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+{% endblock %}

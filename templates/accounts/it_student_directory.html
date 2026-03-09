@@ -1,0 +1,108 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Student Management{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm animate-soft-reveal sm:p-8">
+      <p class="text-xs font-semibold uppercase tracking-[0.2em] text-ndga-navy/70">Administration</p>
+      <h1 class="mt-2 text-3xl font-bold text-ndga-navy">Student Management</h1>
+      <p class="mt-2 text-sm text-slate-600">View and manage already registered student accounts only on this page.</p>
+      <div class="mt-4 flex flex-wrap gap-2">
+        <a href="{{ student_create_url }}" class="ndga-btn ndga-btn-primary">Create New User</a>
+      </div>
+    </div>
+
+    <article class="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="mb-3 flex items-center justify-between">
+        <h2 class="text-base font-semibold text-slate-900">Student List</h2>
+        <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Total: {{ total_students }}</p>
+      </div>
+      <form method="get" class="grid gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:grid-cols-7">
+        <input type="text" name="q" value="{{ search_query }}" placeholder="Search name" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+        <input type="text" name="admission_no" value="{{ admission_no_filter }}" placeholder="Filter by admission no" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+        <select name="class_id" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+          <option value="">All Classes</option>
+          {% for class_id, class_code in class_filter_options %}
+            {% if class_id %}
+              <option value="{{ class_id }}" {% if class_filter == class_id|stringformat:"s" %}selected{% endif %}>{{ class_code }}</option>
+            {% endif %}
+          {% endfor %}
+        </select>
+        <select name="status" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+          <option value="">All Status</option>
+          <option value="active" {% if status_filter == "active" %}selected{% endif %}>Active</option>
+          <option value="inactive" {% if status_filter == "inactive" %}selected{% endif %}>Inactive</option>
+        </select>
+        <select name="lifecycle" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+          <option value="">All Lifecycle States</option>
+          {% for state_value, state_label in lifecycle_options %}
+            <option value="{{ state_value }}" {% if lifecycle_filter == state_value %}selected{% endif %}>{{ state_label }}</option>
+          {% endfor %}
+        </select>
+        <select name="page_size" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+          {% for size in student_page_size_options %}
+            <option value="{{ size }}" {% if student_page_size == size %}selected{% endif %}>{{ size }} / page</option>
+          {% endfor %}
+          <option value="all" {% if student_page_size == "all" %}selected{% endif %}>View all</option>
+        </select>
+        <button type="submit" class="ndga-btn ndga-btn-secondary">Filter</button>
+      </form>
+
+      <div class="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+          <thead>
+            <tr class="bg-slate-50 text-left text-slate-500">
+              <th class="px-3 py-2">Name</th>
+              <th class="px-3 py-2">Class</th>
+              <th class="px-3 py-2">Admission No.</th>
+              <th class="px-3 py-2">Status</th><th class="px-3 py-2">Lifecycle</th>
+              <th class="px-3 py-2">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            {% for row in student_rows %}
+              <tr>
+                <td class="px-3 py-2 text-slate-700">{{ row.user.get_full_name|default:row.user.username }}</td>
+                <td class="px-3 py-2 text-slate-700">{{ row.class_code }}</td>
+                <td class="px-3 py-2 text-slate-700">{{ row.user.student_profile.student_number|default:"-" }}</td>
+                <td class="px-3 py-2 text-slate-700">{% if row.user.is_active %}Active{% else %}Inactive{% endif %}</td><td class="px-3 py-2 text-slate-700">{{ row.user.student_profile.get_lifecycle_state_display|default:"-" }}</td>
+                <td class="px-3 py-2">
+                  <div class="flex flex-wrap gap-1.5">
+                    <a href="{% url 'accounts:it-student-detail' row.user.id %}" class="ndga-btn ndga-btn-secondary !rounded-lg !px-2.5 !py-1.5 !text-xs">View</a><a href="{% url 'accounts:it-student-edit' row.user.id %}" class="ndga-btn ndga-btn-secondary !rounded-lg !px-2.5 !py-1.5 !text-xs">Edit</a>
+                    <form method="post" action="{% url 'accounts:it-user-toggle-status' row.user.id %}">
+                      {% csrf_token %}
+                      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                      <button type="submit" class="ndga-btn ndga-btn-secondary !rounded-lg !px-2.5 !py-1.5 !text-xs">{% if row.user.is_active %}Deactivate{% else %}Activate{% endif %}</button>
+                    </form>
+                    <form method="post" action="{% url 'accounts:it-user-delete' row.user.id %}" data-confirm-message="Delete this account permanently?">
+                      {% csrf_token %}
+                      <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                      <button type="submit" class="ndga-btn !rounded-lg !bg-rose-600 !px-2.5 !py-1.5 !text-xs !text-white hover:!bg-rose-700">Delete</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="6" class="px-3 py-4 text-slate-500">No student accounts yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {% if student_page_obj %}
+        <div class="mt-3 flex items-center justify-between gap-2">
+          <p class="text-xs text-slate-500">Page {{ student_page_obj.number }} of {{ student_page_obj.paginator.num_pages }}</p>
+          <div class="flex items-center gap-2">
+            {% if student_page_obj.has_previous %}
+              <a href="?{% if student_list_base_query %}{{ student_list_base_query }}&{% endif %}page={{ student_page_obj.previous_page_number }}" class="ndga-btn ndga-btn-secondary !px-3 !py-1.5 !text-xs">&lt;</a>
+            {% endif %}
+            {% if student_page_obj.has_next %}
+              <a href="?{% if student_list_base_query %}{{ student_list_base_query }}&{% endif %}page={{ student_page_obj.next_page_number }}" class="ndga-btn ndga-btn-secondary !px-3 !py-1.5 !text-xs">&gt;</a>
+            {% endif %}
+          </div>
+        </div>
+      {% endif %}
+    </article>
+  </section>
+{% endblock %}

@@ -1,0 +1,21 @@
+.git
+.gitignore
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+node_modules/
+.postgres/
+.run/
+.tools/
+SCHOOL/
+gradex format/
+media/
+staticfiles/
+.env
+.env.*
+deploy/docker/.env.lan
+deploy/docker/.env.cloud
+deploy/env/.env.prod
+*.log

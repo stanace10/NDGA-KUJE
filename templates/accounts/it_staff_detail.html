@@ -1,0 +1,71 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Staff Detail{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Staff Directory</p>
+        <h1 class="mt-1 text-3xl font-bold text-slate-900">{{ target_user.get_full_name|default:target_user.username }}</h1>
+        <p class="mt-1 text-sm text-slate-500">{{ target_user.staff_profile.staff_id|default:target_user.username }}</p>
+      </div>
+      <div class="flex gap-2"><a href="{% url 'accounts:it-staff-edit' target_user.id %}" class="ndga-btn ndga-btn-primary">Edit</a><a href="{% url 'accounts:it-staff-directory' %}" class="ndga-btn ndga-btn-secondary">Back</a></div>
+    </div>
+
+    <div class="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_24rem]">
+      <div class="space-y-6">
+        <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 class="text-lg font-semibold text-slate-900">Profile</h2>
+          <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3"><p class="text-xs uppercase tracking-[0.14em] text-slate-500">Role</p><p class="mt-1 text-sm font-semibold text-slate-900">{{ target_user.primary_role.name|default:target_user.primary_role.code }}</p></div>
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3"><p class="text-xs uppercase tracking-[0.14em] text-slate-500">Designation</p><p class="mt-1 text-sm font-semibold text-slate-900">{{ target_user.staff_profile.designation|default:'-' }}</p></div>
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3"><p class="text-xs uppercase tracking-[0.14em] text-slate-500">Employment</p><p class="mt-1 text-sm font-semibold text-slate-900">{{ target_user.staff_profile.get_employment_status_display }}</p></div>
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3"><p class="text-xs uppercase tracking-[0.14em] text-slate-500">Phone</p><p class="mt-1 text-sm font-semibold text-slate-900">{{ target_user.staff_profile.phone_number|default:'-' }}</p></div>
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3 md:col-span-2"><p class="text-xs uppercase tracking-[0.14em] text-slate-500">Recovery Email</p><p class="mt-1 text-sm font-semibold text-slate-900">{{ target_user.email|default:'-' }}</p></div>
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3 md:col-span-2 xl:col-span-3"><p class="text-xs uppercase tracking-[0.14em] text-slate-500">Lifecycle Note</p><p class="mt-1 text-sm text-slate-700">{{ target_user.staff_profile.lifecycle_note|default:'-' }}</p></div>
+          </div>
+        </article>
+
+        <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 class="text-lg font-semibold text-slate-900">Assignments</h2>
+          <div class="mt-4 grid gap-4 lg:grid-cols-2">
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4"><h3 class="text-sm font-semibold text-slate-900">Subject Loads</h3><div class="mt-2 space-y-2 text-sm text-slate-700">{% for row in subject_assignments %}<div><p class="font-semibold text-slate-900">{{ row.academic_class.display_name|default:row.academic_class.code }} - {{ row.subject.name }}</p><p class="text-xs text-slate-500">{{ row.session.name }} | {{ row.term.get_name_display }}</p></div>{% empty %}<p>-</p>{% endfor %}</div></div>
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4"><h3 class="text-sm font-semibold text-slate-900">Form Classes</h3><div class="mt-2 space-y-2 text-sm text-slate-700">{% for row in form_assignments %}<div><p class="font-semibold text-slate-900">{{ row.academic_class.display_name|default:row.academic_class.code }}</p><p class="text-xs text-slate-500">{{ row.session.name }}</p></div>{% empty %}<p>-</p>{% endfor %}</div></div>
+          </div>
+        </article>
+
+        <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 class="text-lg font-semibold text-slate-900">Result Submission Status</h2>
+          <div class="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
+            <table class="min-w-full divide-y divide-slate-200 text-sm">
+              <thead class="bg-slate-50"><tr><th class="px-3 py-2 text-left">Class</th><th class="px-3 py-2 text-left">Subject</th><th class="px-3 py-2 text-left">Status</th></tr></thead>
+              <tbody class="divide-y divide-slate-100 bg-white">
+                {% for row in result_sheet_rows %}
+                  <tr><td class="px-3 py-2 text-slate-700">{{ row.academic_class.display_name|default:row.academic_class.code }}</td><td class="px-3 py-2 font-semibold text-slate-900">{{ row.subject.name }}</td><td class="px-3 py-2">{{ row.get_status_display }}</td></tr>
+                {% empty %}
+                  <tr><td colspan="3" class="px-3 py-4 text-slate-500">No current result sheets are assigned for this staff member.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </div>
+
+      <aside class="space-y-6">
+        <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 class="text-lg font-semibold text-slate-900">Performance Snapshot</h2>
+          <div class="mt-4 space-y-3 text-sm text-slate-700">
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3"><p class="text-xs uppercase tracking-[0.14em] text-slate-500">Effectiveness</p><p class="mt-1 text-2xl font-bold text-slate-900">{{ teacher_analytics.effectiveness_score|default:'-' }}</p></div>
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3"><p class="text-xs uppercase tracking-[0.14em] text-slate-500">Pass Rate</p><p class="mt-1 text-lg font-bold text-slate-900">{{ teacher_analytics.exam_pass_rate|default:'-' }}%</p></div>
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3"><p class="text-xs uppercase tracking-[0.14em] text-slate-500">Class Engagement</p><p class="mt-1 text-lg font-bold text-slate-900">{{ teacher_analytics.class_engagement|default:'-' }}%</p></div>
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3"><p class="text-xs uppercase tracking-[0.14em] text-slate-500">CBT Completion</p><p class="mt-1 text-lg font-bold text-slate-900">{{ teacher_analytics.cbt_completion_rate|default:'-' }}%</p></div>
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3"><p class="text-xs uppercase tracking-[0.14em] text-slate-500">Draft Sheets</p><p class="mt-1 text-lg font-bold text-slate-900">{{ result_status_counts.draft }}</p></div>
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3"><p class="text-xs uppercase tracking-[0.14em] text-slate-500">Submitted</p><p class="mt-1 text-lg font-bold text-slate-900">{{ result_status_counts.submitted }}</p></div>
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3"><p class="text-xs uppercase tracking-[0.14em] text-slate-500">Published</p><p class="mt-1 text-lg font-bold text-slate-900">{{ result_status_counts.published }}</p></div>
+          </div>
+        </article>
+      </aside>
+    </div>
+  </section>
+{% endblock %}

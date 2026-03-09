@@ -1,0 +1,164 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}CBT Entry{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">CBT Entry</p>
+          <h1 class="mt-2 text-3xl font-bold text-ndga-navy">CBT Entry Center</h1>
+          <p class="mt-2 text-sm text-slate-600">Create and manage CBT entries by class and subject.</p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <a href="{% url 'cbt:exam-create' %}" class="ndga-btn ndga-btn-primary">Create New CBT</a>
+        </div>
+      </div>
+      <form method="get" class="mt-4 flex flex-wrap items-end gap-2">
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500" for="session_id">Session</label>
+          <select id="session_id" name="session_id" class="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm">
+            {% for session in available_sessions %}
+              <option value="{{ session.id }}" {% if selected_session and selected_session.id == session.id %}selected{% endif %}>
+                {{ session.name }}
+              </option>
+            {% empty %}
+              <option value="">No Session</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500" for="term_id">Term</label>
+          <select id="term_id" name="term_id" class="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm">
+            {% for term in available_terms %}
+              <option value="{{ term.id }}" {% if selected_term and selected_term.id == term.id %}selected{% endif %}>
+                {{ term.get_name_display }}
+              </option>
+            {% empty %}
+              <option value="">No Term</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button type="submit" class="ndga-btn ndga-btn-secondary !px-3 !py-2 !text-xs">Apply</button>
+      </form>
+    </article>
+
+    {% if not has_exams %}
+      <article class="mt-6 rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-sm">
+        <h2 class="text-xl font-semibold text-slate-900">No CBT available</h2>
+        <p class="mt-2 text-sm text-slate-600">Create a new CBT entry to start question setup for your class and subject.</p>
+        <a href="{% url 'cbt:exam-create' %}" class="mt-5 inline-flex ndga-btn ndga-btn-primary">Create New CBT</a>
+      </article>
+    {% endif %}
+
+    <div class="mt-6">
+      <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-semibold text-ndga-navy">My CBT Entries</h2>
+        <div class="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
+          <table class="min-w-full divide-y divide-slate-200 text-sm">
+            <thead>
+              <tr class="bg-slate-50 text-left text-slate-500">
+                <th class="px-3 py-2">Title</th>
+                <th class="px-3 py-2">Class</th>
+                <th class="px-3 py-2">Subject</th>
+                <th class="px-3 py-2">Session/Term</th>
+                <th class="px-3 py-2">Type</th>
+                <th class="px-3 py-2">Status</th>
+                <th class="px-3 py-2">Action</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              {% for exam in exams %}
+                <tr>
+                  <td class="px-3 py-2 font-semibold text-slate-800">{{ exam.title }}</td>
+                  <td class="px-3 py-2 text-slate-700">{{ exam.academic_class.code }}</td>
+                  <td class="px-3 py-2 text-slate-700">{{ exam.subject.name }}</td>
+                  <td class="px-3 py-2 text-slate-700">{{ exam.session.name }} | {{ exam.term.get_name_display }}</td>
+                  <td class="px-3 py-2 text-slate-700">{{ exam.get_exam_type_display }}</td>
+                  <td class="px-3 py-2 text-slate-700">{{ exam.get_status_display }}</td>
+                  <td class="px-3 py-2">
+                    <div class="flex items-center gap-3">
+                      <a href="{{ exam.open_url }}" class="text-sm font-semibold text-ndga-navy">Open</a>
+                      {% if exam.status == "DRAFT" %}
+                        <form id="delete-cbt-form-{{ exam.id }}" method="post" action="{% url 'cbt:exam-delete' exam.id %}">
+                          {% csrf_token %}
+                          <button
+                            type="button"
+                            class="js-open-delete-cbt text-sm font-semibold text-rose-700 hover:text-rose-900"
+                            data-form-id="delete-cbt-form-{{ exam.id }}"
+                            data-exam-title="{{ exam.title|escape }}"
+                          >
+                            Delete
+                          </button>
+                        </form>
+                      {% endif %}
+                    </div>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="7" class="px-3 py-4 text-slate-500">No CBT entries yet.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </article>
+    </div>
+
+    <div id="delete-cbt-modal" class="fixed inset-0 z-[80] hidden">
+      <div id="delete-cbt-modal-backdrop" class="absolute inset-0 bg-slate-900/45"></div>
+      <div class="relative mx-auto mt-24 w-[92%] max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-xl">
+        <h3 class="text-lg font-semibold text-ndga-navy">Delete Draft CBT</h3>
+        <p class="mt-2 text-sm text-slate-700">
+          This will permanently remove
+          <span id="delete-cbt-modal-title" class="font-semibold text-slate-900"></span>.
+        </p>
+        <div class="mt-5 flex items-center justify-end gap-2">
+          <button id="delete-cbt-modal-cancel" type="button" class="ndga-btn ndga-btn-secondary">Cancel</button>
+          <button id="delete-cbt-modal-confirm" type="button" class="ndga-btn !bg-rose-600 !text-white hover:!bg-rose-700">Delete Draft</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    (function () {
+      const modal = document.getElementById("delete-cbt-modal");
+      if (!modal) return;
+      const titleNode = document.getElementById("delete-cbt-modal-title");
+      const closeBtn = document.getElementById("delete-cbt-modal-cancel");
+      const confirmBtn = document.getElementById("delete-cbt-modal-confirm");
+      const backdrop = document.getElementById("delete-cbt-modal-backdrop");
+      let activeForm = null;
+
+      function closeModal() {
+        modal.classList.add("hidden");
+        activeForm = null;
+      }
+
+      function openModal(formId, title) {
+        activeForm = document.getElementById(formId);
+        if (!activeForm) return;
+        titleNode.textContent = title ? `"${title}"` : "this draft CBT";
+        modal.classList.remove("hidden");
+      }
+
+      document.querySelectorAll(".js-open-delete-cbt").forEach((button) => {
+        button.addEventListener("click", function () {
+          openModal(this.dataset.formId, this.dataset.examTitle);
+        });
+      });
+
+      closeBtn.addEventListener("click", closeModal);
+      backdrop.addEventListener("click", closeModal);
+      confirmBtn.addEventListener("click", function () {
+        if (activeForm) activeForm.submit();
+      });
+      document.addEventListener("keydown", function (event) {
+        if (event.key === "Escape" && !modal.classList.contains("hidden")) {
+          closeModal();
+        }
+      });
+    })();
+  </script>
+{% endblock %}

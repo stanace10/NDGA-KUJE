@@ -1,0 +1,40 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Dean CBT Review{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <h1 class="text-2xl font-bold text-ndga-navy">Dean CBT Review Queue</h1>
+      <p class="mt-2 text-sm text-slate-600">Approve or reject teacher-submitted exam configuration and question sets.</p>
+      <div class="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+          <thead>
+            <tr class="bg-slate-50 text-left text-slate-500">
+              <th class="px-3 py-2">Exam</th>
+              <th class="px-3 py-2">Subject/Class</th>
+              <th class="px-3 py-2">Teacher</th>
+              <th class="px-3 py-2">Status</th>
+              <th class="px-3 py-2">Action</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            {% for exam in exams %}
+              <tr>
+                <td class="px-3 py-2 font-semibold text-slate-800">{{ exam.title }}</td>
+                <td class="px-3 py-2 text-slate-700">{{ exam.subject.code }} / {{ exam.academic_class.code }}</td>
+                <td class="px-3 py-2 text-slate-700">{{ exam.created_by.username }}</td>
+                <td class="px-3 py-2 text-slate-700">{{ exam.get_status_display }}</td>
+                <td class="px-3 py-2">
+                  <a href="{% url 'cbt:dean-review-detail' exam.id %}" class="font-semibold text-ndga-navy">Review</a>
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="5" class="px-3 py-4 text-slate-500">No exams awaiting review.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </section>
+{% endblock %}

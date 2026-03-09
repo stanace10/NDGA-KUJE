@@ -1,0 +1,286 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Result Settings{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div class="grid gap-4 lg:grid-cols-2">
+      <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:col-span-2">
+        <div class="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 class="text-xl font-bold text-ndga-navy">School Profile & Result Setup</h1>
+            <p class="mt-2 text-sm text-slate-600">Manage result branding, CA labels, promotion thresholds, psychomotor metrics, and setup shortcuts from one place.</p>
+          </div>
+          <div class="rounded-2xl border px-4 py-3 text-sm {% if can_manage_result_settings %}border-emerald-200 bg-emerald-50 text-emerald-900{% else %}border-slate-200 bg-slate-50 text-slate-700{% endif %}">
+            {% if can_manage_result_settings %}
+              IT Manager can edit settings here.
+            {% else %}
+              View-only access. Only IT Manager can change these settings.
+            {% endif %}
+          </div>
+        </div>
+        <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p class="text-xs uppercase tracking-[0.14em] text-slate-500">Current Session</p><p class="mt-1 text-sm font-semibold text-slate-900">{{ setup_state.current_session.name|default:'-' }}</p></div>
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p class="text-xs uppercase tracking-[0.14em] text-slate-500">Current Term</p><p class="mt-1 text-sm font-semibold text-slate-900">{% if setup_state.current_term %}{{ setup_state.current_term.get_name_display }}{% else %}-{% endif %}</p></div>
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p class="text-xs uppercase tracking-[0.14em] text-slate-500">Promotion Average</p><p class="mt-1 text-sm font-semibold text-slate-900">{{ school_profile.promotion_average_threshold }}%</p></div>
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p class="text-xs uppercase tracking-[0.14em] text-slate-500">Attendance Threshold</p><p class="mt-1 text-sm font-semibold text-slate-900">{{ school_profile.promotion_attendance_threshold }}%</p></div>
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p class="text-xs uppercase tracking-[0.14em] text-slate-500">Psychomotor Metrics</p><p class="mt-1 text-sm font-semibold text-slate-900">{{ active_metric_count }}</p></div>
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p class="text-xs uppercase tracking-[0.14em] text-slate-500">Result PIN</p><p class="mt-1 text-sm font-semibold text-slate-900">{% if school_profile.require_result_access_pin %}Enabled{% else %}Disabled{% endif %}</p></div>
+        </div>
+        <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {% for row in setup_shortcuts %}
+            <a href="{{ row.url }}" class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 shadow-sm transition hover:border-ndga-navy/40">{{ row.label }}</a>
+          {% endfor %}
+        </div>
+      </article>
+
+      <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-semibold text-slate-900">Psychomotor Metrics</h2>
+        <p class="mt-2 text-sm text-slate-600">Configure form-teacher behavior metrics shown on cumulative entry.</p>
+
+        {% if can_manage_result_settings %}
+          <form method="post" class="mt-4 grid gap-3 sm:grid-cols-3">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create_metric">
+            <div>
+              <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Code</label>
+              <input type="text" name="code" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" placeholder="punctuality">
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Label</label>
+              <input type="text" name="label" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" placeholder="Punctuality">
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Sort</label>
+              <input type="number" min="1" name="sort_order" value="{{ next_sort_order }}" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+            </div>
+            <div class="sm:col-span-3">
+              <button type="submit" class="ndga-btn ndga-btn-primary">Add Metric</button>
+            </div>
+          </form>
+        {% endif %}
+
+        <div class="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
+          <table class="min-w-full divide-y divide-slate-200 text-sm">
+            <thead class="bg-slate-50">
+              <tr>
+                <th class="px-3 py-2 text-left font-semibold text-slate-700">Code</th>
+                <th class="px-3 py-2 text-left font-semibold text-slate-700">Label</th>
+                <th class="px-3 py-2 text-left font-semibold text-slate-700">Sort</th>
+                <th class="px-3 py-2 text-left font-semibold text-slate-700">Status</th>
+                <th class="px-3 py-2 text-left font-semibold text-slate-700">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              {% for row in metric_rows %}
+                <tr>
+                  <td class="px-3 py-2 font-mono text-xs text-slate-700">{{ row.code }}</td>
+                  <td class="px-3 py-2 text-slate-700">{{ row.label }}</td>
+                  <td class="px-3 py-2 text-slate-700">{{ row.sort_order }}</td>
+                  <td class="px-3 py-2 text-slate-700">{% if row.is_active %}Active{% else %}Inactive{% endif %}</td>
+                  <td class="px-3 py-2">
+                    {% if can_manage_result_settings %}
+                      <form method="post" class="grid gap-1">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="update_metric">
+                        <input type="hidden" name="metric_id" value="{{ row.id }}">
+                        <input type="text" name="label" value="{{ row.label }}" class="w-40 rounded-lg border border-slate-300 px-2 py-1 text-xs" placeholder="Label">
+                        <div class="flex items-center gap-2">
+                          <input type="number" min="1" name="sort_order" value="{{ row.sort_order }}" class="w-20 rounded-lg border border-slate-300 px-2 py-1 text-xs">
+                          <label class="inline-flex items-center gap-1 text-[11px] text-slate-700">
+                            <input type="checkbox" name="is_active" {% if row.is_active %}checked{% endif %}> Active
+                          </label>
+                        </div>
+                        <button type="submit" class="ndga-btn ndga-btn-secondary !rounded-lg !px-2.5 !py-1.5 !text-xs">Save</button>
+                      </form>
+                    {% else %}
+                      <span class="text-xs text-slate-500">View only</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="5" class="px-3 py-5 text-center text-slate-500">No custom metrics yet. Default behavior metrics will be used.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-semibold text-slate-900">Default Grade Scale</h2>
+        <div class="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
+          <table class="min-w-full divide-y divide-slate-200 text-sm">
+            <thead class="bg-slate-50"><tr><th class="px-3 py-2 text-left">Grade</th><th class="px-3 py-2 text-left">Min</th><th class="px-3 py-2 text-left">Max</th></tr></thead>
+            <tbody class="divide-y divide-slate-100 bg-white">
+              {% for row in grade_scale_rows %}
+                <tr><td class="px-3 py-2 font-semibold text-slate-900">{{ row.grade }}</td><td class="px-3 py-2">{{ row.min_score }}</td><td class="px-3 py-2">{{ row.max_score }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <h2 class="mt-6 text-lg font-semibold text-slate-900">Finance Profile Visibility</h2>
+        <p class="mt-2 text-sm text-slate-600">Control whether bursar bank details appear on result PDF exports.</p>
+        <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm">
+          <p><span class="font-semibold">Bank:</span> {{ finance_profile.school_bank_name|default:"-" }}</p>
+          <p><span class="font-semibold">Account Name:</span> {{ finance_profile.school_account_name|default:"-" }}</p>
+          <p><span class="font-semibold">Account Number:</span> {{ finance_profile.school_account_number|default:"-" }}</p>
+        </div>
+        {% if can_manage_result_settings %}
+          <form method="post" class="mt-4 space-y-3">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="toggle_result_pdf_bank">
+            <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+              <input type="checkbox" name="show_on_result_pdf" {% if finance_profile.show_on_result_pdf %}checked{% endif %}> Show bank details on result PDF
+            </label>
+            <div><button type="submit" class="ndga-btn ndga-btn-primary">Save PDF Visibility</button></div>
+          </form>
+        {% endif %}
+      </article>
+
+      <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:col-span-2">
+        <h2 class="text-lg font-semibold text-slate-900">School Profile & Result Branding</h2>
+        <p class="mt-2 text-sm text-slate-600">Manage the school identity, CA labels, principal signature name, report footer, promotion thresholds, PIN rule, and branding used on report cards.</p>
+
+        <form method="post" enctype="multipart/form-data" class="mt-4 grid gap-4 lg:grid-cols-2">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="save_school_profile">
+          {% for field in school_profile_form %}
+            <div {% if field.name == "address" or field.name == "auto_comment_guidance" %}class="lg:col-span-2"{% endif %}>
+              <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500" for="{{ field.id_for_label }}">{{ field.label }}</label>
+              {{ field }}
+              {% if field.errors %}<p class="mt-1 text-xs text-rose-700">{{ field.errors|striptags }}</p>{% endif %}
+            </div>
+          {% endfor %}
+          <div class="lg:col-span-2 flex items-center justify-between gap-4">
+            <div class="flex flex-wrap items-center gap-4">
+              {% if school_profile.school_logo %}
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3"><p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Current Logo</p><img src="{{ school_profile.school_logo.url }}" alt="School logo" class="mt-2 h-16 w-auto rounded bg-white p-1"></div>
+              {% endif %}
+              {% if school_profile.school_stamp %}
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3"><p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Current Stamp</p><img src="{{ school_profile.school_stamp.url }}" alt="School stamp" class="mt-2 h-16 w-auto rounded bg-white p-1"></div>
+              {% endif %}
+            </div>
+            {% if can_manage_result_settings %}<button type="submit" class="ndga-btn ndga-btn-primary">Save School Profile</button>{% endif %}
+          </div>
+        </form>
+      </article>
+
+      <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:col-span-2">
+        <div class="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 class="text-lg font-semibold text-slate-900">Principal Signature Control</h2>
+            <p class="mt-2 text-sm text-slate-600">Upload or redraw the principal signature used on report cards. {% if principal_signature_owner %}Current principal account: {{ principal_signature_owner.get_full_name|default:principal_signature_owner.username }}.{% else %}Create the principal account first before saving a signature here.{% endif %}</p>
+          </div>
+          {% if principal_signature_record and principal_signature_record.signature_image %}
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Current Signature</p>
+              <img src="{{ principal_signature_record.signature_image.url }}" alt="Principal signature" class="mt-2 h-20 w-auto rounded border border-slate-300 bg-white p-1">
+            </div>
+          {% endif %}
+        </div>
+
+        <div class="mt-4 grid gap-4 lg:grid-cols-2">
+          <div>
+            <form id="resultSettingsSignatureForm" method="post" enctype="multipart/form-data" class="space-y-3">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="save_principal_signature">
+              {{ principal_signature_form.signature_data }}
+              <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500" for="{{ principal_signature_form.signature_image.id_for_label }}">Upload Signature Image</label>
+                {{ principal_signature_form.signature_image }}
+                {% if principal_signature_form.signature_image.errors %}<p class="mt-1 text-xs text-rose-700">{{ principal_signature_form.signature_image.errors|striptags }}</p>{% endif %}
+                {% if principal_signature_form.signature_data.errors %}<p class="mt-1 text-xs text-rose-700">{{ principal_signature_form.signature_data.errors|striptags }}</p>{% endif %}
+              </div>
+              <div class="flex flex-wrap gap-2">
+                {% if can_manage_result_settings and principal_signature_owner %}<button type="submit" class="ndga-btn ndga-btn-primary">Save Signature</button>{% endif %}
+              </div>
+            </form>
+            {% if can_manage_result_settings and principal_signature_record and principal_signature_record.signature_image %}
+              <form method="post" class="mt-2">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="clear_principal_signature">
+                <button type="submit" class="ndga-btn ndga-btn-secondary">Remove Signature</button>
+              </form>
+            {% endif %}
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Signature Pad</label>
+            <canvas id="signaturePadCanvas" class="h-44 w-full rounded-2xl border border-slate-300 bg-white" style="touch-action: none;"></canvas>
+            <div class="mt-2 flex gap-2">
+              <button id="clearSignaturePadBtn" type="button" class="ndga-btn ndga-btn-secondary">Clear Pad</button>
+            </div>
+            <p class="mt-2 text-xs text-slate-500">If you draw here and save, the drawn signature is used when no file upload is selected.</p>
+          </div>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <script>
+    (function () {
+      const form = document.getElementById("resultSettingsSignatureForm");
+      const canvas = document.getElementById("signaturePadCanvas");
+      const clearBtn = document.getElementById("clearSignaturePadBtn");
+      const hiddenInput = document.getElementById("id_signature_data");
+      const fileInput = document.getElementById("id_signature_image");
+      if (!form || !canvas || !clearBtn || !hiddenInput || !fileInput) {
+        return;
+      }
+      const ctx = canvas.getContext("2d");
+      let drawing = false;
+      let hasStroke = false;
+      function resizeCanvas() {
+        const ratio = Math.max(window.devicePixelRatio || 1, 1);
+        const width = canvas.clientWidth;
+        const height = canvas.clientHeight;
+        canvas.width = Math.floor(width * ratio);
+        canvas.height = Math.floor(height * ratio);
+        ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+        ctx.lineWidth = 2.2;
+        ctx.lineJoin = "round";
+        ctx.lineCap = "round";
+        ctx.strokeStyle = "#0b1f51";
+      }
+      function pointFromEvent(event) {
+        const rect = canvas.getBoundingClientRect();
+        return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+      }
+      canvas.addEventListener("pointerdown", (event) => {
+        const point = pointFromEvent(event);
+        drawing = true;
+        hasStroke = true;
+        ctx.beginPath();
+        ctx.moveTo(point.x, point.y);
+      });
+      canvas.addEventListener("pointermove", (event) => {
+        if (!drawing) {
+          return;
+        }
+        const point = pointFromEvent(event);
+        ctx.lineTo(point.x, point.y);
+        ctx.stroke();
+      });
+      function stopDrawing() {
+        drawing = false;
+      }
+      canvas.addEventListener("pointerup", stopDrawing);
+      canvas.addEventListener("pointerleave", stopDrawing);
+      canvas.addEventListener("pointercancel", stopDrawing);
+      clearBtn.addEventListener("click", () => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        hasStroke = false;
+        hiddenInput.value = "";
+      });
+      form.addEventListener("submit", () => {
+        if (hasStroke && !fileInput.files.length) {
+          hiddenInput.value = canvas.toDataURL("image/png");
+        } else if (!hasStroke) {
+          hiddenInput.value = "";
+        }
+      });
+      window.addEventListener("resize", resizeCanvas);
+      resizeCanvas();
+    })();
+  </script>
+{% endblock %}

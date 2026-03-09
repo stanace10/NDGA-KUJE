@@ -1,0 +1,129 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Media Center{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+    <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Media Center</p>
+          <h1 class="mt-2 text-2xl font-bold text-slate-900">Messaging & Newsletter</h1>
+          <p class="mt-1 text-sm text-slate-600">
+            Send updates to parents, students, and staff. Messages also appear in in-app notifications.
+          </p>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+          Inbox unread: <span class="font-semibold">{{ media_unread_count }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-4 grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+      <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 class="text-base font-semibold text-slate-900">Compose Broadcast</h2>
+        <form method="post" class="mt-4 space-y-3" x-data="{ audience: '{{ media_form.audience.value|default:'CLASS_STUDENTS' }}' }">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="send_broadcast">
+
+          {% if media_form.non_field_errors %}
+            <div class="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+              {{ media_form.non_field_errors|striptags }}
+            </div>
+          {% endif %}
+
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ media_form.audience.id_for_label }}">
+              {{ media_form.audience.label }}
+            </label>
+            <div @change="audience = $event.target.value">{{ media_form.audience }}</div>
+          </div>
+
+          <div x-show="audience === 'CLASS_STUDENTS'" x-transition>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ media_form.academic_class.id_for_label }}">
+              {{ media_form.academic_class.label }}
+            </label>
+            {{ media_form.academic_class }}
+            {% if media_form.academic_class.errors %}<p class="mt-1 text-xs text-rose-700">{{ media_form.academic_class.errors|striptags }}</p>{% endif %}
+          </div>
+
+          <div x-show="audience === 'SELECTED_USERS'" x-transition>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ media_form.recipients.id_for_label }}">
+              {{ media_form.recipients.label }}
+            </label>
+            {{ media_form.recipients }}
+            {% if media_form.recipients.errors %}<p class="mt-1 text-xs text-rose-700">{{ media_form.recipients.errors|striptags }}</p>{% endif %}
+          </div>
+
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ media_form.subject.id_for_label }}">
+              {{ media_form.subject.label }}
+            </label>
+            {{ media_form.subject }}
+            {% if media_form.subject.errors %}<p class="mt-1 text-xs text-rose-700">{{ media_form.subject.errors|striptags }}</p>{% endif %}
+          </div>
+
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ media_form.message.id_for_label }}">
+              {{ media_form.message.label }}
+            </label>
+            {{ media_form.message }}
+            {% if media_form.message.errors %}<p class="mt-1 text-xs text-rose-700">{{ media_form.message.errors|striptags }}</p>{% endif %}
+          </div>
+
+          <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+            {{ media_form.send_email }}
+            <span>Also send by email</span>
+          </label>
+
+          <button type="submit" class="ndga-btn ndga-btn-primary">Send Broadcast</button>
+        </form>
+      </article>
+
+      <div class="space-y-4">
+        <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 class="text-base font-semibold text-slate-900">Inbox</h2>
+          <div class="mt-3 max-h-[16rem] overflow-auto space-y-2">
+            {% for row in inbox_rows %}
+              <div class="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-sm font-semibold text-slate-900">{{ row.title }}</p>
+                  <p class="text-xs text-slate-500">{{ row.created_at|date:"d M Y H:i" }}</p>
+                </div>
+                <p class="mt-1 text-sm text-slate-700">{{ row.message|truncatechars:120 }}</p>
+              </div>
+            {% empty %}
+              <p class="text-sm text-slate-500">No inbox messages yet.</p>
+            {% endfor %}
+          </div>
+        </article>
+
+        <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 class="text-base font-semibold text-slate-900">Sent Messages</h2>
+          <div class="mt-3 max-h-[20rem] overflow-auto rounded-2xl border border-slate-200">
+            <table class="min-w-full divide-y divide-slate-200 text-sm">
+              <thead class="bg-slate-50">
+                <tr>
+                  <th class="px-3 py-2 text-left font-semibold text-slate-700">Time</th>
+                  <th class="px-3 py-2 text-left font-semibold text-slate-700">Title</th>
+                  <th class="px-3 py-2 text-left font-semibold text-slate-700">Recipient</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100 bg-white">
+                {% for row in sent_rows %}
+                  <tr>
+                    <td class="px-3 py-2 text-slate-700">{{ row.created_at|date:"d M Y H:i" }}</td>
+                    <td class="px-3 py-2 text-slate-900">{{ row.title }}</td>
+                    <td class="px-3 py-2 text-slate-700">{{ row.recipient.username }}</td>
+                  </tr>
+                {% empty %}
+                  <tr><td colspan="3" class="px-3 py-6 text-center text-slate-500">No sent broadcasts yet.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+{% endblock %}

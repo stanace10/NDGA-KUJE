@@ -1,0 +1,62 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Weekly Challenge{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div class="grid gap-6 xl:grid-cols-[24rem_minmax(0,1fr)]">
+      <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h1 class="text-2xl font-bold text-slate-900">Weekly Challenge Setup</h1>
+        <p class="mt-2 text-sm text-slate-600">Create class-based brain teasers and keep them aligned with the active session and term.</p>
+        <form method="post" class="mt-5 space-y-3">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="create">
+          {% for field in challenge_form %}
+            <div>
+              <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500" for="{{ field.id_for_label }}">{{ field.label }}</label>
+              {{ field }}
+              {% if field.errors %}<p class="mt-1 text-xs text-rose-700">{{ field.errors|striptags }}</p>{% endif %}
+            </div>
+          {% endfor %}
+          <button type="submit" class="ndga-btn ndga-btn-primary">Save Challenge</button>
+        </form>
+      </article>
+
+      <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 class="text-lg font-semibold text-slate-900">Published And Draft Challenges</h2>
+            <p class="mt-1 text-sm text-slate-600">{% if current_session %}{{ current_session.name }}{% else %}All Sessions{% endif %}{% if current_term %} | {{ current_term.get_name_display }}{% endif %}</p>
+          </div>
+        </div>
+        <div class="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
+          <table class="min-w-full divide-y divide-slate-200 text-sm">
+            <thead class="bg-slate-50"><tr><th class="px-3 py-2 text-left">Week</th><th class="px-3 py-2 text-left">Title</th><th class="px-3 py-2 text-left">Class</th><th class="px-3 py-2 text-left">Points</th><th class="px-3 py-2 text-left">Submissions</th><th class="px-3 py-2 text-left">Status</th><th class="px-3 py-2 text-left">Action</th></tr></thead>
+            <tbody class="divide-y divide-slate-100 bg-white">
+              {% for row in challenge_rows %}
+                <tr>
+                  <td class="px-3 py-2 font-semibold text-slate-900">{{ row.week_label }}</td>
+                  <td class="px-3 py-2"><p class="font-semibold text-slate-900">{{ row.title }}</p><p class="text-xs text-slate-500">{{ row.question_text|truncatechars:80 }}</p></td>
+                  <td class="px-3 py-2">{{ row.academic_class.display_name|default:row.academic_class.code|default:"All Classes" }}</td>
+                  <td class="px-3 py-2">{{ row.reward_points }}</td>
+                  <td class="px-3 py-2">{{ row.submission_total }} / {{ row.correct_total }} correct</td>
+                  <td class="px-3 py-2">{% if row.is_published %}Published{% else %}Hidden{% endif %}</td>
+                  <td class="px-3 py-2">
+                    <form method="post">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="toggle_status">
+                      <input type="hidden" name="challenge_id" value="{{ row.id }}">
+                      <button type="submit" class="ndga-btn ndga-btn-secondary !rounded-lg !px-3 !py-1.5 !text-xs">{% if row.is_published %}Hide{% else %}Publish{% endif %}</button>
+                    </form>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="7" class="px-3 py-5 text-center text-slate-500">No weekly challenges created yet.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </article>
+    </div>
+  </section>
+{% endblock %}

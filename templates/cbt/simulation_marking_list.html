@@ -1,0 +1,51 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Simulation Marking{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <h1 class="text-2xl font-bold text-ndga-navy">Simulation Marking Queue</h1>
+      <p class="mt-2 text-sm text-slate-600">Verify evidence, score rubric submissions, and import simulation practical scores to results.</p>
+
+      <div class="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+          <thead>
+            <tr class="bg-slate-50 text-left text-slate-500">
+              <th class="px-3 py-2">Student</th>
+              <th class="px-3 py-2">Exam</th>
+              <th class="px-3 py-2">Simulation Tool</th>
+              <th class="px-3 py-2">Mode</th>
+              <th class="px-3 py-2">Status</th>
+              <th class="px-3 py-2">Score</th>
+              <th class="px-3 py-2">Action</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            {% for row in records %}
+              <tr>
+                <td class="px-3 py-2 text-slate-700">{{ row.attempt.student.get_full_name|default:row.attempt.student.username }}</td>
+                <td class="px-3 py-2 text-slate-700">{{ row.attempt.exam.title }}</td>
+                <td class="px-3 py-2 text-slate-700">{{ row.exam_simulation.simulation_wrapper.tool_name }}</td>
+                <td class="px-3 py-2 text-slate-700">{{ row.exam_simulation.simulation_wrapper.get_score_mode_display }}</td>
+                <td class="px-3 py-2 text-slate-700">{{ row.get_status_display }}</td>
+                <td class="px-3 py-2 text-slate-700">
+                  {% if row.final_score is not None %}
+                    {{ row.final_score }}
+                  {% else %}
+                    -
+                  {% endif %}
+                </td>
+                <td class="px-3 py-2">
+                  <a href="{% url 'cbt:simulation-marking-detail' row.id %}" class="font-semibold text-ndga-navy">Open</a>
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="7" class="px-3 py-4 text-slate-500">No simulation records available for scoring yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </section>
+{% endblock %}

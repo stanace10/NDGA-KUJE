@@ -1,0 +1,106 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Bursar Messaging{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+    <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Finance Messaging</p>
+      <h1 class="mt-2 text-2xl font-bold text-slate-900">Parent / Student Messaging</h1>
+      <p class="mt-2 max-w-3xl text-sm text-slate-600">
+        Send finance notices by class, selected students, or all students. Messages are sent as in-app notices and email.
+      </p>
+    </div>
+
+    <div class="mt-4 space-y-4">
+      <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 class="text-base font-semibold text-slate-900">Send Message</h2>
+        <form
+          method="post"
+          class="mt-4 space-y-3"
+          x-data="{ scope: '{{ message_form.target_scope.value|default:'CLASS' }}' }"
+        >
+          {% csrf_token %}
+          <input type="hidden" name="action" value="send_message">
+
+          {% if message_form.non_field_errors %}
+            <div class="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+              {{ message_form.non_field_errors|striptags }}
+            </div>
+          {% endif %}
+
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ message_form.target_scope.id_for_label }}">
+              {{ message_form.target_scope.label }}
+            </label>
+            <div @change="scope = $event.target.value">{{ message_form.target_scope }}</div>
+          </div>
+
+          <div x-show="scope === 'CLASS'" x-transition>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ message_form.academic_class.id_for_label }}">
+              {{ message_form.academic_class.label }}
+            </label>
+            {{ message_form.academic_class }}
+            {% if message_form.academic_class.errors %}<p class="mt-1 text-xs text-rose-700">{{ message_form.academic_class.errors|striptags }}</p>{% endif %}
+          </div>
+
+          <div x-show="scope === 'SELECTED'" x-transition>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ message_form.students.id_for_label }}">
+              {{ message_form.students.label }}
+            </label>
+            {{ message_form.students }}
+            {% if message_form.students.errors %}<p class="mt-1 text-xs text-rose-700">{{ message_form.students.errors|striptags }}</p>{% endif %}
+          </div>
+
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ message_form.subject.id_for_label }}">
+              {{ message_form.subject.label }}
+            </label>
+            {{ message_form.subject }}
+            {% if message_form.subject.errors %}<p class="mt-1 text-xs text-rose-700">{{ message_form.subject.errors|striptags }}</p>{% endif %}
+          </div>
+
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ message_form.message.id_for_label }}">
+              {{ message_form.message.label }}
+            </label>
+            {{ message_form.message }}
+            {% if message_form.message.errors %}<p class="mt-1 text-xs text-rose-700">{{ message_form.message.errors|striptags }}</p>{% endif %}
+          </div>
+
+          <button type="submit" class="ndga-btn ndga-btn-primary">Send Message</button>
+        </form>
+      </article>
+
+      <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 class="text-base font-semibold text-slate-900">Recent Messages</h2>
+        <div class="mt-4 max-h-[34rem] overflow-auto rounded-2xl border border-slate-200">
+          <table class="min-w-full divide-y divide-slate-200 text-sm">
+            <thead class="bg-slate-50">
+              <tr>
+                <th class="px-3 py-2 text-left font-semibold text-slate-700">Time</th>
+                <th class="px-3 py-2 text-left font-semibold text-slate-700">Title</th>
+                <th class="px-3 py-2 text-left font-semibold text-slate-700">Recipient</th>
+                <th class="px-3 py-2 text-left font-semibold text-slate-700">Message</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 bg-white">
+              {% for row in message_rows %}
+                <tr>
+                  <td class="px-3 py-2 text-slate-700">{{ row.created_at|date:"d M Y H:i" }}</td>
+                  <td class="px-3 py-2 font-semibold text-slate-900">{{ row.title }}</td>
+                  <td class="px-3 py-2 text-slate-700">{{ row.recipient.username }}</td>
+                  <td class="px-3 py-2 text-slate-700">{{ row.message|truncatechars:90 }}</td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="4" class="px-3 py-8 text-center text-slate-500">No bursar messages sent yet.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </article>
+    </div>
+  </section>
+{% endblock %}

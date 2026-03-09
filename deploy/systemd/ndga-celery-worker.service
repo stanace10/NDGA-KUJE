@@ -1,0 +1,17 @@
+[Unit]
+Description=NDGA Celery Worker
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/srv/ndga/current
+EnvironmentFile=/srv/ndga/current/.env.prod
+Environment=DJANGO_SETTINGS_MODULE=core.settings.prod
+ExecStart=/srv/ndga/venv/bin/celery -A core.celery app worker -l info --concurrency=4
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

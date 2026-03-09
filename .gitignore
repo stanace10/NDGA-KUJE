@@ -1,0 +1,18 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.sqlite3
+.env
+.env.*
+deploy/env/.env.prod
+deploy/docker/.env.lan
+deploy/docker/.env.cloud
+node_modules/
+staticfiles/
+media/
+.postgres/
+.run/
+.tools/
+SCHOOL/
+gradex format/
+*.log

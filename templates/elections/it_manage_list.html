@@ -1,0 +1,125 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Election Setup{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+    <div class="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+      <article class="animate-soft-reveal rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h1 class="text-2xl font-bold text-slate-900">Create Election</h1>
+        <p class="mt-2 text-sm text-slate-600">
+          Define election title, schedule, and session before adding positions and voter groups.
+        </p>
+        <form method="post" class="mt-5 space-y-4">
+          {% csrf_token %}
+          {% if form.non_field_errors %}
+            <div class="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+              {{ form.non_field_errors|striptags }}
+            </div>
+          {% endif %}
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Title</label>
+            {{ form.title }}
+            {% if form.title.errors %}
+              <p class="mt-1 text-xs text-rose-700">{{ form.title.errors|striptags }}</p>
+            {% endif %}
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Description</label>
+            {{ form.description }}
+            {% if form.description.errors %}
+              <p class="mt-1 text-xs text-rose-700">{{ form.description.errors|striptags }}</p>
+            {% endif %}
+          </div>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Session</label>
+              {{ form.session }}
+            </div>
+            <div class="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+              {{ form.is_active }}
+              <label for="{{ form.is_active.id_for_label }}" class="text-sm font-semibold text-slate-700">
+                Active Election Record
+              </label>
+            </div>
+          </div>
+          <div class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+            <label for="{{ form.allow_staff_admin_voting.id_for_label }}" class="flex items-center gap-2 text-sm font-semibold text-slate-700">
+              {{ form.allow_staff_admin_voting }}
+              Allow Staff/Admin Voting
+            </label>
+            <p class="mt-1 text-xs text-slate-500">When disabled, only students can vote in this election.</p>
+          </div>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Starts At</label>
+              {{ form.starts_at }}
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Ends At</label>
+              {{ form.ends_at }}
+            </div>
+          </div>
+          <button type="submit" class="ndga-btn ndga-btn-primary w-full">Create Election</button>
+        </form>
+      </article>
+
+      <article class="animate-soft-reveal-delay rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-semibold text-slate-900">Configured Elections</h2>
+        <div class="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
+          <table class="min-w-full divide-y divide-slate-200 text-sm">
+            <thead class="bg-slate-50">
+              <tr>
+                <th class="px-3 py-2 text-left font-semibold text-slate-700">Election</th>
+                <th class="px-3 py-2 text-left font-semibold text-slate-700">Status</th>
+                <th class="px-3 py-2 text-left font-semibold text-slate-700">Session</th>
+                <th class="px-3 py-2 text-left font-semibold text-slate-700">Updated</th>
+                <th class="px-3 py-2 text-left font-semibold text-slate-700">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 bg-white">
+              {% for election in elections %}
+                <tr>
+                  <td class="px-3 py-2">
+                    <p class="font-semibold text-slate-900">{{ election.title }}</p>
+                    {% if election.description %}
+                      <p class="mt-0.5 text-xs text-slate-500">{{ election.description|truncatechars:60 }}</p>
+                    {% endif %}
+                  </td>
+                  <td class="px-3 py-2">
+                    <span class="rounded-full border px-2 py-1 text-xs font-semibold
+                      {% if election.status == 'OPEN' %}border-emerald-200 bg-emerald-50 text-emerald-800
+                      {% elif election.status == 'CLOSED' %}border-amber-200 bg-amber-50 text-amber-800
+                      {% elif election.status == 'ARCHIVED' %}border-slate-300 bg-slate-100 text-slate-700
+                      {% else %}border-sky-200 bg-sky-50 text-sky-800{% endif %}">
+                      {{ election.get_status_display }}
+                    </span>
+                  </td>
+                  <td class="px-3 py-2 text-slate-700">
+                    {% if election.session %}{{ election.session.name }}{% else %}-{% endif %}
+                  </td>
+                  <td class="px-3 py-2 text-slate-600">{{ election.updated_at|date:"d M Y H:i" }}</td>
+                  <td class="px-3 py-2">
+                    <div class="flex flex-wrap gap-2">
+                      <a href="{% url 'elections:it-manage-detail' election.id %}" class="ndga-btn ndga-btn-secondary">Manage</a>
+                      <a href="{% url 'elections:analytics' election.id %}" class="ndga-btn ndga-btn-secondary">Analytics</a>
+                      {% if election.status == "CLOSED" %}
+                        <a href="{% url 'elections:result-pdf' election.id %}" class="ndga-btn ndga-btn-primary">PDF</a>
+                      {% endif %}
+                    </div>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="5" class="px-3 py-8 text-center text-sm text-slate-500">
+                    No election created yet.
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </article>
+    </div>
+  </section>
+{% endblock %}

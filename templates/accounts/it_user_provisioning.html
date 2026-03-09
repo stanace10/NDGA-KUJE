@@ -1,0 +1,29 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}User Management{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm animate-soft-reveal sm:p-8">
+      <p class="text-xs font-semibold uppercase tracking-[0.2em] text-ndga-navy/70">Administration</p>
+      <h1 class="mt-2 text-3xl font-bold text-ndga-navy">User Management</h1>
+      <p class="mt-2 text-sm text-slate-600">
+        Staff and student management are separated.
+      </p>
+    </div>
+
+    <div class="mt-6 grid gap-5 md:grid-cols-2">
+      <a href="{% url 'accounts:it-staff-directory' %}" class="group rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-ndga-navy/40 hover:shadow-[0_20px_36px_rgba(11,31,81,0.12)]">
+        <p class="text-lg font-semibold text-slate-900">Staff Management</p>
+        <p class="mt-1 text-sm text-slate-600">Open staff list, filters, and create user flow.</p>
+        <p class="mt-4 text-sm font-semibold text-ndga-navy group-hover:text-ndga-gold">Open Staff Management</p>
+      </a>
+      <a href="{% url 'accounts:it-student-directory' %}" class="group rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-ndga-navy/40 hover:shadow-[0_20px_36px_rgba(11,31,81,0.12)]">
+        <p class="text-lg font-semibold text-slate-900">Student Management</p>
+        <p class="mt-1 text-sm text-slate-600">Open student list, class/admission filters, and create user flow.</p>
+        <p class="mt-4 text-sm font-semibold text-ndga-navy group-hover:text-ndga-gold">Open Student Management</p>
+      </a>
+    </div>
+
+  </section>
+{% endblock %}

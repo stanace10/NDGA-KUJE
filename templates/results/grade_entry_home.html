@@ -1,0 +1,66 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Result Entry{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+    <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 class="text-2xl font-bold text-ndga-navy">Result Entry</h1>
+          {% if current_session and current_term %}
+            <p class="mt-1 text-xs font-semibold text-slate-500">
+              {{ current_session.name }} | {{ current_term.get_name_display }}
+            </p>
+          {% endif %}
+        </div>
+        <form method="get" class="flex flex-wrap items-end gap-2">
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500" for="session_id">Session</label>
+            <select id="session_id" name="session_id" class="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm">
+              {% for session in available_sessions %}
+                <option value="{{ session.id }}" {% if selected_session and selected_session.id == session.id %}selected{% endif %}>
+                  {{ session.name }}
+                </option>
+              {% empty %}
+                <option value="">No Session</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500" for="term_id">Term</label>
+            <select id="term_id" name="term_id" class="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm">
+              {% for term in available_terms %}
+                <option value="{{ term.id }}" {% if selected_term and selected_term.id == term.id %}selected{% endif %}>
+                  {{ term.get_name_display }}
+                </option>
+              {% empty %}
+                <option value="">No Term</option>
+              {% endfor %}
+            </select>
+          </div>
+          <button type="submit" class="ndga-btn ndga-btn-secondary !px-3 !py-2 !text-xs">Apply</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="mt-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <h2 class="text-base font-semibold text-slate-900">Select Class</h2>
+      <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {% for class_row in class_rows %}
+          <a
+            href="{{ class_row.url }}"
+            class="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm transition hover:-translate-y-0.5 hover:border-ndga-navy/40"
+          >
+            <p class="text-base font-semibold text-slate-900">{{ class_row.academic_class.code }}</p>
+            <p class="mt-1 text-xs text-slate-600">{{ class_row.subject_count }} subject{{ class_row.subject_count|pluralize }} available</p>
+          </a>
+        {% empty %}
+          <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 sm:col-span-2 xl:col-span-3">
+            No assigned classes found.
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+{% endblock %}

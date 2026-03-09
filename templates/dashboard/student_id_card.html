@@ -1,0 +1,43 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Digital Student ID{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
+    <div class="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
+      <article class="rounded-[2rem] border border-slate-200 bg-gradient-to-br from-slate-950 via-slate-900 to-ndga-navy p-6 text-white shadow-2xl">
+        <div class="flex items-start justify-between gap-4">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200">NDGA Digital ID</p>
+            <h1 class="mt-2 text-2xl font-bold">{{ user_display_name }}</h1>
+            <p class="mt-1 text-sm text-slate-300">{{ current_class_code }}{% if student_profile.student_number %} | {{ student_profile.student_number }}{% endif %}</p>
+          </div>
+          {% if portal_profile_photo_url %}
+            <img src="{{ portal_profile_photo_url }}" alt="{{ user_display_name }}" class="h-24 w-24 rounded-3xl border border-white/20 object-cover">
+          {% else %}
+            <div class="grid h-24 w-24 place-items-center rounded-3xl border border-white/20 bg-white/10 text-3xl font-bold">{{ user_display_name|slice:":1"|upper }}</div>
+          {% endif %}
+        </div>
+        <div class="mt-8 grid gap-4 sm:grid-cols-2">
+          <div class="rounded-3xl border border-white/10 bg-white/5 p-4">
+            <p class="text-xs uppercase tracking-[0.16em] text-cyan-200">Guardian</p>
+            <p class="mt-2 text-sm text-slate-100">{{ student_profile.guardian_name|default:"-" }}</p>
+            <p class="mt-1 text-xs text-slate-300">{{ student_profile.guardian_phone|default:"-" }}</p>
+          </div>
+          <div class="rounded-3xl border border-white/10 bg-white/5 p-4">
+            <p class="text-xs uppercase tracking-[0.16em] text-cyan-200">Verification Link</p>
+            <p class="mt-2 break-all text-xs text-slate-200">{{ verify_url }}</p>
+          </div>
+        </div>
+      </article>
+
+      <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-xl font-bold text-slate-900">QR Verification</h2>
+        <p class="mt-1 text-sm text-slate-600">Staff can scan this for attendance, gate, or library verification.</p>
+        <div class="mt-5 flex justify-center rounded-3xl border border-slate-200 bg-slate-50 p-5">
+          <img src="{{ verification_qr_data_uri }}" alt="Student ID QR" class="h-64 w-64 rounded-2xl border border-slate-200 bg-white p-3">
+        </div>
+      </article>
+    </div>
+  </section>
+{% endblock %}

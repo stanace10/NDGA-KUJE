@@ -1,0 +1,121 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Upload Or Paste Questions{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+    <div class="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+      <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h1 class="text-2xl font-bold text-ndga-navy">Upload Or Paste -> Auto Draft</h1>
+        <p class="mt-2 text-sm text-slate-600">
+          Upload your question document, auto-extract, auto-detect question blocks/options, and generate a draft exam for teacher review.
+        </p>
+        {% if prefill_assignment and setup_prefill.title and setup_prefill.exam_type %}
+          <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+            <p><span class="font-semibold">Class & Subject:</span> {{ prefill_assignment.academic_class.code }} - {{ prefill_assignment.subject.name }}</p>
+            {% if setup_prefill.title %}<p><span class="font-semibold">Title:</span> {{ setup_prefill.title }}</p>{% endif %}
+            {% if setup_prefill.exam_type %}<p><span class="font-semibold">Type:</span> {{ setup_prefill.exam_type }}</p>{% endif %}
+          </div>
+        {% endif %}
+        <form method="post" enctype="multipart/form-data" class="mt-5 space-y-4">
+          {% csrf_token %}
+          {% if prefill_assignment and setup_prefill.title and setup_prefill.exam_type %}
+            {% if setup_prefill.assignment %}<input type="hidden" name="assignment" value="{{ setup_prefill.assignment }}">{% endif %}
+            {% if setup_prefill.title %}<input type="hidden" name="title" value="{{ setup_prefill.title }}">{% endif %}
+            {% if setup_prefill.exam_type %}<input type="hidden" name="exam_type" value="{{ setup_prefill.exam_type }}">{% endif %}
+            {% if setup_prefill.ca_target %}<input type="hidden" name="ca_target" value="{{ setup_prefill.ca_target }}">{% endif %}
+          {% else %}
+            <div>
+              <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ form.assignment.id_for_label }}">{{ form.assignment.label }}</label>
+              {{ form.assignment }}
+              {% if form.assignment.help_text %}<p class="mt-1 text-xs text-slate-500">{{ form.assignment.help_text }}</p>{% endif %}
+              {% if form.assignment.errors %}<p class="mt-1 text-xs text-rose-700">{{ form.assignment.errors|striptags }}</p>{% endif %}
+            </div>
+            <div>
+              <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ form.title.id_for_label }}">{{ form.title.label }}</label>
+              {{ form.title }}
+              {% if form.title.errors %}<p class="mt-1 text-xs text-rose-700">{{ form.title.errors|striptags }}</p>{% endif %}
+            </div>
+            <div>
+              <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ form.exam_type.id_for_label }}">{{ form.exam_type.label }}</label>
+              {{ form.exam_type }}
+              {% if form.exam_type.errors %}<p class="mt-1 text-xs text-rose-700">{{ form.exam_type.errors|striptags }}</p>{% endif %}
+            </div>
+          {% endif %}
+          {% if prefill_assignment and form.assignment.errors %}
+            <p class="text-xs text-rose-700">{{ form.assignment.errors|striptags }}</p>
+          {% endif %}
+          {% if prefill_assignment and form.title.errors %}
+            <p class="text-xs text-rose-700">{{ form.title.errors|striptags }}</p>
+          {% endif %}
+          {% if prefill_assignment and form.exam_type.errors %}
+            <p class="text-xs text-rose-700">{{ form.exam_type.errors|striptags }}</p>
+          {% endif %}
+          <div>
+            <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ form.source_file.id_for_label }}">{{ form.source_file.label }}</label>
+            {{ form.source_file }}
+            {% if form.source_file.help_text %}<p class="mt-1 text-xs text-slate-500">{{ form.source_file.help_text }}</p>{% endif %}
+            {% if form.source_file.errors %}<p class="mt-1 text-xs text-rose-700">{{ form.source_file.errors|striptags }}</p>{% endif %}
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ form.pasted_text.id_for_label }}">{{ form.pasted_text.label }}</label>
+            {{ form.pasted_text }}
+            {% if form.pasted_text.help_text %}<p class="mt-1 text-xs text-slate-500">{{ form.pasted_text.help_text }}</p>{% endif %}
+            {% if form.pasted_text.errors %}<p class="mt-1 text-xs text-rose-700">{{ form.pasted_text.errors|striptags }}</p>{% endif %}
+          </div>
+          {% if form.non_field_errors %}<p class="text-xs text-rose-700">{{ form.non_field_errors|striptags }}</p>{% endif %}
+          <div class="flex flex-wrap gap-2">
+            <button type="submit" class="ndga-btn ndga-btn-primary">Generate Draft</button>
+            <a href="{% url 'cbt:authoring-home' %}" class="ndga-btn ndga-btn-secondary">Back</a>
+          </div>
+        </form>
+      </article>
+
+      <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-semibold text-ndga-navy">Recent Imports</h2>
+        <div class="mt-3 overflow-x-auto rounded-2xl border border-slate-200">
+          <table class="min-w-full divide-y divide-slate-200 text-sm">
+            <thead>
+              <tr class="bg-slate-50 text-left text-slate-500">
+                <th class="px-3 py-2">File</th>
+                <th class="px-3 py-2">Status</th>
+                <th class="px-3 py-2">Result</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              {% for row in imports %}
+                <tr>
+                  <td class="px-3 py-2 font-semibold text-slate-800">{{ row.source_filename }}</td>
+                  <td class="px-3 py-2 text-slate-700">{{ row.get_extraction_status_display }}</td>
+                  <td class="px-3 py-2 text-slate-700">
+                    {% if row.exam_id %}
+                      <a href="{% url 'cbt:exam-detail' row.exam_id %}" class="font-semibold text-ndga-navy">{{ row.exam.title }}</a>
+                      {% if row.parse_summary %}
+                        <div class="mt-1 text-xs text-slate-500">
+                          {{ row.parse_summary.question_count|default:"0" }} questions
+                          · {{ row.parse_summary.objective_count|default:"0" }} objective
+                          · {{ row.parse_summary.theory_count|default:"0" }} theory
+                        </div>
+                        {% if row.parse_summary.flagged_block_count %}
+                          <div class="mt-1 text-xs font-semibold text-amber-700">
+                            {{ row.parse_summary.flagged_block_count }} block(s) needed repair. Review before submitting to Dean.
+                          </div>
+                        {% endif %}
+                      {% endif %}
+                    {% elif row.error_message %}
+                      <span class="text-rose-700">{{ row.error_message|truncatechars:60 }}</span>
+                    {% else %}
+                      -
+                    {% endif %}
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="3" class="px-3 py-4 text-slate-500">No import history yet.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </article>
+    </div>
+  </section>
+{% endblock %}

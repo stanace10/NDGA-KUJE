@@ -1,0 +1,79 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Backup & Restore{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+      <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Disaster Recovery</p>
+      <h1 class="mt-2 text-3xl font-bold text-ndga-navy">Backup & Restore Center</h1>
+      <p class="mt-2 max-w-3xl text-sm text-slate-600">
+        Create local NDGA backup archives and download operational summaries in Excel/PDF formats.
+        Restore operations are managed by IT in controlled maintenance windows.
+      </p>
+    </div>
+
+    <div class="mt-6 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+      <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-semibold text-slate-900">Backup Now</h2>
+        <p class="mt-2 text-sm text-slate-600">
+          Download full backup archive, plus Excel-ready and PDF operational summaries.
+        </p>
+        <div class="mt-4 flex flex-wrap gap-2">
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="backup-now">
+            <button type="submit" class="ndga-btn ndga-btn-primary">Full Backup (ZIP)</button>
+          </form>
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="backup-summary-csv">
+            <button type="submit" class="ndga-btn ndga-btn-secondary">Export Summary (Excel CSV)</button>
+          </form>
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="backup-summary-pdf">
+            <button type="submit" class="ndga-btn ndga-btn-secondary">Export Summary (PDF)</button>
+          </form>
+        </div>
+        <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-600">
+          <p><span class="font-semibold text-slate-800">Current Setup State:</span> {{ setup_state.state }}</p>
+          {% if setup_state.current_session %}
+            <p class="mt-1"><span class="font-semibold text-slate-800">Session:</span> {{ setup_state.current_session.name }}</p>
+          {% endif %}
+          {% if setup_state.current_term %}
+            <p class="mt-1"><span class="font-semibold text-slate-800">Term:</span> {{ setup_state.current_term.get_name_display }}</p>
+          {% endif %}
+        </div>
+        <div class="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
+          <table class="min-w-full divide-y divide-slate-200 text-xs">
+            <thead class="bg-slate-50">
+              <tr>
+                <th class="px-3 py-2 text-left font-semibold text-slate-700">Metric</th>
+                <th class="px-3 py-2 text-left font-semibold text-slate-700">Value</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 bg-white">
+              {% for row in summary_rows %}
+                <tr>
+                  <td class="px-3 py-2 text-slate-700">{{ row.metric }}</td>
+                  <td class="px-3 py-2 font-semibold text-slate-900">{{ row.value }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-semibold text-slate-900">Recovery Notes</h2>
+        <p class="mt-2 text-sm text-slate-600">
+          Recovery is handled by IT Manager only and should be performed during approved downtime.
+        </p>
+        <div class="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          Restoring a backup can replace current records and files. Confirm active session backup before any restore operation.
+        </div>
+      </article>
+    </div>
+  </section>
+{% endblock %}

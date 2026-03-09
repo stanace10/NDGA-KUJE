@@ -1,0 +1,116 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Election Portal{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+    <div class="animate-soft-reveal rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Election Operations</p>
+          <h1 class="mt-2 text-2xl font-bold text-slate-900">Election Operations Center</h1>
+          <p class="mt-2 max-w-3xl text-sm text-slate-600">
+            Cast votes position-by-position, monitor turnout analytics, and manage official election workflows.
+          </p>
+        </div>
+        <div class="flex flex-wrap items-center justify-end gap-2">
+          <div class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+            {% if voter_photo_url %}
+              <img src="{{ voter_photo_url }}" alt="{{ voter_name }}" class="h-11 w-11 rounded-xl border border-slate-200 object-cover">
+            {% else %}
+              <span class="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700">
+                {{ voter_name|slice:":1"|upper }}
+              </span>
+            {% endif %}
+            <div class="text-right">
+              <p class="text-sm font-semibold text-slate-900">{{ voter_name }}</p>
+              <p class="text-xs text-slate-600">{{ voter_identifier }}{% if voter_class_code %} | {{ voter_class_code }}{% endif %}</p>
+              <p class="text-[11px] uppercase tracking-[0.14em] text-slate-500">{{ voter_role }}</p>
+            </div>
+          </div>
+          {% if show_management %}
+            <a href="{% url 'elections:it-manage' %}" class="ndga-btn ndga-btn-primary">Election Setup</a>
+          {% endif %}
+          {% if show_analytics and recent_closed %}
+            <a href="{% url 'elections:analytics' recent_closed.0.id %}" class="ndga-btn ndga-btn-secondary">Latest Analytics</a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-4 grid gap-4 lg:grid-cols-2">
+      <article class="animate-soft-reveal-delay rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 class="text-lg font-semibold text-slate-900">Open Elections</h2>
+        <p class="mt-1 text-sm text-slate-600">You can only vote in elections where your profile is eligible.</p>
+        <div class="mt-4 space-y-3">
+          {% for row in open_elections %}
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div class="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p class="text-sm font-semibold text-slate-900">{{ row.election.title }}</p>
+                  <p class="mt-1 text-xs text-slate-600">
+                    Positions: {{ row.position_count }} | Completed: {{ row.voted_count }}
+                  </p>
+                </div>
+                {% if row.is_completed %}
+                  <span class="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800">
+                    Completed
+                  </span>
+                {% else %}
+                  <a href="{% url 'elections:vote-start' row.election.id %}" class="ndga-btn ndga-btn-primary">
+                    Continue Voting
+                  </a>
+                {% endif %}
+              </div>
+              {% if row.election.description %}
+                <p class="mt-2 text-sm text-slate-600">{{ row.election.description }}</p>
+              {% endif %}
+              <div class="mt-2 text-xs text-slate-500">
+                {% if row.election.starts_at %}Start: {{ row.election.starts_at|date:"d M Y H:i" }}{% else %}Start: Open now{% endif %}
+                {% if row.election.ends_at %} | End: {{ row.election.ends_at|date:"d M Y H:i" }}{% endif %}
+              </div>
+            </div>
+          {% empty %}
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+              No open elections mapped to your voter profile yet.
+            </div>
+          {% endfor %}
+        </div>
+      </article>
+
+      <article class="animate-soft-reveal-delay-2 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 class="text-lg font-semibold text-slate-900">Closed Elections</h2>
+        <p class="mt-1 text-sm text-slate-600">Review final counts and generate official result PDFs.</p>
+        <div class="mt-4 space-y-3">
+          {% for election in recent_closed %}
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p class="text-sm font-semibold text-slate-900">{{ election.title }}</p>
+                  <p class="mt-1 text-xs text-slate-600">
+                    Closed:
+                    {% if election.closed_at %}
+                      {{ election.closed_at|date:"d M Y H:i" }}
+                    {% else %}
+                      -
+                    {% endif %}
+                  </p>
+                </div>
+                {% if show_analytics %}
+                  <div class="flex flex-wrap gap-2">
+                    <a href="{% url 'elections:analytics' election.id %}" class="ndga-btn ndga-btn-secondary">Analytics</a>
+                    <a href="{% url 'elections:result-pdf' election.id %}" class="ndga-btn ndga-btn-primary">Result PDF</a>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          {% empty %}
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+              No closed elections available yet.
+            </div>
+          {% endfor %}
+        </div>
+      </article>
+    </div>
+  </section>
+{% endblock %}

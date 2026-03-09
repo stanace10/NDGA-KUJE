@@ -1,0 +1,68 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}{{ portal_name }} - Staff Biodata{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-[96rem] px-4 py-6 sm:px-6 lg:px-8">
+    <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">{{ portal_name }}</p>
+          <h1 class="mt-2 text-2xl font-bold text-slate-900">Staff Biodata</h1>
+          <p class="mt-1 text-sm text-slate-600">Dedicated staff biodata page.</p>
+        </div>
+        <a href="{{ back_url }}" class="ndga-btn ndga-btn-secondary">Back to Dashboard</a>
+      </div>
+    </article>
+
+    <article class="mt-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+      <form method="get" class="grid gap-3 sm:grid-cols-2">
+        <div>
+          <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500" for="q">Search</label>
+          <input id="q" type="text" name="q" value="{{ search_query }}" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm">
+        </div>
+        <div class="flex items-end gap-2">
+          <button type="submit" class="ndga-btn ndga-btn-primary">Apply</button>
+          <a href="{{ request.path }}" class="ndga-btn ndga-btn-secondary">Reset</a>
+        </div>
+      </form>
+    </article>
+
+    <article class="mt-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div class="mb-3 flex items-center justify-between">
+        <h2 class="text-base font-semibold text-slate-900">Staff Members</h2>
+        <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Total: {{ total_staff }}</p>
+      </div>
+      <div class="max-h-[42rem] overflow-auto rounded-2xl border border-slate-200">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+          <thead class="bg-slate-50">
+            <tr>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Name</th>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Staff ID</th>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Role</th>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Contact</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 bg-white">
+            {% for row in staff_members %}
+              <tr>
+                <td class="px-3 py-2">
+                  <p class="font-semibold text-slate-900">{{ row.name }}</p>
+                  <p class="text-xs text-slate-500">{{ row.designation|default:"-" }}</p>
+                </td>
+                <td class="px-3 py-2 text-slate-700">{{ row.staff_id }}</td>
+                <td class="px-3 py-2 text-slate-700">{{ row.role }}</td>
+                <td class="px-3 py-2 text-slate-700">
+                  <p>{{ row.phone|default:"-" }}</p>
+                  <p class="text-xs text-slate-500">{{ row.email|default:"-" }}</p>
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="4" class="px-3 py-8 text-center text-slate-500">No staff records found.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </section>
+{% endblock %}

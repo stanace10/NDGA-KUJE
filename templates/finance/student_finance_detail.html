@@ -1,0 +1,334 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Student Finance Detail{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+    <article class="animate-soft-reveal rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div class="flex items-start gap-4">
+          {% if student_profile and student_profile.profile_photo %}
+            <img src="{{ student_profile.profile_photo.url }}" alt="{{ student_user.username }}" class="h-20 w-20 rounded-2xl border border-slate-200 object-cover">
+          {% else %}
+            <div class="flex h-20 w-20 items-center justify-center rounded-2xl border border-slate-200 bg-slate-100 text-2xl font-semibold text-slate-500">
+              {{ student_user.username|slice:":1"|upper }}
+            </div>
+          {% endif %}
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Student Finance Page</p>
+            <h1 class="mt-2 text-2xl font-bold text-slate-900">{{ student_user.get_full_name|default:student_user.username }}</h1>
+            <div class="mt-2 flex flex-wrap gap-3 text-xs text-slate-600">
+              <span class="rounded-full border border-slate-200 bg-slate-50 px-2 py-1">Admission: {% if student_profile and student_profile.student_number %}{{ student_profile.student_number }}{% else %}-{% endif %}</span>
+              <span class="rounded-full border border-slate-200 bg-slate-50 px-2 py-1">Class: {{ class_code }}</span>
+              <span class="rounded-full border border-slate-200 bg-slate-50 px-2 py-1">Username: {{ student_user.username }}</span>
+            </div>
+          </div>
+        </div>
+        <a href="{% url 'finance:bursar-fees' %}" class="ndga-btn ndga-btn-secondary">Back To Fees</a>
+      </div>
+      {% if latest_receipt %}
+        <div class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+          <div>
+            <p class="font-semibold">Receipt Issued: {{ latest_receipt.receipt_number }}</p>
+            <p class="text-xs">Payment ID: {{ latest_receipt.payment_id }}</p>
+          </div>
+          <a href="{% url 'finance:receipt-download' latest_receipt.receipt_id %}" class="ndga-btn ndga-btn-primary">Download Receipt PDF</a>
+        </div>
+      {% endif %}
+      {% if not current_session %}
+        <div class="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Setup Wizard must define current session and term before student finance entry is allowed.
+        </div>
+      {% endif %}
+    </article>
+
+    <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Total Charged</p>
+        <p class="mt-2 text-2xl font-bold text-slate-900">{{ overview.total_charged }}</p>
+      </article>
+      <article class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700">Paid Applied</p>
+        <p class="mt-2 text-2xl font-bold text-emerald-900">{{ overview.total_paid_applied }}</p>
+      </article>
+      <article class="rounded-2xl border border-rose-200 bg-rose-50 p-4 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-[0.14em] text-rose-700">Outstanding</p>
+        <p class="mt-2 text-2xl font-bold text-rose-900">{{ overview.total_outstanding }}</p>
+      </article>
+      <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Total Payments</p>
+        <p class="mt-2 text-2xl font-bold text-slate-900">{{ overview.total_payments }}</p>
+      </article>
+      <article class="rounded-2xl border border-indigo-200 bg-indigo-50 p-4 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-[0.14em] text-indigo-700">Credit</p>
+        <p class="mt-2 text-2xl font-bold text-indigo-900">{{ overview.unallocated_credit }}</p>
+      </article>
+    </div>
+
+    <div class="mt-4 grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
+      <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 class="text-base font-semibold text-slate-900">Record Payment</h2>
+        <form method="post" class="mt-4 space-y-3">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="record_payment">
+          {{ payment_form.student }}
+
+          {% if payment_form.non_field_errors %}
+            <div class="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+              {{ payment_form.non_field_errors|striptags }}
+            </div>
+          {% endif %}
+
+          <div class="grid gap-3 sm:grid-cols-3">
+            <div>
+              <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ payment_form.amount.id_for_label }}">
+                {{ payment_form.amount.label }}
+              </label>
+              {{ payment_form.amount }}
+              {% if payment_form.amount.errors %}<p class="mt-1 text-xs text-rose-700">{{ payment_form.amount.errors|striptags }}</p>{% endif %}
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ payment_form.payment_method.id_for_label }}">
+                {{ payment_form.payment_method.label }}
+              </label>
+              {{ payment_form.payment_method }}
+              {% if payment_form.payment_method.errors %}<p class="mt-1 text-xs text-rose-700">{{ payment_form.payment_method.errors|striptags }}</p>{% endif %}
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ payment_form.payment_date.id_for_label }}">
+                {{ payment_form.payment_date.label }}
+              </label>
+              {{ payment_form.payment_date }}
+              {% if payment_form.payment_date.errors %}<p class="mt-1 text-xs text-rose-700">{{ payment_form.payment_date.errors|striptags }}</p>{% endif %}
+            </div>
+          </div>
+
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ payment_form.gateway_reference.id_for_label }}">
+              {{ payment_form.gateway_reference.label }}
+            </label>
+            {{ payment_form.gateway_reference }}
+            {% if payment_form.gateway_reference.errors %}<p class="mt-1 text-xs text-rose-700">{{ payment_form.gateway_reference.errors|striptags }}</p>{% endif %}
+          </div>
+
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ payment_form.note.id_for_label }}">
+              {{ payment_form.note.label }}
+            </label>
+            {{ payment_form.note }}
+            {% if payment_form.note.errors %}<p class="mt-1 text-xs text-rose-700">{{ payment_form.note.errors|striptags }}</p>{% endif %}
+          </div>
+
+          <button type="submit" class="ndga-btn ndga-btn-primary" {% if not current_session %}disabled{% endif %}>
+            Save Payment + Issue Receipt
+          </button>
+        </form>
+
+        <div class="mt-6 border-t border-slate-200 pt-4">
+          <h3 class="text-sm font-semibold text-slate-900">Live Gateway Link</h3>
+          {% if not gateway_enabled %}
+            <p class="mt-2 text-xs text-amber-700">Gateway is not configured yet (missing secret key).</p>
+          {% endif %}
+          <form method="post" class="mt-3 space-y-3">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="init_gateway_link">
+            {{ gateway_form.student }}
+            <div class="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ gateway_form.amount.id_for_label }}">{{ gateway_form.amount.label }}</label>
+                {{ gateway_form.amount }}
+              </div>
+              <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ gateway_form.provider.id_for_label }}">{{ gateway_form.provider.label }}</label>
+                {{ gateway_form.provider }}
+              </div>
+            </div>
+            {% if category_rows %}
+              <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="gateway_category_select">Fee Category</label>
+                <select id="gateway_category_select" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:border-ndga-navy/60 focus:ring-4 focus:ring-ndga-navy/10">
+                  <option value="">Full outstanding amount</option>
+                  {% for category in category_rows %}
+                    {% if category.outstanding > 0 %}
+                      <option value="{{ category.outstanding }}">{{ category.category }} (Outstanding: {{ category.outstanding }})</option>
+                    {% endif %}
+                  {% endfor %}
+                </select>
+                <p class="mt-1 text-xs text-slate-500">Select a category to auto-fill the gateway amount for that fee item.</p>
+              </div>
+            {% endif %}
+            <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+              {{ gateway_form.auto_email_link }}
+              <span>Email payment link to parent/student</span>
+            </label>
+            <button type="submit" class="ndga-btn ndga-btn-secondary" {% if not gateway_enabled %}disabled{% endif %}>Generate Gateway Link</button>
+          </form>
+
+          <form method="post" class="mt-3 flex flex-wrap items-end gap-2">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="verify_gateway_reference">
+            <div class="flex-1 min-w-[18rem]">
+              <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Verify Gateway Reference</label>
+              <input
+                type="text"
+                name="gateway_reference"
+                class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:border-ndga-navy/60 focus:ring-4 focus:ring-ndga-navy/10"
+                placeholder="NDGA-202603..."
+              >
+            </div>
+            <button type="submit" class="ndga-btn ndga-btn-secondary" {% if not gateway_enabled %}disabled{% endif %}>Verify + Record</button>
+          </form>
+        </div>
+      </article>
+
+      <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 class="text-base font-semibold text-slate-900">Payment History</h2>
+        <div class="mt-4 max-h-[29rem] overflow-auto rounded-2xl border border-slate-200">
+          <table class="min-w-full divide-y divide-slate-200 text-sm">
+            <thead class="bg-slate-50">
+              <tr>
+                <th class="px-3 py-2 text-left font-semibold text-slate-700">Date</th>
+                <th class="px-3 py-2 text-left font-semibold text-slate-700">Amount</th>
+                <th class="px-3 py-2 text-left font-semibold text-slate-700">Method</th>
+                <th class="px-3 py-2 text-left font-semibold text-slate-700">Receipt</th>
+                <th class="px-3 py-2 text-left font-semibold text-slate-700">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 bg-white">
+              {% for row in student_payments %}
+                <tr>
+                  <td class="px-3 py-2 text-slate-700">{{ row.payment_date }}</td>
+                  <td class="px-3 py-2 font-semibold text-slate-800">{{ row.amount }}</td>
+                  <td class="px-3 py-2 text-slate-700">{{ row.get_payment_method_display }}</td>
+                  <td class="px-3 py-2">
+                    {% if row.receipt %}
+                      <a href="{% url 'finance:receipt-download' row.receipt.id %}" class="text-sm font-semibold text-ndga-navy hover:text-ndga-gold">{{ row.receipt.receipt_number }}</a>
+                    {% else %}
+                      <span class="text-xs text-slate-500">Pending</span>
+                    {% endif %}
+                  </td>
+                  <td class="px-3 py-2">
+                    {% if row.is_void %}
+                      <span class="rounded-full border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700">Voided</span>
+                    {% else %}
+                      <div class="flex flex-wrap gap-2">
+                        {% if row.receipt %}
+                          <form method="post">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="send_receipt_email">
+                            <input type="hidden" name="payment_id" value="{{ row.id }}">
+                            <button type="submit" class="ndga-btn ndga-btn-secondary !rounded-lg !px-2.5 !py-1.5 !text-xs">Send Email</button>
+                          </form>
+                        {% endif %}
+                        <form method="post" data-confirm-message="Mark this payment as void?">
+                          {% csrf_token %}
+                          <input type="hidden" name="action" value="void_payment">
+                          <input type="hidden" name="payment_id" value="{{ row.id }}">
+                          <button type="submit" class="ndga-btn !rounded-lg !bg-rose-600 !px-2.5 !py-1.5 !text-xs !text-white hover:!bg-rose-700">Void</button>
+                        </form>
+                      </div>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="5" class="px-3 py-8 text-center text-slate-500">No payments recorded for this student yet.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </article>
+    </div>
+
+    <article class="mt-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h2 class="text-base font-semibold text-slate-900">Gateway Transactions</h2>
+      <div class="mt-3 max-h-[18rem] overflow-auto rounded-2xl border border-slate-200">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+          <thead class="bg-slate-50">
+            <tr>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Reference</th>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Amount</th>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Status</th>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Created</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 bg-white">
+            {% for row in gateway_transactions %}
+              <tr>
+                <td class="px-3 py-2 text-slate-800">{{ row.reference }}</td>
+                <td class="px-3 py-2 text-slate-700">{{ row.amount }}</td>
+                <td class="px-3 py-2 text-slate-700">{{ row.get_status_display }}</td>
+                <td class="px-3 py-2 text-slate-600">{{ row.created_at|date:"Y-m-d H:i" }}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="4" class="px-3 py-6 text-center text-slate-500">No gateway transactions for this student yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+
+    <article class="mt-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h2 class="text-base font-semibold text-slate-900">Fee Breakdown</h2>
+      <div class="mt-3 max-h-[28rem] overflow-auto rounded-2xl border border-slate-200">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+          <thead class="bg-slate-50">
+            <tr>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Item</th>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Target</th>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Due</th>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Amount</th>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Paid</th>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Outstanding</th>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Status</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 bg-white">
+            {% for row in charge_rows %}
+              <tr>
+                <td class="px-3 py-2">
+                  <p class="font-semibold text-slate-900">{{ row.item_name }}</p>
+                  {% if row.description %}<p class="text-xs text-slate-500">{{ row.description|truncatechars:70 }}</p>{% endif %}
+                </td>
+                <td class="px-3 py-2 text-slate-700">{{ row.target_label }}</td>
+                <td class="px-3 py-2 text-slate-700">{% if row.due_date %}{{ row.due_date }}{% else %}-{% endif %}</td>
+                <td class="px-3 py-2 text-slate-700">{{ row.amount }}</td>
+                <td class="px-3 py-2 text-slate-700">{{ row.paid_applied }}</td>
+                <td class="px-3 py-2 text-slate-700">{{ row.outstanding }}</td>
+                <td class="px-3 py-2">
+                  {% if row.status == "PAID" %}
+                    <span class="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800">Paid</span>
+                  {% elif row.status == "PARTIAL" %}
+                    <span class="rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800">Partial</span>
+                  {% else %}
+                    <span class="rounded-full border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-800">Owing</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="7" class="px-3 py-8 text-center text-slate-500">No fee records found for this student.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </section>
+{% endblock %}
+
+{% block extra_scripts %}
+  <script>
+    (function () {
+      const categorySelect = document.getElementById("gateway_category_select");
+      const amountInput = document.getElementById("{{ gateway_form.amount.id_for_label }}");
+      if (!categorySelect || !amountInput) {
+        return;
+      }
+      categorySelect.addEventListener("change", function () {
+        const selectedAmount = categorySelect.value;
+        if (!selectedAmount) {
+          return;
+        }
+        amountInput.value = selectedAmount;
+      });
+    })();
+  </script>
+{% endblock %}

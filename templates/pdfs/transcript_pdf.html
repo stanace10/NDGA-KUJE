@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <style>
+    @page {
+      size: A4;
+      margin: 14mm 12mm 16mm 12mm;
+    }
+    body {
+      font-family: "DejaVu Sans", Arial, sans-serif;
+      color: #0f172a;
+      font-size: 11px;
+      margin: 0;
+      line-height: 1.35;
+    }
+    .watermark {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      opacity: 0.05;
+      z-index: -1;
+    }
+    .watermark img {
+      width: 360px;
+      height: auto;
+    }
+    .header {
+      border-bottom: 2px solid #0b1f51;
+      padding-bottom: 8px;
+      margin-bottom: 10px;
+      display: grid;
+      grid-template-columns: 72px 1fr auto;
+      align-items: center;
+      gap: 10px;
+    }
+    .logo {
+      width: 62px;
+      height: 62px;
+      border: 1px solid #cbd5e1;
+      border-radius: 999px;
+      padding: 4px;
+      background: #fff;
+      object-fit: contain;
+    }
+    .title {
+      margin: 0;
+      color: #0b1f51;
+      font-size: 19px;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+    }
+    .subtitle {
+      margin: 2px 0 0;
+      color: #475569;
+      font-size: 11px;
+    }
+    .doc-meta {
+      text-align: right;
+      font-size: 9px;
+      color: #475569;
+    }
+    .doc-meta strong {
+      color: #0b1f51;
+      display: block;
+      font-size: 11px;
+      margin-bottom: 2px;
+    }
+    .info {
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 7px;
+      margin-bottom: 10px;
+      background: #fff;
+    }
+    .info p {
+      margin: 2px 0;
+    }
+    .term-block {
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      margin-bottom: 9px;
+      overflow: hidden;
+      background: #fff;
+    }
+    .term-head {
+      background: #0b1f51;
+      color: #fff;
+      padding: 6px 8px;
+      font-size: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+    .term-body {
+      padding: 8px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th,
+    td {
+      border: 1px solid #e2e8f0;
+      padding: 4px 5px;
+      font-size: 10px;
+      text-align: center;
+    }
+    th:first-child,
+    td:first-child {
+      text-align: left;
+    }
+    .summary {
+      margin-top: 4px;
+      font-size: 10px;
+      color: #334155;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .footer {
+      margin-top: 10px;
+      display: grid;
+      grid-template-columns: 1fr 120px;
+      gap: 8px;
+      align-items: center;
+    }
+    .qr-box {
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      text-align: center;
+      padding: 6px 4px;
+      background: #fff;
+    }
+    .qr-box img {
+      width: 76px;
+      height: 76px;
+      display: block;
+      margin: 0 auto 4px;
+    }
+    .qr-box p {
+      margin: 0;
+      font-size: 8px;
+      color: #475569;
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+  <div class="watermark">
+    {% if watermark_data_uri %}
+      <img src="{{ watermark_data_uri }}" alt="">
+    {% endif %}
+  </div>
+
+  <header class="header">
+    <div>
+      {% if logo_data_uri %}
+        <img src="{{ logo_data_uri }}" alt="NDGA Logo" class="logo">
+      {% endif %}
+    </div>
+    <div>
+      <p class="title">NOTRE DAME GIRLS ACADEMY</p>
+      <p class="subtitle">Official Multi-session Academic Transcript</p>
+    </div>
+    <div class="doc-meta">
+      <strong>TRANSCRIPT</strong>
+      Generated: {{ generated_at|date:"d M Y, H:i" }}
+    </div>
+  </header>
+
+  <section class="info">
+    <p><strong>Student:</strong> {{ payload.student_bio.name }}</p>
+    <p><strong>Student Number:</strong> {{ payload.student_bio.student_number }}</p>
+    <p><strong>Terms Included:</strong> {{ payload.term_count }}</p>
+    <p><strong>Overall Average:</strong> {{ payload.overall_average }}</p>
+  </section>
+
+  {% for term in payload.terms %}
+    <section class="term-block">
+      <div class="term-head">
+        <span>{{ term.session_name }} | {{ term.term_name }} | {{ term.class_code }}</span>
+        <span>{% if term.published_at %}Published {{ term.published_at|date:"d M Y" }}{% endif %}</span>
+      </div>
+      <div class="term-body">
+        <table>
+          <thead>
+            <tr>
+              <th>Subject</th>
+              <th>CA1</th>
+              <th>CA2</th>
+              <th>CA3</th>
+              <th>CA4</th>
+              <th>Obj</th>
+              <th>Theory</th>
+              <th>Total</th>
+              <th>Grade</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in term.subject_rows %}
+              <tr>
+                <td>{{ row.subject }}</td>
+                <td>{{ row.ca1 }}</td>
+                <td>{{ row.ca2 }}</td>
+                <td>{{ row.ca3 }}</td>
+                <td>{{ row.ca4 }}</td>
+                <td>{{ row.objective }}</td>
+                <td>{{ row.theory }}</td>
+                <td><strong>{{ row.total }}</strong></td>
+                <td><strong>{{ row.grade }}</strong></td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="9">No published subject records for this term.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <div class="summary">
+          <span><strong>Term Total:</strong> {{ term.cumulative_total }}</span>
+          <span><strong>Term Average:</strong> {{ term.average }}</span>
+          <span><strong>Subjects:</strong> {{ term.subject_count }}</span>
+        </div>
+      </div>
+    </section>
+  {% empty %}
+    <p>No published terms available for this student yet.</p>
+  {% endfor %}
+
+  <footer class="footer">
+    <div>
+      <p><strong>Document ID:</strong> {{ artifact.id }}</p>
+      <p><strong>Hash:</strong> {{ artifact.payload_hash }}</p>
+    </div>
+    <div class="qr-box">
+      {% if verification_qr_data_uri %}
+        <img src="{{ verification_qr_data_uri }}" alt="Verification QR">
+      {% endif %}
+      <p>Verify: {{ verification_url }}</p>
+    </div>
+  </footer>
+</body>
+</html>

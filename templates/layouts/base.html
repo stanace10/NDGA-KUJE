@@ -1,0 +1,371 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}NDGA Enterprise Platform{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'vendor/font-manrope/index.css' %}">
+  <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+</head>
+<body class="{% block body_class %}min-h-screen bg-ndga-ash{% endblock %}">
+  <div id="ndga-app-shell" class="{% if show_portal_shell %}portal-shell{% else %}relative min-h-screen{% endif %}">
+    {% if show_portal_shell %}
+      <aside class="portal-sidebar hidden lg:flex">
+        <div class="portal-brand">
+          <img src="{% static 'images/ndga/logo.png' %}" alt="Notre Dame Girls Academy" class="portal-brand-logo">
+          <div>
+            <p class="portal-brand-title">Notre Dame Girls Academy</p>
+            <p class="portal-brand-subtitle">{{ portal_shell_title }}</p>
+          </div>
+        </div>
+        <nav class="portal-nav">
+          {% if portal_nav_sections %}
+            {% for section in portal_nav_sections %}
+              <div class="portal-nav-group">
+                {% if section.label != "Menu" %}
+                  <p class="portal-nav-heading">{{ section.label }}</p>
+                {% endif %}
+                <div class="portal-nav-group-links">
+                  {% for item in section.items %}
+                    {% if item.label != "Logout" %}
+                      {% if item.children %}
+                        <details {% if item.active %}open{% endif %}>
+                          <summary class="portal-nav-link flex cursor-pointer list-none items-center justify-between {% if item.direct_active %}portal-nav-link-active{% endif %}">
+                            <span class="flex items-center gap-2">
+                              <span class="inline-flex h-4 w-4 items-center justify-center">
+                                {% include "dashboard/partials/nav_icon.html" with icon=item.icon %}
+                              </span>
+                              <span>{{ item.label }}</span>
+                            </span>
+                            <span class="text-xs font-semibold text-slate-500">v</span>
+                          </summary>
+                          <div class="ml-3 mt-1 space-y-1 border-l border-slate-200 pl-2">
+                            {% for child in item.children %}
+                              <a href="{{ child.url }}" class="portal-nav-link !py-2 text-sm {% if child.active %}portal-nav-link-active{% endif %}">
+                                <span class="flex items-center gap-2">
+                                  <span class="inline-flex h-4 w-4 items-center justify-center">
+                                    {% include "dashboard/partials/nav_icon.html" with icon=child.icon %}
+                                  </span>
+                                  <span>{{ child.label }}</span>
+                                </span>
+                              </a>
+                            {% endfor %}
+                          </div>
+                        </details>
+                      {% else %}
+                        <a href="{{ item.url }}" class="portal-nav-link {% if item.active %}portal-nav-link-active{% endif %}">
+                          <span class="flex items-center gap-2">
+                            <span class="inline-flex h-4 w-4 items-center justify-center">
+                              {% include "dashboard/partials/nav_icon.html" with icon=item.icon %}
+                            </span>
+                            <span>{{ item.label }}</span>
+                          </span>
+                        </a>
+                      {% endif %}
+                    {% endif %}
+                  {% endfor %}
+                </div>
+              </div>
+            {% endfor %}
+          {% else %}
+            {% for item in portal_nav_items %}
+              {% if item.label != "Logout" %}
+                <a href="{{ item.url }}" class="portal-nav-link {% if item.active %}portal-nav-link-active{% endif %}">
+                  <span class="flex items-center gap-2">
+                    <span class="inline-flex h-4 w-4 items-center justify-center">
+                      {% include "dashboard/partials/nav_icon.html" with icon=item.icon %}
+                    </span>
+                    <span>{{ item.label }}</span>
+                  </span>
+                </a>
+              {% endif %}
+            {% empty %}
+              <span class="portal-nav-empty">No menu items.</span>
+            {% endfor %}
+          {% endif %}
+        </nav>
+        <div class="mt-auto pt-6">
+          <form method="post" action="{% url 'accounts:logout' %}">
+            {% csrf_token %}
+            <button type="submit" class="portal-nav-link w-full text-left">
+              <span class="flex items-center gap-2">
+                <span class="inline-flex h-4 w-4 items-center justify-center">
+                  {% include "dashboard/partials/nav_icon.html" with icon="logout" %}
+                </span>
+                <span>Logout</span>
+              </span>
+            </button>
+          </form>
+        </div>
+      </aside>
+
+      <div id="mobileNavBackdrop" class="fixed inset-0 z-50 hidden bg-slate-950/45 lg:hidden"></div>
+      <aside
+        id="mobileNavPanel"
+        class="portal-sidebar-mobile lg:hidden"
+      >
+        <div class="portal-brand">
+          <img src="{% static 'images/ndga/logo.png' %}" alt="Notre Dame Girls Academy" class="portal-brand-logo">
+          <div>
+            <p class="portal-brand-title">Notre Dame Girls Academy</p>
+            <p class="portal-brand-subtitle">{{ portal_shell_title }}</p>
+          </div>
+        </div>
+        <button type="button" class="portal-menu-btn mb-4" data-mobile-nav-close="1">
+          Close
+        </button>
+        <nav class="portal-nav">
+          {% if portal_nav_sections %}
+            {% for section in portal_nav_sections %}
+              <div class="portal-nav-group">
+                {% if section.label != "Menu" %}
+                  <p class="portal-nav-heading">{{ section.label }}</p>
+                {% endif %}
+                <div class="portal-nav-group-links">
+                  {% for item in section.items %}
+                    {% if item.label != "Logout" %}
+                      {% if item.children %}
+                        <details {% if item.active %}open{% endif %}>
+                          <summary class="portal-nav-link flex cursor-pointer list-none items-center justify-between {% if item.direct_active %}portal-nav-link-active{% endif %}">
+                            <span class="flex items-center gap-2">
+                              <span class="inline-flex h-4 w-4 items-center justify-center">
+                                {% include "dashboard/partials/nav_icon.html" with icon=item.icon %}
+                              </span>
+                              <span>{{ item.label }}</span>
+                            </span>
+                            <span class="text-xs font-semibold text-slate-500">v</span>
+                          </summary>
+                          <div class="ml-3 mt-1 space-y-1 border-l border-slate-200 pl-2">
+                            {% for child in item.children %}
+                              <a
+                                href="{{ child.url }}"
+                                class="portal-nav-link !py-2 text-sm {% if child.active %}portal-nav-link-active{% endif %}"
+                                data-mobile-nav-close="1"
+                              >
+                                <span class="flex items-center gap-2">
+                                  <span class="inline-flex h-4 w-4 items-center justify-center">
+                                    {% include "dashboard/partials/nav_icon.html" with icon=child.icon %}
+                                  </span>
+                                  <span>{{ child.label }}</span>
+                                </span>
+                              </a>
+                            {% endfor %}
+                          </div>
+                        </details>
+                      {% else %}
+                        <a
+                          href="{{ item.url }}"
+                          class="portal-nav-link {% if item.active %}portal-nav-link-active{% endif %}"
+                          data-mobile-nav-close="1"
+                        >
+                          <span class="flex items-center gap-2">
+                            <span class="inline-flex h-4 w-4 items-center justify-center">
+                              {% include "dashboard/partials/nav_icon.html" with icon=item.icon %}
+                            </span>
+                            <span>{{ item.label }}</span>
+                          </span>
+                        </a>
+                      {% endif %}
+                    {% endif %}
+                  {% endfor %}
+                </div>
+              </div>
+            {% endfor %}
+          {% else %}
+            {% for item in portal_nav_items %}
+              {% if item.label != "Logout" %}
+                <a href="{{ item.url }}" class="portal-nav-link {% if item.active %}portal-nav-link-active{% endif %}" data-mobile-nav-close="1">
+                  <span class="flex items-center gap-2">
+                    <span class="inline-flex h-4 w-4 items-center justify-center">
+                      {% include "dashboard/partials/nav_icon.html" with icon=item.icon %}
+                    </span>
+                    <span>{{ item.label }}</span>
+                  </span>
+                </a>
+              {% endif %}
+            {% empty %}
+              <span class="portal-nav-empty">No menu items.</span>
+            {% endfor %}
+          {% endif %}
+        </nav>
+        <div class="mt-auto pt-6">
+          <form method="post" action="{% url 'accounts:logout' %}">
+            {% csrf_token %}
+            <button type="submit" class="portal-nav-link w-full text-left" data-mobile-nav-close="1">
+              <span class="flex items-center gap-2">
+                <span class="inline-flex h-4 w-4 items-center justify-center">
+                  {% include "dashboard/partials/nav_icon.html" with icon="logout" %}
+                </span>
+                <span>Logout</span>
+              </span>
+            </button>
+          </form>
+        </div>
+      </aside>
+    {% else %}
+      {% block shell_background %}
+        <div class="pointer-events-none fixed inset-0 overflow-hidden">
+          <div class="absolute -left-24 top-16 h-72 w-72 rounded-full bg-ndga-navy/20 blur-3xl animate-float-slow"></div>
+          <div class="absolute right-0 top-40 h-64 w-64 rounded-full bg-ndga-gold/30 blur-3xl animate-float-fast"></div>
+          <div class="absolute bottom-10 left-1/3 h-40 w-40 rounded-full bg-cyan-300/20 blur-3xl animate-float-slow"></div>
+        </div>
+      {% endblock %}
+    {% endif %}
+
+    <div class="{% if show_portal_shell %}portal-main{% else %}relative z-10{% endif %}">
+      {% if show_portal_shell %}
+        <header class="portal-topbar lg:hidden">
+          <button type="button" id="mobileNavOpenBtn" class="portal-menu-btn lg:hidden">
+            Menu
+          </button>
+          <div class="portal-topbar-title">
+            <span class="portal-title-text">{{ portal_shell_title }}</span>
+          </div>
+        </header>
+      {% endif %}
+
+      <main class="{% if show_portal_shell %}relative z-10 px-4 py-6 sm:px-6 lg:px-8{% else %}relative z-10{% endif %}">
+        {% if show_setup_banner %}
+          <div class="{% if show_portal_shell %}mb-4{% else %}mx-auto mt-4 max-w-5xl px-4 sm:px-6 lg:px-8{% endif %}">
+            <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-sm">
+              <span class="font-semibold">System not configured.</span>
+              NDGA setup is still in progress. Core operations remain locked until IT Manager completes the setup wizard.
+              <span class="ml-1 rounded bg-white/70 px-2 py-0.5 text-xs font-semibold">
+                {{ setup_state_code }}
+              </span>
+            </div>
+          </div>
+        {% endif %}
+
+        {% if messages %}
+          <div class="{% if show_portal_shell %}mb-4 flex max-w-xl flex-col gap-2{% else %}fixed right-4 top-4 z-[70] flex max-w-sm flex-col gap-2{% endif %}">
+            {% for message in messages %}
+              <div class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 {% if show_portal_shell %}shadow-sm{% else %}shadow-lg{% endif %}">
+                {{ message }}
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+  </div>
+
+  <script defer src="{% static 'vendor/htmx/htmx.min.js' %}"></script>
+  <script defer src="{% static 'vendor/alpine/alpine.min.js' %}"></script>
+  <div id="ndgaConfirmOverlay" class="fixed inset-0 z-[80] hidden bg-slate-950/55 p-4">
+    <div class="mx-auto mt-24 max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-[0_30px_80px_rgba(2,6,23,0.35)]">
+      <h3 class="text-lg font-semibold text-slate-900">Confirm Action</h3>
+      <p id="ndgaConfirmMessage" class="mt-2 text-sm text-slate-600">Are you sure you want to continue?</p>
+      <div class="mt-5 flex justify-end gap-2">
+        <button type="button" id="ndgaConfirmCancelBtn" class="ndga-btn ndga-btn-secondary">Cancel</button>
+        <button type="button" id="ndgaConfirmProceedBtn" class="ndga-btn !bg-rose-600 !text-white hover:!bg-rose-700">Continue</button>
+      </div>
+    </div>
+  </div>
+  <script>
+    (function () {
+      const openBtn = document.getElementById("mobileNavOpenBtn");
+      const panel = document.getElementById("mobileNavPanel");
+      const backdrop = document.getElementById("mobileNavBackdrop");
+      if (!openBtn || !panel || !backdrop) {
+        return;
+      }
+
+      function openNav() {
+        panel.classList.add("portal-sidebar-mobile-open");
+        backdrop.classList.remove("hidden");
+        document.body.classList.add("overflow-hidden");
+      }
+
+      function closeNav() {
+        panel.classList.remove("portal-sidebar-mobile-open");
+        backdrop.classList.add("hidden");
+        document.body.classList.remove("overflow-hidden");
+      }
+
+      openBtn.addEventListener("click", openNav);
+      backdrop.addEventListener("click", closeNav);
+
+      document.querySelectorAll("[data-mobile-nav-close='1']").forEach((node) => {
+        node.addEventListener("click", closeNav);
+      });
+    })();
+
+    (function () {
+      const overlay = document.getElementById("ndgaConfirmOverlay");
+      const messageNode = document.getElementById("ndgaConfirmMessage");
+      const cancelBtn = document.getElementById("ndgaConfirmCancelBtn");
+      const proceedBtn = document.getElementById("ndgaConfirmProceedBtn");
+      if (!overlay || !messageNode || !cancelBtn || !proceedBtn) {
+        return;
+      }
+
+      let pendingForm = null;
+
+      function closeDialog() {
+        overlay.classList.add("hidden");
+        document.body.classList.remove("overflow-hidden");
+        pendingForm = null;
+      }
+
+      function openDialog(form, message) {
+        pendingForm = form;
+        messageNode.textContent = message || "Are you sure you want to continue?";
+        overlay.classList.remove("hidden");
+        document.body.classList.add("overflow-hidden");
+      }
+
+      document.addEventListener(
+        "submit",
+        function (event) {
+          const form = event.target;
+          if (!(form instanceof HTMLFormElement)) {
+            return;
+          }
+          const confirmMessage = form.getAttribute("data-confirm-message");
+          if (!confirmMessage) {
+            return;
+          }
+          if (form.dataset.confirmed === "1") {
+            form.dataset.confirmed = "0";
+            return;
+          }
+          event.preventDefault();
+          openDialog(form, confirmMessage);
+        },
+        true
+      );
+
+      cancelBtn.addEventListener("click", closeDialog);
+      overlay.addEventListener("click", function (event) {
+        if (event.target === overlay) {
+          closeDialog();
+        }
+      });
+      document.addEventListener("keydown", function (event) {
+        if (event.key === "Escape" && !overlay.classList.contains("hidden")) {
+          closeDialog();
+        }
+      });
+
+      proceedBtn.addEventListener("click", function () {
+        if (!pendingForm) {
+          closeDialog();
+          return;
+        }
+        pendingForm.dataset.confirmed = "1";
+        if (typeof pendingForm.requestSubmit === "function") {
+          pendingForm.requestSubmit();
+        } else {
+          pendingForm.submit();
+        }
+        closeDialog();
+      });
+    })();
+  </script>
+  {% block extra_scripts %}{% endblock %}
+</body>
+</html>

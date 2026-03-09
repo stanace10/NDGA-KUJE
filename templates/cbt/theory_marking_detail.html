@@ -1,0 +1,55 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Theory Marking Detail{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <h1 class="text-2xl font-bold text-ndga-navy">{{ attempt.exam.title }}</h1>
+      <p class="mt-1 text-sm text-slate-600">
+        Student: {{ attempt.student.get_full_name|default:attempt.student.username }} |
+        {{ attempt.exam.subject.name }} |
+        {{ attempt.exam.academic_class.code }}
+      </p>
+      <p class="mt-1 text-xs text-slate-500">Attempt {{ attempt.attempt_number }} | {{ attempt.get_status_display }}</p>
+    </div>
+
+    <form method="post" class="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      {% csrf_token %}
+      <div class="space-y-4">
+        {% for answer in theory_answers %}
+          <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Question {{ answer.exam_question.sort_order }} | Max {{ answer.exam_question.marks }}</p>
+            <p class="mt-2 text-sm font-semibold text-slate-900">{{ answer.exam_question.question.stem }}</p>
+            {% if answer.response_text %}
+              <div class="mt-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">{{ answer.response_text|linebreaksbr }}</div>
+            {% endif %}
+            <div class="mt-3 grid gap-3 sm:grid-cols-[200px_1fr] sm:items-center">
+              <label for="score_{{ answer.id }}" class="text-sm font-semibold text-slate-700">Teacher Score</label>
+              <input
+                id="score_{{ answer.id }}"
+                type="number"
+                step="0.01"
+                min="0"
+                max="{{ answer.exam_question.marks }}"
+                name="score_{{ answer.id }}"
+                value="{{ answer.teacher_score|default:'' }}"
+                class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+              >
+            </div>
+            {% if answer.teacher_marked_by %}
+              <p class="mt-2 text-xs text-slate-500">Last marked by {{ answer.teacher_marked_by.username }} at {{ answer.teacher_marked_at|date:"d M Y H:i" }}</p>
+            {% endif %}
+          </article>
+        {% empty %}
+          <p class="text-sm text-slate-500">No theory questions were found for this attempt.</p>
+        {% endfor %}
+      </div>
+
+      <div class="mt-5 flex flex-wrap gap-2">
+        <button type="submit" class="ndga-btn ndga-btn-primary">Save Theory Scores</button>
+        <a href="{% url 'cbt:theory-marking-list' %}" class="ndga-btn ndga-btn-secondary">Back to Queue</a>
+      </div>
+    </form>
+  </section>
+{% endblock %}

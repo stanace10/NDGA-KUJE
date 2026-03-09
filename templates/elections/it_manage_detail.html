@@ -1,0 +1,293 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Election Management{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+    <article class="animate-soft-reveal rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Election Management</p>
+          <h1 class="mt-2 text-2xl font-bold text-slate-900">{{ election.title }}</h1>
+          <p class="mt-1 text-sm text-slate-600">{{ election.description|default:"No election description." }}</p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          {% if election.status != "OPEN" %}
+            <form method="post">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="open">
+              <button type="submit" class="ndga-btn ndga-btn-primary">Open Voting</button>
+            </form>
+          {% endif %}
+          {% if election.status == "OPEN" %}
+            <form method="post">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="close">
+              <button type="submit" class="ndga-btn ndga-btn-secondary">Close Voting</button>
+            </form>
+          {% endif %}
+          <a href="{% url 'elections:analytics' election.id %}" class="ndga-btn ndga-btn-secondary">Live Analytics</a>
+          {% if election.status == "CLOSED" %}
+            <a href="{% url 'elections:result-pdf' election.id %}" class="ndga-btn ndga-btn-primary">Result PDF</a>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <p class="text-xs uppercase tracking-[0.16em] text-slate-500">Status</p>
+          <p class="mt-1 text-sm font-semibold text-slate-900">{{ election.get_status_display }}</p>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <p class="text-xs uppercase tracking-[0.16em] text-slate-500">Eligible Voters</p>
+          <p class="mt-1 text-sm font-semibold text-slate-900">{{ analytics.eligible_voters }}</p>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <p class="text-xs uppercase tracking-[0.16em] text-slate-500">Votes Cast</p>
+          <p class="mt-1 text-sm font-semibold text-slate-900">{{ analytics.votes_cast }}</p>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <p class="text-xs uppercase tracking-[0.16em] text-slate-500">Turnout</p>
+          <p class="mt-1 text-sm font-semibold text-slate-900">{{ analytics.turnout_percent }}%</p>
+        </div>
+      </div>
+
+      <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p class="text-xs uppercase tracking-[0.16em] text-slate-500">Staff/Admin Voting</p>
+            <p class="mt-1 text-sm font-semibold {% if election.allow_staff_admin_voting %}text-emerald-800{% else %}text-amber-800{% endif %}">
+              {% if election.allow_staff_admin_voting %}Enabled{% else %}Disabled (Students only){% endif %}
+            </p>
+          </div>
+          <form method="post" class="flex items-center gap-2">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="toggle_staff_admin_voting">
+            <input type="hidden" name="allow_staff_admin_voting" value="{% if election.allow_staff_admin_voting %}0{% else %}1{% endif %}">
+            <button type="submit" class="ndga-btn ndga-btn-secondary">
+              {% if election.allow_staff_admin_voting %}Disable Staff/Admin Voting{% else %}Enable Staff/Admin Voting{% endif %}
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <div class="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p class="text-xs uppercase tracking-[0.16em] text-amber-800">Voter Reset (Issue Recovery)</p>
+            <p class="mt-1 text-sm font-medium text-amber-900">
+              Reset a specific voter for this election so they can vote again.
+            </p>
+          </div>
+          <form method="post" class="flex min-w-[280px] flex-col gap-2 sm:flex-row sm:items-center">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="reset_voter_votes">
+            <div class="w-full sm:min-w-[280px]">
+              {{ voter_reset_form.voter }}
+              {% if voter_reset_form.voter.errors %}
+                <p class="mt-1 text-xs text-rose-700">{{ voter_reset_form.voter.errors|striptags }}</p>
+              {% endif %}
+            </div>
+            <button type="submit" class="ndga-btn ndga-btn-secondary whitespace-nowrap">Reset Voter Votes</button>
+          </form>
+        </div>
+        {% if voter_reset_form.non_field_errors %}
+          <p class="mt-2 text-xs text-rose-700">{{ voter_reset_form.non_field_errors|striptags }}</p>
+        {% endif %}
+      </div>
+    </article>
+
+    <div class="mt-4 grid gap-4 lg:grid-cols-3">
+      <article class="animate-soft-reveal-delay rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 class="text-base font-semibold text-slate-900">Add Position</h2>
+        <form method="post" class="mt-3 space-y-3">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="create_position">
+          {{ position_form.name }}
+          {{ position_form.description }}
+          <div class="grid gap-2 sm:grid-cols-2">
+            {{ position_form.sort_order }}
+            <label class="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+              {{ position_form.is_active }} Active
+            </label>
+          </div>
+          {% if position_form.non_field_errors %}
+            <p class="text-xs text-rose-700">{{ position_form.non_field_errors|striptags }}</p>
+          {% endif %}
+          <button type="submit" class="ndga-btn ndga-btn-primary w-full">Save Position</button>
+        </form>
+      </article>
+
+      <article class="animate-soft-reveal-delay rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 class="text-base font-semibold text-slate-900">Add Candidate</h2>
+        <form method="post" class="mt-3 space-y-3">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="create_candidate">
+          {{ candidate_form.position }}
+          {{ candidate_form.user }}
+          {{ candidate_form.display_name }}
+          {{ candidate_form.manifesto }}
+          <label class="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+            {{ candidate_form.is_active }} Active Candidate
+          </label>
+          {% if candidate_form.non_field_errors %}
+            <p class="text-xs text-rose-700">{{ candidate_form.non_field_errors|striptags }}</p>
+          {% endif %}
+          <button type="submit" class="ndga-btn ndga-btn-primary w-full">Save Candidate</button>
+        </form>
+      </article>
+
+      <article class="animate-soft-reveal-delay-2 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 class="text-base font-semibold text-slate-900">Add Voter Group</h2>
+        <form method="post" class="mt-3 space-y-3">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="create_voter_group">
+          {{ voter_group_form.name }}
+          {{ voter_group_form.description }}
+          <div class="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+            <label class="flex items-center gap-2">{{ voter_group_form.include_all_students }} Include all students</label>
+            <label class="flex items-center gap-2">{{ voter_group_form.include_all_staff }} Include all staff</label>
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Role Filters</label>
+            {{ voter_group_form.roles }}
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Class Filters</label>
+            {{ voter_group_form.academic_classes }}
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Direct User Mapping</label>
+            {{ voter_group_form.users }}
+          </div>
+          <label class="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+            {{ voter_group_form.is_active }} Active Group
+          </label>
+          {% if voter_group_form.non_field_errors %}
+            <p class="text-xs text-rose-700">{{ voter_group_form.non_field_errors|striptags }}</p>
+          {% endif %}
+          <button type="submit" class="ndga-btn ndga-btn-primary w-full">Save Voter Group</button>
+        </form>
+      </article>
+    </div>
+
+    <div class="mt-4 grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+      <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h3 class="text-base font-semibold text-slate-900">Positions and Candidates</h3>
+        <div class="mt-3 space-y-3">
+          {% for position in positions %}
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div class="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p class="text-sm font-semibold text-slate-900">{{ position.sort_order }}. {{ position.name }}</p>
+                  {% if position.description %}
+                    <p class="mt-1 text-xs text-slate-600">{{ position.description }}</p>
+                  {% endif %}
+                </div>
+                <form method="post">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="remove_position">
+                  <input type="hidden" name="position_id" value="{{ position.id }}">
+                  <button type="submit" class="ndga-btn ndga-btn-secondary">Deactivate</button>
+                </form>
+              </div>
+
+              <div class="mt-3 overflow-x-auto rounded-xl border border-slate-200 bg-white">
+                <table class="min-w-full divide-y divide-slate-200 text-sm">
+                  <thead class="bg-slate-50">
+                    <tr>
+                      <th class="px-3 py-2 text-left font-semibold text-slate-700">Candidate</th>
+                      <th class="px-3 py-2 text-left font-semibold text-slate-700">Manifesto</th>
+                      <th class="px-3 py-2 text-left font-semibold text-slate-700">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100">
+                    {% for candidate in position.candidates.all %}
+                      <tr>
+                        <td class="px-3 py-2 text-slate-900">
+                          <div class="flex items-center gap-2">
+                            {% if candidate.user.student_profile and candidate.user.student_profile.profile_photo %}
+                              <img src="{{ candidate.user.student_profile.profile_photo.url }}" alt="{{ candidate.display_name|default:candidate.user.username }}" class="h-8 w-8 rounded-lg border border-slate-200 object-cover">
+                            {% elif candidate.user.staff_profile and candidate.user.staff_profile.profile_photo %}
+                              <img src="{{ candidate.user.staff_profile.profile_photo.url }}" alt="{{ candidate.display_name|default:candidate.user.username }}" class="h-8 w-8 rounded-lg border border-slate-200 object-cover">
+                            {% else %}
+                              <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-slate-100 text-xs font-semibold text-slate-700">
+                                {{ candidate.display_name|default:candidate.user.username|slice:":1"|upper }}
+                              </span>
+                            {% endif %}
+                            <span>{{ candidate.display_name|default:candidate.user.username }}</span>
+                          </div>
+                          {% if not candidate.is_active %}
+                            <span class="ml-2 rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-xs text-slate-600">Inactive</span>
+                          {% endif %}
+                        </td>
+                        <td class="px-3 py-2 text-slate-600">{{ candidate.manifesto|default:"-"|truncatechars:80 }}</td>
+                        <td class="px-3 py-2">
+                          {% if candidate.is_active %}
+                            <form method="post">
+                              {% csrf_token %}
+                              <input type="hidden" name="action" value="remove_candidate">
+                              <input type="hidden" name="candidate_id" value="{{ candidate.id }}">
+                              <button type="submit" class="text-sm font-semibold text-rose-700 hover:text-rose-900">Deactivate</button>
+                            </form>
+                          {% else %}
+                            <span class="text-xs text-slate-500">No action</span>
+                          {% endif %}
+                        </td>
+                      </tr>
+                    {% empty %}
+                      <tr>
+                        <td colspan="3" class="px-3 py-4 text-sm text-slate-500">No candidates added yet.</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          {% empty %}
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+              No positions configured yet.
+            </div>
+          {% endfor %}
+        </div>
+      </article>
+
+      <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h3 class="text-base font-semibold text-slate-900">Voter Groups</h3>
+        <div class="mt-3 space-y-3">
+          {% for group in voter_groups %}
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <p class="text-sm font-semibold text-slate-900">{{ group.name }}</p>
+                  {% if group.description %}
+                    <p class="mt-1 text-xs text-slate-600">{{ group.description }}</p>
+                  {% endif %}
+                </div>
+                {% if group.is_active %}
+                  <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="remove_voter_group">
+                    <input type="hidden" name="voter_group_id" value="{{ group.id }}">
+                    <button type="submit" class="text-sm font-semibold text-rose-700 hover:text-rose-900">Deactivate</button>
+                  </form>
+                {% endif %}
+              </div>
+              <div class="mt-2 text-xs text-slate-600">
+                <p>All students: {% if group.include_all_students %}Yes{% else %}No{% endif %}</p>
+                <p>All staff: {% if group.include_all_staff %}Yes{% else %}No{% endif %}</p>
+                <p>Role filters: {% if group.roles.all %}{% for role in group.roles.all %}{{ role.code }}{% if not forloop.last %}, {% endif %}{% endfor %}{% else %}-{% endif %}</p>
+                <p>Class filters: {% if group.academic_classes.all %}{% for cls in group.academic_classes.all %}{{ cls.code }}{% if not forloop.last %}, {% endif %}{% endfor %}{% else %}-{% endif %}</p>
+                <p>Direct users: {{ group.users.count }}</p>
+              </div>
+            </div>
+          {% empty %}
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+              No voter group defined yet.
+            </div>
+          {% endfor %}
+        </div>
+      </article>
+    </div>
+  </section>
+{% endblock %}

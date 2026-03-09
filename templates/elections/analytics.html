@@ -1,0 +1,324 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Election Analytics{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8" data-ws-path="{{ ws_path }}">
+    {{ analytics|json_script:"election-analytics-seed" }}
+
+    <article class="rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-900 via-ndga-navy to-slate-900 p-6 text-white shadow-xl">
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-200">Live Election Analytics</p>
+          <h1 class="mt-2 text-2xl font-bold">{{ election.title }}</h1>
+          <p class="mt-1 text-sm text-slate-200">Live turnout, candidate performance, and position-by-position monitoring.</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <span id="ws-state-chip" class="inline-flex items-center gap-2 rounded-full border border-slate-500 bg-slate-800/70 px-3 py-1 text-xs font-semibold text-slate-100">
+            <span id="ws-state-dot" class="inline-block h-2.5 w-2.5 rounded-full bg-amber-400"></span>
+            <span id="ws-state-label">Connecting...</span>
+          </span>
+          {% if election.status == "CLOSED" %}
+            <a href="{% url 'elections:result-pdf' election.id %}" class="ndga-btn ndga-btn-primary">Download Result PDF</a>
+          {% endif %}
+        </div>
+      </div>
+    </article>
+
+    <div class="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <article class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+        <p class="text-xs uppercase tracking-[0.16em] text-slate-500">Status</p>
+        <p id="status-value" class="mt-1 text-lg font-bold text-slate-900">{{ analytics.status }}</p>
+        <p class="mt-2 text-xs text-slate-500">Election workflow state</p>
+      </article>
+      <article class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+        <p class="text-xs uppercase tracking-[0.16em] text-slate-500">Eligible Voters</p>
+        <p id="eligible-value" class="mt-1 text-2xl font-bold text-slate-900">{{ analytics.eligible_voters }}</p>
+        <p class="mt-2 text-xs text-slate-500">Registered from active groups</p>
+      </article>
+      <article class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+        <p class="text-xs uppercase tracking-[0.16em] text-slate-500">Votes Cast</p>
+        <p id="cast-value" class="mt-1 text-2xl font-bold text-slate-900">{{ analytics.votes_cast }}</p>
+        <p class="mt-2 text-xs text-slate-500">Unique voters submitted</p>
+      </article>
+      <article class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+        <p class="text-xs uppercase tracking-[0.16em] text-slate-500">Turnout</p>
+        <p id="turnout-value" class="mt-1 text-2xl font-bold text-slate-900">{{ analytics.turnout_percent }}%</p>
+        <p class="mt-2 text-xs text-slate-500">Real-time participation</p>
+      </article>
+    </div>
+
+    <div class="mt-4 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+      <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h2 class="text-base font-semibold text-slate-900">Turnout Trend</h2>
+          <span class="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-600">Live updates</span>
+        </div>
+        <svg id="turnoutTrendSvg" viewBox="0 0 640 180" class="mt-3 h-44 w-full rounded-2xl border border-slate-200 bg-slate-50">
+          <path id="trendFill" d="" fill="url(#trendGradient)" fill-opacity="0.18"></path>
+          <path id="trendPath" d="" fill="none" stroke="#0b1f51" stroke-width="3"></path>
+          <defs>
+            <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#0b1f51"></stop>
+              <stop offset="100%" stop-color="#ffffff"></stop>
+            </linearGradient>
+          </defs>
+        </svg>
+      </article>
+
+      <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 class="text-base font-semibold text-slate-900">Turnout Ring</h2>
+        <div class="mt-3 flex items-center justify-center">
+          <div class="relative h-40 w-40">
+            <svg viewBox="0 0 120 120" class="h-40 w-40 -rotate-90">
+              <circle cx="60" cy="60" r="48" stroke="#e2e8f0" stroke-width="12" fill="none"></circle>
+              <circle id="turnoutRing" cx="60" cy="60" r="48" stroke="#0b1f51" stroke-linecap="round" stroke-width="12" fill="none" stroke-dasharray="301.59" stroke-dashoffset="301.59"></circle>
+            </svg>
+            <div class="absolute inset-0 flex flex-col items-center justify-center">
+              <p id="turnoutRingValue" class="text-2xl font-bold text-slate-900">0.00%</p>
+              <p class="text-xs uppercase tracking-[0.14em] text-slate-500">Turnout</p>
+            </div>
+          </div>
+        </div>
+      </article>
+    </div>
+
+    <div id="position-charts" class="mt-4 grid gap-4 lg:grid-cols-2">
+      {% for position in analytics.positions %}
+        <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <h2 class="text-base font-semibold text-slate-900">{{ position.position_name }}</h2>
+            <span class="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-600">Max: {{ position.max_votes }}</span>
+          </div>
+          <div class="mt-3 space-y-2">
+            {% for candidate in position.candidate_rows %}
+              <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div class="flex items-center justify-between gap-2 text-sm">
+                  <span class="font-semibold text-slate-800">{{ candidate.display_name }}</span>
+                  <span class="font-semibold text-slate-700">{{ candidate.vote_count }}</span>
+                </div>
+                <div class="mt-2 h-2 overflow-hidden rounded-full bg-slate-200">
+                  <div class="h-full rounded-full bg-ndga-navy transition-all duration-500" style="width:{% if position.max_votes %}{% widthratio candidate.vote_count position.max_votes 100 %}{% else %}0{% endif %}%"></div>
+                </div>
+              </div>
+            {% empty %}
+              <p class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500">No votes yet for this position.</p>
+            {% endfor %}
+          </div>
+          <p class="mt-3 text-xs text-slate-600">
+            Winner:
+            {% if position.winners %}
+              <span class="font-semibold text-slate-900">{{ position.winners|join:", " }}</span>
+            {% else %}
+              <span class="font-semibold text-slate-700">Pending</span>
+            {% endif %}
+          </p>
+        </article>
+      {% empty %}
+        <article class="rounded-3xl border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">
+          No position analytics available yet.
+        </article>
+      {% endfor %}
+    </div>
+  </section>
+
+  <script>
+    (function () {
+      const root = document.querySelector("[data-ws-path]");
+      if (!root) return;
+      const wsPath = root.getAttribute("data-ws-path");
+      const seedNode = document.getElementById("election-analytics-seed");
+      let latestPayload = null;
+      if (seedNode && seedNode.textContent) {
+        try { latestPayload = JSON.parse(seedNode.textContent); } catch (_err) { latestPayload = null; }
+      }
+
+      const statusValue = document.getElementById("status-value");
+      const eligibleValue = document.getElementById("eligible-value");
+      const castValue = document.getElementById("cast-value");
+      const turnoutValue = document.getElementById("turnout-value");
+      const turnoutRingValue = document.getElementById("turnoutRingValue");
+      const turnoutRing = document.getElementById("turnoutRing");
+      const trendPath = document.getElementById("trendPath");
+      const trendFill = document.getElementById("trendFill");
+      const positionWrap = document.getElementById("position-charts");
+      const wsChip = document.getElementById("ws-state-chip");
+      const wsDot = document.getElementById("ws-state-dot");
+      const wsLabel = document.getElementById("ws-state-label");
+      const ringLength = 2 * Math.PI * 48;
+      const turnoutHistory = [];
+
+      function setSocketState(state) {
+        if (!wsChip || !wsDot || !wsLabel) return;
+        if (state === "connected") {
+          wsChip.className = "inline-flex items-center gap-2 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800";
+          wsDot.className = "inline-block h-2.5 w-2.5 rounded-full bg-emerald-500";
+          wsLabel.textContent = "Live";
+          return;
+        }
+        if (state === "reconnecting") {
+          wsChip.className = "inline-flex items-center gap-2 rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800";
+          wsDot.className = "inline-block h-2.5 w-2.5 rounded-full bg-amber-500";
+          wsLabel.textContent = "Reconnecting";
+          return;
+        }
+        wsChip.className = "inline-flex items-center gap-2 rounded-full border border-slate-500 bg-slate-800/70 px-3 py-1 text-xs font-semibold text-slate-100";
+        wsDot.className = "inline-block h-2.5 w-2.5 rounded-full bg-amber-400";
+        wsLabel.textContent = "Connecting...";
+      }
+
+      function asNumber(value) {
+        const parsed = Number(value || 0);
+        return Number.isFinite(parsed) ? parsed : 0;
+      }
+
+      function animateNumber(node, nextValue, suffix = "") {
+        if (!node) return;
+        const current = asNumber(node.dataset.numericValue || node.textContent);
+        const target = asNumber(nextValue);
+        const steps = 16;
+        const delta = (target - current) / steps;
+        let count = 0;
+        const timer = window.setInterval(() => {
+          count += 1;
+          const value = count >= steps ? target : current + (delta * count);
+          node.dataset.numericValue = String(value);
+          if (suffix === "%") {
+            node.textContent = `${value.toFixed(2)}%`;
+          } else {
+            node.textContent = Math.round(value).toString();
+          }
+          if (count >= steps) window.clearInterval(timer);
+        }, 20);
+      }
+
+      function escapeHtml(value) {
+        return String(value || "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/\"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      }
+
+      function drawTrend() {
+        if (!trendPath || !trendFill) return;
+        if (turnoutHistory.length < 2) {
+          trendPath.setAttribute("d", "");
+          trendFill.setAttribute("d", "");
+          return;
+        }
+        const width = 640;
+        const height = 180;
+        const padX = 26;
+        const padY = 16;
+        const maxY = 100;
+        const minY = 0;
+        const usableW = width - (padX * 2);
+        const usableH = height - (padY * 2);
+        const pointCount = turnoutHistory.length;
+        const points = turnoutHistory.map((value, index) => {
+          const x = padX + ((usableW / Math.max(pointCount - 1, 1)) * index);
+          const y = padY + ((maxY - Math.max(minY, Math.min(maxY, value))) / (maxY - minY)) * usableH;
+          return { x, y };
+        });
+        const pathData = points.map((p, idx) => `${idx === 0 ? "M" : "L"}${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(" ");
+        trendPath.setAttribute("d", pathData);
+        const fillData = `${pathData} L ${points[points.length - 1].x.toFixed(2)} ${(height - padY).toFixed(2)} L ${points[0].x.toFixed(2)} ${(height - padY).toFixed(2)} Z`;
+        trendFill.setAttribute("d", fillData);
+      }
+
+      function renderPositions(payload) {
+        if (!positionWrap) return;
+        const positions = Array.isArray(payload.positions) ? payload.positions : [];
+        if (!positions.length) {
+          positionWrap.innerHTML = '<article class="rounded-3xl border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">No position analytics available yet.</article>';
+          return;
+        }
+        positionWrap.innerHTML = positions.map((position) => {
+          const maxVotes = asNumber(position.max_votes);
+          const rows = Array.isArray(position.candidate_rows) ? position.candidate_rows : [];
+          const rowHtml = rows.length
+            ? rows.map((candidate) => {
+                const votes = asNumber(candidate.vote_count);
+                const width = maxVotes > 0 ? Math.max(0, Math.min(100, (votes / maxVotes) * 100)) : 0;
+                return `
+                  <div class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <div class="flex items-center justify-between gap-2 text-sm">
+                      <span class="font-semibold text-slate-800">${escapeHtml(candidate.display_name)}</span>
+                      <span class="font-semibold text-slate-700">${Math.round(votes)}</span>
+                    </div>
+                    <div class="mt-2 h-2 overflow-hidden rounded-full bg-slate-200">
+                      <div class="h-full rounded-full bg-ndga-navy transition-all duration-500" style="width:${width.toFixed(1)}%"></div>
+                    </div>
+                  </div>
+                `;
+              }).join("")
+            : '<p class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500">No votes yet for this position.</p>';
+          const winners = Array.isArray(position.winners) && position.winners.length ? position.winners.join(", ") : "Pending";
+          return `
+            <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <h2 class="text-base font-semibold text-slate-900">${escapeHtml(position.position_name)}</h2>
+                <span class="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs font-semibold text-slate-600">Max: ${Math.round(maxVotes)}</span>
+              </div>
+              <div class="mt-3 space-y-2">${rowHtml}</div>
+              <p class="mt-3 text-xs text-slate-600">Winner: <span class="font-semibold text-slate-900">${escapeHtml(winners)}</span></p>
+            </article>
+          `;
+        }).join("");
+      }
+
+      function renderPayload(payload) {
+        if (!payload) return;
+        latestPayload = payload;
+        if (statusValue) statusValue.textContent = payload.status || "-";
+        animateNumber(eligibleValue, payload.eligible_voters || 0);
+        animateNumber(castValue, payload.votes_cast || 0);
+        animateNumber(turnoutValue, payload.turnout_percent || 0, "%");
+        animateNumber(turnoutRingValue, payload.turnout_percent || 0, "%");
+        const turnout = asNumber(payload.turnout_percent);
+        if (turnoutRing) {
+          const offset = ringLength - (Math.max(0, Math.min(100, turnout)) / 100) * ringLength;
+          turnoutRing.setAttribute("stroke-dasharray", String(ringLength));
+          turnoutRing.setAttribute("stroke-dashoffset", String(offset));
+        }
+        turnoutHistory.push(turnout);
+        if (turnoutHistory.length > 24) turnoutHistory.shift();
+        drawTrend();
+        renderPositions(payload);
+      }
+
+      function connectSocket() {
+        if (!wsPath) return;
+        setSocketState("connecting");
+        const proto = window.location.protocol === "https:" ? "wss" : "ws";
+        const socket = new WebSocket(`${proto}://${window.location.host}${wsPath}`);
+        socket.onopen = function () {
+          setSocketState("connected");
+          socket.send(JSON.stringify({ action: "refresh" }));
+        };
+        socket.onmessage = function (event) {
+          try {
+            const data = JSON.parse(event.data);
+            if (data && data.payload) renderPayload(data.payload);
+          } catch (_err) {
+            // Ignore malformed socket payload.
+          }
+        };
+        socket.onclose = function () {
+          setSocketState("reconnecting");
+          window.setTimeout(connectSocket, 1200);
+        };
+        socket.onerror = function () {
+          socket.close();
+        };
+      }
+
+      if (latestPayload) {
+        renderPayload(latestPayload);
+      }
+      connectSocket();
+    })();
+  </script>
+{% endblock %}

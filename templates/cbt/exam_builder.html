@@ -1,0 +1,389 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}CBT Question Builder{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">CBT Entry</p>
+          <h1 class="mt-1 text-2xl font-bold text-ndga-navy">{{ exam.title }}</h1>
+          <p class="mt-1 text-sm text-slate-600">
+            {{ exam.academic_class.code }} | {{ exam.subject.name }} | {{ exam.session.name }} | {{ exam.term.get_name_display }}
+          </p>
+          <div class="mt-2 flex flex-wrap gap-2 text-xs font-semibold">
+            <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-700">Status: {{ exam.get_status_display }}</span>
+            <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-700">Duration: {{ exam.blueprint.duration_minutes }} mins</span>
+            <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-700">Flow: {{ builder_config.flow_type|cut:"_"|title }}</span>
+          </div>
+        </div>
+        <a href="{% url 'cbt:authoring-home' %}" class="ndga-btn ndga-btn-secondary">Back</a>
+      </div>
+    </article>
+
+    {% if builder_rows %}
+      <article class="mt-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="mb-4 flex flex-wrap gap-2">
+          {% for bundle in builder_rows %}
+            {% if forloop.counter == current_index %}
+              <span class="rounded-xl border border-ndga-navy bg-ndga-navy px-3 py-1.5 text-xs font-semibold text-white">
+                {{ bundle.section_label }}
+              </span>
+            {% else %}
+              <a href="{% url 'cbt:exam-builder' exam.id %}?q={{ forloop.counter }}" class="rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-ndga-navy/40">
+                {{ bundle.section_label }}
+              </a>
+            {% endif %}
+          {% endfor %}
+        </div>
+
+        <form method="post" enctype="multipart/form-data" id="cbt-builder-form" class="space-y-4">
+          {% csrf_token %}
+          <input type="hidden" name="q" value="{{ current_index }}">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <h2 class="text-lg font-semibold text-ndga-navy">
+              {{ current_bundle.section_label }} of {{ builder_rows|length }}
+            </h2>
+            <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
+              Auto Marks: {{ current_bundle.row.marks }}
+            </span>
+          </div>
+
+          <div>
+            <label class="mb-1 block text-sm font-semibold text-slate-700" for="stem">Question Text</label>
+            {% if can_edit %}
+              <div class="mb-2 flex flex-wrap gap-2">
+                <button type="button" class="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-ndga-navy/50" data-insert-wrap="**">Bold</button>
+                <button type="button" class="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-ndga-navy/50" data-insert-wrap="_">Italic</button>
+                <button type="button" class="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-ndga-navy/50" data-insert-text="\\( x^2 + y^2 = r^2 \\)">Formula</button>
+                <button type="button" class="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-ndga-navy/50" data-insert-text="△ ○ □ ↔ → ←">Shapes</button>
+                <button type="button" class="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-ndga-navy/50" data-insert-text="\n----------------\n">Line</button>
+                <button type="button" class="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-ndga-navy/50" data-insert-text="\n[GRAPH AREA]\n">Graph Placeholder</button>
+              </div>
+            {% endif %}
+            <textarea
+              id="stem"
+              name="stem"
+              rows="4"
+              class="w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm"
+              {% if not can_edit %}disabled{% endif %}
+            >{{ current_stem }}</textarea>
+          </div>
+
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <h3 class="text-sm font-semibold text-slate-800">Question Stimulus Media</h3>
+            <p class="mt-1 text-xs text-slate-500">Upload image/video for this question. Use apply span to reuse same stimulus for Question 1-5 style sets.</p>
+            <div class="mt-3 grid gap-3 sm:grid-cols-2">
+              <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500" for="stimulus_image">Image</label>
+                <input id="stimulus_image" name="stimulus_image" type="file" accept="image/*" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" {% if not can_edit %}disabled{% endif %}>
+                {% if current_question.stimulus_image %}
+                  <p class="mt-1 text-xs text-slate-500">Current: {{ current_question.stimulus_image.name }}</p>
+                  {% if can_edit %}
+                    <label class="mt-1 inline-flex items-center gap-2 text-xs text-slate-600"><input type="checkbox" name="clear_stimulus_image" value="1"> Remove image</label>
+                  {% endif %}
+                {% endif %}
+              </div>
+              <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500" for="stimulus_video">Video</label>
+                <input id="stimulus_video" name="stimulus_video" type="file" accept="video/*" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" {% if not can_edit %}disabled{% endif %}>
+                {% if current_question.stimulus_video %}
+                  <p class="mt-1 text-xs text-slate-500">Current: {{ current_question.stimulus_video.name }}</p>
+                  {% if can_edit %}
+                    <label class="mt-1 inline-flex items-center gap-2 text-xs text-slate-600"><input type="checkbox" name="clear_stimulus_video" value="1"> Remove video</label>
+                  {% endif %}
+                {% endif %}
+              </div>
+              <div class="sm:col-span-2">
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500" for="stimulus_caption">Media Instruction</label>
+                <input id="stimulus_caption" name="stimulus_caption" type="text" value="{{ current_question.stimulus_caption }}" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" placeholder="Example: Use this image to answer questions 1-5." {% if not can_edit %}disabled{% endif %}>
+              </div>
+              <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500" for="apply_media_span">Apply To Next Questions</label>
+                <input id="apply_media_span" name="apply_media_span" type="number" min="1" max="30" value="1" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" {% if not can_edit %}disabled{% endif %}>
+              </div>
+            </div>
+          </div>
+
+          {% if current_bundle.section == "OBJECTIVE" %}
+            <div class="w-full max-w-sm">
+              <label class="mb-1 block text-sm font-semibold text-slate-700" for="objective_mode">Objective Mode</label>
+              <select id="objective_mode" name="objective_mode" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" {% if not can_edit %}disabled{% endif %}>
+                <option value="OBJECTIVE" {% if objective_defaults.objective_mode == "OBJECTIVE" %}selected{% endif %}>Single Correct</option>
+                <option value="MULTI_SELECT" {% if objective_defaults.objective_mode == "MULTI_SELECT" %}selected{% endif %}>Multi Select</option>
+              </select>
+            </div>
+            <div class="grid gap-3 sm:grid-cols-2">
+              <div>
+                <label class="mb-1 block text-sm font-semibold text-slate-700" for="option_a">Option A</label>
+                <input id="option_a" name="option_a" type="text" value="{{ objective_defaults.option_a }}" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" {% if not can_edit %}disabled{% endif %}>
+              </div>
+              <div>
+                <label class="mb-1 block text-sm font-semibold text-slate-700" for="option_b">Option B</label>
+                <input id="option_b" name="option_b" type="text" value="{{ objective_defaults.option_b }}" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" {% if not can_edit %}disabled{% endif %}>
+              </div>
+              <div>
+                <label class="mb-1 block text-sm font-semibold text-slate-700" for="option_c">Option C</label>
+                <input id="option_c" name="option_c" type="text" value="{{ objective_defaults.option_c }}" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" {% if not can_edit %}disabled{% endif %}>
+              </div>
+              <div>
+                <label class="mb-1 block text-sm font-semibold text-slate-700" for="option_d">Option D</label>
+                <input id="option_d" name="option_d" type="text" value="{{ objective_defaults.option_d }}" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" {% if not can_edit %}disabled{% endif %}>
+              </div>
+            </div>
+            <div class="w-48">
+              <label class="mb-1 block text-sm font-semibold text-slate-700" for="correct_label">Correct Option</label>
+              <select id="correct_label" name="correct_label" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" {% if not can_edit %}disabled{% endif %}>
+                <option value="A" {% if objective_defaults.correct_label == "A" %}selected{% endif %}>A</option>
+                <option value="B" {% if objective_defaults.correct_label == "B" %}selected{% endif %}>B</option>
+                <option value="C" {% if objective_defaults.correct_label == "C" %}selected{% endif %}>C</option>
+                <option value="D" {% if objective_defaults.correct_label == "D" %}selected{% endif %}>D</option>
+              </select>
+            </div>
+            <div id="multiCorrectWrap" class="hidden sm:col-span-2">
+              <p class="mb-1 text-sm font-semibold text-slate-700">Correct Options (Multi Select)</p>
+              <div class="flex flex-wrap gap-3 text-sm text-slate-700">
+                <label class="inline-flex items-center gap-2"><input type="checkbox" name="correct_labels" value="A" {% if "A" in objective_defaults.correct_labels %}checked{% endif %} {% if not can_edit %}disabled{% endif %}>A</label>
+                <label class="inline-flex items-center gap-2"><input type="checkbox" name="correct_labels" value="B" {% if "B" in objective_defaults.correct_labels %}checked{% endif %} {% if not can_edit %}disabled{% endif %}>B</label>
+                <label class="inline-flex items-center gap-2"><input type="checkbox" name="correct_labels" value="C" {% if "C" in objective_defaults.correct_labels %}checked{% endif %} {% if not can_edit %}disabled{% endif %}>C</label>
+                <label class="inline-flex items-center gap-2"><input type="checkbox" name="correct_labels" value="D" {% if "D" in objective_defaults.correct_labels %}checked{% endif %} {% if not can_edit %}disabled{% endif %}>D</label>
+              </div>
+            </div>
+          {% else %}
+            <div class="w-full max-w-sm">
+              <label class="mb-1 block text-sm font-semibold text-slate-700" for="theory_response_mode">Theory Answer Mode</label>
+              <select id="theory_response_mode" name="theory_response_mode" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" {% if not can_edit %}disabled{% endif %}>
+                <option value="PAPER" {% if theory_response_mode == "PAPER" %}selected{% endif %}>Display only (paper answer)</option>
+              </select>
+            </div>
+            <div class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+              Theory is paper-response mode. Student will read this question in CBT and answer on booklet.
+            </div>
+          {% endif %}
+
+          <div class="flex flex-wrap gap-2 pt-2">
+            {% if can_edit %}
+              <button type="submit" name="action" value="save" class="ndga-btn ndga-btn-primary">Save Question</button>
+              <button type="submit" name="action" value="prev" class="ndga-btn ndga-btn-secondary">Prev</button>
+              <button type="submit" name="action" value="next" class="ndga-btn ndga-btn-secondary">Next</button>
+              <button type="submit" name="action" value="finish" class="ndga-btn ndga-btn-secondary">Finish</button>
+              <span id="cbt-autosave-status" class="inline-flex items-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600">
+                Autosave idle
+              </span>
+            {% endif %}
+          </div>
+
+          {% if can_edit %}
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <label class="mb-1 block text-sm font-semibold text-slate-700" for="dean_comment">Dean Comment (Optional)</label>
+              <textarea id="dean_comment" name="dean_comment" rows="2" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"></textarea>
+              <button type="submit" name="action" value="submit_to_dean" class="mt-3 ndga-btn ndga-btn-primary">Submit To Dean</button>
+            </div>
+          {% endif %}
+        </form>
+      </article>
+    {% else %}
+      <article class="mt-5 rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+        <h2 class="text-lg font-semibold text-slate-900">No questions configured yet</h2>
+        <p class="mt-2 text-sm text-slate-600">Go back and update CBT setup to configure objective/theory counts.</p>
+        <a href="{% url 'cbt:exam-create' %}" class="mt-4 inline-flex ndga-btn ndga-btn-secondary">Back to Setup</a>
+      </article>
+    {% endif %}
+  </section>
+{% endblock %}
+
+{% block extra_scripts %}
+  <script>
+    (function () {
+      const canEdit = {% if can_edit %}true{% else %}false{% endif %};
+      if (!canEdit) {
+        return;
+      }
+      const form = document.getElementById("cbt-builder-form");
+      const status = document.getElementById("cbt-autosave-status");
+      if (!form || !status) {
+        return;
+      }
+
+      const examId = "{{ exam.id }}";
+      const index = "{{ current_index }}";
+      const storageKey = "ndga.cbt.builder." + examId + "." + index;
+      let timer = null;
+
+      function setStatus(text, tone) {
+        status.textContent = text;
+        status.classList.remove(
+          "border-emerald-200",
+          "bg-emerald-50",
+          "text-emerald-700",
+          "border-rose-200",
+          "bg-rose-50",
+          "text-rose-700"
+        );
+        if (tone === "ok") {
+          status.classList.add("border-emerald-200", "bg-emerald-50", "text-emerald-700");
+        } else if (tone === "error") {
+          status.classList.add("border-rose-200", "bg-rose-50", "text-rose-700");
+        }
+      }
+
+      function trackedInputs() {
+        return Array.from(
+          form.querySelectorAll("textarea[name], input[name], select[name]")
+        ).filter((node) => {
+          const name = node.getAttribute("name") || "";
+          if (!name || name === "csrfmiddlewaretoken" || name === "_autosave") {
+            return false;
+          }
+          if (node.type === "file") {
+            return false;
+          }
+          return true;
+        });
+      }
+
+      function saveDraftToLocal() {
+        const payload = {};
+        trackedInputs().forEach((node) => {
+          if (node.type === "checkbox") {
+            payload[node.name] = node.checked ? "1" : "0";
+            return;
+          }
+          payload[node.name] = node.value || "";
+        });
+        window.localStorage.setItem(storageKey, JSON.stringify(payload));
+      }
+
+      function restoreDraftFromLocal() {
+        const raw = window.localStorage.getItem(storageKey);
+        if (!raw) {
+          return;
+        }
+        let draft = null;
+        try {
+          draft = JSON.parse(raw);
+        } catch (err) {
+          return;
+        }
+        trackedInputs().forEach((node) => {
+          if (!(node.name in draft)) {
+            return;
+          }
+          if (node.type === "checkbox") {
+            node.checked = draft[node.name] === "1";
+            return;
+          }
+          if (!node.value) {
+            node.value = draft[node.name];
+          }
+        });
+        setStatus("Draft restored", "");
+      }
+
+      function runAutosave() {
+        saveDraftToLocal();
+        const payload = new FormData(form);
+        payload.set("action", "save");
+        payload.set("_autosave", "1");
+        setStatus("Autosaving...", "");
+        fetch(window.location.href, {
+          method: "POST",
+          body: payload,
+          headers: { "X-Requested-With": "XMLHttpRequest" },
+          credentials: "same-origin",
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            if (data.ok) {
+              window.localStorage.removeItem(storageKey);
+              setStatus("Autosaved", "ok");
+              return;
+            }
+            setStatus(data.error || "Autosave failed", "error");
+          })
+          .catch(() => setStatus("Autosave failed", "error"));
+      }
+
+      function scheduleAutosave() {
+        saveDraftToLocal();
+        if (timer) {
+          clearTimeout(timer);
+        }
+        timer = window.setTimeout(runAutosave, 1200);
+      }
+
+      restoreDraftFromLocal();
+      trackedInputs().forEach((node) => {
+        node.addEventListener("input", scheduleAutosave);
+        node.addEventListener("change", scheduleAutosave);
+      });
+
+      const stemArea = document.getElementById("stem");
+      function insertText(value) {
+        if (!stemArea || !value) return;
+        const start = stemArea.selectionStart || 0;
+        const end = stemArea.selectionEnd || 0;
+        const current = stemArea.value || "";
+        stemArea.value = current.slice(0, start) + value + current.slice(end);
+        const caret = start + value.length;
+        stemArea.selectionStart = caret;
+        stemArea.selectionEnd = caret;
+        stemArea.focus();
+        scheduleAutosave();
+      }
+      function wrapSelection(token) {
+        if (!stemArea || !token) return;
+        const start = stemArea.selectionStart || 0;
+        const end = stemArea.selectionEnd || 0;
+        const current = stemArea.value || "";
+        const selected = current.slice(start, end) || "text";
+        const wrapped = token + selected + token;
+        stemArea.value = current.slice(0, start) + wrapped + current.slice(end);
+        stemArea.selectionStart = start;
+        stemArea.selectionEnd = start + wrapped.length;
+        stemArea.focus();
+        scheduleAutosave();
+      }
+      form.querySelectorAll("[data-insert-text]").forEach((btn) => {
+        btn.addEventListener("click", () => insertText(btn.dataset.insertText || ""));
+      });
+      form.querySelectorAll("[data-insert-wrap]").forEach((btn) => {
+        btn.addEventListener("click", () => wrapSelection(btn.dataset.insertWrap || ""));
+      });
+
+      const objectiveMode = document.getElementById("objective_mode");
+      const correctLabel = document.getElementById("correct_label");
+      const singleCorrectWrap = correctLabel ? correctLabel.closest("div") : null;
+      const multiCorrectWrap = document.getElementById("multiCorrectWrap");
+      function refreshObjectiveMode() {
+        if (!objectiveMode || !singleCorrectWrap || !multiCorrectWrap) return;
+        const isMulti = objectiveMode.value === "MULTI_SELECT";
+        singleCorrectWrap.style.display = isMulti ? "none" : "";
+        multiCorrectWrap.classList.toggle("hidden", !isMulti);
+      }
+      if (objectiveMode) {
+        objectiveMode.addEventListener("change", () => {
+          refreshObjectiveMode();
+          scheduleAutosave();
+        });
+        refreshObjectiveMode();
+      }
+
+      const theoryType = document.getElementById("theory_question_type");
+      const structuredWrap = document.getElementById("structuredAnswerWrap");
+      function refreshTheoryMode() {
+        if (!theoryType || !structuredWrap) return;
+        const mode = theoryType.value || "SHORT_ANSWER";
+        structuredWrap.style.display = mode === "SHORT_ANSWER" ? "none" : "";
+      }
+      if (theoryType) {
+        theoryType.addEventListener("change", () => {
+          refreshTheoryMode();
+          scheduleAutosave();
+        });
+        refreshTheoryMode();
+      }
+    })();
+  </script>
+{% endblock %}

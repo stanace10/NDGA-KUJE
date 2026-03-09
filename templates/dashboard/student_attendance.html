@@ -1,0 +1,102 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Student Attendance{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-[94rem] px-4 py-5 sm:px-6 lg:px-8">
+    <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <h1 class="text-2xl font-bold text-slate-900">Attendance Metrics</h1>
+      <p class="mt-1 text-sm text-slate-600">Track your attendance percentage and daily consistency.</p>
+
+      <form method="get" class="mt-4 grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div>
+          <label for="session_id" class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Session</label>
+          <select id="session_id" name="session_id" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+            {% for session in available_sessions %}
+              <option value="{{ session.id }}" {% if selected_session and session.id == selected_session.id %}selected{% endif %}>
+                {{ session.name }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="term_id" class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Term</label>
+          <select id="term_id" name="term_id" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+            {% for term in available_terms %}
+              <option value="{{ term.id }}" {% if selected_term and term.id == selected_term.id %}selected{% endif %}>
+                {{ term.get_name_display }}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="sm:col-span-2 lg:col-span-2 flex items-end gap-2">
+          <button type="submit" class="ndga-btn ndga-btn-primary">Apply Filter</button>
+          <a href="{% url 'dashboard:student-attendance' %}" class="ndga-btn ndga-btn-secondary">Reset</a>
+        </div>
+      </form>
+
+      {% if attendance_snapshot %}
+        <div class="mt-5 grid gap-3 sm:grid-cols-3">
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Attendance</p>
+            <p class="mt-2 text-4xl font-bold text-ndga-navy">{{ attendance_snapshot.percentage }}%</p>
+            <div class="mt-2 inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold {{ attendance_tone_class }}">
+              {{ attendance_label }}
+            </div>
+          </div>
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Present Days</p>
+            <p class="mt-2 text-3xl font-bold text-slate-900">{{ attendance_snapshot.present_days }}</p>
+          </div>
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Absent Days</p>
+            <p class="mt-2 text-3xl font-bold text-slate-900">{{ attendance_absent_days }}</p>
+          </div>
+        </div>
+
+        <article class="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+          <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Attendance Graph</p>
+          <div class="mt-3 grid gap-3 lg:grid-cols-[1.1fr_0.9fr]">
+            <div class="space-y-3">
+              {% for row in attendance_bar_rows %}
+                <div>
+                  <div class="mb-1 flex items-center justify-between text-xs font-semibold text-slate-600">
+                    <span>{{ row.label }}</span>
+                    <span>{{ row.count }} day{{ row.count|pluralize }}</span>
+                  </div>
+                  <div class="h-2.5 rounded-full bg-slate-100">
+                    <div class="h-2.5 rounded-full {{ row.color_class }}" style="width: {{ row.bar_percent }}%;"></div>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Term Metrics</p>
+              <dl class="mt-3 space-y-2 text-sm text-slate-700">
+                <div class="flex items-center justify-between">
+                  <dt>Valid School Days</dt>
+                  <dd class="font-semibold text-slate-900">{{ attendance_snapshot.valid_school_days }}</dd>
+                </div>
+                <div class="flex items-center justify-between">
+                  <dt>Marked Days</dt>
+                  <dd class="font-semibold text-slate-900">{{ attendance_snapshot.marked_days }}</dd>
+                </div>
+                <div class="flex items-center justify-between">
+                  <dt>Unmarked Days</dt>
+                  <dd class="font-semibold text-slate-900">{{ attendance_snapshot.unmarked_days }}</dd>
+                </div>
+              </dl>
+            </div>
+          </div>
+          <p class="mt-3 text-xs text-slate-500">
+            Based on {{ attendance_snapshot.valid_school_days }} valid school day{{ attendance_snapshot.valid_school_days|pluralize }} for this term.
+          </p>
+        </article>
+      {% else %}
+        <p class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          Attendance data is not available yet for your active class and term.
+        </p>
+      {% endif %}
+    </article>
+  </section>
+{% endblock %}

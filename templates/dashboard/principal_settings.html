@@ -1,0 +1,203 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Principal Settings{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-[94rem] px-4 py-5 sm:px-6 lg:px-8">
+    <div class="grid gap-4 lg:grid-cols-2">
+      <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h1 class="text-xl font-bold text-slate-900">Display Settings</h1>
+        <p class="mt-1 text-sm text-slate-600">
+          Set the display name used on your principal dashboard.
+        </p>
+        <form method="post" class="mt-4 space-y-3">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="update_display">
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700" for="{{ display_form.display_name.id_for_label }}">
+              Display Name
+            </label>
+            {{ display_form.display_name }}
+            {% if display_form.display_name.help_text %}
+              <p class="mt-1 text-xs text-slate-500">{{ display_form.display_name.help_text }}</p>
+            {% endif %}
+            {% if display_form.display_name.errors %}
+              <p class="mt-1 text-xs text-rose-700">{{ display_form.display_name.errors|striptags }}</p>
+            {% endif %}
+          </div>
+          <button type="submit" class="ndga-btn ndga-btn-primary">Save Display Name</button>
+        </form>
+      </article>
+
+      <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-xl font-bold text-slate-900">Password</h2>
+        <p class="mt-1 text-sm text-slate-600">
+          Update your password using NDGA policy constraints.
+        </p>
+        <form method="post" class="mt-4 space-y-3">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="change_password">
+          {% if password_form.non_field_errors %}
+            <div class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+              {{ password_form.non_field_errors|striptags }}
+            </div>
+          {% endif %}
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700" for="{{ password_form.old_password.id_for_label }}">Current Password</label>
+            {{ password_form.old_password }}
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700" for="{{ password_form.new_password1.id_for_label }}">New Password</label>
+            {{ password_form.new_password1 }}
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700" for="{{ password_form.new_password2.id_for_label }}">Confirm New Password</label>
+            {{ password_form.new_password2 }}
+          </div>
+          <button type="submit" class="ndga-btn ndga-btn-primary">Update Password</button>
+        </form>
+      </article>
+    </div>
+
+    <article class="mt-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <h2 class="text-xl font-bold text-slate-900">Principal Signature</h2>
+      <p class="mt-1 text-sm text-slate-600">
+        Upload a signature image or draw directly on the signature pad. This signature is used on term report PDFs.
+      </p>
+
+      <div class="mt-4 grid gap-4 lg:grid-cols-2">
+        <div class="space-y-3">
+          <form id="principalSignatureForm" method="post" enctype="multipart/form-data" class="space-y-3">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="save_signature">
+            {{ signature_form.signature_data }}
+            <div>
+              <label class="mb-1 block text-sm font-medium text-slate-700" for="{{ signature_form.signature_image.id_for_label }}">
+                Upload Signature Image
+              </label>
+              {{ signature_form.signature_image }}
+              {% if signature_form.signature_image.errors %}
+                <p class="mt-1 text-xs text-rose-700">{{ signature_form.signature_image.errors|striptags }}</p>
+              {% endif %}
+              {% if signature_form.signature_data.errors %}
+                <p class="mt-1 text-xs text-rose-700">{{ signature_form.signature_data.errors|striptags }}</p>
+              {% endif %}
+            </div>
+
+            <button type="submit" class="ndga-btn ndga-btn-primary">Save Signature</button>
+          </form>
+
+          {% if signature_record and signature_record.signature_image %}
+            <form method="post">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="clear_signature">
+              <button type="submit" class="ndga-btn ndga-btn-secondary">Remove Saved Signature</button>
+            </form>
+          {% endif %}
+        </div>
+
+        <div>
+          <label class="mb-1 block text-sm font-medium text-slate-700">Signature Pad</label>
+          <canvas
+            id="signaturePadCanvas"
+            class="h-44 w-full rounded-2xl border border-slate-300 bg-white"
+            style="touch-action: none;"
+          ></canvas>
+          <div class="mt-2 flex gap-2">
+            <button id="clearSignaturePadBtn" type="button" class="ndga-btn ndga-btn-secondary">Clear Pad</button>
+          </div>
+          <p class="mt-2 text-xs text-slate-500">
+            Draw with mouse, touch, or stylus. If you draw here and submit, it will be saved automatically.
+          </p>
+        </div>
+      </div>
+
+      {% if signature_record and signature_record.signature_image %}
+        <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+          <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Current Signature Preview</p>
+          <img src="{{ signature_record.signature_image.url }}" alt="Principal signature" class="mt-2 h-20 w-auto rounded border border-slate-300 bg-white p-1">
+        </div>
+      {% endif %}
+    </article>
+  </section>
+
+  <script>
+    (function () {
+      const form = document.getElementById("principalSignatureForm");
+      const canvas = document.getElementById("signaturePadCanvas");
+      const clearBtn = document.getElementById("clearSignaturePadBtn");
+      const hiddenInput = document.getElementById("id_signature_data");
+      const fileInput = document.getElementById("id_signature_image");
+      if (!form || !canvas || !clearBtn || !hiddenInput || !fileInput) {
+        return;
+      }
+
+      const ctx = canvas.getContext("2d");
+      let drawing = false;
+      let hasStroke = false;
+
+      function resizeCanvas() {
+        const ratio = Math.max(window.devicePixelRatio || 1, 1);
+        const width = canvas.clientWidth;
+        const height = canvas.clientHeight;
+        canvas.width = Math.floor(width * ratio);
+        canvas.height = Math.floor(height * ratio);
+        ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+        ctx.lineWidth = 2.2;
+        ctx.lineJoin = "round";
+        ctx.lineCap = "round";
+        ctx.strokeStyle = "#0b1f51";
+      }
+
+      function pointFromEvent(event) {
+        const rect = canvas.getBoundingClientRect();
+        return {
+          x: event.clientX - rect.left,
+          y: event.clientY - rect.top,
+        };
+      }
+
+      canvas.addEventListener("pointerdown", (event) => {
+        const point = pointFromEvent(event);
+        drawing = true;
+        hasStroke = true;
+        ctx.beginPath();
+        ctx.moveTo(point.x, point.y);
+      });
+
+      canvas.addEventListener("pointermove", (event) => {
+        if (!drawing) {
+          return;
+        }
+        const point = pointFromEvent(event);
+        ctx.lineTo(point.x, point.y);
+        ctx.stroke();
+      });
+
+      function stopDrawing() {
+        drawing = false;
+      }
+
+      canvas.addEventListener("pointerup", stopDrawing);
+      canvas.addEventListener("pointerleave", stopDrawing);
+      canvas.addEventListener("pointercancel", stopDrawing);
+
+      clearBtn.addEventListener("click", () => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        hasStroke = false;
+        hiddenInput.value = "";
+      });
+
+      form.addEventListener("submit", () => {
+        if (hasStroke && !fileInput.files.length) {
+          hiddenInput.value = canvas.toDataURL("image/png");
+        } else if (!hasStroke) {
+          hiddenInput.value = "";
+        }
+      });
+
+      window.addEventListener("resize", resizeCanvas);
+      resizeCanvas();
+    })();
+  </script>
+{% endblock %}

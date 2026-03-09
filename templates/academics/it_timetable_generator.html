@@ -1,0 +1,140 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Smart Timetable Generator{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.22em] text-ndga-navy/70">Academic Planning</p>
+          <h1 class="mt-2 text-3xl font-bold text-ndga-navy">Smart Timetable Generator</h1>
+          <p class="mt-3 max-w-3xl text-sm text-slate-600">Build a conflict-aware timetable preview from active teacher, subject, and class assignments for the selected session and term.</p>
+        </div>
+        <a href="{% url 'academics:it-hub' %}" class="ndga-btn ndga-btn-secondary">Back To Academics</a>
+      </div>
+
+      <form method="post" class="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        {% csrf_token %}
+        <div>
+          <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ form.session.id_for_label }}">Session</label>
+          {{ form.session }}
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ form.term.id_for_label }}">Term</label>
+          {{ form.term }}
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ form.periods_per_day.id_for_label }}">Periods Per Day</label>
+          {{ form.periods_per_day }}
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ form.periods_per_assignment.id_for_label }}">Periods Per Subject</label>
+          {{ form.periods_per_assignment }}
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ form.room_prefix.id_for_label }}">Room Prefix</label>
+          {{ form.room_prefix }}
+        </div>
+        <div class="md:col-span-2 xl:col-span-5">
+          <p class="mb-2 text-sm font-semibold text-slate-700">School Days</p>
+          <div class="grid gap-2 sm:grid-cols-3 lg:grid-cols-5">
+            {% for checkbox in form.days %}
+              <label class="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">{{ checkbox.tag }} <span>{{ checkbox.choice_label }}</span></label>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="xl:col-span-5">
+          <button type="submit" class="ndga-btn ndga-btn-primary">Generate Preview</button>
+        </div>
+      </form>
+    </div>
+
+    {% if preview %}
+      <div class="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <article class="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+          <p class="text-xs uppercase tracking-[0.14em] text-slate-500">Assignments</p>
+          <p class="mt-1 text-2xl font-bold text-slate-900">{{ assignment_count }}</p>
+        </article>
+        <article class="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 shadow-sm">
+          <p class="text-xs uppercase tracking-[0.14em] text-emerald-700">Placed Slots</p>
+          <p class="mt-1 text-2xl font-bold text-emerald-900">{{ preview.summary.placed_slots }}</p>
+        </article>
+        <article class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 shadow-sm">
+          <p class="text-xs uppercase tracking-[0.14em] text-amber-700">Requested Slots</p>
+          <p class="mt-1 text-2xl font-bold text-amber-900">{{ preview.summary.requested_slots }}</p>
+        </article>
+        <article class="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 shadow-sm">
+          <p class="text-xs uppercase tracking-[0.14em] text-rose-700">Unplaced</p>
+          <p class="mt-1 text-2xl font-bold text-rose-900">{{ preview.summary.unplaced_slots }}</p>
+        </article>
+      </div>
+
+      <div class="mt-6 space-y-5">
+        {% for table in preview.class_tables %}
+          <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 class="text-lg font-semibold text-slate-900">{{ table.class_code }}</h2>
+            <div class="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
+              <table class="min-w-full divide-y divide-slate-200 text-sm">
+                <thead class="bg-slate-50">
+                  <tr class="text-left text-slate-600">
+                    <th class="px-3 py-2">Day</th>
+                    {% for period in preview.period_numbers %}
+                      <th class="px-3 py-2">P{{ period }}</th>
+                    {% endfor %}
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 bg-white">
+                  {% for day_row in table.days %}
+                    <tr>
+                      <td class="px-3 py-2 font-semibold text-slate-900">{{ day_row.label }}</td>
+                      {% for slot in day_row.periods %}
+                        <td class="px-3 py-2 align-top text-slate-700">
+                          {% if slot %}
+                            <p class="font-semibold text-slate-900">{{ slot.subject }}</p>
+                            <p class="text-xs text-slate-500">{{ slot.teacher }}</p>
+                            <p class="text-xs text-slate-500">{{ slot.room }}</p>
+                          {% else %}
+                            <span class="text-xs text-slate-400">Free</span>
+                          {% endif %}
+                        </td>
+                      {% endfor %}
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+
+      {% if preview.unplaced_rows %}
+        <article class="mt-6 rounded-3xl border border-rose-200 bg-white p-5 shadow-sm">
+          <h2 class="text-lg font-semibold text-rose-900">Unplaced Assignments</h2>
+          <div class="mt-3 overflow-x-auto rounded-2xl border border-rose-100">
+            <table class="min-w-full divide-y divide-rose-100 text-sm">
+              <thead class="bg-rose-50">
+                <tr class="text-left text-rose-800">
+                  <th class="px-3 py-2">Class</th>
+                  <th class="px-3 py-2">Subject</th>
+                  <th class="px-3 py-2">Teacher</th>
+                  <th class="px-3 py-2">Reason</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-rose-100 bg-white">
+                {% for row in preview.unplaced_rows %}
+                  <tr>
+                    <td class="px-3 py-2">{{ row.class_code }}</td>
+                    <td class="px-3 py-2">{{ row.subject }}</td>
+                    <td class="px-3 py-2">{{ row.teacher }}</td>
+                    <td class="px-3 py-2">{{ row.reason }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </article>
+      {% endif %}
+    {% endif %}
+  </section>
+{% endblock %}

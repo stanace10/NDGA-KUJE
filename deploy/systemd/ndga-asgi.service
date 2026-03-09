@@ -1,0 +1,23 @@
+[Unit]
+Description=NDGA ASGI (Gunicorn + UvicornWorker)
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/srv/ndga/current
+EnvironmentFile=/srv/ndga/current/.env.prod
+Environment=DJANGO_SETTINGS_MODULE=core.settings.prod
+ExecStart=/srv/ndga/venv/bin/gunicorn core.asgi:application \
+  --bind 127.0.0.1:8001 \
+  --workers 4 \
+  --worker-class uvicorn.workers.UvicornWorker \
+  --timeout 120 \
+  --access-logfile - \
+  --error-logfile -
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

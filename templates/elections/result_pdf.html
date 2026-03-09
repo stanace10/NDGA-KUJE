@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <style>
+    @page {
+      size: A4;
+      margin: 14mm 12mm 16mm 12mm;
+    }
+    body {
+      margin: 0;
+      font-family: "DejaVu Sans", Arial, sans-serif;
+      color: #0f172a;
+      font-size: 11px;
+      line-height: 1.35;
+    }
+    .sheet {
+      position: relative;
+    }
+    .watermark {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      opacity: 0.06;
+      z-index: -1;
+    }
+    .watermark img {
+      width: 360px;
+      height: auto;
+    }
+    .header {
+      display: grid;
+      grid-template-columns: 74px 1fr 120px;
+      gap: 10px;
+      align-items: center;
+      border-bottom: 2px solid #0b1f51;
+      padding-bottom: 8px;
+      margin-bottom: 10px;
+    }
+    .header-logo {
+      width: 64px;
+      height: 64px;
+      border-radius: 999px;
+      border: 1px solid #d1d5db;
+      background: #ffffff;
+      padding: 4px;
+      object-fit: contain;
+    }
+    .school-title {
+      margin: 0;
+      font-size: 19px;
+      font-weight: 800;
+      color: #0b1f51;
+      letter-spacing: 0.02em;
+    }
+    .school-subtitle {
+      margin: 2px 0 0;
+      font-size: 11px;
+      color: #334155;
+    }
+    .doc-tag {
+      text-align: right;
+      font-size: 9px;
+      color: #475569;
+    }
+    .doc-tag strong {
+      display: block;
+      font-size: 11px;
+      color: #0b1f51;
+      margin-bottom: 2px;
+    }
+    .meta-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .meta-card {
+      border: 1px solid #cbd5e1;
+      border-radius: 7px;
+      background: #ffffff;
+      padding: 7px;
+    }
+    .meta-card h3 {
+      margin: 0 0 5px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #0b1f51;
+    }
+    .meta-row {
+      display: grid;
+      grid-template-columns: 90px 1fr;
+      gap: 6px;
+      margin-bottom: 2px;
+    }
+    .meta-row .label {
+      color: #475569;
+      font-weight: 600;
+    }
+    .scores {
+      border: 1px solid #cbd5e1;
+      border-radius: 7px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .scores thead {
+      background: #0b1f51;
+      color: #ffffff;
+    }
+    .scores th,
+    .scores td {
+      padding: 5px 6px;
+      border-bottom: 1px solid #e2e8f0;
+      text-align: left;
+      font-size: 10px;
+      vertical-align: top;
+    }
+    .scores tbody tr:nth-child(even) {
+      background: #f8fafc;
+    }
+    .score-bar-wrap {
+      margin-top: 3px;
+      height: 5px;
+      background: #e2e8f0;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .score-bar {
+      height: 100%;
+      background: #0b1f51;
+    }
+    .summary-grid {
+      margin-top: 10px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .summary-card {
+      border: 1px solid #cbd5e1;
+      border-radius: 7px;
+      background: #ffffff;
+      padding: 7px;
+      min-height: 82px;
+    }
+    .summary-title {
+      margin: 0 0 5px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #0b1f51;
+      font-weight: 700;
+    }
+    .summary-card p {
+      margin: 0 0 3px;
+    }
+    .qr-box {
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      background: #ffffff;
+      text-align: center;
+      padding: 6px 4px;
+    }
+    .qr-box img {
+      width: 76px;
+      height: 76px;
+      display: block;
+      margin: 0 auto 4px;
+    }
+    .qr-box p {
+      margin: 0;
+      font-size: 8px;
+      color: #475569;
+      word-break: break-all;
+    }
+    .footer {
+      margin-top: 10px;
+      display: grid;
+      grid-template-columns: 1fr 120px;
+      gap: 8px;
+      align-items: end;
+    }
+    .hidden-audit {
+      display: none;
+      visibility: hidden;
+    }
+  </style>
+</head>
+<body>
+  <div class="sheet">
+    <div class="watermark">
+      {% if watermark_data_uri %}
+        <img src="{{ watermark_data_uri }}" alt="">
+      {% endif %}
+    </div>
+
+    <header class="header">
+      <div>
+        {% if logo_data_uri %}
+          <img src="{{ logo_data_uri }}" alt="NDGA Logo" class="header-logo">
+        {% endif %}
+      </div>
+      <div>
+        <p class="school-title">NOTRE DAME GIRLS ACADEMY</p>
+        <p class="school-subtitle">Kuje, Abuja | Official Election Result Summary</p>
+      </div>
+      <div class="doc-tag">
+        <strong>ELECTION RESULT</strong>
+        Generated: {{ generated_at|date:"d M Y, H:i" }}
+      </div>
+    </header>
+
+    <section class="meta-grid">
+      <article class="meta-card">
+        <h3>Election Details</h3>
+        <div class="meta-row"><span class="label">Title</span><span>{{ payload.title }}</span></div>
+        <div class="meta-row"><span class="label">Session</span><span>{{ payload.session_name|default:"-" }}</span></div>
+        <div class="meta-row"><span class="label">Status</span><span>{{ payload.status }}</span></div>
+        <div class="meta-row"><span class="label">Start</span><span>{% if payload.starts_at %}{{ payload.starts_at|date:"d M Y H:i" }}{% else %}-{% endif %}</span></div>
+        <div class="meta-row"><span class="label">End</span><span>{% if payload.ends_at %}{{ payload.ends_at|date:"d M Y H:i" }}{% else %}-{% endif %}</span></div>
+      </article>
+      <article class="meta-card">
+        <h3>Summary</h3>
+        <div class="meta-row"><span class="label">Eligible Voters</span><span>{{ payload.analytics.eligible_voters }}</span></div>
+        <div class="meta-row"><span class="label">Votes Cast</span><span>{{ payload.analytics.votes_cast }}</span></div>
+        <div class="meta-row"><span class="label">Turnout</span><span>{{ payload.analytics.turnout_percent }}%</span></div>
+        <div class="meta-row"><span class="label">Document ID</span><span>{{ artifact.id }}</span></div>
+        <div class="meta-row"><span class="label">Published At</span><span>{{ artifact.published_at|date:"d M Y H:i" }}</span></div>
+      </article>
+    </section>
+
+    <section class="scores">
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 22%;">Position</th>
+            <th style="width: 34%;">Candidate</th>
+            <th style="width: 12%;">Votes</th>
+            <th style="width: 14%;">Share</th>
+            <th style="width: 18%;">Winner</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for position in payload.analytics.positions %}
+            {% if position.candidate_rows %}
+              {% for row in position.candidate_rows %}
+                <tr>
+                  <td>{% if forloop.first %}{{ position.position_name }}{% endif %}</td>
+                  <td>
+                    {{ row.display_name }}
+                    <div class="score-bar-wrap">
+                      <div class="score-bar" style="width: {% if position.max_votes %}{% widthratio row.vote_count position.max_votes 100 %}{% else %}0{% endif %}%;"></div>
+                    </div>
+                  </td>
+                  <td><strong>{{ row.vote_count }}</strong></td>
+                  <td>
+                    {% if payload.analytics.votes_cast %}
+                      {% widthratio row.vote_count payload.analytics.votes_cast 100 %}%
+                    {% else %}
+                      0%
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if row.display_name in position.winners %}
+                      Yes
+                    {% else %}
+                      -
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td>{{ position.position_name }}</td>
+                <td colspan="4">No candidate votes recorded.</td>
+              </tr>
+            {% endif %}
+          {% empty %}
+            <tr>
+              <td colspan="5">No election analytics rows available.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+
+    <section class="summary-grid">
+      <article class="summary-card">
+        <p class="summary-title">Winners By Position</p>
+        {% for position in payload.analytics.positions %}
+          <p><strong>{{ position.position_name }}:</strong> {% if position.winners %}{{ position.winners|join:", " }}{% else %}Pending{% endif %}</p>
+        {% empty %}
+          <p>No winners determined.</p>
+        {% endfor %}
+      </article>
+      <article class="summary-card">
+        <p class="summary-title">Verification Hash</p>
+        <p style="font-family: monospace; font-size: 10px; word-break: break-all;">{{ artifact.payload_hash }}</p>
+      </article>
+    </section>
+
+    <footer class="footer">
+      <div>
+        <p style="margin: 0 0 3px;"><strong>NDGA Election Governance Seal</strong></p>
+        <p style="margin: 0; font-size: 10px; color: #475569;">
+          This summary is generated from the final closed election state and is verifiable via QR code.
+        </p>
+      </div>
+      <div class="qr-box">
+        {% if verification_qr_data_uri %}
+          <img src="{{ verification_qr_data_uri }}" alt="Verification QR">
+        {% endif %}
+        <p>Verify: {{ verification_url }}</p>
+      </div>
+    </footer>
+
+    <div class="hidden-audit">
+      ApprovalTrail: Election={{ payload.election_id }}; Artifact={{ artifact.id }}; Published={{ artifact.published_at|date:"c" }}
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,86 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Receipt Verification{% endblock %}
+
+{% block body_class %}min-h-screen bg-slate-100{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
+    <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">NDGA Finance Verification</p>
+      <h1 class="mt-2 text-2xl font-bold text-slate-900">Receipt Authenticity Check</h1>
+
+      {% if verification_state == "TAMPER_ALERT" %}
+        <div class="mt-4 rounded-2xl border border-rose-300 bg-rose-50 px-4 py-3 text-sm text-rose-900">
+          <span class="font-semibold">Integrity Alert</span>
+          <span class="ml-2">Payment or receipt signature changed after issuance. Treat this receipt as compromised.</span>
+        </div>
+      {% elif verification_state == "VALID" %}
+        <div class="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+          <span class="font-semibold">Valid Receipt</span>
+          <span class="ml-2">Hash signature matches this issued finance document.</span>
+        </div>
+      {% else %}
+        <div class="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <span class="font-semibold">Verification Check Required</span>
+          <span class="ml-2">Receipt exists. Compare hash details below with the printed/downloaded copy.</span>
+        </div>
+      {% endif %}
+
+      <dl class="mt-5 space-y-3 text-sm">
+        <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <dt class="text-xs uppercase tracking-wide text-slate-500">Receipt Number</dt>
+          <dd class="mt-1 font-semibold text-slate-900">{{ receipt.receipt_number }}</dd>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <dt class="text-xs uppercase tracking-wide text-slate-500">Student</dt>
+          <dd class="mt-1 font-semibold text-slate-900">{{ receipt.payment.student.username }}</dd>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <dt class="text-xs uppercase tracking-wide text-slate-500">Amount</dt>
+          <dd class="mt-1 font-semibold text-slate-900">{{ receipt.payment.amount }}</dd>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <dt class="text-xs uppercase tracking-wide text-slate-500">Payment Method</dt>
+          <dd class="mt-1 font-semibold text-slate-900">{{ receipt.payment.get_payment_method_display }}</dd>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <dt class="text-xs uppercase tracking-wide text-slate-500">Session / Term</dt>
+          <dd class="mt-1 font-semibold text-slate-900">
+            {% if receipt.payment.session %}{{ receipt.payment.session.name }}{% else %}-{% endif %}
+            /
+            {% if receipt.payment.term %}{{ receipt.payment.term.get_name_display }}{% else %}-{% endif %}
+          </dd>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <dt class="text-xs uppercase tracking-wide text-slate-500">Publication Timestamp</dt>
+          <dd class="mt-1 font-semibold text-slate-900">{{ receipt.issued_at|date:"d M Y, H:i" }}</dd>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <dt class="text-xs uppercase tracking-wide text-slate-500">Stored Hash</dt>
+          <dd class="mt-1 break-all font-mono text-xs text-slate-900">{{ receipt.payload_hash }}</dd>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <dt class="text-xs uppercase tracking-wide text-slate-500">Current Payload Hash</dt>
+          <dd class="mt-1 break-all font-mono text-xs text-slate-700">{{ integrity.current_hash }}</dd>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <dt class="text-xs uppercase tracking-wide text-slate-500">Provided Hash</dt>
+          <dd class="mt-1 break-all font-mono text-xs text-slate-700">
+            {% if incoming_hash %}{{ incoming_hash }}{% else %}Not provided{% endif %}
+          </dd>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <dt class="text-xs uppercase tracking-wide text-slate-500">Signature Match</dt>
+          <dd class="mt-1 font-semibold {% if integrity.signature_matches %}text-emerald-700{% else %}text-rose-700{% endif %}">
+            {% if integrity.signature_matches %}PASS{% else %}FAIL{% endif %}
+          </dd>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <dt class="text-xs uppercase tracking-wide text-slate-500">Receipt ID</dt>
+          <dd class="mt-1 break-all font-mono text-xs text-slate-900">{{ receipt.id }}</dd>
+        </div>
+      </dl>
+    </div>
+  </section>
+{% endblock %}

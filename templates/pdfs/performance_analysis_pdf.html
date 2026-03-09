@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Performance Analysis</title>
+  <style>
+    body { font-family: Arial, sans-serif; color: #0f172a; font-size: 11px; }
+    .page { padding: 24px; }
+    .header { display: flex; align-items: center; gap: 16px; border-bottom: 2px solid #cbd5e1; padding-bottom: 12px; }
+    .logo { height: 56px; width: auto; }
+    .title { font-size: 22px; font-weight: 700; }
+    .sub { color: #475569; margin-top: 4px; }
+    .cards { display: table; width: 100%; margin-top: 16px; table-layout: fixed; }
+    .card { display: table-cell; border: 1px solid #cbd5e1; padding: 12px; vertical-align: top; }
+    .card + .card { border-left: none; }
+    .label { font-size: 10px; text-transform: uppercase; color: #475569; }
+    .value { font-size: 24px; font-weight: 700; margin-top: 6px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+    th, td { border: 1px solid #cbd5e1; padding: 7px; text-align: left; }
+    th { background: #f8fafc; }
+    .section-title { margin-top: 18px; font-size: 14px; font-weight: 700; }
+    .note { border: 1px solid #cbd5e1; background: #f8fafc; padding: 10px; margin-top: 10px; }
+    .footer { margin-top: 18px; display: flex; justify-content: space-between; align-items: flex-end; }
+    .signature { height: 42px; }
+    .stamp { height: 48px; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="header">
+      {% if logo_data_uri %}<img src="{{ logo_data_uri }}" alt="Logo" class="logo">{% endif %}
+      <div>
+        <div class="title">{{ school_profile.school_name|default:"Notre Dame Girls Academy" }}</div>
+        <div class="sub">Performance Analysis Report</div>
+        <div class="sub">{{ payload.compilation.session.name }} | {{ payload.compilation.term.get_name_display }} | {{ payload.compilation.academic_class.display_name|default:payload.compilation.academic_class.code }}</div>
+      </div>
+    </div>
+
+    <div style="margin-top: 14px; font-size: 12px; font-weight: 700;">{{ payload.student.get_full_name|default:payload.student.username }}</div>
+    <div class="sub">{% if payload.student.student_profile %}{{ payload.student.student_profile.student_number }}{% else %}{{ payload.student.username }}{% endif %}</div>
+
+    <div class="cards">
+      <div class="card"><div class="label">Highest Average</div><div class="value">{{ payload.highest_average }}</div></div>
+      <div class="card"><div class="label">Student Average</div><div class="value">{{ payload.student_average }}</div></div>
+      <div class="card"><div class="label">Lowest Average</div><div class="value">{{ payload.lowest_average }}</div></div>
+      <div class="card"><div class="label">Improvement</div><div class="value">{{ payload.improvement_delta }}</div></div>
+    </div>
+
+    <div class="section-title">Subject Comparison</div>
+    <table>
+      <thead><tr><th>Subject</th><th>My Score</th><th>Highest</th><th>Lowest</th><th>Average</th><th>Remark</th></tr></thead>
+      <tbody>
+        {% for row in payload.subject_rows %}
+          <tr><td>{{ row.subject }}</td><td>{{ row.score }}</td><td>{{ row.highest }}</td><td>{{ row.lowest }}</td><td>{{ row.average }}</td><td>{{ row.remark }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="section-title">Rank Trend</div>
+    <table>
+      <thead><tr><th>Window</th><th>Class</th><th>Position</th><th>Average</th></tr></thead>
+      <tbody>
+        {% for row in payload.rank_trend_rows %}
+          <tr><td>{{ row.label }}</td><td>{{ row.class_name }}</td><td>{{ row.position }}</td><td>{{ row.average }}</td></tr>
+        {% empty %}
+          <tr><td colspan="4">No rank trend history yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="section-title">AI Insight Summary</div>
+    <div class="note">{{ payload.analytics.headline }}</div>
+    <div class="note"><strong>Watch Subjects:</strong> {% for subject in payload.watch_subjects %}{{ subject }}{% if not forloop.last %}, {% endif %}{% empty %}-{% endfor %}</div>
+    <div class="note"><strong>Teacher Comment Suggestion:</strong> {{ payload.comment_bundle.teacher_comment }}</div>
+    <div class="note"><strong>Principal Comment Suggestion:</strong> {{ payload.comment_bundle.principal_comment }}</div>
+
+    <div class="footer">
+      <div>
+        {% if principal_signature_data_uri %}<img src="{{ principal_signature_data_uri }}" alt="Signature" class="signature">{% endif %}
+        <div>{{ school_profile.principal_name|default:"Principal" }}</div>
+      </div>
+      <div>
+        {% if school_stamp_data_uri %}<img src="{{ school_stamp_data_uri }}" alt="Stamp" class="stamp">{% endif %}
+      </div>
+      <div>
+        <div style="font-size: 10px; color: #475569;">Verify</div>
+        <img src="{{ verification_qr_data_uri }}" alt="Verification QR" style="height: 64px; width: 64px;">
+      </div>
+    </div>
+  </div>
+</body>
+</html>

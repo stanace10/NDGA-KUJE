@@ -1,0 +1,141 @@
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-ndga_db}
+      POSTGRES_USER: ${DB_USER:-ndga_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-ndga@admin}
+    volumes:
+      - ndga_postgres_data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-ndga_user} -d ${DB_NAME:-ndga_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command:
+      [
+        "redis-server",
+        "--appendonly",
+        "yes",
+        "--appendfsync",
+        "everysec",
+        "--maxmemory",
+        "${REDIS_MAXMEMORY:-512mb}",
+        "--maxmemory-policy",
+        "${REDIS_MAXMEMORY_POLICY:-allkeys-lru}",
+        "--tcp-keepalive",
+        "60",
+        "--timeout",
+        "0"
+      ]
+    volumes:
+      - ndga_redis_data:/data
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  web:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.prod
+    restart: unless-stopped
+    env_file:
+      - ../../.env
+    command: ["/app/deploy/docker/entrypoint.prod.sh"]
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ndga_static_data:/app/staticfiles
+      - ndga_media_data:/app/media
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS -H 'X-Forwarded-Proto: https' -H 'Host: ndgakuje.org' http://127.0.0.1:8000/ops/healthz/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  celery_worker:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.prod
+    restart: unless-stopped
+    env_file:
+      - ../../.env
+    command:
+      [
+        "celery",
+        "-A",
+        "core",
+        "worker",
+        "--loglevel=INFO",
+        "--concurrency=${CELERY_WORKER_CONCURRENCY:-4}",
+        "--prefetch-multiplier=${CELERY_WORKER_PREFETCH_MULTIPLIER:-1}",
+        "--max-tasks-per-child=${CELERY_WORKER_MAX_TASKS_PER_CHILD:-500}"
+      ]
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    volumes:
+      - ndga_media_data:/app/media
+
+  celery_beat:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.prod
+    restart: unless-stopped
+    env_file:
+      - ../../.env
+    command: ["celery", "-A", "core", "beat", "--loglevel=INFO"]
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    volumes:
+      - ndga_media_data:/app/media
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      web:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8080:80"
+    volumes:
+      - ./nginx.prod.conf:/etc/nginx/conf.d/default.conf:ro
+      - ndga_static_data:/app/staticfiles:ro
+      - ndga_media_data:/app/media:ro
+    healthcheck:
+      test: ["CMD-SHELL", "nginx -t || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  ndga_postgres_data:
+  ndga_redis_data:
+  ndga_static_data:
+  ndga_media_data:

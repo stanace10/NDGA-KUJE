@@ -1,0 +1,402 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}{{ portal_name }}{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-[94rem] px-4 py-5 sm:px-6 lg:px-8">
+    {% if portal_key != "student" %}
+      <div class="animate-soft-reveal rounded-3xl border border-slate-200/80 bg-white p-6 shadow-[0_18px_48px_rgba(15,23,42,0.08)] sm:p-7">
+        <div class="flex flex-wrap items-start justify-between gap-4">
+          <div class="min-w-[220px]">
+            <h1 class="text-2xl font-bold text-slate-900 sm:text-3xl">{{ portal_name }}</h1>
+            <p class="mt-2 max-w-2xl text-sm text-slate-600">{{ portal_description }}</p>
+            {% if setup_current_session and setup_current_term %}
+              <p class="mt-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                {{ setup_current_session.name }} | {{ setup_current_term.get_name_display }}
+              </p>
+            {% endif %}
+          </div>
+          <div class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+            {% if portal_profile_photo_url %}
+              <img src="{{ portal_profile_photo_url }}" alt="{{ user_display_name }}" class="h-12 w-12 rounded-full border border-slate-200 object-cover">
+            {% else %}
+              <div class="grid h-12 w-12 place-items-center rounded-full border border-slate-200 bg-white text-sm font-bold text-ndga-navy">
+                {{ user_display_name|slice:":1"|upper }}
+              </div>
+            {% endif %}
+            <div>
+              <p class="text-sm font-semibold text-slate-900">{{ user_display_name }}</p>
+              <p class="mt-0.5 text-xs text-slate-500">{{ user_identifier }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+
+    {% if portal_key == "student" %}
+      <div class="space-y-4">
+        <article class="animate-soft-reveal rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div class="flex flex-wrap items-center gap-4 sm:gap-5">
+            {% if portal_profile_photo_url %}
+              <img src="{{ portal_profile_photo_url }}" alt="{{ user_display_name }}" class="h-20 w-20 rounded-full border border-slate-200 object-cover">
+            {% else %}
+              <div class="grid h-20 w-20 place-items-center rounded-full border border-slate-200 bg-slate-50 text-2xl font-bold text-ndga-navy">
+                {{ user_display_name|slice:":1"|upper }}
+              </div>
+            {% endif %}
+            <div class="min-w-[240px]">
+              <p class="text-sm font-semibold text-slate-600">Welcome back</p>
+              <h1 class="mt-1 text-2xl font-bold text-slate-900 sm:text-3xl">{{ user_display_name }}</h1>
+              <div class="mt-2 flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                <span>Class: {{ current_class_code }}</span>
+                <span>Age: {% if student_age is not None %}{{ student_age }}{% else %}-{% endif %}</span>
+                <span>{{ user_identifier }}</span>
+                <span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold tracking-[0.12em] text-emerald-800 normal-case">
+                  Attendance
+                  {% if attendance_snapshot %}
+                    {{ attendance_snapshot.percentage }}%
+                  {% else %}
+                    --%
+                  {% endif %}
+                </span>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 class="text-base font-semibold text-slate-900">Quick Access</h2>
+          <p class="mt-1 text-sm text-slate-600">Open each area from its dedicated page.</p>
+          <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {% for quick_link in student_quick_links %}
+              <a href="{{ quick_link.url }}" class="group rounded-2xl border border-slate-200 bg-white px-3 py-3 shadow-sm transition hover:-translate-y-0.5 hover:border-ndga-navy/40">
+                <div class="flex items-start justify-between gap-2">
+                  <p class="text-sm font-semibold text-slate-900">{{ quick_link.label }}</p>
+                  <span class="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-700">{{ quick_link.badge }}</span>
+                </div>
+                <p class="mt-1 text-xs text-slate-600">{{ quick_link.description }}</p>
+              </a>
+            {% endfor %}
+          </div>
+        </article>
+
+        {% if student_analytics.available %}
+          <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 class="text-base font-semibold text-slate-900">Academic Analytics</h2>
+                <p class="mt-1 text-sm text-slate-600">{{ student_analytics.headline }}</p>
+              </div>
+              <div class="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                Recommendation: {{ student_analytics.risk.recommendation }}
+              </div>
+            </div>
+
+            <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div class="rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3">
+                <p class="text-xs uppercase tracking-[0.14em] text-indigo-700">Current GPA</p>
+                <p class="mt-1 text-2xl font-bold text-indigo-900">{{ student_analytics.current.gpa }}</p>
+                <p class="text-xs text-indigo-700">Delta {{ student_analytics.gpa_delta }}</p>
+              </div>
+              <div class="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                <p class="text-xs uppercase tracking-[0.14em] text-emerald-700">Predicted Next Term</p>
+                <p class="mt-1 text-2xl font-bold text-emerald-900">{{ student_analytics.prediction.score }}%</p>
+                <p class="text-xs text-emerald-700">{{ student_analytics.prediction.band }}</p>
+              </div>
+              <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+                <p class="text-xs uppercase tracking-[0.14em] text-amber-700">Risk Level</p>
+                <p class="mt-1 text-2xl font-bold text-amber-900">{{ student_analytics.risk.label }}</p>
+                <p class="text-xs text-amber-700">Score {{ student_analytics.risk.score }}/100</p>
+              </div>
+              <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <p class="text-xs uppercase tracking-[0.14em] text-slate-600">Average Change</p>
+                <p class="mt-1 text-2xl font-bold text-slate-900">{{ student_analytics.average_delta }}</p>
+                <p class="text-xs text-slate-500">vs previous term</p>
+              </div>
+            </div>
+
+            <div class="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+              <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <h3 class="text-sm font-semibold text-slate-900">GPA And Average Trend</h3>
+                <div class="mt-3 space-y-3">
+                  {% for row in student_analytics.trend_rows %}
+                    <div>
+                      <div class="flex items-center justify-between gap-2 text-xs font-semibold text-slate-600">
+                        <span>{{ row.label }}</span>
+                        <span>{{ row.average_score }}% | GPA {{ row.gpa }}</span>
+                      </div>
+                      <div class="mt-1 h-2 rounded-full bg-slate-200">
+                        <div class="h-2 rounded-full bg-ndga-navy" style="width: {{ row.average_score }}%;"></div>
+                      </div>
+                    </div>
+                  {% endfor %}
+                </div>
+              </div>
+              <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <h3 class="text-sm font-semibold text-slate-900">Weak Subject Analysis</h3>
+                <div class="mt-3 space-y-3">
+                  {% for row in student_analytics.weak_subjects %}
+                    <div class="rounded-2xl border border-slate-200 bg-white px-3 py-3">
+                      <div class="flex items-center justify-between gap-2">
+                        <p class="text-sm font-semibold text-slate-900">{{ row.subject }}</p>
+                        <span class="rounded-full border px-2 py-0.5 text-[11px] font-semibold {% if row.status == 'Critical' %}border-rose-200 bg-rose-50 text-rose-700{% elif row.status == 'Watch' %}border-amber-200 bg-amber-50 text-amber-700{% else %}border-emerald-200 bg-emerald-50 text-emerald-700{% endif %}">{{ row.status }}</span>
+                      </div>
+                      <p class="mt-1 text-xs text-slate-600">Average {{ row.average_score }}% | Latest {{ row.latest_score }}% | Delta {{ row.delta }}</p>
+                    </div>
+                  {% empty %}
+                    <p class="text-sm text-slate-500">No weakness pattern is available yet.</p>
+                  {% endfor %}
+                </div>
+              </div>
+            </div>
+          </article>
+        {% endif %}
+      </div>
+
+    {% else %}
+      <div class="mt-4 {% if portal_key == 'staff' %}space-y-4{% else %}grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]{% endif %}">
+        <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 class="text-base font-semibold text-slate-900">Quick Access</h2>
+          <p class="mt-1 text-sm text-slate-600">Each action opens on its own dedicated page.</p>
+          <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {% for action in portal_action_items %}
+              <a href="{{ action.url }}" class="group rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-ndga-navy/40">
+                <div class="flex items-start gap-3">
+                  <span class="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 text-ndga-navy">
+                    {% include "dashboard/partials/nav_icon.html" with icon=action.icon %}
+                  </span>
+                  <div>
+                    <p class="text-sm font-semibold text-slate-900">{{ action.label }}</p>
+                    <p class="mt-1 text-xs text-slate-600">{{ action.description }}</p>
+                  </div>
+                </div>
+              </a>
+            {% empty %}
+              <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 sm:col-span-2 xl:col-span-3">
+                No actions are available for this portal yet.
+              </div>
+            {% endfor %}
+          </div>
+        </article>
+
+        {% if portal_key == "staff" %}
+          {% if teacher_analytics.available %}
+            <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div class="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 class="text-base font-semibold text-slate-900">Teacher Performance Dashboard</h2>
+                  <p class="mt-1 text-sm text-slate-600">{{ teacher_analytics.focus_message }}</p>
+                </div>
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-700">
+                  Effectiveness Score {{ teacher_analytics.effectiveness_score }}
+                </div>
+              </div>
+              <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                <div class="rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3">
+                  <p class="text-xs uppercase tracking-[0.14em] text-indigo-700">Student Improvement</p>
+                  <p class="mt-1 text-2xl font-bold text-indigo-900">{{ teacher_analytics.student_improvement }}</p>
+                </div>
+                <div class="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                  <p class="text-xs uppercase tracking-[0.14em] text-emerald-700">Pass Rate</p>
+                  <p class="mt-1 text-2xl font-bold text-emerald-900">{{ teacher_analytics.exam_pass_rate }}%</p>
+                </div>
+                <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+                  <p class="text-xs uppercase tracking-[0.14em] text-amber-700">Class Engagement</p>
+                  <p class="mt-1 text-2xl font-bold text-amber-900">{{ teacher_analytics.class_engagement }}%</p>
+                </div>
+                <div class="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3">
+                  <p class="text-xs uppercase tracking-[0.14em] text-sky-700">CBT Completion</p>
+                  <p class="mt-1 text-2xl font-bold text-sky-900">{{ teacher_analytics.cbt_completion_rate }}%</p>
+                </div>
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p class="text-xs uppercase tracking-[0.14em] text-slate-600">Assignments</p>
+                  <p class="mt-1 text-2xl font-bold text-slate-900">{{ teacher_analytics.assignment_count }}</p>
+                </div>
+              </div>
+              <div class="mt-4 grid gap-4 lg:grid-cols-2">
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <h3 class="text-sm font-semibold text-slate-900">Assigned Classes</h3>
+                  <p class="mt-2 text-sm text-slate-600">{{ teacher_analytics.assigned_classes|join:", " }}</p>
+                </div>
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <h3 class="text-sm font-semibold text-slate-900">Assigned Subjects</h3>
+                  <p class="mt-2 text-sm text-slate-600">{{ teacher_analytics.assigned_subjects|join:", " }}</p>
+                </div>
+              </div>
+            </article>
+          {% endif %}
+
+          {% if role_panels %}
+            <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h2 class="text-base font-semibold text-slate-900">Role Intelligence</h2>
+              <div class="mt-4 grid gap-4 xl:grid-cols-2">
+                {% for panel in role_panels %}
+                  <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <h3 class="text-sm font-semibold text-slate-900">{{ panel.title }}</h3>
+                    <p class="mt-1 text-xs text-slate-600">{{ panel.subtitle }}</p>
+                    <div class="mt-3 space-y-3">
+                      {% for item in panel.items %}
+                        <a href="{{ item.url }}" class="block rounded-2xl border border-slate-200 bg-white px-3 py-3 transition hover:border-ndga-navy/40">
+                          <div class="flex items-center justify-between gap-2">
+                            <p class="text-sm font-semibold text-slate-900">{{ item.label }}</p>
+                            <span class="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-semibold text-slate-700">{{ item.metric }}</span>
+                          </div>
+                          <p class="mt-1 text-xs text-slate-600">{{ item.description }}</p>
+                        </a>
+                      {% endfor %}
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            </article>
+          {% endif %}
+        {% endif %}
+
+        {% if portal_key == "it" %}
+          <aside class="space-y-4">
+            <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h2 class="text-base font-semibold text-slate-900">Portal Toggles</h2>
+              <div class="mt-3 space-y-3">
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                  <div class="flex items-center justify-between gap-2">
+                    <p class="text-sm font-semibold text-slate-900">CBT Portal</p>
+                    <span class="rounded-full border px-2 py-0.5 text-xs font-semibold {% if runtime_flags.CBT_ENABLED %}border-emerald-200 bg-emerald-50 text-emerald-800{% else %}border-slate-200 bg-slate-100 text-slate-700{% endif %}">
+                      {% if runtime_flags.CBT_ENABLED %}ON{% else %}OFF{% endif %}
+                    </span>
+                  </div>
+                  <div class="mt-2 flex gap-2">
+                    <form method="post" action="{% url 'dashboard:it-feature-toggle' %}">
+                      {% csrf_token %}
+                      <input type="hidden" name="feature_key" value="CBT_ENABLED">
+                      <input type="hidden" name="state" value="on">
+                      <button type="submit" class="ndga-btn ndga-btn-primary !px-3 !py-1.5 !text-xs">Turn ON</button>
+                    </form>
+                    <form method="post" action="{% url 'dashboard:it-feature-toggle' %}">
+                      {% csrf_token %}
+                      <input type="hidden" name="feature_key" value="CBT_ENABLED">
+                      <input type="hidden" name="state" value="off">
+                      <button type="submit" class="ndga-btn ndga-btn-secondary !px-3 !py-1.5 !text-xs">Turn OFF</button>
+                    </form>
+                  </div>
+                </div>
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                  <div class="flex items-center justify-between gap-2">
+                    <p class="text-sm font-semibold text-slate-900">Election Portal</p>
+                    <span class="rounded-full border px-2 py-0.5 text-xs font-semibold {% if runtime_flags.ELECTION_ENABLED %}border-emerald-200 bg-emerald-50 text-emerald-800{% else %}border-slate-200 bg-slate-100 text-slate-700{% endif %}">
+                      {% if runtime_flags.ELECTION_ENABLED %}ON{% else %}OFF{% endif %}
+                    </span>
+                  </div>
+                  <div class="mt-2 flex gap-2">
+                    <form method="post" action="{% url 'dashboard:it-feature-toggle' %}">
+                      {% csrf_token %}
+                      <input type="hidden" name="feature_key" value="ELECTION_ENABLED">
+                      <input type="hidden" name="state" value="on">
+                      <button type="submit" class="ndga-btn ndga-btn-primary !px-3 !py-1.5 !text-xs">Turn ON</button>
+                    </form>
+                    <form method="post" action="{% url 'dashboard:it-feature-toggle' %}">
+                      {% csrf_token %}
+                      <input type="hidden" name="feature_key" value="ELECTION_ENABLED">
+                      <input type="hidden" name="state" value="off">
+                      <button type="submit" class="ndga-btn ndga-btn-secondary !px-3 !py-1.5 !text-xs">Turn OFF</button>
+                    </form>
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            {% if it_metrics %}
+              <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <h2 class="text-base font-semibold text-slate-900">System Snapshot</h2>
+                <div class="mt-3 grid gap-2 sm:grid-cols-2">
+                  <div class="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                    <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Campuses</p>
+                    <p class="text-lg font-bold text-slate-900">{{ it_metrics.campuses_total }}</p>
+                  </div>
+                  <div class="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                    <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Classes</p>
+                    <p class="text-lg font-bold text-slate-900">{{ it_metrics.classes_total }}</p>
+                  </div>
+                  <div class="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                    <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Main Levels</p>
+                    <p class="text-lg font-bold text-slate-900">{{ it_metrics.main_levels_total }}</p>
+                  </div>
+                  <div class="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                    <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Class Arms</p>
+                    <p class="text-lg font-bold text-slate-900">{{ it_metrics.arm_classes_total }}</p>
+                  </div>
+                  <div class="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                    <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Subjects</p>
+                    <p class="text-lg font-bold text-slate-900">{{ it_metrics.subjects_total }}</p>
+                  </div>
+                  <div class="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                    <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Students</p>
+                    <p class="text-lg font-bold text-slate-900">{{ it_metrics.students_total }}</p>
+                  </div>
+                  <div class="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                    <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Staff</p>
+                    <p class="text-lg font-bold text-slate-900">{{ it_metrics.staff_total }}</p>
+                  </div>
+                  <div class="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                    <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Result PIN</p>
+                    <p class="text-lg font-bold text-slate-900">{% if it_metrics.result_pin_required %}ON{% else %}OFF{% endif %}</p>
+                  </div>
+                </div>
+              </article>
+            {% endif %}
+
+            {% if it_enrollment_snapshot %}
+              <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div class="flex items-start justify-between gap-3">
+                  <div>
+                    <h2 class="text-base font-semibold text-slate-900">Enrollment Snapshot</h2>
+                    <p class="mt-1 text-sm text-slate-600">Gradex-style class and gender visibility for quick admin review.</p>
+                  </div>
+                </div>
+                <div class="mt-3 grid gap-2 sm:grid-cols-3">
+                  <div class="rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2">
+                    <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-rose-700">Female</p>
+                    <p class="text-lg font-bold text-rose-900">{{ it_enrollment_snapshot.female_count }}</p>
+                  </div>
+                  <div class="rounded-2xl border border-sky-200 bg-sky-50 px-3 py-2">
+                    <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-sky-700">Male</p>
+                    <p class="text-lg font-bold text-sky-900">{{ it_enrollment_snapshot.male_count }}</p>
+                  </div>
+                  <div class="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                    <p class="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Other / Unset</p>
+                    <p class="text-lg font-bold text-slate-900">{{ it_enrollment_snapshot.other_count }}</p>
+                  </div>
+                </div>
+                <div class="mt-4 space-y-3">
+                  {% for row in it_enrollment_snapshot.class_rows %}
+                    <div>
+                      <div class="flex items-center justify-between gap-2 text-xs font-semibold text-slate-600">
+                        <span>{{ row.label }}</span>
+                        <span>{{ row.count }} students</span>
+                      </div>
+                      <div class="mt-1 h-2 rounded-full bg-slate-200">
+                        <div class="h-2 rounded-full bg-ndga-navy" style="width: {{ row.bar_percent }}%;"></div>
+                      </div>
+                    </div>
+                  {% empty %}
+                    <p class="text-sm text-slate-500">No class enrollment data is available yet.</p>
+                  {% endfor %}
+                </div>
+              </article>
+            {% endif %}
+          </aside>
+        {% endif %}
+      </div>
+    {% endif %}
+
+    {% if request.user.primary_role and request.user.primary_role.code == "IT_MANAGER" and not setup_is_ready %}
+      <div class="mt-6 rounded-3xl border border-amber-200 bg-amber-50 p-5 shadow-sm animate-soft-reveal-delay">
+        <p class="text-sm text-amber-900">
+          System state is currently <span class="font-semibold">{{ setup_state_code }}</span>.
+        </p>
+        <a href="{% url 'setup_wizard:wizard' %}" class="mt-3 inline-flex ndga-btn ndga-btn-primary">
+          Continue Setup Wizard
+        </a>
+      </div>
+    {% endif %}
+  </section>
+{% endblock %}

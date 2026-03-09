@@ -1,0 +1,60 @@
+{
+  "rows": [
+    {
+      "tool_name": "PhET Pendulum Lab Offline",
+      "tool_type": "HTML5 Simulation",
+      "source_provider": "PHET",
+      "source_reference_url": "https://phet.colorado.edu/sims/html/pendulum-lab/latest/",
+      "tool_category": "SCIENCE",
+      "description": "Physics practical for SHM and period measurement.",
+      "local_path": "phet/pendulum-lab",
+      "entry_file": "pendulum-lab_en.html",
+      "score_mode": "VERIFY",
+      "max_score": "10.00",
+      "scoring_callback_type": "POST_MESSAGE",
+      "evidence_required": true
+    },
+    {
+      "tool_name": "PhET Concentration Offline",
+      "tool_type": "HTML5 Simulation",
+      "source_provider": "PHET",
+      "source_reference_url": "https://phet.colorado.edu/sims/html/concentration/latest/",
+      "tool_category": "SCIENCE",
+      "description": "Chemistry practical for concentration and dilution.",
+      "local_path": "phet/concentration",
+      "entry_file": "concentration_en.html",
+      "score_mode": "VERIFY",
+      "max_score": "10.00",
+      "scoring_callback_type": "POST_MESSAGE",
+      "evidence_required": true
+    },
+    {
+      "tool_name": "GeoGebra Graphing Offline",
+      "tool_type": "Interactive Graphing",
+      "source_provider": "GEOGEBRA",
+      "source_reference_url": "https://www.geogebra.org/",
+      "tool_category": "MATHEMATICS",
+      "description": "Mathematics graph practical.",
+      "local_path": "geogebra/graphing",
+      "entry_file": "index.html",
+      "score_mode": "VERIFY",
+      "max_score": "10.00",
+      "scoring_callback_type": "POST_MESSAGE",
+      "evidence_required": true
+    },
+    {
+      "tool_name": "Blockly Algorithm Studio Offline",
+      "tool_type": "Programming Sandbox",
+      "source_provider": "OTHER",
+      "source_reference_url": "https://developers.google.com/blockly",
+      "tool_category": "COMPUTER_SCIENCE",
+      "description": "ICT algorithm block programming practical.",
+      "local_path": "ict/blockly-studio.zip",
+      "entry_file": "index.html",
+      "score_mode": "RUBRIC",
+      "max_score": "10.00",
+      "scoring_callback_type": "POST_MESSAGE",
+      "evidence_required": true
+    }
+  ]
+}

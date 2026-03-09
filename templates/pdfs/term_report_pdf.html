@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <style>
+    @page {
+      size: A4;
+      margin: 12mm 10mm 14mm 10mm;
+    }
+    body {
+      font-family: "DejaVu Sans", Arial, sans-serif;
+      color: #10203b;
+      font-size: 10px;
+      line-height: 1.3;
+      margin: 0;
+    }
+    .sheet { position: relative; }
+    .watermark {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      opacity: 0.05;
+      z-index: -1;
+    }
+    .watermark img { width: 360px; height: auto; }
+    .header {
+      display: grid;
+      grid-template-columns: 70px 1fr 86px;
+      gap: 10px;
+      align-items: center;
+      border-bottom: 2px solid #102a5e;
+      padding-bottom: 7px;
+    }
+    .logo {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      border: 1px solid #d2d8e5;
+      padding: 4px;
+      object-fit: contain;
+      background: #fff;
+    }
+    .school-title {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 800;
+      color: #102a5e;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+    .school-meta { margin: 1px 0; color: #334155; }
+    .doc-tag {
+      text-align: right;
+      font-size: 8px;
+      color: #475569;
+    }
+    .doc-tag strong {
+      display: block;
+      font-size: 10px;
+      color: #102a5e;
+      margin-bottom: 3px;
+    }
+    .avatar {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      border: 1px solid #d2d8e5;
+      object-fit: cover;
+      background: #fff;
+      display: block;
+      margin-left: auto;
+      margin-bottom: 4px;
+    }
+    .report-banner {
+      margin-top: 8px;
+      border: 1px solid #d6deed;
+      border-radius: 10px;
+      background: #f8fbff;
+      padding: 7px 9px;
+      text-align: center;
+    }
+    .report-banner h2 {
+      margin: 0;
+      font-size: 12px;
+      color: #102a5e;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .card {
+      border: 1px solid #d6deed;
+      border-radius: 10px;
+      background: #fff;
+      padding: 7px 8px;
+    }
+    .card h3 {
+      margin: 0 0 5px;
+      font-size: 9px;
+      color: #102a5e;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .meta-row {
+      display: grid;
+      grid-template-columns: 88px 1fr;
+      gap: 6px;
+      margin-bottom: 2px;
+    }
+    .label { color: #475569; font-weight: 700; }
+    table { width: 100%; border-collapse: collapse; }
+    .scores { margin-top: 8px; border: 1px solid #d6deed; border-radius: 10px; overflow: hidden; }
+    .scores thead { background: #102a5e; color: #fff; }
+    .scores th, .scores td {
+      padding: 4px 4px;
+      border-bottom: 1px solid #e2e8f0;
+      font-size: 8.2px;
+      text-align: center;
+      vertical-align: top;
+    }
+    .scores th:first-child, .scores td:first-child { text-align: left; }
+    .scores tbody tr:nth-child(even) { background: #f8fafc; }
+    .mini-table th, .mini-table td {
+      border: 1px solid #d6deed;
+      padding: 4px 5px;
+      font-size: 8.8px;
+      text-align: left;
+    }
+    .mini-table th {
+      background: #f8fbff;
+      color: #102a5e;
+      text-transform: uppercase;
+      font-size: 8px;
+      letter-spacing: 0.06em;
+    }
+    .summary-pill {
+      border-radius: 10px;
+      background: #f8fbff;
+      border: 1px solid #d6deed;
+      padding: 7px 8px;
+    }
+    .summary-pill .k { font-size: 8px; text-transform: uppercase; letter-spacing: 0.08em; color: #475569; }
+    .summary-pill .v { margin-top: 2px; font-size: 13px; font-weight: 800; color: #102a5e; }
+    .comment {
+      border: 1px solid #d6deed;
+      border-radius: 10px;
+      background: #fff;
+      padding: 8px 9px;
+      min-height: 56px;
+    }
+    .comment h3 { margin: 0 0 5px; font-size: 9px; color: #102a5e; text-transform: uppercase; letter-spacing: 0.08em; }
+    .footer {
+      margin-top: 10px;
+      display: grid;
+      grid-template-columns: 1fr 130px;
+      gap: 10px;
+      align-items: end;
+    }
+    .signature-wrap { text-align: left; }
+    .signature-img {
+      display: block;
+      max-width: 170px;
+      max-height: 44px;
+      margin-bottom: 4px;
+      object-fit: contain;
+    }
+    .signature-line {
+      width: 180px;
+      border-top: 1px solid #64748b;
+      padding-top: 3px;
+      font-size: 8.8px;
+      color: #334155;
+    }
+    .qr-box {
+      border: 1px solid #d6deed;
+      border-radius: 10px;
+      background: #fff;
+      padding: 6px;
+      text-align: center;
+    }
+    .qr-box img { width: 74px; height: 74px; display: block; margin: 0 auto 4px; }
+    .qr-box p { margin: 0; font-size: 7px; color: #475569; word-break: break-all; }
+    .muted { color: #64748b; }
+  </style>
+</head>
+<body>
+  <div class="sheet">
+    <div class="watermark">
+      {% if watermark_data_uri %}
+        <img src="{{ watermark_data_uri }}" alt="">
+      {% endif %}
+    </div>
+
+    <header class="header">
+      <div>
+        {% if logo_data_uri %}
+          <img src="{{ logo_data_uri }}" alt="School logo" class="logo">
+        {% endif %}
+      </div>
+      <div>
+        <p class="school-title">{{ school_profile.school_name|default:"Notre Dame Girls Academy" }}</p>
+        {% if school_profile.address %}<p class="school-meta">{{ school_profile.address }}</p>{% endif %}
+        <p class="school-meta">
+          {% if school_profile.contact_email %}{{ school_profile.contact_email }}{% endif %}
+          {% if school_profile.contact_phone %} | {{ school_profile.contact_phone }}{% endif %}
+          {% if school_profile.website %} | {{ school_profile.website }}{% endif %}
+        </p>
+      </div>
+      <div class="doc-tag">
+        {% if student_photo_data_uri %}
+          <img src="{{ student_photo_data_uri }}" alt="Student photo" class="avatar">
+        {% endif %}
+        <strong>REPORT CARD</strong>
+        Generated {{ generated_at|date:"d M Y H:i" }}
+      </div>
+    </header>
+
+    <section class="report-banner">
+      <h2>{{ school_profile.result_tagline|default:"Termly Evaluation Report" }}</h2>
+    </section>
+
+    <section class="grid-2" style="margin-top:8px;">
+      <article class="card">
+        <h3>Student Information</h3>
+        <div class="meta-row"><span class="label">Name</span><span>{{ payload.student_bio.name }}</span></div>
+        <div class="meta-row"><span class="label">Admission No.</span><span>{{ payload.student_bio.student_number }}</span></div>
+        <div class="meta-row"><span class="label">Class</span><span>{{ payload.class_code }}</span></div>
+        <div class="meta-row"><span class="label">Class Level</span><span>{{ payload.class_level }}</span></div>
+        <div class="meta-row"><span class="label">Session</span><span>{{ payload.session_name }}</span></div>
+        <div class="meta-row"><span class="label">Term</span><span>{{ payload.term_name }}</span></div>
+      </article>
+      <article class="card">
+        <h3>Academic Summary</h3>
+        <div class="meta-row"><span class="label">No. in Class</span><span>{{ payload.class_size }}</span></div>
+        <div class="meta-row"><span class="label">Position</span><span>{{ payload.class_position }}</span></div>
+        <div class="meta-row"><span class="label">Age</span><span>{% if payload.student_bio.age %}{{ payload.student_bio.age }}{% else %}-{% endif %}</span></div>
+        <div class="meta-row"><span class="label">Sex</span><span>{{ payload.student_bio.sex|default:"-" }}</span></div>
+        <div class="meta-row"><span class="label">Published</span><span>{{ payload.published_at|date:"d M Y" }}</span></div>
+        <div class="meta-row"><span class="label">Comment Focus</span><span>{{ payload.comment_headline }}</span></div>
+      </article>
+    </section>
+
+    <section class="scores">
+      <table>
+        <thead>
+          <tr>
+            <th>Subject</th>
+            <th>{{ school_profile.ca1_label|default:"1st CA" }}</th>
+            <th>{{ school_profile.ca2_label|default:"2nd CA" }}</th>
+            <th>{{ school_profile.ca3_label|default:"3rd CA" }}</th>
+            <th>{{ school_profile.assignment_label|default:"Project/Assignment" }}</th>
+            <th>Exam</th>
+            <th>Total</th>
+            <th>Grade</th>
+            <th>Remark</th>
+            <th>Pos.</th>
+            <th>Low</th>
+            <th>High</th>
+            <th>Avg</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in payload.subject_rows %}
+            <tr>
+              <td>{{ row.subject }}</td>
+              <td>{{ row.ca1 }}</td>
+              <td>{{ row.ca2 }}</td>
+              <td>{{ row.ca3 }}</td>
+              <td>{{ row.assignment }}</td>
+              <td>{{ row.exam }}</td>
+              <td><strong>{{ row.total }}</strong></td>
+              <td>{{ row.grade }}</td>
+              <td>{{ row.remark }}</td>
+              <td>{{ row.position }}</td>
+              <td>{{ row.lowest }}</td>
+              <td>{{ row.highest }}</td>
+              <td>{{ row.average }}</td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="13">No published subject scores are available for this student.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+
+    <section class="grid-4" style="margin-top:8px;">
+      <div class="summary-pill"><div class="k">Subjects Offered</div><div class="v">{{ payload.subject_count }}</div></div>
+      <div class="summary-pill"><div class="k">Total Obtainable</div><div class="v">{{ payload.total_mark_obtainable }}</div></div>
+      <div class="summary-pill"><div class="k">Total Obtained</div><div class="v">{{ payload.cumulative_total }}</div></div>
+      <div class="summary-pill"><div class="k">Student Average</div><div class="v">{{ payload.average }}</div></div>
+    </section>
+
+    <section class="grid-4" style="margin-top:8px;">
+      <div class="summary-pill"><div class="k">Class Average</div><div class="v">{{ payload.class_average }}</div></div>
+      <div class="summary-pill"><div class="k">Attendance</div><div class="v">{{ payload.attendance_percentage }}%</div></div>
+      <div class="summary-pill"><div class="k">School Open</div><div class="v">{{ payload.attendance.school_open }}</div></div>
+      <div class="summary-pill"><div class="k">Present / Absent</div><div class="v">{{ payload.attendance.present }} / {{ payload.attendance.absent }}</div></div>
+    </section>
+
+    <section class="grid-3" style="margin-top:8px;">
+      <article class="card">
+        <h3>Psychomotor / Affective Ratings</h3>
+        <table class="mini-table">
+          <tbody>
+            {% for row in payload.behavior_rows %}
+              <tr>
+                <th style="width:65%;">{{ row.label }}</th>
+                <td>{{ row.value }}/5</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="2" class="muted">No psychomotor ratings recorded.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </article>
+      <article class="card">
+        <h3>Cognitive Domain Summary</h3>
+        <table class="mini-table">
+          <tbody>
+            {% for row in payload.cognitive_rows %}
+              <tr><th style="width:58%;">{{ row.label }}</th><td>{{ row.score }}% | {{ row.rating }}</td></tr>
+            {% empty %}
+              <tr><td colspan="2" class="muted">No cognitive summary data available.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </article>
+      <article class="card">
+        <h3>Health & Physical Development</h3>
+        <table class="mini-table">
+          <tbody>
+            <tr><th>Height (Start / End)</th><td>{% if payload.health.height_start_cm %}{{ payload.health.height_start_cm }} cm{% else %}-{% endif %} / {% if payload.health.height_end_cm %}{{ payload.health.height_end_cm }} cm{% else %}-{% endif %}</td></tr>
+            <tr><th>Weight (Start / End)</th><td>{% if payload.health.weight_start_kg %}{{ payload.health.weight_start_kg }} kg{% else %}-{% endif %} / {% if payload.health.weight_end_kg %}{{ payload.health.weight_end_kg }} kg{% else %}-{% endif %}</td></tr>
+            <tr><th>Medical Incidents</th><td>{{ payload.health.medical_incidents }}</td></tr>
+            <tr><th>Doctor's Remark</th><td>{{ payload.health.doctor_remark|default:"-" }}</td></tr>
+          </tbody>
+        </table>
+      </article>
+    </section>
+
+    <section class="grid-2" style="margin-top:8px;">
+      <article class="card">
+        <h3>Clubs, Office, Contribution</h3>
+        <table class="mini-table">
+          <tbody>
+            <tr><th>Club / Society</th><td>{{ payload.co_curricular.club_membership|default:"-" }}</td></tr>
+            <tr><th>Office Held</th><td>{{ payload.co_curricular.office_held|default:"-" }}</td></tr>
+            <tr><th>Contribution</th><td>{{ payload.co_curricular.notable_contribution|default:"-" }}</td></tr>
+          </tbody>
+        </table>
+      </article>
+      <article class="card">
+        <h3>Grade Key</h3>
+        <table class="mini-table">
+          <tbody>
+            {% for row in payload.grade_key %}
+              <tr><th>{{ row.grade }}</th><td>{{ row.min_score }} - {{ row.max_score }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </article>
+    </section>
+
+    <section class="comment" style="margin-top:8px;">
+      <h3>Form Teacher Comment</h3>
+      <p>{{ payload.teacher_comment|default:"No form teacher comment recorded." }}</p>
+    </section>
+
+    <section class="comment" style="margin-top:8px;">
+      <h3>Principal Comment</h3>
+      <p>{{ payload.principal_comment|default:"No principal comment generated." }}</p>
+    </section>
+
+    {% if show_bank_on_result_pdf %}
+      <section class="comment" style="margin-top:8px;">
+        <h3>School Bank Details</h3>
+        <p><strong>Bank:</strong> {{ finance_profile.school_bank_name }} | <strong>Account Name:</strong> {{ finance_profile.school_account_name }} | <strong>Account Number:</strong> {{ finance_profile.school_account_number }}</p>
+      </section>
+    {% endif %}
+
+    <footer class="footer">
+      <div class="signature-wrap">
+        {% if principal_signature_data_uri %}
+          <img src="{{ principal_signature_data_uri }}" alt="Principal signature" class="signature-img">
+        {% endif %}
+        {% if school_profile.principal_name %}<div style="font-size:10px; color:#475569; margin-bottom:4px;">{{ school_profile.principal_name }}</div>{% endif %}
+        <div class="signature-line">Principal Signature</div>
+        {% if school_profile.report_footer %}<div style="margin-top:8px; font-size:9px; color:#475569;">{{ school_profile.report_footer }}</div>{% endif %}
+      </div>
+      <div style="text-align:center;">
+        {% if school_stamp_data_uri %}<div style="margin-bottom:8px;"><img src="{{ school_stamp_data_uri }}" alt="School stamp" style="height:54px; width:auto;"></div>{% endif %}
+      </div>
+      <div class="qr-box">
+        <img src="{{ verification_qr_data_uri }}" alt="Verification QR">
+        <p>{{ verification_url }}</p>
+      </div>
+    </footer>
+  </div>
+</body>
+</html>

@@ -1,0 +1,63 @@
+<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+  <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+    <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Attendance</p>
+    {% if attendance_snapshot %}
+      <p class="mt-2 text-3xl font-bold text-ndga-navy">{{ attendance_snapshot.percentage }}%</p>
+      <span class="mt-2 inline-flex rounded-full border px-2.5 py-1 text-[11px] font-semibold {{ attendance_tone_class }}">
+        {{ attendance_label }}
+      </span>
+      <p class="mt-2 text-sm text-slate-600">
+        Class: {{ attendance_snapshot.academic_class.code }}
+      </p>
+    {% else %}
+      <p class="mt-2 text-sm text-slate-500">Attendance record not available yet.</p>
+    {% endif %}
+  </article>
+
+  <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+    <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Result Status</p>
+    <div class="mt-2 inline-flex rounded-full border px-3 py-1 text-xs font-semibold {{ result_status.tone_class }}">
+      {{ result_status.label }}
+    </div>
+    <p class="mt-2 text-sm text-slate-600">{{ result_status.message }}</p>
+    <div class="mt-3 flex flex-wrap gap-2">
+      {% if term_report_view_url %}
+        <a href="{{ term_report_view_url }}" class="ndga-btn ndga-btn-secondary !px-3 !py-1.5 !text-xs">View Result</a>
+      {% endif %}
+      {% if term_report_url %}
+        <a href="{{ term_report_url }}" class="ndga-btn ndga-btn-primary !px-3 !py-1.5 !text-xs">Term PDF</a>
+      {% endif %}
+      <a href="{{ reports_center_url }}" class="ndga-btn ndga-btn-secondary !px-3 !py-1.5 !text-xs">All Reports</a>
+    </div>
+  </article>
+
+  <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+    <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Next Step</p>
+    <p class="mt-2 text-sm font-semibold text-slate-900">{{ student_next_action.title }}</p>
+    <p class="mt-2 text-sm text-slate-600">{{ student_next_action.message }}</p>
+    <div class="mt-3">
+      <a href="{{ student_next_action.action_url }}" class="ndga-btn ndga-btn-secondary !px-3 !py-1.5 !text-xs">
+        {{ student_next_action.action_label }}
+      </a>
+    </div>
+  </article>
+
+  <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+    <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Transcript</p>
+    <p class="mt-2 text-sm text-slate-600">
+      Full multi-session transcript export is available from verified records.
+    </p>
+    <div class="mt-3">
+      <a href="{{ transcript_url }}" class="ndga-btn ndga-btn-secondary !px-3 !py-1.5 !text-xs">
+        Download Transcript
+      </a>
+    </div>
+    <p class="mt-2 text-xs text-slate-500">
+      {% if unread_notifications %}
+        {{ unread_notifications }} unread notification{{ unread_notifications|pluralize }}.
+      {% else %}
+        Notifications inbox is clear.
+      {% endif %}
+    </p>
+  </article>
+</div>

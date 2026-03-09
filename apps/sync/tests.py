@@ -1,0 +1,697 @@
+import json
+from types import SimpleNamespace
+from unittest.mock import patch
+
+from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db.utils import ProgrammingError
+from django.test import Client, TestCase, override_settings
+
+from apps.accounts.constants import ROLE_IT_MANAGER, ROLE_STUDENT, ROLE_SUBJECT_TEACHER
+from apps.accounts.models import Role, StudentProfile, User
+from apps.academics.models import (
+    AcademicClass,
+    AcademicSession,
+    ClassSubject,
+    StudentClassEnrollment,
+    StudentSubjectEnrollment,
+    Subject,
+)
+from apps.elections.models import Election, ElectionStatus, VoterGroup
+from apps.setup_wizard.models import SetupStateCode, SystemSetupState
+from apps.sync.models import (
+    SyncContentChange,
+    SyncContentObjectType,
+    SyncContentStream,
+    SyncConflictRule,
+    SyncModelBinding,
+    SyncOperationType,
+    SyncPullCursor,
+    SyncQueue,
+    SyncQueueStatus,
+)
+from apps.sync.inbound_sync import ingest_remote_outbox_event
+from apps.sync.services import (
+    export_sync_queue_snapshot,
+    get_runtime_status,
+    import_sync_queue_snapshot,
+    process_queue_row,
+    pull_remote_outbox_updates,
+    queue_student_registration_sync,
+    queue_sync_operation,
+    queue_vote_submission_sync,
+)
+from apps.sync.content_sync import register_cbt_content_change
+from apps.sync.models import SyncContentOperation
+
+
+class SyncServiceTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.role_it = Role.objects.get(code=ROLE_IT_MANAGER)
+        cls.it_user = User.objects.create_user(
+            username="sync-it",
+            password="Password123!",
+            primary_role=cls.role_it,
+            must_change_password=False,
+        )
+        setup_state = SystemSetupState.get_solo()
+        setup_state.state = SetupStateCode.IT_READY
+        setup_state.save(update_fields=["state", "updated_at"])
+
+    def test_idempotency_key_prevents_duplicate_queue_rows(self):
+        payload = {"attempt_id": "101", "status": "SUBMITTED"}
+        first, created_first = queue_sync_operation(
+            operation_type=SyncOperationType.CBT_EXAM_ATTEMPT,
+            payload=payload,
+            object_ref="attempt:101",
+            idempotency_key="attempt-101-submitted",
+        )
+        second, created_second = queue_sync_operation(
+            operation_type=SyncOperationType.CBT_EXAM_ATTEMPT,
+            payload=payload,
+            object_ref="attempt:101",
+            idempotency_key="attempt-101-submitted",
+        )
+        self.assertTrue(created_first)
+        self.assertFalse(created_second)
+        self.assertEqual(first.id, second.id)
+        self.assertEqual(SyncQueue.objects.count(), 1)
+
+    def test_vote_submission_uses_strict_unique_conflict_rule(self):
+        queue_vote_submission_sync(
+            election_id="e1",
+            position_id="p1",
+            voter_id="u1",
+            payload={"candidate_id": "c1"},
+            idempotency_key="vote-e1-p1-u1-c1",
+        )
+        with self.assertRaises(ValidationError):
+            queue_vote_submission_sync(
+                election_id="e1",
+                position_id="p1",
+                voter_id="u1",
+                payload={"candidate_id": "c2"},
+                idempotency_key="vote-e1-p1-u1-c2",
+            )
+        vote_row = SyncQueue.objects.get()
+        self.assertEqual(vote_row.conflict_rule, SyncConflictRule.STRICT_UNIQUE)
+        self.assertEqual(vote_row.conflict_key, "e1:p1:u1")
+
+    def test_process_queue_without_cloud_endpoint_moves_to_retry(self):
+        row, _ = queue_sync_operation(
+            operation_type=SyncOperationType.CBT_EXAM_ATTEMPT,
+            payload={"attempt_id": "200"},
+            object_ref="attempt:200",
+            idempotency_key="attempt-200",
+            max_retries=1,
+        )
+        first = process_queue_row(row)
+        row.refresh_from_db()
+        self.assertTrue(first["processed"])
+        self.assertEqual(row.status, SyncQueueStatus.RETRY)
+        self.assertEqual(row.retry_count, 1)
+        self.assertIsNotNone(row.next_retry_at)
+
+        row.next_retry_at = None
+        row.save(update_fields=["next_retry_at", "updated_at"])
+        second = process_queue_row(row)
+        row.refresh_from_db()
+        self.assertTrue(second["processed"])
+        self.assertEqual(row.status, SyncQueueStatus.FAILED)
+        self.assertEqual(row.retry_count, 2)
+
+    def test_export_and_import_snapshot_round_trip(self):
+        queue_sync_operation(
+            operation_type=SyncOperationType.CBT_EXAM_ATTEMPT,
+            payload={"attempt_id": "301"},
+            object_ref="attempt:301",
+            idempotency_key="attempt-301",
+        )
+        queue_sync_operation(
+            operation_type=SyncOperationType.CBT_SIMULATION_ATTEMPT,
+            payload={"record_id": "401"},
+            object_ref="simulation_record:401",
+            idempotency_key="simulation-401",
+        )
+        exported = export_sync_queue_snapshot(actor=self.it_user)
+        self.assertIn("queue", exported["json_text"])
+        self.assertEqual(exported["item_count"], 2)
+
+        SyncQueue.objects.all().delete()
+        summary = import_sync_queue_snapshot(
+            raw_json=exported["json_text"],
+            actor=self.it_user,
+        )
+        self.assertEqual(summary["imported"], 2)
+        self.assertEqual(SyncQueue.objects.count(), 2)
+
+    @override_settings(
+        FEATURE_FLAGS={**settings.FEATURE_FLAGS, "OFFLINE_MODE_ENABLED": True},
+        SYNC_CLOUD_ENDPOINT="",
+    )
+    def test_runtime_status_switches_local_and_pending(self):
+        status = get_runtime_status()
+        self.assertEqual(status["code"], "LOCAL_MODE")
+        queue_sync_operation(
+            operation_type=SyncOperationType.CBT_EXAM_ATTEMPT,
+            payload={"attempt_id": "777"},
+            object_ref="attempt:777",
+            idempotency_key="attempt-777",
+        )
+        status_pending = get_runtime_status()
+        self.assertEqual(status_pending["code"], "SYNC_PENDING")
+        self.assertEqual(status_pending["pending_count"], 1)
+
+    def test_register_cbt_content_change_gracefully_handles_missing_table(self):
+        fake_instance = SimpleNamespace(pk=55)
+        with patch("apps.sync.content_sync._serialize_cbt_instance") as serializer, patch(
+            "apps.sync.content_sync.SyncContentChange.objects.create",
+            side_effect=ProgrammingError('relation "sync_synccontentchange" does not exist'),
+        ):
+            serializer.return_value = ("EXAM", {"id": 55, "title": "Physics"})
+            result = register_cbt_content_change(
+                instance=fake_instance,
+                operation=SyncContentOperation.UPSERT,
+            )
+        self.assertIsNone(result)
+
+    def test_queue_student_registration_sync_serializes_profile_and_enrollment(self):
+        role_student = Role.objects.get(code=ROLE_STUDENT)
+        student = User.objects.create_user(
+            username="sync-student@ndgakuje.org",
+            password="Password123!",
+            primary_role=role_student,
+            must_change_password=False,
+            email="guardian@example.com",
+            first_name="Sync",
+            last_name="Student",
+        )
+        StudentProfile.objects.create(
+            user=student,
+            student_number="NDGAK/26/900",
+            guardian_email="guardian@example.com",
+        )
+        session = AcademicSession.objects.create(name="2025/2026")
+        academic_class = AcademicClass.objects.create(code="JS1A", display_name="JS1A")
+        subject = Subject.objects.create(name="Mathematics", code="MTH")
+        ClassSubject.objects.create(academic_class=academic_class, subject=subject, is_active=True)
+        StudentClassEnrollment.objects.create(
+            student=student,
+            academic_class=academic_class,
+            session=session,
+            is_active=True,
+        )
+        StudentSubjectEnrollment.objects.create(
+            student=student,
+            subject=subject,
+            session=session,
+            is_active=True,
+        )
+
+        row, created = queue_student_registration_sync(user=student, raw_password="admin")
+
+        self.assertTrue(created)
+        self.assertEqual(row.operation_type, SyncOperationType.STUDENT_REGISTRATION_UPSERT)
+        self.assertEqual(row.payload["student_number"], "NDGAK/26/900")
+        self.assertEqual(row.payload["current_class_code"], "JS1A")
+        self.assertEqual(row.payload["subject_codes"], ["MTH"])
+        self.assertEqual(row.payload["temporary_password"], "admin")
+
+    def test_register_cbt_content_change_also_queues_outbox_row(self):
+        fake_instance = SimpleNamespace(pk=77)
+        with patch("apps.sync.content_sync._serialize_cbt_instance") as serializer:
+            serializer.return_value = ("EXAM", {"id": 77, "title": "Physics"})
+            register_cbt_content_change(instance=fake_instance, operation=SyncContentOperation.UPSERT)
+
+        row = SyncQueue.objects.get(operation_type=SyncOperationType.CBT_CONTENT_CHANGE)
+        self.assertEqual(row.payload["object_pk"], "77")
+        self.assertEqual(row.payload["payload"]["title"], "Physics")
+
+
+class SyncDashboardAccessTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.role_it = Role.objects.get(code=ROLE_IT_MANAGER)
+        cls.role_teacher = Role.objects.get(code=ROLE_SUBJECT_TEACHER)
+        cls.role_student = Role.objects.get(code=ROLE_STUDENT)
+
+        cls.it_user = User.objects.create_user(
+            username="sync-dashboard-it",
+            password="Password123!",
+            primary_role=cls.role_it,
+            must_change_password=False,
+        )
+        cls.teacher_user = User.objects.create_user(
+            username="sync-dashboard-teacher",
+            password="Password123!",
+            primary_role=cls.role_teacher,
+            must_change_password=False,
+        )
+        cls.student_user = User.objects.create_user(
+            username="sync-dashboard-student",
+            password="Password123!",
+            primary_role=cls.role_student,
+            must_change_password=False,
+        )
+        setup_state = SystemSetupState.get_solo()
+        setup_state.state = SetupStateCode.IT_READY
+        setup_state.save(update_fields=["state", "updated_at"])
+
+    def _login_staff(self, username, host="staff.ndgakuje.org"):
+        client = Client(HTTP_HOST=host)
+        response = client.post(
+            "/auth/login/?audience=staff",
+            {"username": username, "password": "Password123!"},
+        )
+        self.assertEqual(response.status_code, 302)
+        return client
+
+    def test_it_can_access_sync_dashboard(self):
+        client = self._login_staff(self.it_user.username, host="it.ndgakuje.org")
+        response = client.get("/sync/dashboard/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Sync Queue Dashboard")
+
+    def test_teacher_is_redirected_from_sync_dashboard(self):
+        client = self._login_staff(self.teacher_user.username, host="staff.ndgakuje.org")
+        response = client.get("/sync/dashboard/")
+        self.assertEqual(response.status_code, 302)
+
+    def test_sync_import_rejects_executable_signature_payload(self):
+        client = self._login_staff(self.it_user.username, host="it.ndgakuje.org")
+        bad_json = SimpleUploadedFile(
+            "snapshot.json",
+            b"MZ\x90\x00\x03\x00\x00\x00",
+            content_type="application/json",
+        )
+        response = client.post(
+            "/sync/dashboard/",
+            {"action": "import", "snapshot_file": bad_json},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Executable file signatures are blocked")
+
+
+class SyncAPIEndpointTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        setup_state = SystemSetupState.get_solo()
+        setup_state.state = SetupStateCode.IT_READY
+        setup_state.save(update_fields=["state", "updated_at"])
+        SyncContentChange.objects.create(
+            stream=SyncContentStream.CBT_CONTENT,
+            object_type=SyncContentObjectType.EXAM,
+            operation="UPSERT",
+            object_pk="1",
+            payload={"id": 1, "title": "Test Exam"},
+            source_node_id="cloud-node",
+        )
+
+    @override_settings(SYNC_ENDPOINT_AUTH_TOKEN="sync-token")
+    def test_content_feed_requires_bearer_token(self):
+        client = Client(HTTP_HOST="it.ndgakuje.org")
+        denied = client.get("/sync/api/content/cbt/")
+        self.assertEqual(denied.status_code, 401)
+
+        allowed = client.get(
+            "/sync/api/content/cbt/",
+            HTTP_AUTHORIZATION="Bearer sync-token",
+        )
+        self.assertEqual(allowed.status_code, 200)
+        payload = allowed.json()
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["count"], 1)
+        self.assertEqual(payload["changes"][0]["object_type"], SyncContentObjectType.EXAM)
+
+    @override_settings(SYNC_ENDPOINT_AUTH_TOKEN="sync-token")
+    def test_outbox_ingest_rejects_invalid_json(self):
+        client = Client(HTTP_HOST="it.ndgakuje.org")
+        response = client.post(
+            "/sync/api/outbox/",
+            data="not-json",
+            content_type="application/json",
+            HTTP_AUTHORIZATION="Bearer sync-token",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    @override_settings(SYNC_ENDPOINT_AUTH_TOKEN="sync-token")
+    def test_outbox_ingest_applies_student_registration_payload(self):
+        AcademicSession.objects.create(name="2025/2026")
+        academic_class = AcademicClass.objects.create(code="JS2A", display_name="JS2A")
+        subject = Subject.objects.create(name="English", code="ENG")
+        ClassSubject.objects.create(academic_class=academic_class, subject=subject, is_active=True)
+
+        client = Client(HTTP_HOST="it.ndgakuje.org")
+        response = client.post(
+            "/sync/api/outbox/",
+            data=json.dumps({
+                "idempotency_key": "student-sync-1",
+                "operation_type": SyncOperationType.STUDENT_REGISTRATION_UPSERT,
+                "payload": {
+                    "student_number": "NDGAK/26/901",
+                    "username": "ndgak-26-901@ndgakuje.org",
+                    "temporary_password": "admin",
+                    "email": "guardian@example.com",
+                    "first_name": "Remote",
+                    "last_name": "Student",
+                    "guardian_email": "guardian@example.com",
+                    "current_session_name": "2025/2026",
+                    "current_class_code": "JS2A",
+                    "subject_codes": ["ENG"],
+                },
+            }),
+            content_type="application/json",
+            HTTP_AUTHORIZATION="Bearer sync-token",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(StudentProfile.objects.filter(student_number="NDGAK/26/901").exists())
+        synced_user = User.objects.get(username="ndgak-26-901@ndgakuje.org")
+        self.assertTrue(StudentClassEnrollment.objects.filter(student=synced_user, academic_class=academic_class).exists())
+
+
+    @override_settings(SYNC_ENDPOINT_AUTH_TOKEN="sync-token")
+    def test_outbox_feed_filters_by_origin_node(self):
+        queue_sync_operation(
+            operation_type=SyncOperationType.MODEL_RECORD_UPSERT,
+            payload={"model": "academics.academicsession", "identity": {"source_node_id": "cloud-node", "source_pk": "1"}},
+            object_ref="academics.academicsession:cloud-node:1",
+            idempotency_key="feed-cloud-row",
+            local_node_id="cloud-node",
+        )
+        queue_sync_operation(
+            operation_type=SyncOperationType.MODEL_RECORD_UPSERT,
+            payload={"model": "academics.academicsession", "identity": {"source_node_id": "other-node", "source_pk": "2"}},
+            object_ref="academics.academicsession:other-node:2",
+            idempotency_key="feed-other-row",
+            local_node_id="other-node",
+        )
+
+        client = Client(HTTP_HOST="it.ndgakuje.org")
+        response = client.get(
+            "/sync/api/outbox/feed/?exclude_origin_node_id=cloud-node",
+            HTTP_AUTHORIZATION="Bearer sync-token",
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["count"], 1)
+        self.assertEqual(payload["events"][0]["idempotency_key"], "feed-other-row")
+
+
+    @override_settings(
+        SYNC_ENDPOINT_AUTH_TOKEN="sync-token",
+        SYNC_NODE_ROLE="LAN",
+        SYNC_ENFORCE_ACTIVE_SESSION_AUTHORITY=True,
+    )
+    def test_outbox_ingest_retries_remote_vote_when_lan_election_is_open(self):
+        session = AcademicSession.objects.create(name="2026/2027")
+        election = Election.objects.create(
+            title="LAN Election",
+            session=session,
+            status=ElectionStatus.OPEN,
+        )
+
+        client = Client(HTTP_HOST="it.ndgakuje.org")
+        response = client.post(
+            "/sync/api/outbox/",
+            data=json.dumps({
+                "idempotency_key": "remote-vote-open-lan",
+                "operation_type": SyncOperationType.ELECTION_VOTE_SUBMISSION,
+                "object_ref": f"vote:{election.id}:11:12",
+                "conflict_key": f"{election.id}:11:12",
+                "local_node_id": "cloud-node",
+                "payload": {
+                    "candidate_id": "99",
+                    "submitted_at": "2026-03-08T08:30:00+00:00",
+                },
+            }),
+            content_type="application/json",
+            HTTP_AUTHORIZATION="Bearer sync-token",
+        )
+        self.assertEqual(response.status_code, 503)
+        row = SyncQueue.objects.get(idempotency_key="remote-vote-open-lan")
+        self.assertEqual(row.status, SyncQueueStatus.RETRY)
+
+
+
+class GenericModelSyncTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.role_it = Role.objects.get(code=ROLE_IT_MANAGER)
+        cls.role_student = Role.objects.get(code=ROLE_STUDENT)
+        setup_state = SystemSetupState.get_solo()
+        setup_state.state = SetupStateCode.IT_READY
+        setup_state.save(update_fields=["state", "updated_at"])
+
+    def test_generic_post_save_and_delete_capture_queue_rows(self):
+        SyncQueue.objects.all().delete()
+
+        with self.captureOnCommitCallbacks(execute=True):
+            session = AcademicSession.objects.create(name="2026/2027")
+
+        upsert_row = SyncQueue.objects.get(operation_type=SyncOperationType.MODEL_RECORD_UPSERT)
+        self.assertEqual(upsert_row.payload["model"], "academics.academicsession")
+        self.assertEqual(upsert_row.payload["fields"]["name"], "2026/2027")
+
+        SyncQueue.objects.all().delete()
+        with self.captureOnCommitCallbacks(execute=True):
+            session.delete()
+
+        delete_row = SyncQueue.objects.get(operation_type=SyncOperationType.MODEL_RECORD_DELETE)
+        self.assertEqual(delete_row.payload["model"], "academics.academicsession")
+        self.assertEqual(delete_row.payload["identity"]["source_pk"], str(session.pk))
+
+    def test_generic_m2m_capture_updates_user_secondary_roles(self):
+        user = User.objects.create_user(
+            username="generic-m2m-user",
+            password="Password123!",
+            primary_role=self.role_student,
+            must_change_password=False,
+        )
+        SyncQueue.objects.all().delete()
+
+        with self.captureOnCommitCallbacks(execute=True):
+            user.secondary_roles.add(self.role_it)
+
+        row = SyncQueue.objects.get(operation_type=SyncOperationType.MODEL_RECORD_UPSERT)
+        self.assertEqual(row.payload["model"], "accounts.user")
+        secondary_role_codes = sorted(
+            role_payload["lookup"]["code"]
+            for role_payload in row.payload["m2m"]["secondary_roles"]
+        )
+        self.assertEqual(secondary_role_codes, [ROLE_IT_MANAGER])
+
+    @override_settings(
+        SYNC_CLOUD_ENDPOINT="https://sync.example/sync/api",
+        SYNC_PULL_ENABLED=True,
+    )
+    def test_pull_remote_outbox_updates_applies_generic_votergroup_payload(self):
+        session = AcademicSession.objects.create(name="2025/2026")
+        election = Election.objects.create(title="2026 Prefects", session=session)
+        academic_class = AcademicClass.objects.create(code="SS1", display_name="SS1")
+        user = User.objects.create_user(
+            username="pull-voter-user",
+            password="Password123!",
+            primary_role=self.role_student,
+            must_change_password=False,
+        )
+        SyncQueue.objects.all().delete()
+
+        remote_event = {
+            "id": 41,
+            "idempotency_key": "remote-vgroup-1",
+            "operation_type": SyncOperationType.MODEL_RECORD_UPSERT,
+            "object_ref": "elections.votergroup:cloud-node:vgroup-1",
+            "conflict_rule": SyncConflictRule.LAST_WRITE_WINS,
+            "conflict_key": "elections.votergroup:cloud-node:vgroup-1",
+            "local_node_id": "cloud-node",
+            "payload": {
+                "model": "elections.votergroup",
+                "identity": {
+                    "model": "elections.votergroup",
+                    "source_node_id": "cloud-node",
+                    "source_pk": "vgroup-1",
+                    "lookup": {
+                        "election": {
+                            "model": "elections.election",
+                            "source_node_id": "cloud-node",
+                            "source_pk": "election-1",
+                            "lookup": {
+                                "title": election.title,
+                                "session": {
+                                    "model": "academics.academicsession",
+                                    "source_node_id": "cloud-node",
+                                    "source_pk": "session-1",
+                                    "lookup": {"name": session.name},
+                                },
+                            },
+                        },
+                        "name": "Senior Voters",
+                    },
+                },
+                "fields": {
+                    "election": {
+                        "model": "elections.election",
+                        "source_node_id": "cloud-node",
+                        "source_pk": "election-1",
+                        "lookup": {
+                            "title": election.title,
+                            "session": {
+                                "model": "academics.academicsession",
+                                "source_node_id": "cloud-node",
+                                "source_pk": "session-1",
+                                "lookup": {"name": session.name},
+                            },
+                        },
+                    },
+                    "name": "Senior Voters",
+                    "description": "Synced remote voter group",
+                    "include_all_students": False,
+                    "include_all_staff": False,
+                    "is_active": True,
+                },
+                "m2m": {
+                    "roles": [
+                        {
+                            "model": "accounts.role",
+                            "source_node_id": "cloud-node",
+                            "source_pk": "role-student",
+                            "lookup": {"code": ROLE_STUDENT},
+                        }
+                    ],
+                    "academic_classes": [
+                        {
+                            "model": "academics.academicclass",
+                            "source_node_id": "cloud-node",
+                            "source_pk": "class-ss1",
+                            "lookup": {"code": academic_class.code},
+                        }
+                    ],
+                    "users": [
+                        {
+                            "model": "accounts.user",
+                            "source_node_id": "cloud-node",
+                            "source_pk": "user-1",
+                            "lookup": {"username": user.username},
+                        }
+                    ],
+                },
+                "created_at": "2026-03-08T07:30:00+00:00",
+                "updated_at": "2026-03-08T07:35:00+00:00",
+            },
+        }
+
+        with patch(
+            "apps.sync.services._fetch_remote_outbox_feed",
+            return_value={
+                "ok": True,
+                "status_code": 200,
+                "payload": {
+                    "events": [remote_event],
+                    "has_more": False,
+                    "next_after_id": 41,
+                },
+                "error": "",
+            },
+        ):
+            summary = pull_remote_outbox_updates(limit=20, max_pages=1)
+
+        self.assertTrue(summary["triggered"])
+        self.assertEqual(summary["applied"], 1)
+        voter_group = VoterGroup.objects.get(name="Senior Voters")
+        self.assertEqual(voter_group.description, "Synced remote voter group")
+        self.assertEqual(list(voter_group.roles.values_list("code", flat=True)), [ROLE_STUDENT])
+        self.assertEqual(list(voter_group.academic_classes.values_list("code", flat=True)), [academic_class.code])
+        self.assertEqual(list(voter_group.users.values_list("username", flat=True)), [user.username])
+        self.assertTrue(
+            SyncModelBinding.objects.filter(
+                source_node_id="cloud-node",
+                model_label="elections.votergroup",
+                source_pk="vgroup-1",
+                local_pk=str(voter_group.pk),
+            ).exists()
+        )
+        cursor = SyncPullCursor.objects.get(stream=SyncContentStream.OUTBOX_EVENTS)
+        self.assertEqual(cursor.last_remote_id, 41)
+
+
+    @override_settings(
+        SYNC_NODE_ROLE="LAN",
+        SYNC_ENFORCE_ACTIVE_SESSION_AUTHORITY=True,
+    )
+    def test_generic_remote_election_config_retries_when_lan_election_is_open(self):
+        session = AcademicSession.objects.create(name="2027/2028")
+        election = Election.objects.create(
+            title="Open LAN Election",
+            session=session,
+            status=ElectionStatus.OPEN,
+        )
+
+        payload = {
+            "model": "elections.votergroup",
+            "identity": {
+                "model": "elections.votergroup",
+                "source_node_id": "cloud-node",
+                "source_pk": "vgroup-open",
+                "lookup": {
+                    "election": {
+                        "model": "elections.election",
+                        "source_node_id": "cloud-node",
+                        "source_pk": "election-open",
+                        "lookup": {
+                            "title": election.title,
+                            "session": {
+                                "model": "academics.academicsession",
+                                "source_node_id": "cloud-node",
+                                "source_pk": "session-open",
+                                "lookup": {"name": session.name},
+                            },
+                        },
+                    },
+                    "name": "Blocked Group",
+                },
+            },
+            "fields": {
+                "election": {
+                    "model": "elections.election",
+                    "source_node_id": "cloud-node",
+                    "source_pk": "election-open",
+                    "lookup": {
+                        "title": election.title,
+                        "session": {
+                            "model": "academics.academicsession",
+                            "source_node_id": "cloud-node",
+                            "source_pk": "session-open",
+                            "lookup": {"name": session.name},
+                        },
+                    },
+                },
+                "name": "Blocked Group",
+                "description": "Should retry until LAN election closes",
+                "include_all_students": False,
+                "include_all_staff": False,
+                "is_active": True,
+            },
+            "m2m": {"roles": [], "academic_classes": [], "users": []},
+            "created_at": "2026-03-08T07:30:00+00:00",
+            "updated_at": "2026-03-08T07:35:00+00:00",
+        }
+
+        with self.assertRaises(ValidationError):
+            ingest_remote_outbox_event(
+                envelope={
+                    "idempotency_key": "generic-open-election-block",
+                    "operation_type": SyncOperationType.MODEL_RECORD_UPSERT,
+                    "object_ref": "elections.votergroup:cloud-node:vgroup-open",
+                    "conflict_rule": SyncConflictRule.LAST_WRITE_WINS,
+                    "conflict_key": "elections.votergroup:cloud-node:vgroup-open",
+                    "local_node_id": "cloud-node",
+                    "payload": payload,
+                }
+            )
+
+        row = SyncQueue.objects.get(idempotency_key="generic-open-election-block")
+        self.assertEqual(row.status, SyncQueueStatus.RETRY)
+        self.assertFalse(VoterGroup.objects.filter(name="Blocked Group").exists())

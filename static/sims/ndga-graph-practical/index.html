@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>NDGA Graph Practical Board</title>
+    <style>
+      :root { color-scheme: light; }
+      body { margin: 0; font-family: "Segoe UI", Tahoma, sans-serif; background: #f4f6fb; color: #0f172a; }
+      .wrap { max-width: 1120px; margin: 0 auto; padding: 14px; display: grid; gap: 12px; grid-template-columns: 1.4fr 1fr; }
+      .card { background: #fff; border: 1px solid #dbe1ec; border-radius: 14px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06); }
+      .panel { padding: 14px; }
+      h1 { margin: 0; font-size: 18px; color: #0b1f51; }
+      p { margin: 6px 0 0; font-size: 12px; color: #475569; }
+      canvas { width: 100%; background: #fff; border-radius: 12px; border: 1px solid #dbe1ec; display: block; }
+      .row { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; margin-top: 10px; }
+      label { font-size: 12px; font-weight: 600; color: #334155; display: block; margin-bottom: 4px; }
+      input, textarea, select, button {
+        width: 100%;
+        border: 1px solid #cbd5e1;
+        border-radius: 10px;
+        padding: 8px 10px;
+        font-size: 13px;
+        box-sizing: border-box;
+      }
+      textarea { min-height: 90px; resize: vertical; }
+      button {
+        background: #0b1f51;
+        color: #fff;
+        border: 1px solid #0b1f51;
+        cursor: pointer;
+        font-weight: 600;
+      }
+      button.alt { background: #fff; color: #0b1f51; }
+      .actions { display: grid; gap: 8px; grid-template-columns: repeat(3, 1fr); margin-top: 10px; }
+      .mini { margin-top: 8px; font-size: 12px; color: #334155; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 8px; }
+      .points { max-height: 132px; overflow: auto; font-family: Consolas, monospace; font-size: 12px; background: #020617; color: #e2e8f0; border-radius: 10px; padding: 8px; }
+      @media (max-width: 980px) { .wrap { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <section class="card panel">
+        <h1>NDGA Graph Practical Board</h1>
+        <p>Click inside the graph to plot points. Use this for maths practical evidence.</p>
+        <canvas id="graph" width="840" height="520"></canvas>
+      </section>
+
+      <aside class="card panel">
+        <div>
+          <label for="equation">Expected Equation / Rule</label>
+          <input id="equation" placeholder="Example: y = 2x + 3">
+        </div>
+        <div class="row">
+          <div>
+            <label for="xScale">X Scale</label>
+            <select id="xScale">
+              <option value="10">-10 to 10</option>
+              <option value="20" selected>-20 to 20</option>
+              <option value="40">-40 to 40</option>
+            </select>
+          </div>
+          <div>
+            <label for="yScale">Y Scale</label>
+            <select id="yScale">
+              <option value="10">-10 to 10</option>
+              <option value="20" selected>-20 to 20</option>
+              <option value="40">-40 to 40</option>
+            </select>
+          </div>
+        </div>
+        <div class="actions">
+          <button type="button" id="clearPoints" class="alt">Clear</button>
+          <button type="button" id="undoPoint" class="alt">Undo</button>
+          <button type="button" id="sendEvidence">Send</button>
+        </div>
+        <div class="mini" id="stats">Slope: - | Points: 0</div>
+        <div class="points" id="pointList">No points plotted.</div>
+        <div style="margin-top:10px;">
+          <label for="observation">Observation Note</label>
+          <textarea id="observation" placeholder="Write what you observed from your graph."></textarea>
+        </div>
+        <div style="margin-top:8px;">
+          <button type="button" id="copySummary" class="alt">Copy Summary</button>
+        </div>
+      </aside>
+    </div>
+
+    <script>
+      (function () {
+        const graph = document.getElementById("graph");
+        const ctx = graph.getContext("2d");
+        const xScale = document.getElementById("xScale");
+        const yScale = document.getElementById("yScale");
+        const equation = document.getElementById("equation");
+        const observation = document.getElementById("observation");
+        const pointList = document.getElementById("pointList");
+        const stats = document.getElementById("stats");
+        const clearPoints = document.getElementById("clearPoints");
+        const undoPoint = document.getElementById("undoPoint");
+        const sendEvidence = document.getElementById("sendEvidence");
+        const copySummary = document.getElementById("copySummary");
+
+        let points = [];
+
+        function limits() {
+          return {
+            xMax: parseFloat(xScale.value || "20"),
+            yMax: parseFloat(yScale.value || "20")
+          };
+        }
+
+        function toCanvas(point) {
+          const { xMax, yMax } = limits();
+          const x = ((point.x + xMax) / (2 * xMax)) * graph.width;
+          const y = graph.height - ((point.y + yMax) / (2 * yMax)) * graph.height;
+          return { x, y };
+        }
+
+        function toMath(x, y) {
+          const { xMax, yMax } = limits();
+          const mx = ((x / graph.width) * (2 * xMax)) - xMax;
+          const my = ((1 - y / graph.height) * (2 * yMax)) - yMax;
+          return { x: Number(mx.toFixed(2)), y: Number(my.toFixed(2)) };
+        }
+
+        function draw() {
+          const { xMax, yMax } = limits();
+          ctx.clearRect(0, 0, graph.width, graph.height);
+
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, graph.width, graph.height);
+
+          ctx.strokeStyle = "#e2e8f0";
+          ctx.lineWidth = 1;
+          for (let gx = 0; gx <= 20; gx += 1) {
+            const x = (gx / 20) * graph.width;
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, graph.height);
+            ctx.stroke();
+          }
+          for (let gy = 0; gy <= 20; gy += 1) {
+            const y = (gy / 20) * graph.height;
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(graph.width, y);
+            ctx.stroke();
+          }
+
+          const xAxis = toCanvas({ x: 0, y: 0 }).y;
+          const yAxis = toCanvas({ x: 0, y: 0 }).x;
+          ctx.strokeStyle = "#334155";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(0, xAxis);
+          ctx.lineTo(graph.width, xAxis);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(yAxis, 0);
+          ctx.lineTo(yAxis, graph.height);
+          ctx.stroke();
+
+          if (points.length > 1) {
+            ctx.strokeStyle = "#0ea5e9";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            const start = toCanvas(points[0]);
+            ctx.moveTo(start.x, start.y);
+            for (let i = 1; i < points.length; i += 1) {
+              const p = toCanvas(points[i]);
+              ctx.lineTo(p.x, p.y);
+            }
+            ctx.stroke();
+          }
+
+          for (let i = 0; i < points.length; i += 1) {
+            const p = toCanvas(points[i]);
+            ctx.fillStyle = "#be123c";
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+            ctx.fill();
+          }
+
+          ctx.fillStyle = "#334155";
+          ctx.font = "12px Segoe UI";
+          ctx.fillText(`X: -${xMax} to ${xMax}`, 12, 18);
+          ctx.fillText(`Y: -${yMax} to ${yMax}`, 12, 34);
+        }
+
+        function slopeText() {
+          if (points.length < 2) return "-";
+          const p1 = points[0];
+          const p2 = points[1];
+          const dx = p2.x - p1.x;
+          if (Math.abs(dx) < 0.00001) return "undefined";
+          return ((p2.y - p1.y) / dx).toFixed(3);
+        }
+
+        function summaryObject() {
+          return {
+            sim: "ndga_graph_practical",
+            points,
+            point_count: points.length,
+            slope_first_two: slopeText(),
+            expected_equation: equation.value || "",
+            observation: observation.value || "",
+            timestamp: new Date().toISOString()
+          };
+        }
+
+        function renderMeta() {
+          const slope = slopeText();
+          stats.textContent = `Slope: ${slope} | Points: ${points.length}`;
+          if (!points.length) {
+            pointList.textContent = "No points plotted.";
+          } else {
+            pointList.textContent = points.map((p, i) => `${i + 1}. (${p.x}, ${p.y})`).join("\n");
+          }
+          window.parent.postMessage({ type: "NDGA_SIM_EVENT", payload: summaryObject() }, "*");
+        }
+
+        graph.addEventListener("click", function (event) {
+          const rect = graph.getBoundingClientRect();
+          const x = event.clientX - rect.left;
+          const y = event.clientY - rect.top;
+          points.push(toMath(x * (graph.width / rect.width), y * (graph.height / rect.height)));
+          draw();
+          renderMeta();
+        });
+
+        xScale.addEventListener("change", draw);
+        yScale.addEventListener("change", draw);
+        clearPoints.addEventListener("click", function () {
+          points = [];
+          draw();
+          renderMeta();
+        });
+        undoPoint.addEventListener("click", function () {
+          points.pop();
+          draw();
+          renderMeta();
+        });
+        sendEvidence.addEventListener("click", function () {
+          window.parent.postMessage({ type: "NDGA_SIM_SUBMIT", payload: summaryObject() }, "*");
+          alert("Graph evidence sent to CBT host.");
+        });
+        copySummary.addEventListener("click", async function () {
+          const text = JSON.stringify(summaryObject(), null, 2);
+          try {
+            await navigator.clipboard.writeText(text);
+            alert("Summary copied.");
+          } catch (_err) {
+            alert("Copy failed. Browser blocked clipboard.");
+          }
+        });
+
+        draw();
+        renderMeta();
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,250 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Bursar Settings{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+    <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Bursar Settings</p>
+          <h1 class="mt-2 text-2xl font-bold text-slate-900">Fee Structure & Configuration</h1>
+          <p class="mt-2 max-w-3xl text-sm text-slate-600">
+            Create class-based term fee structures here first. Expenses and staff payments are managed on separate pages.
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <a href="{% url 'finance:bursar-expenses' %}" class="ndga-btn ndga-btn-secondary">Open Expenses</a>
+          <a href="{% url 'finance:bursar-staff-payments' %}" class="ndga-btn ndga-btn-secondary">Open Staff Payments</a>
+          <a href="{% url 'finance:bursar-assets' %}" class="ndga-btn ndga-btn-secondary">Open Assets</a>
+          <form method="post" action="{% url 'finance:bursar-reminders-run' %}">
+            {% csrf_token %}
+            <button type="submit" class="ndga-btn ndga-btn-primary">Run Fee Reminders</button>
+          </form>
+        </div>
+      </div>
+      {% if not current_session %}
+        <div class="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Setup Wizard must define current session and term before charges can be configured.
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Active Fee Records</p>
+        <p class="mt-2 text-2xl font-bold text-slate-900">{{ active_charge_count }}</p>
+      </article>
+      <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Inactive Fee Records</p>
+        <p class="mt-2 text-2xl font-bold text-slate-900">{{ inactive_charge_count }}</p>
+      </article>
+      <article class="rounded-2xl border border-rose-200 bg-rose-50 p-4 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-[0.14em] text-rose-700">Expense Records</p>
+        <p class="mt-2 text-2xl font-bold text-rose-900">{{ expense_record_count }}</p>
+      </article>
+      <article class="rounded-2xl border border-indigo-200 bg-indigo-50 p-4 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-[0.14em] text-indigo-700">Salary Records</p>
+        <p class="mt-2 text-2xl font-bold text-indigo-900">{{ salary_record_count }}</p>
+      </article>
+    </div>
+
+    <div class="mt-4 space-y-4">
+      <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 class="text-base font-semibold text-slate-900">School Account Details</h2>
+        <p class="mt-1 text-sm text-slate-600">
+          These details can be appended to bursar emails and shown on receipt PDF.
+          Result PDF visibility is controlled by IT Manager under Result Settings.
+        </p>
+        <form method="post" class="mt-4 grid gap-3 sm:grid-cols-2">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="save_finance_profile">
+
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ profile_form.school_bank_name.id_for_label }}">
+              Bank Name
+            </label>
+            {{ profile_form.school_bank_name }}
+            {% if profile_form.school_bank_name.errors %}<p class="mt-1 text-xs text-rose-700">{{ profile_form.school_bank_name.errors|striptags }}</p>{% endif %}
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ profile_form.school_account_name.id_for_label }}">
+              Account Name
+            </label>
+            {{ profile_form.school_account_name }}
+            {% if profile_form.school_account_name.errors %}<p class="mt-1 text-xs text-rose-700">{{ profile_form.school_account_name.errors|striptags }}</p>{% endif %}
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ profile_form.school_account_number.id_for_label }}">
+              Account Number
+            </label>
+            {{ profile_form.school_account_number }}
+            {% if profile_form.school_account_number.errors %}<p class="mt-1 text-xs text-rose-700">{{ profile_form.school_account_number.errors|striptags }}</p>{% endif %}
+          </div>
+          <div class="space-y-2 pt-1">
+            <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+              {{ profile_form.include_bank_details_in_messages }}
+              <span>Include account details in bursar emails/messages</span>
+            </label>
+            <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+              {{ profile_form.show_on_receipt_pdf }}
+              <span>Show account details on receipt PDF</span>
+            </label>
+          </div>
+
+          <div class="sm:col-span-2">
+            <button type="submit" class="ndga-btn ndga-btn-primary">Save Account Details</button>
+          </div>
+        </form>
+      </article>
+
+      <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 class="text-base font-semibold text-slate-900">Create Fee Structure</h2>
+        <p class="mt-1 text-sm text-slate-600">Create termly class fees only: school fees, hostel, feeding, transport, uniform, pocket money, others.</p>
+        <form method="post" class="mt-4 space-y-3">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="create_charge">
+
+          {% if charge_form.non_field_errors %}
+            <div class="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+              {{ charge_form.non_field_errors|striptags }}
+            </div>
+          {% endif %}
+
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ charge_form.item_name.id_for_label }}">
+              {{ charge_form.item_name.label }}
+            </label>
+            {{ charge_form.item_name }}
+            {% if charge_form.item_name.errors %}<p class="mt-1 text-xs text-rose-700">{{ charge_form.item_name.errors|striptags }}</p>{% endif %}
+          </div>
+
+          <div class="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ charge_form.amount.id_for_label }}">
+                {{ charge_form.amount.label }}
+              </label>
+              {{ charge_form.amount }}
+              {% if charge_form.amount.errors %}<p class="mt-1 text-xs text-rose-700">{{ charge_form.amount.errors|striptags }}</p>{% endif %}
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ charge_form.academic_class.id_for_label }}">
+                Class
+              </label>
+              {{ charge_form.academic_class }}
+              {% if charge_form.academic_class.errors %}<p class="mt-1 text-xs text-rose-700">{{ charge_form.academic_class.errors|striptags }}</p>{% endif %}
+            </div>
+          </div>
+
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ charge_form.description.id_for_label }}">
+              {{ charge_form.description.label }}
+            </label>
+            {{ charge_form.description }}
+            {% if charge_form.description.errors %}<p class="mt-1 text-xs text-rose-700">{{ charge_form.description.errors|striptags }}</p>{% endif %}
+          </div>
+
+          <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+            {{ charge_form.is_active }}
+            <span>Charge is active immediately</span>
+          </label>
+
+          <button type="submit" class="ndga-btn ndga-btn-primary" {% if not current_session %}disabled{% endif %}>
+            Save Charge
+          </button>
+        </form>
+      </article>
+
+      <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 class="text-base font-semibold text-slate-900">Fee Structure Ledger</h2>
+        <form method="get" class="mt-3 grid gap-3 sm:grid-cols-2">
+          <input
+            type="text"
+            name="q"
+            value="{{ search_query }}"
+            class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:border-ndga-navy/60 focus:ring-4 focus:ring-ndga-navy/10"
+            placeholder="Search charge item"
+          >
+          <select
+            name="class_id"
+            class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:border-ndga-navy/60 focus:ring-4 focus:ring-ndga-navy/10"
+          >
+            <option value="" {% if not class_filter %}selected{% endif %}>All Classes</option>
+            {% for class_row in class_options %}
+              <option value="{{ class_row.id }}" {% if class_filter == class_row.id|stringformat:'s' %}selected{% endif %}>{{ class_row.code }}</option>
+            {% endfor %}
+          </select>
+          <select
+            name="status"
+            class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:border-ndga-navy/60 focus:ring-4 focus:ring-ndga-navy/10"
+          >
+            <option value="" {% if not status_filter %}selected{% endif %}>All Status</option>
+            <option value="active" {% if status_filter == "active" %}selected{% endif %}>Active</option>
+            <option value="inactive" {% if status_filter == "inactive" %}selected{% endif %}>Inactive</option>
+          </select>
+          <div class="flex items-center gap-2">
+            <button type="submit" class="ndga-btn ndga-btn-primary">Filter</button>
+            <a href="{% url 'finance:bursar-settings' %}" class="ndga-btn ndga-btn-secondary">Reset</a>
+          </div>
+        </form>
+
+        <div class="mt-4 max-h-[34rem] overflow-auto rounded-2xl border border-slate-200">
+          <table class="min-w-full divide-y divide-slate-200 text-sm">
+            <thead class="bg-slate-50">
+              <tr>
+                <th class="px-3 py-2 text-left font-semibold text-slate-700">Item</th>
+                <th class="px-3 py-2 text-left font-semibold text-slate-700">Class</th>
+                <th class="px-3 py-2 text-left font-semibold text-slate-700">Amount</th>
+                <th class="px-3 py-2 text-left font-semibold text-slate-700">Term</th>
+                <th class="px-3 py-2 text-left font-semibold text-slate-700">Status</th>
+                <th class="px-3 py-2 text-left font-semibold text-slate-700">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 bg-white">
+              {% for row in charges %}
+                <tr>
+                  <td class="px-3 py-2">
+                    <p class="font-semibold text-slate-900">{{ row.item_name }}</p>
+                    <p class="text-xs text-slate-500">{{ row.description|default:"-" }}</p>
+                  </td>
+                  <td class="px-3 py-2 text-slate-700">{{ row.academic_class.code|default:"-" }}</td>
+                  <td class="px-3 py-2 font-semibold text-slate-800">{{ row.amount }}</td>
+                  <td class="px-3 py-2 text-slate-700">{% if row.term %}{{ row.term.get_name_display }}{% else %}-{% endif %}</td>
+                  <td class="px-3 py-2">
+                    <span class="rounded-full border px-2 py-1 text-xs font-semibold {% if row.is_active %}border-emerald-200 bg-emerald-50 text-emerald-800{% else %}border-slate-200 bg-slate-50 text-slate-700{% endif %}">
+                      {% if row.is_active %}Active{% else %}Inactive{% endif %}
+                    </span>
+                  </td>
+                  <td class="px-3 py-2">
+                    <div class="flex flex-wrap gap-2">
+                      <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="toggle_charge">
+                        <input type="hidden" name="charge_id" value="{{ row.id }}">
+                        <button type="submit" class="ndga-btn ndga-btn-secondary !rounded-lg !px-2.5 !py-1.5 !text-xs">
+                          {% if row.is_active %}Deactivate{% else %}Activate{% endif %}
+                        </button>
+                      </form>
+                      <form method="post" data-confirm-message="Delete this charge permanently?">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="delete_charge">
+                        <input type="hidden" name="charge_id" value="{{ row.id }}">
+                        <button type="submit" class="ndga-btn !rounded-lg !bg-slate-700 !px-2.5 !py-1.5 !text-xs !text-white hover:!bg-slate-800">
+                          Delete
+                        </button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="6" class="px-3 py-8 text-center text-slate-500">No class fee structures configured yet.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </article>
+    </div>
+  </section>
+{% endblock %}

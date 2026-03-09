@@ -1,0 +1,216 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Result Entry{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 class="text-2xl font-bold text-ndga-navy">{{ assignment.academic_class.code }} - {{ assignment.subject.name }}</h1>
+          <p class="mt-1 text-xs font-semibold text-slate-500">{{ assignment.session.name }} | {{ assignment.term.get_name_display }}</p>
+        </div>
+        <a href="{{ class_subjects_url }}" class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+          Back To Subjects
+        </a>
+      </div>
+
+      <form method="post" id="bulk-score-form" class="mt-5 space-y-4">
+        {% csrf_token %}
+        <div class="overflow-x-auto rounded-2xl border border-slate-200">
+          <table class="min-w-[1150px] w-full divide-y divide-slate-200 text-sm">
+            <thead>
+              <tr class="bg-slate-50 text-left text-slate-500">
+                <th class="px-3 py-2">Student</th>
+                <th class="px-3 py-2">CA1</th>
+                <th class="px-3 py-2">CA2</th>
+                <th class="px-3 py-2">CA3</th>
+                <th class="px-3 py-2">CA4</th>
+                <th class="px-3 py-2">Objective</th>
+                <th class="px-3 py-2">Theory</th>
+                <th class="px-3 py-2">CA Total</th>
+                <th class="px-3 py-2">Exam Total</th>
+                <th class="px-3 py-2">Grand Total</th>
+                <th class="px-3 py-2">Grade</th>
+                <th class="px-3 py-2">Override</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              {% for row in rows %}
+                {% with enrollment=row.enrollment score=row.score %}
+                  <tr data-score-row>
+                    <td class="px-3 py-2 font-semibold text-slate-800">
+                      <p>{{ enrollment.student.get_full_name|default:enrollment.student.username }}</p>
+                      <p class="text-xs font-semibold text-slate-500">{{ enrollment.student.student_profile.student_number }}</p>
+                      {% if row.locked_fields %}
+                        <p class="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-700">CBT locked: {{ row.locked_fields|join:", " }}</p>
+                      {% endif %}
+                    </td>
+                    <td class="px-3 py-2">
+                      <input type="number" step="0.01" min="0" max="10" data-max="10" data-score-input class="w-20 rounded-lg border border-slate-300 px-2 py-1.5 text-sm {% if 'ca1' in row.locked_fields %}cursor-not-allowed bg-slate-100 text-slate-500{% endif %}" name="ca1_{{ enrollment.student_id }}" value="{% if score %}{{ score.ca1 }}{% else %}0{% endif %}" {% if not can_edit or 'ca1' in row.locked_fields %}readonly disabled{% endif %}>
+                    </td>
+                    <td class="px-3 py-2">
+                      <input type="number" step="0.01" min="0" max="10" data-max="10" data-score-input class="w-20 rounded-lg border border-slate-300 px-2 py-1.5 text-sm {% if 'ca2' in row.locked_fields %}cursor-not-allowed bg-slate-100 text-slate-500{% endif %}" name="ca2_{{ enrollment.student_id }}" value="{% if score %}{{ score.ca2 }}{% else %}0{% endif %}" {% if not can_edit or 'ca2' in row.locked_fields %}readonly disabled{% endif %}>
+                    </td>
+                    <td class="px-3 py-2">
+                      <input type="number" step="0.01" min="0" max="10" data-max="10" data-score-input class="w-20 rounded-lg border border-slate-300 px-2 py-1.5 text-sm {% if 'ca3' in row.locked_fields %}cursor-not-allowed bg-slate-100 text-slate-500{% endif %}" name="ca3_{{ enrollment.student_id }}" value="{% if score %}{{ score.ca3 }}{% else %}0{% endif %}" {% if not can_edit or 'ca3' in row.locked_fields %}readonly disabled{% endif %}>
+                    </td>
+                    <td class="px-3 py-2">
+                      <input type="number" step="0.01" min="0" max="10" data-max="10" data-score-input class="w-20 rounded-lg border border-slate-300 px-2 py-1.5 text-sm {% if 'ca4' in row.locked_fields %}cursor-not-allowed bg-slate-100 text-slate-500{% endif %}" name="ca4_{{ enrollment.student_id }}" value="{% if score %}{{ score.ca4 }}{% else %}0{% endif %}" {% if not can_edit or 'ca4' in row.locked_fields %}readonly disabled{% endif %}>
+                    </td>
+                    <td class="px-3 py-2">
+                      <input type="number" step="0.01" min="0" max="40" data-max="40" data-score-input class="w-20 rounded-lg border border-slate-300 px-2 py-1.5 text-sm {% if 'objective' in row.locked_fields %}cursor-not-allowed bg-slate-100 text-slate-500{% endif %}" name="objective_{{ enrollment.student_id }}" value="{% if score %}{{ score.objective }}{% else %}0{% endif %}" {% if not can_edit or 'objective' in row.locked_fields %}readonly disabled{% endif %}>
+                    </td>
+                    <td class="px-3 py-2">
+                      <input type="number" step="0.01" min="0" max="20" data-max="20" data-score-input class="w-20 rounded-lg border border-slate-300 px-2 py-1.5 text-sm {% if 'theory' in row.locked_fields %}cursor-not-allowed bg-slate-100 text-slate-500{% endif %}" name="theory_{{ enrollment.student_id }}" value="{% if score %}{{ score.theory }}{% else %}0{% endif %}" {% if not can_edit or 'theory' in row.locked_fields %}readonly disabled{% endif %}>
+                    </td>
+                    <td class="px-3 py-2 font-semibold text-slate-700" data-ca-total>{% if score %}{{ score.total_ca }}{% else %}0.00{% endif %}</td>
+                    <td class="px-3 py-2 font-semibold text-slate-700" data-exam-total>{% if score %}{{ score.total_exam }}{% else %}0.00{% endif %}</td>
+                    <td class="px-3 py-2 font-bold text-ndga-navy" data-grand-total>{% if score %}{{ score.grand_total }}{% else %}0.00{% endif %}</td>
+                    <td class="px-3 py-2 font-bold text-slate-800" data-grade>{% if score %}{{ score.grade }}{% else %}F{% endif %}</td>
+                    <td class="px-3 py-2">
+                      <label class="flex items-center gap-2 text-xs text-slate-600">
+                        <input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-ndga-navy" name="override_{{ enrollment.student_id }}" {% if score and score.has_override %}checked{% endif %} {% if not can_edit %}disabled{% endif %}>
+                        Override
+                      </label>
+                      <textarea name="override_reason_{{ enrollment.student_id }}" rows="1" class="mt-1 w-40 rounded-lg border border-slate-300 px-2 py-1 text-xs" placeholder="Reason" {% if not can_edit %}readonly{% endif %}>{% if score and score.override_reason %}{{ score.override_reason }}{% endif %}</textarea>
+                    </td>
+                  </tr>
+                {% endwith %}
+              {% empty %}
+                <tr><td colspan="12" class="px-3 py-4 text-slate-500">No students found.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="flex flex-wrap gap-2">
+          <button type="submit" class="ndga-btn ndga-btn-primary" {% if not can_edit %}disabled{% endif %}>
+            Save Scores
+          </button>
+          {% if can_edit %}
+            <span id="scores-autosave-status" class="inline-flex items-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600">
+              Autosave idle
+            </span>
+          {% endif %}
+        </div>
+      </form>
+    </div>
+  </section>
+{% endblock %}
+
+{% block extra_scripts %}
+  <script>
+    (function () {
+      function toNum(value) {
+        const n = parseFloat(value);
+        return Number.isFinite(n) ? n : 0;
+      }
+
+      function gradeFor(total) {
+        if (total >= 70) return "A";
+        if (total >= 60) return "B";
+        if (total >= 50) return "C";
+        if (total >= 40) return "D";
+        return "F";
+      }
+
+      function updateRow(row) {
+        const inputs = row.querySelectorAll("[data-score-input]");
+        let invalid = false;
+        inputs.forEach((input) => {
+          const val = toNum(input.value);
+          const max = toNum(input.getAttribute("data-max"));
+          const tooHigh = val > max || val < 0;
+          input.classList.toggle("border-rose-500", tooHigh);
+          input.classList.toggle("bg-rose-50", tooHigh);
+          if (tooHigh) invalid = true;
+        });
+
+        const ca1 = toNum(row.querySelector("input[name^='ca1_']")?.value);
+        const ca2 = toNum(row.querySelector("input[name^='ca2_']")?.value);
+        const ca3 = toNum(row.querySelector("input[name^='ca3_']")?.value);
+        const ca4 = toNum(row.querySelector("input[name^='ca4_']")?.value);
+        const objective = toNum(row.querySelector("input[name^='objective_']")?.value);
+        const theory = toNum(row.querySelector("input[name^='theory_']")?.value);
+
+        const caTotal = ca1 + ca2 + ca3 + ca4;
+        const examTotal = objective + theory;
+        const grandTotal = caTotal + examTotal;
+
+        row.querySelector("[data-ca-total]").textContent = caTotal.toFixed(2);
+        row.querySelector("[data-exam-total]").textContent = examTotal.toFixed(2);
+        row.querySelector("[data-grand-total]").textContent = grandTotal.toFixed(2);
+        row.querySelector("[data-grade]").textContent = gradeFor(grandTotal);
+        row.classList.toggle("bg-rose-50", invalid || caTotal > 40 || examTotal > 60 || grandTotal > 100);
+      }
+
+      document.querySelectorAll("[data-score-row]").forEach((row) => {
+        updateRow(row);
+        row.querySelectorAll("[data-score-input]").forEach((input) => {
+          input.addEventListener("input", function () {
+            updateRow(row);
+          });
+        });
+      });
+    })();
+
+    (function () {
+      {% if not can_edit %}
+        return;
+      {% endif %}
+      const form = document.getElementById("bulk-score-form");
+      const status = document.getElementById("scores-autosave-status");
+      if (!form || !status) {
+        return;
+      }
+      let timer = null;
+
+      function setStatus(text, tone) {
+        status.textContent = text;
+        status.classList.remove("border-emerald-200", "bg-emerald-50", "text-emerald-700", "border-rose-200", "bg-rose-50", "text-rose-700");
+        if (tone === "ok") {
+          status.classList.add("border-emerald-200", "bg-emerald-50", "text-emerald-700");
+        } else if (tone === "error") {
+          status.classList.add("border-rose-200", "bg-rose-50", "text-rose-700");
+        }
+      }
+
+      function runAutosave() {
+        const payload = new FormData(form);
+        payload.set("_autosave", "1");
+        setStatus("Autosaving...", "");
+        fetch(window.location.href, {
+          method: "POST",
+          body: payload,
+          headers: { "X-Requested-With": "XMLHttpRequest" },
+          credentials: "same-origin",
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            if (data.ok) {
+              setStatus("Autosaved", "ok");
+              return;
+            }
+            setStatus((data.errors && data.errors[0]) || data.error || "Autosave failed", "error");
+          })
+          .catch(() => setStatus("Autosave failed", "error"));
+      }
+
+      function scheduleAutosave() {
+        if (timer) {
+          clearTimeout(timer);
+        }
+        timer = setTimeout(runAutosave, 1200);
+      }
+
+      form.querySelectorAll("input, textarea, select").forEach((node) => {
+        if (node.name === "csrfmiddlewaretoken") {
+          return;
+        }
+        node.addEventListener("change", scheduleAutosave);
+        node.addEventListener("input", scheduleAutosave);
+      });
+    })();
+  </script>
+{% endblock %}

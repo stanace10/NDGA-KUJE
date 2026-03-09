@@ -1,0 +1,286 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}School Calendar{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+    <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-[0.2em] text-ndga-navy/70">Attendance Governance</p>
+      <h1 class="mt-2 text-3xl font-bold text-ndga-navy">School Calendar</h1>
+      <p class="mt-2 text-sm text-slate-600">
+        Calendar setup is already handled during onboarding. This page is now summary-first, with optional edit mode when changes are required.
+      </p>
+    </div>
+
+    <div class="mt-6 grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
+      <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <h2 class="text-lg font-semibold text-ndga-navy">Selected Calendar</h2>
+          {% if is_edit_mode %}
+            <span class="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">Editor Mode</span>
+          {% else %}
+            <span class="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">View Mode</span>
+          {% endif %}
+        </div>
+
+        {% if selected_calendar %}
+          <dl class="mt-4 grid gap-3 sm:grid-cols-2">
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <dt class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Session</dt>
+              <dd class="mt-1 text-sm font-semibold text-slate-800">{{ selected_calendar.session.name }}</dd>
+            </div>
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <dt class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Term</dt>
+              <dd class="mt-1 text-sm font-semibold text-slate-800">{{ selected_calendar.term.get_name_display }}</dd>
+            </div>
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <dt class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Start Date</dt>
+              <dd class="mt-1 text-sm font-semibold text-slate-800">{{ selected_calendar.start_date }}</dd>
+            </div>
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <dt class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">End Date</dt>
+              <dd class="mt-1 text-sm font-semibold text-slate-800">{{ selected_calendar.end_date }}</dd>
+            </div>
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <dt class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">School Days</dt>
+              <dd class="mt-1 text-sm font-semibold text-slate-800">{{ selected_calendar.school_days_count }}</dd>
+            </div>
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <dt class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Holidays</dt>
+              <dd class="mt-1 text-sm font-semibold text-slate-800">{{ selected_calendar.holidays.count }}</dd>
+            </div>
+          </dl>
+        {% else %}
+          <div class="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            No calendar is available yet.
+          </div>
+        {% endif %}
+
+        <div class="mt-5 flex flex-wrap gap-2">
+          {% if selected_calendar %}
+            {% if is_edit_mode %}
+              <a
+                href="{% url 'attendance:calendar-manage' %}?calendar_id={{ selected_calendar.id }}"
+                class="ndga-btn ndga-btn-secondary"
+              >
+                Back to Calendar View
+              </a>
+            {% else %}
+              <a
+                href="{% url 'attendance:calendar-manage' %}?calendar_id={{ selected_calendar.id }}&mode=edit"
+                class="ndga-btn ndga-btn-primary"
+              >
+                Open Calendar Editor
+              </a>
+            {% endif %}
+          {% else %}
+            <a href="{% url 'attendance:calendar-manage' %}?mode=edit" class="ndga-btn ndga-btn-primary">Create Calendar</a>
+          {% endif %}
+        </div>
+      </article>
+
+      <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-semibold text-ndga-navy">Configured Calendars</h2>
+        <div class="mt-4 overflow-x-auto">
+          <table class="min-w-full divide-y divide-slate-200 text-sm">
+            <thead>
+              <tr class="bg-slate-50 text-left text-slate-500">
+                <th class="px-3 py-2">Session</th>
+                <th class="px-3 py-2">Term</th>
+                <th class="px-3 py-2">Range</th>
+                <th class="px-3 py-2">Action</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              {% for row in calendars %}
+                <tr>
+                  <td class="px-3 py-2 text-slate-700">{{ row.session.name }}</td>
+                  <td class="px-3 py-2 text-slate-700">{{ row.term.get_name_display }}</td>
+                  <td class="px-3 py-2 text-slate-700">{{ row.start_date }} - {{ row.end_date }}</td>
+                  <td class="px-3 py-2">
+                    <div class="flex flex-wrap gap-2">
+                      <a href="{% url 'attendance:calendar-manage' %}?calendar_id={{ row.id }}" class="ndga-btn ndga-btn-secondary !px-3 !py-1.5 !text-xs">View</a>
+                      <a href="{% url 'attendance:calendar-manage' %}?calendar_id={{ row.id }}&mode=edit" class="ndga-btn ndga-btn-secondary !px-3 !py-1.5 !text-xs">Edit</a>
+                    </div>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="4" class="px-3 py-4 text-slate-500">No calendars configured.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </article>
+    </div>
+
+    {% if is_edit_mode %}
+      <div class="mt-6 grid gap-6 lg:grid-cols-[1fr_1fr]">
+        <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h3 class="text-xl font-semibold text-ndga-navy">Calendar Editor</h3>
+          <p class="mt-1 text-sm text-slate-600">Update session/term dates when institutional changes are approved.</p>
+          <form method="post" class="mt-5 space-y-4">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="save-calendar">
+            {% if selected_calendar %}
+              <input type="hidden" name="calendar_id" value="{{ selected_calendar.id }}">
+            {% endif %}
+            {% if form and form.non_field_errors %}
+              <div class="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                {{ form.non_field_errors|striptags }}
+              </div>
+            {% endif %}
+            {% if form %}
+              {% for field in form %}
+                <div>
+                  <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                  {{ field }}
+                  {% if field.help_text %}<p class="mt-1 text-xs text-slate-500">{{ field.help_text }}</p>{% endif %}
+                  {% if field.errors %}<p class="mt-1 text-xs text-rose-700">{{ field.errors|striptags }}</p>{% endif %}
+                </div>
+              {% endfor %}
+            {% endif %}
+            <div class="flex flex-wrap gap-2">
+              <button type="submit" class="ndga-btn ndga-btn-primary">Save Calendar</button>
+            </div>
+          </form>
+          {% if selected_calendar %}
+            <form method="post" class="mt-2" data-confirm-message="Delete this calendar? This cannot be undone.">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="delete-calendar">
+              <input type="hidden" name="calendar_id" value="{{ selected_calendar.id }}">
+              <button type="submit" class="ndga-btn !bg-rose-600 !text-white hover:!bg-rose-700">
+                Delete Calendar
+              </button>
+            </form>
+          {% endif %}
+        </article>
+
+        <article
+          class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"
+          x-data="{ mode: '{{ holiday_create_form.entry_mode.value|default:'SINGLE' }}' }"
+        >
+          <h3 class="text-xl font-semibold text-ndga-navy">Holiday Manager</h3>
+          <p class="mt-1 text-sm text-slate-600">Use one form and choose single date or date range.</p>
+
+          {% if selected_calendar %}
+            <form method="post" class="mt-5 space-y-3">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="add-holiday">
+              <input type="hidden" name="calendar_id" value="{{ selected_calendar.id }}">
+              {% if holiday_create_form.non_field_errors %}
+                <div class="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                  {{ holiday_create_form.non_field_errors|striptags }}
+                </div>
+              {% endif %}
+
+              <div>
+                <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ holiday_create_form.entry_mode.id_for_label }}">{{ holiday_create_form.entry_mode.label }}</label>
+                <div @change="mode = $event.target.value">{{ holiday_create_form.entry_mode }}</div>
+                {% if holiday_create_form.entry_mode.errors %}<p class="mt-1 text-xs text-rose-700">{{ holiday_create_form.entry_mode.errors|striptags }}</p>{% endif %}
+              </div>
+
+              <div class="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ holiday_create_form.start_date.id_for_label }}">Start Date</label>
+                  {{ holiday_create_form.start_date }}
+                  {% if holiday_create_form.start_date.errors %}<p class="mt-1 text-xs text-rose-700">{{ holiday_create_form.start_date.errors|striptags }}</p>{% endif %}
+                </div>
+                <div x-show="mode === 'RANGE'" x-transition>
+                  <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ holiday_create_form.end_date.id_for_label }}">End Date</label>
+                  {{ holiday_create_form.end_date }}
+                  {% if holiday_create_form.end_date.errors %}<p class="mt-1 text-xs text-rose-700">{{ holiday_create_form.end_date.errors|striptags }}</p>{% endif %}
+                </div>
+              </div>
+
+              <div>
+                <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ holiday_create_form.description.id_for_label }}">{{ holiday_create_form.description.label }}</label>
+                {{ holiday_create_form.description }}
+                {% if holiday_create_form.description.errors %}<p class="mt-1 text-xs text-rose-700">{{ holiday_create_form.description.errors|striptags }}</p>{% endif %}
+              </div>
+
+              <label x-show="mode === 'RANGE'" x-transition class="inline-flex items-center gap-2 text-sm text-slate-700">
+                {{ holiday_create_form.exclude_weekends }}
+                <span>Exclude weekends for range</span>
+              </label>
+
+              <button type="submit" class="ndga-btn ndga-btn-secondary">Save Holiday</button>
+            </form>
+
+            <div class="mt-6 overflow-x-auto rounded-2xl border border-slate-200">
+              <table class="min-w-full divide-y divide-slate-200 text-sm">
+                <thead>
+                  <tr class="bg-slate-50 text-left text-slate-500">
+                    <th class="px-3 py-2">Date</th>
+                    <th class="px-3 py-2">Description</th>
+                    <th class="px-3 py-2">Actions</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                  {% for row in holiday_rows %}
+                    <tr>
+                      <td class="px-3 py-2 font-semibold text-slate-800">{{ row.date }}</td>
+                      <td class="px-3 py-2 text-slate-700">{{ row.description }}</td>
+                      <td class="px-3 py-2">
+                        <div class="flex flex-wrap gap-2">
+                          <a
+                            href="{% url 'attendance:calendar-manage' %}?calendar_id={{ selected_calendar.id }}&mode=edit&holiday_edit_id={{ row.id }}"
+                            class="ndga-btn ndga-btn-secondary !px-3 !py-1.5 !text-xs"
+                          >
+                            Edit
+                          </a>
+                          <form method="post" data-confirm-message="Delete this holiday date?">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="delete-holiday">
+                            <input type="hidden" name="calendar_id" value="{{ selected_calendar.id }}">
+                            <input type="hidden" name="holiday_id" value="{{ row.id }}">
+                            <button type="submit" class="ndga-btn !bg-rose-600 !px-3 !py-1.5 !text-xs !text-white hover:!bg-rose-700">Delete</button>
+                          </form>
+                        </div>
+                      </td>
+                    </tr>
+                  {% empty %}
+                    <tr><td colspan="3" class="px-3 py-4 text-slate-500">No holidays added yet.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+
+            {% if holiday_edit_form and holiday_edit_target %}
+              <div class="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div class="mb-3 flex items-center justify-between gap-2">
+                  <p class="text-sm font-semibold text-ndga-navy">Edit Holiday: {{ holiday_edit_target.date }}</p>
+                  <a href="{% url 'attendance:calendar-manage' %}?calendar_id={{ selected_calendar.id }}&mode=edit" class="text-xs font-semibold text-slate-500 hover:text-slate-700">Cancel</a>
+                </div>
+                <form method="post" class="grid gap-3 sm:grid-cols-3">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="update-holiday">
+                  <input type="hidden" name="calendar_id" value="{{ selected_calendar.id }}">
+                  <input type="hidden" name="holiday_id" value="{{ holiday_edit_target.id }}">
+                  <div>
+                    <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">{{ holiday_edit_form.date.label }}</label>
+                    {{ holiday_edit_form.date }}
+                    {% if holiday_edit_form.date.errors %}<p class="mt-1 text-xs text-rose-700">{{ holiday_edit_form.date.errors|striptags }}</p>{% endif %}
+                  </div>
+                  <div>
+                    <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">{{ holiday_edit_form.description.label }}</label>
+                    {{ holiday_edit_form.description }}
+                    {% if holiday_edit_form.description.errors %}<p class="mt-1 text-xs text-rose-700">{{ holiday_edit_form.description.errors|striptags }}</p>{% endif %}
+                  </div>
+                  <div class="self-end">
+                    <button type="submit" class="ndga-btn ndga-btn-secondary w-full">Update Holiday</button>
+                  </div>
+                </form>
+              </div>
+            {% endif %}
+          {% else %}
+            <div class="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              Select or create a calendar first before adding holidays.
+            </div>
+          {% endif %}
+        </article>
+      </div>
+    {% endif %}
+  </section>
+{% endblock %}

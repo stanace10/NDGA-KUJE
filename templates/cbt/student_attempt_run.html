@@ -1,0 +1,809 @@
+{% extends "layouts/base.html" %}
+{% load static %}
+
+{% block title %}CBT Attempt{% endblock %}
+{% block body_class %}min-h-screen bg-slate-950{% endblock %}
+{% block shell_background %}{% endblock %}
+
+{% block content %}
+  <section
+    id="cbtAttemptApp"
+    class="mx-auto w-full max-w-[96rem] px-3 py-3 sm:px-4 lg:px-6"
+    data-attempt-id="{{ attempt.id }}"
+    data-lockdown-enabled="{% if lockdown_enabled %}1{% else %}0{% endif %}"
+    data-heartbeat-seconds="{{ lockdown_heartbeat_interval_seconds|default:12 }}"
+    data-inactivity-seconds="{{ lockdown_inactivity_timeout_seconds|default:45 }}"
+    data-heartbeat-url="{% url 'cbt:attempt-heartbeat' attempt.id %}"
+    data-violation-url="{% url 'cbt:attempt-violation' attempt.id %}"
+    data-result-url="{% url 'cbt:student-attempt-result' attempt.id %}"
+    data-question-count="{{ question_count|default:0 }}"
+    data-objective-count="{{ objective_count|default:0 }}"
+    data-theory-count="{{ theory_count|default:0 }}"
+    data-active-index="{{ active_index|default:1 }}"
+    data-theory-stage-unlocked="{% if theory_stage_unlocked %}1{% else %}0{% endif %}"
+  >
+    {{ navigator|json_script:"cbt-navigator-seed" }}
+
+    <div id="cbtGate" class="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/90 p-4">
+      <div class="w-full max-w-2xl rounded-3xl border border-slate-700 bg-slate-900 p-6 text-white shadow-2xl">
+        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">CBT Exam Mode</p>
+        <h1 class="mt-2 text-2xl font-bold">{{ exam.title }}</h1>
+        <p class="mt-2 text-sm text-slate-300">{{ exam.subject.name }} | {{ exam.academic_class.code }} | {{ exam.term.get_name_display }}</p>
+        <div class="mt-4 rounded-2xl border border-amber-700/50 bg-amber-500/10 p-3 text-xs text-amber-200">
+          Start enters strict secure mode. Leaving fullscreen/tab or blocking camera can lock this attempt.
+        </div>
+        <div class="mt-4 grid gap-4 md:grid-cols-[1fr_220px]">
+          <div class="rounded-2xl border border-slate-700 bg-slate-950/70 p-3 text-xs text-slate-300">
+            <p class="font-semibold text-cyan-200">Camera Check</p>
+            <p class="mt-1">Secure CBT requires an active camera feed before you begin.</p>
+            <p id="cameraStatusText" class="mt-2 font-semibold text-amber-300">Waiting for camera permission.</p>
+          </div>
+          <div class="rounded-2xl border border-slate-700 bg-black p-2">
+            <video id="cameraPreviewGate" class="h-36 w-full rounded-xl object-cover" autoplay muted playsinline></video>
+          </div>
+        </div>
+        <div class="mt-5 flex flex-wrap items-center gap-2">
+          <button id="cbtBeginBtn" type="button" class="ndga-btn ndga-btn-primary">Begin Exam</button>
+          <a href="{% url 'cbt:student-exam-list' %}" class="ndga-btn ndga-btn-secondary">Back</a>
+          <p id="cbtGateError" class="text-xs font-semibold text-rose-300"></p>
+        </div>
+      </div>
+    </div>
+
+    <div id="cbtRunWrap" class="hidden">
+      <article class="rounded-3xl border border-slate-700/70 bg-slate-900/95 p-3 text-slate-100 shadow-2xl sm:p-4">
+        <div class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-700 pb-3">
+          <div class="flex items-start gap-3">
+            <img src="{% static 'images/ndga/logo.png' %}" alt="NDGA" class="h-12 w-12 rounded-full border border-slate-600 bg-white p-1">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">Live Attempt</p>
+              <h1 class="mt-1 text-lg font-bold text-white sm:text-xl">{{ exam.title }}</h1>
+              <p class="mt-0.5 text-xs text-slate-300">{{ exam.subject.name }} | {{ exam.academic_class.code }} | {{ exam.get_exam_type_display }}</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="text-right">
+              <p class="text-xs font-semibold text-white">{{ request.user.get_full_name|default:request.user.username }}</p>
+              <p class="text-[11px] text-slate-300">{{ request.user.username }} | {{ exam.academic_class.code }}</p>
+            </div>
+            {% if student_photo_url %}
+              <img src="{{ student_photo_url }}" alt="Student" class="h-11 w-11 rounded-full border border-slate-600 object-cover">
+            {% else %}
+              <div class="flex h-11 w-11 items-center justify-center rounded-full border border-slate-600 bg-slate-800 text-sm font-bold text-cyan-200">{{ request.user.username|slice:":1"|upper }}</div>
+            {% endif %}
+            <span id="lockBadge" class="inline-flex items-center gap-2 rounded-full border border-slate-600 bg-slate-800 px-2.5 py-1 text-[11px] font-semibold text-slate-200">
+              <span class="inline-block h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
+              Secure
+            </span>
+            <div class="flex h-16 w-16 flex-col items-center justify-center rounded-full border border-rose-400/50 bg-rose-500/20 text-rose-100">
+              <span id="timerPill" class="text-xs font-extrabold leading-none">00:00:00</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-3 grid gap-3 xl:grid-cols-[1.85fr_0.8fr]">
+          <div class="space-y-3">
+            {% if has_question_flow %}
+              <div id="questionDeck" class="space-y-3">
+                {% for panel in question_panels %}
+                  <form method="post" class="attempt-question-panel rounded-3xl border border-slate-700 bg-slate-900 p-3 sm:p-4 {% if not panel.is_active %}hidden{% endif %}" data-index="{{ panel.index }}">
+                    {% csrf_token %}
+                    <input type="hidden" name="q" value="{{ panel.index }}" class="question-index-input">
+                    <input type="hidden" name="action" value="save_stay" class="attempt-action-input">
+                    <input type="hidden" name="is_flagged" value="{% if panel.answer and panel.answer.is_flagged %}1{% else %}0{% endif %}" class="flagged-input">
+                    <input type="hidden" name="response_payload" value="">
+
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                      <p class="text-sm font-semibold text-cyan-200">Question {{ panel.index }}</p>
+                      <button type="button" class="flag-toggle-btn rounded-xl border border-amber-400/60 bg-amber-500/15 px-2.5 py-1 text-[11px] font-semibold text-amber-200">
+                        {% if panel.answer and panel.answer.is_flagged %}Unflag{% else %}Flag{% endif %}
+                      </button>
+                    </div>
+
+                    <div class="mt-3 rounded-2xl border border-slate-700 bg-slate-800/60 p-3.5">
+                      <p class="text-base font-semibold leading-relaxed text-white">{{ panel.question_text|safe }}</p>
+                      {% if panel.stimulus_question %}
+                        <div class="mt-3 rounded-xl border border-slate-700 bg-slate-900/70 p-3">
+                          {% if panel.stimulus_question.stimulus_caption %}
+                            <p class="mb-2 text-xs font-semibold text-cyan-200">{{ panel.stimulus_question.stimulus_caption }}</p>
+                          {% endif %}
+                          {% if panel.stimulus_question.stimulus_image %}
+                            <img src="{{ panel.stimulus_question.stimulus_image.url }}" alt="Question stimulus" class="max-h-80 w-full rounded-lg border border-slate-700 object-contain">
+                          {% endif %}
+                          {% if panel.stimulus_question.stimulus_video %}
+                            <video controls class="mt-2 max-h-80 w-full rounded-lg border border-slate-700 bg-black"><source src="{{ panel.stimulus_question.stimulus_video.url }}"></video>
+                          {% endif %}
+                        </div>
+                      {% endif %}
+                    </div>
+
+                    {% if panel.is_theory_page and theory_response_mode == "PAPER" %}
+                      <div class="mt-3 rounded-2xl border border-amber-400/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+                        <p class="font-semibold">Theory Section (Paper Response)</p>
+                        <p class="mt-1">Write your answer on your answer booklet, then continue and submit this CBT.</p>
+                      </div>
+                    {% elif panel.question.question_type == "OBJECTIVE" %}
+                      <div class="mt-3 grid gap-2">
+                        {% for option in panel.option_entries %}
+                          <label class="cursor-pointer rounded-xl border border-slate-700 bg-slate-800/60 px-3 py-2.5 hover:border-cyan-400/60">
+                            <span class="flex items-start gap-3">
+                              <input type="radio" name="selected_options" value="{{ option.id }}" class="mt-1 h-4 w-4 text-cyan-400" {% if option.selected %}checked{% endif %}>
+                              <span class="text-sm text-slate-100"><span class="font-semibold text-cyan-200">{{ option.label }}.</span> {{ option.text }}</span>
+                            </span>
+                          </label>
+                        {% endfor %}
+                      </div>
+                    {% elif panel.question.question_type == "MULTI_SELECT" %}
+                      <div class="mt-3 grid gap-2">
+                        {% for option in panel.option_entries %}
+                          <label class="cursor-pointer rounded-xl border border-slate-700 bg-slate-800/60 px-3 py-2.5 hover:border-cyan-400/60">
+                            <span class="flex items-start gap-3">
+                              <input type="checkbox" name="selected_options" value="{{ option.id }}" class="mt-1 h-4 w-4 text-cyan-400" {% if option.selected %}checked{% endif %}>
+                              <span class="text-sm text-slate-100"><span class="font-semibold text-cyan-200">{{ option.label }}.</span> {{ option.text }}</span>
+                            </span>
+                          </label>
+                        {% endfor %}
+                      </div>
+                    {% else %}
+                      <div class="mt-3">
+                        <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Answer</label>
+                        <textarea name="response_text" rows="7" class="w-full rounded-2xl border border-slate-600 bg-slate-950 px-3 py-3 text-sm text-white focus:border-cyan-400/70 focus:outline-none">{{ panel.answer.response_text|default_if_none:"" }}</textarea>
+                      </div>
+                    {% endif %}
+                  </form>
+                {% endfor %}
+              </div>
+
+              <div class="rounded-3xl border border-slate-700 bg-slate-900 p-3">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <div class="flex flex-wrap gap-1.5">
+                    <button type="button" id="prevBtn" class="ndga-btn ndga-btn-secondary !px-3 !py-1.5 !text-xs" {% if active_index <= 1 %}disabled{% endif %}>Prev</button>
+                    <button type="button" id="nextBtn" class="ndga-btn ndga-btn-secondary !px-3 !py-1.5 !text-xs" {% if active_index >= question_count %}disabled{% endif %}>Next</button>
+                    <button type="button" id="reviewBtn" class="ndga-btn ndga-btn-secondary !px-3 !py-1.5 !text-xs">Review</button>
+                    <button type="button" id="moveTheoryBtn" class="ndga-btn !bg-indigo-600 !px-3 !py-1.5 !text-xs !text-white hover:!bg-indigo-700 {% if not is_last_objective_page or theory_count <= 0 or theory_stage_unlocked %}hidden{% endif %}">Move To Theory</button>
+                  </div>
+                  <button type="button" id="submitBtn" class="ndga-btn !bg-emerald-600 !px-3 !py-1.5 !text-xs !text-white hover:!bg-emerald-700">Submit</button>
+                </div>
+              </div>
+            {% else %}
+              <article class="rounded-3xl border border-slate-700 bg-slate-900 p-5">
+                <h2 class="text-lg font-semibold text-white">Simulation Practical Session</h2>
+                <p class="mt-2 text-sm text-slate-300">This attempt contains simulation practical tasks only.</p>
+                <form id="simulationSubmitForm" method="post" class="mt-4">
+                  {% csrf_token %}
+                  <input type="hidden" name="q" value="1">
+                  <input type="hidden" name="action" value="submit">
+                  <button type="button" id="submitBtn" class="ndga-btn !bg-emerald-600 !text-white hover:!bg-emerald-700">Submit Practical Attempt</button>
+                </form>
+              </article>
+            {% endif %}
+          </div>
+
+          <aside class="space-y-3">
+            {% if has_question_flow %}
+              <article class="rounded-3xl border border-slate-700 bg-slate-900 p-3">
+                <h3 class="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200">Question Navigator</h3>
+                <div class="mt-2 grid grid-cols-5 gap-1.5 sm:grid-cols-6">
+                  {% for item in navigator %}
+                    <a
+                      href="?q={{ item.index }}"
+                      data-jump-index="{{ item.index }}"
+                      class="js-nav-item flex h-8 items-center justify-center rounded-lg border text-[11px] font-semibold {% if item.is_active %}border-cyan-400 bg-cyan-500/20 text-cyan-100{% elif item.answered %}border-emerald-500/70 bg-emerald-500/15 text-emerald-200{% elif item.flagged %}border-amber-500/70 bg-amber-500/15 text-amber-200{% else %}border-slate-600 bg-slate-800 text-slate-300{% endif %}"
+                    >{{ item.index }}</a>
+                  {% endfor %}
+                </div>
+              </article>
+              <article class="rounded-3xl border border-slate-700 bg-slate-900 p-3">
+                <div class="flex items-center justify-between gap-2">
+                  <h3 class="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200">Camera Monitor</h3>
+                  <span id="cameraLiveBadge" class="rounded-full border border-amber-500/60 bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-200">Waiting</span>
+                </div>
+                <video id="cameraPreviewLive" class="mt-2 h-40 w-full rounded-2xl border border-slate-700 bg-black object-cover" autoplay muted playsinline></video>
+              </article>
+            {% endif %}
+          </aside>
+        </div>
+      </article>
+    </div>
+
+    <div id="reviewModal" class="fixed inset-0 z-[85] hidden"><div class="absolute inset-0 bg-slate-950/60"></div><div class="relative mx-auto mt-16 w-[94%] max-w-2xl rounded-3xl border border-slate-700 bg-slate-900 p-5 text-slate-100 shadow-2xl"><h2 class="text-lg font-semibold text-white">Attempt Review</h2><p class="mt-1 text-sm text-slate-300">Jump to unanswered/flagged questions before final submission.</p><div class="mt-4 grid grid-cols-4 gap-2 sm:grid-cols-6">{% for item in navigator %}<a href="?q={{ item.index }}" data-jump-index="{{ item.index }}" class="js-nav-item flex h-9 items-center justify-center rounded-xl border text-xs font-semibold {% if item.answered %}border-emerald-500/70 bg-emerald-500/15 text-emerald-200{% elif item.flagged %}border-amber-500/70 bg-amber-500/15 text-amber-200{% else %}border-slate-600 bg-slate-800 text-slate-300{% endif %}">{{ item.index }}</a>{% endfor %}</div><div class="mt-5 flex justify-end gap-2"><button type="button" id="closeReviewBtn" class="ndga-btn ndga-btn-secondary">Close</button></div></div></div>
+    <div id="theoryConfirmModal" class="fixed inset-0 z-[86] hidden"><div class="absolute inset-0 bg-slate-950/65"></div><div class="relative mx-auto mt-28 w-[92%] max-w-md rounded-3xl border border-slate-700 bg-slate-900 p-5 text-slate-100 shadow-2xl"><h2 class="text-lg font-semibold text-white">Move To Theory?</h2><p class="mt-2 text-sm text-slate-300">Are you done with objective questions? If yes, move to theory. If no, continue review.</p><div class="mt-5 flex justify-end gap-2"><button type="button" id="cancelTheoryMoveBtn" class="ndga-btn ndga-btn-secondary">No</button><button type="button" id="confirmTheoryMoveBtn" class="ndga-btn !bg-indigo-600 !text-white hover:!bg-indigo-700">Yes</button></div></div></div>
+    <div id="submitModal" class="fixed inset-0 z-[87] hidden"><div class="absolute inset-0 bg-slate-950/65"></div><div class="relative mx-auto mt-28 w-[92%] max-w-md rounded-3xl border border-slate-700 bg-slate-900 p-5 text-slate-100 shadow-2xl"><h2 class="text-lg font-semibold text-white">Submit Attempt?</h2><p class="mt-2 text-sm text-slate-300">Once submitted, this attempt is final except IT Manager override policy.</p><div class="mt-5 flex justify-end gap-2"><button type="button" id="cancelSubmitBtn" class="ndga-btn ndga-btn-secondary">Cancel</button><button type="button" id="confirmSubmitBtn" class="ndga-btn !bg-emerald-600 !text-white hover:!bg-emerald-700">Submit Now</button></div></div></div>
+    <p id="autosaveNote" class="mt-2 text-center text-xs font-semibold text-slate-300"></p>
+  </section>
+
+  <script>
+    (function () {
+      const root = document.getElementById("cbtAttemptApp");
+      if (!root) return;
+
+      const lockOn = root.dataset.lockdownEnabled === "1";
+      const hbUrl = root.dataset.heartbeatUrl;
+      const vUrl = root.dataset.violationUrl;
+      const resultUrl = root.dataset.resultUrl;
+      const hbSeconds = Math.max(parseInt(root.dataset.heartbeatSeconds || "12", 10), 5);
+      const idleSeconds = Math.max(parseInt(root.dataset.inactivitySeconds || "45", 10), 15);
+
+      const questionCount = Math.max(parseInt(root.dataset.questionCount || "0", 10), 0);
+      const objectiveCount = Math.max(parseInt(root.dataset.objectiveCount || "0", 10), 0);
+      const theoryCount = Math.max(parseInt(root.dataset.theoryCount || "0", 10), 0);
+      let theoryUnlocked = root.dataset.theoryStageUnlocked === "1";
+      let activeIndex = Math.max(parseInt(root.dataset.activeIndex || "1", 10), 1);
+
+      const gate = document.getElementById("cbtGate");
+      const runWrap = document.getElementById("cbtRunWrap");
+      const beginBtn = document.getElementById("cbtBeginBtn");
+      const gateErr = document.getElementById("cbtGateError");
+      const timerNode = document.getElementById("timerPill");
+      const autosaveNote = document.getElementById("autosaveNote");
+      const cameraPreviewGate = document.getElementById("cameraPreviewGate");
+      const cameraPreviewLive = document.getElementById("cameraPreviewLive");
+      const cameraStatusText = document.getElementById("cameraStatusText");
+      const cameraLiveBadge = document.getElementById("cameraLiveBadge");
+
+      const deck = document.getElementById("questionDeck");
+      const questionPanels = deck ? Array.from(deck.querySelectorAll(".attempt-question-panel")) : [];
+      const hasQuestionFlow = questionPanels.length > 0;
+
+      const prevBtn = document.getElementById("prevBtn");
+      const nextBtn = document.getElementById("nextBtn");
+      const reviewBtn = document.getElementById("reviewBtn");
+      const closeReviewBtn = document.getElementById("closeReviewBtn");
+      const reviewModal = document.getElementById("reviewModal");
+      const submitBtn = document.getElementById("submitBtn");
+      const submitModal = document.getElementById("submitModal");
+      const moveTheoryBtn = document.getElementById("moveTheoryBtn");
+      const theoryModal = document.getElementById("theoryConfirmModal");
+      const cancelTheoryMoveBtn = document.getElementById("cancelTheoryMoveBtn");
+      const confirmTheoryMoveBtn = document.getElementById("confirmTheoryMoveBtn");
+      const cancelSubmitBtn = document.getElementById("cancelSubmitBtn");
+      const confirmSubmitBtn = document.getElementById("confirmSubmitBtn");
+      const practicalSubmitForm = document.getElementById("simulationSubmitForm");
+      const fallbackCsrfToken = document.querySelector("input[name='csrfmiddlewaretoken']")?.value || "";
+
+      const attemptKey = root.dataset.attemptId || "0";
+      const tokenKey = "ndga_cbt_tab_token_" + attemptKey;
+      const startedKey = "ndga_cbt_started_" + attemptKey;
+      let token = sessionStorage.getItem(tokenKey);
+      if (!token) {
+        token = Date.now() + "-" + Math.random().toString(36).slice(2);
+        sessionStorage.setItem(tokenKey, token);
+      }
+
+      let started = false;
+      let violationSent = false;
+      let autosaveBusy = false;
+      let cameraStream = null;
+      let fullscreenRecoveryBusy = false;
+      let lastActivity = Date.now();
+      let seconds = parseInt("{{ remaining_seconds|default:0 }}", 10) || 0;
+      let suppressViolation = false;
+      let startedAt = 0;
+      let timeoutSubmitTriggered = false;
+      let isSubmitting = false;
+
+      function hhmmss(value) {
+        const total = Math.max(value, 0);
+        const hours = Math.floor(total / 3600);
+        const minutes = Math.floor((total % 3600) / 60);
+        const secs = total % 60;
+        return String(hours).padStart(2, "0") + ":" + String(minutes).padStart(2, "0") + ":" + String(secs).padStart(2, "0");
+      }
+
+      function paintTimer() {
+        if (timerNode) {
+          timerNode.textContent = hhmmss(seconds);
+        }
+      }
+
+      function setAutoMessage(message, ok) {
+        if (!autosaveNote) return;
+        autosaveNote.textContent = message || "";
+        autosaveNote.className = "mt-2 text-center text-xs font-semibold " + (ok ? "text-emerald-200" : "text-rose-300");
+      }
+
+      function postJson(url, payload, csrfToken) {
+        return fetch(url, {
+          method: "POST",
+          headers: {
+            "X-Requested-With": "XMLHttpRequest",
+            "X-CSRFToken": csrfToken || "",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload || {}),
+        });
+      }
+
+      function clampIndex(index) {
+        const maxValue = Math.max(questionCount, 1);
+        return Math.max(1, Math.min(index, maxValue));
+      }
+
+      function getPanelByIndex(index) {
+        const target = clampIndex(index);
+        return questionPanels.find((row) => parseInt(row.dataset.index || "0", 10) === target) || null;
+      }
+
+      function getActivePanel() {
+        return getPanelByIndex(activeIndex);
+      }
+
+      function getCsrfToken(formNode) {
+        return formNode?.querySelector("input[name='csrfmiddlewaretoken']")?.value || fallbackCsrfToken;
+      }
+
+      function updateNavHighlights() {
+        document.querySelectorAll(".js-nav-item").forEach((node) => {
+          const index = parseInt(node.getAttribute("data-jump-index") || "0", 10);
+          const active = index === activeIndex;
+          node.classList.toggle("ring-2", active);
+          node.classList.toggle("ring-cyan-300", active);
+        });
+      }
+
+      function updateControlState() {
+        if (prevBtn) prevBtn.disabled = activeIndex <= 1;
+        if (nextBtn) nextBtn.disabled = activeIndex >= questionCount;
+        if (moveTheoryBtn) {
+          const showMoveTheory = objectiveCount > 0 && theoryCount > 0 && !theoryUnlocked && activeIndex === objectiveCount;
+          moveTheoryBtn.classList.toggle("hidden", !showMoveTheory);
+        }
+      }
+
+      function showQuestion(index) {
+        if (!hasQuestionFlow) return;
+        activeIndex = clampIndex(index);
+        questionPanels.forEach((panel) => {
+          const panelIndex = parseInt(panel.dataset.index || "0", 10);
+          panel.classList.toggle("hidden", panelIndex !== activeIndex);
+        });
+        updateNavHighlights();
+        updateControlState();
+      }
+
+      function buildFormData(action, extraData) {
+        const panel = getActivePanel();
+        if (!panel) return null;
+        const payload = new FormData(panel);
+        payload.set("q", String(activeIndex));
+        payload.set("action", action);
+        if (extraData) {
+          Object.keys(extraData).forEach((key) => {
+            payload.set(key, String(extraData[key]));
+          });
+        }
+        return payload;
+      }
+
+      async function ajaxAction(action, extraData) {
+        const panel = getActivePanel();
+        const payload = buildFormData(action, extraData);
+        if (!panel || !payload) {
+          return { ok: false, error: "No active question." };
+        }
+        const csrfToken = getCsrfToken(panel);
+        try {
+          const response = await fetch(window.location.pathname + "?q=" + activeIndex, {
+            method: "POST",
+            headers: {
+              "X-Requested-With": "XMLHttpRequest",
+              "X-CSRFToken": csrfToken,
+            },
+            body: payload,
+          });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok && !data.ok) {
+            return { ok: false, error: data.error || "Request failed." };
+          }
+          return data;
+        } catch (_error) {
+          return { ok: false, error: "Network error while saving." };
+        }
+      }
+
+      function isPanelAnswered(panel) {
+        if (!panel) return false;
+        const checkedOptions = panel.querySelectorAll("input[name='selected_options']:checked");
+        if (checkedOptions.length > 0) return true;
+        const textValue = (panel.querySelector("textarea[name='response_text']")?.value || "").trim();
+        return textValue.length > 0;
+      }
+
+      function markPanelAnswered(index, answered) {
+        if (!answered) return;
+        document.querySelectorAll(".js-nav-item").forEach((node) => {
+          const nodeIndex = parseInt(node.getAttribute("data-jump-index") || "0", 10);
+          if (nodeIndex !== index) return;
+          node.classList.remove("border-slate-600", "bg-slate-800", "text-slate-300", "border-amber-500/70", "bg-amber-500/15", "text-amber-200");
+          node.classList.add("border-emerald-500/70", "bg-emerald-500/15", "text-emerald-200");
+        });
+      }
+
+      async function handleQuestionAction(action, extraData, options) {
+        if (!hasQuestionFlow || !started || violationSent || isSubmitting) return;
+        const settings = options || {};
+        const currentPanel = getActivePanel();
+        const currentAnswered = isPanelAnswered(currentPanel);
+        const response = await ajaxAction(action, extraData);
+        if (!response.ok) {
+          setAutoMessage(response.error || "Unable to save.", false);
+          return;
+        }
+        markPanelAnswered(activeIndex, currentAnswered);
+        if (response.submitted) {
+          isSubmitting = true;
+          suppressViolation = true;
+          sessionStorage.removeItem(startedKey);
+          window.location.href = response.redirect_url || resultUrl;
+          return;
+        }
+        if (action === "move_to_theory") {
+          theoryUnlocked = true;
+        }
+        if (response.next_index) {
+          showQuestion(parseInt(response.next_index, 10) || activeIndex);
+        }
+        if (settings.closeReview && reviewModal) {
+          reviewModal.classList.add("hidden");
+        }
+        setAutoMessage("Saved", true);
+        window.setTimeout(function () {
+          setAutoMessage("", true);
+        }, 1000);
+      }
+
+      async function autosaveCurrentQuestion() {
+        if (!hasQuestionFlow || !started || violationSent || autosaveBusy || isSubmitting) return;
+        autosaveBusy = true;
+        const response = await ajaxAction("save_stay", null);
+        if (!response.ok) {
+          setAutoMessage(response.error || "Autosave failed", false);
+        } else {
+          markPanelAnswered(activeIndex, isPanelAnswered(getActivePanel()));
+          setAutoMessage("Autosaved", true);
+          window.setTimeout(function () {
+            setAutoMessage("", true);
+          }, 900);
+        }
+        autosaveBusy = false;
+      }
+
+      async function restoreFullscreen() {
+        if (!lockOn || document.fullscreenElement) return true;
+        try {
+          await document.documentElement.requestFullscreen({ navigationUI: "hide" });
+        } catch (_error1) {
+          try {
+            await document.documentElement.requestFullscreen();
+          } catch (_error2) {
+            return !!document.fullscreenElement;
+          }
+        }
+        return !!document.fullscreenElement;
+      }
+
+      function setCameraBadge(state, label) {
+        if (cameraStatusText) cameraStatusText.textContent = label;
+        if (!cameraLiveBadge) return;
+        cameraLiveBadge.textContent = label;
+        cameraLiveBadge.className = "rounded-full border px-2 py-0.5 text-[11px] font-semibold ";
+        if (state === "live") {
+          cameraLiveBadge.className += "border-emerald-500/60 bg-emerald-500/15 text-emerald-200";
+        } else if (state === "error") {
+          cameraLiveBadge.className += "border-rose-500/60 bg-rose-500/15 text-rose-200";
+        } else {
+          cameraLiveBadge.className += "border-amber-500/60 bg-amber-500/15 text-amber-200";
+        }
+      }
+
+      function bindCameraPreview(stream) {
+        [cameraPreviewGate, cameraPreviewLive].forEach(function (node) {
+          if (!node) return;
+          node.srcObject = stream;
+        });
+      }
+
+      async function ensureCamera() {
+        if (!lockOn) return true;
+        if (cameraStream && cameraStream.getVideoTracks().some((track) => track.readyState === "live")) {
+          bindCameraPreview(cameraStream);
+          setCameraBadge("live", "Camera Live");
+          return true;
+        }
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          setCameraBadge("error", "Camera not supported");
+          return false;
+        }
+        try {
+          cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
+          bindCameraPreview(cameraStream);
+          const tracks = cameraStream.getVideoTracks();
+          tracks.forEach(function (track) {
+            track.onended = function () {
+              setCameraBadge("error", "Camera Blocked");
+              if (started) {
+                violation("CAMERA_BLOCKED", { reason: "track_ended" });
+              }
+            };
+          });
+          setCameraBadge("live", "Camera Live");
+          return true;
+        } catch (_error) {
+          setCameraBadge("error", "Camera permission denied");
+          return false;
+        }
+      }
+
+      function violation(eventType, details, csrfToken) {
+        if (!lockOn || violationSent || suppressViolation) return;
+        if (startedAt && Date.now() - startedAt < 1200) return;
+        violationSent = true;
+        sessionStorage.removeItem(startedKey);
+        postJson(
+          vUrl,
+          {
+            event_type: eventType,
+            details: details || {},
+            tab_token: token,
+          },
+          csrfToken || getCsrfToken(getActivePanel())
+        )
+          .then((row) => row.json().catch(() => ({})))
+          .then((data) => {
+            window.location.href = (data && data.redirect_url) ? data.redirect_url : resultUrl;
+          })
+          .catch(function () {
+            window.location.href = resultUrl;
+          });
+      }
+
+      async function handleFullscreenDrop(source) {
+        if (!started || !lockOn || suppressViolation || violationSent || isSubmitting) return;
+        if (fullscreenRecoveryBusy) return;
+        fullscreenRecoveryBusy = true;
+        const recovered = await restoreFullscreen();
+        fullscreenRecoveryBusy = false;
+        if (!recovered) {
+          violation("FULLSCREEN_EXIT", { source: source || "fullscreenchange" });
+        }
+      }
+
+      function heartbeat() {
+        if (!started || !lockOn || violationSent || isSubmitting) return;
+        const csrfToken = getCsrfToken(getActivePanel());
+        postJson(
+          hbUrl,
+          {
+            tab_token: token,
+            q: activeIndex,
+            visible: document.visibilityState === "visible",
+            fullscreen: !!document.fullscreenElement,
+            ts: Date.now(),
+          },
+          csrfToken
+        )
+          .then((response) => response.json().catch(() => ({})))
+          .then((data) => {
+            if (data && data.locked) {
+              window.location.href = data.redirect_url || resultUrl;
+            }
+          })
+          .catch(function () {
+            return null;
+          });
+      }
+      function startRunUi() {
+        started = true;
+        startedAt = Date.now();
+        sessionStorage.setItem(startedKey, "1");
+        if (gate) gate.classList.add("hidden");
+        if (runWrap) runWrap.classList.remove("hidden");
+        showQuestion(activeIndex);
+        paintTimer();
+        heartbeat();
+      }
+
+      async function beginRun() {
+        if (!lockOn) {
+          startRunUi();
+          return;
+        }
+        const ok = await restoreFullscreen();
+        if (!ok) {
+          if (gateErr) gateErr.textContent = "Fullscreen is required for secure CBT.";
+          return;
+        }
+        const cameraOk = await ensureCamera();
+        if (!cameraOk) {
+          if (gateErr) gateErr.textContent = "Camera access is required for secure CBT.";
+          return;
+        }
+        startRunUi();
+      }
+
+      async function submitAttempt(forceSubmit) {
+        if (isSubmitting || violationSent) return;
+        if (hasQuestionFlow) {
+          const payload = forceSubmit ? { force_submit: 1 } : null;
+          await handleQuestionAction("submit", payload);
+          return;
+        }
+        if (practicalSubmitForm) {
+          suppressViolation = true;
+          isSubmitting = true;
+          sessionStorage.removeItem(startedKey);
+          practicalSubmitForm.submit();
+        }
+      }
+
+      if (beginBtn) {
+        beginBtn.addEventListener("click", beginRun);
+      }
+
+      if (prevBtn) {
+        prevBtn.addEventListener("click", function () {
+          handleQuestionAction("save_prev");
+        });
+      }
+
+      if (nextBtn) {
+        nextBtn.addEventListener("click", function () {
+          handleQuestionAction("save_next");
+        });
+      }
+
+      if (reviewBtn && reviewModal) {
+        reviewBtn.addEventListener("click", function () {
+          reviewModal.classList.remove("hidden");
+        });
+      }
+
+      if (closeReviewBtn && reviewModal) {
+        closeReviewBtn.addEventListener("click", function () {
+          reviewModal.classList.add("hidden");
+        });
+      }
+
+      if (moveTheoryBtn && theoryModal) {
+        moveTheoryBtn.addEventListener("click", function () {
+          theoryModal.classList.remove("hidden");
+        });
+      }
+
+      if (cancelTheoryMoveBtn && theoryModal) {
+        cancelTheoryMoveBtn.addEventListener("click", function () {
+          theoryModal.classList.add("hidden");
+        });
+      }
+
+      if (confirmTheoryMoveBtn && theoryModal) {
+        confirmTheoryMoveBtn.addEventListener("click", function () {
+          theoryModal.classList.add("hidden");
+          handleQuestionAction("move_to_theory");
+        });
+      }
+
+      if (submitBtn && submitModal) {
+        submitBtn.addEventListener("click", function () {
+          submitModal.classList.remove("hidden");
+        });
+      }
+
+      if (cancelSubmitBtn && submitModal) {
+        cancelSubmitBtn.addEventListener("click", function () {
+          submitModal.classList.add("hidden");
+        });
+      }
+
+      if (confirmSubmitBtn && submitModal) {
+        confirmSubmitBtn.addEventListener("click", function () {
+          submitModal.classList.add("hidden");
+          submitAttempt(false);
+        });
+      }
+
+      questionPanels.forEach((panel) => {
+        panel.addEventListener("submit", function (event) {
+          event.preventDefault();
+        });
+        const flagBtn = panel.querySelector(".flag-toggle-btn");
+        const flaggedInput = panel.querySelector(".flagged-input");
+        if (!flagBtn || !flaggedInput) return;
+        flagBtn.addEventListener("click", function () {
+          flaggedInput.value = flaggedInput.value === "1" ? "0" : "1";
+          flagBtn.textContent = flaggedInput.value === "1" ? "Unflag" : "Flag";
+          autosaveCurrentQuestion();
+        });
+      });
+
+      document.querySelectorAll("[data-jump-index]").forEach((node) => {
+        node.addEventListener("click", function (event) {
+          event.preventDefault();
+          if (!hasQuestionFlow) return;
+          const jumpTo = parseInt(node.getAttribute("data-jump-index") || "0", 10);
+          if (!jumpTo) return;
+          if (objectiveCount > 0 && theoryCount > 0 && !theoryUnlocked && jumpTo > objectiveCount) {
+            return;
+          }
+          handleQuestionAction("jump", { jump_to: jumpTo }, { closeReview: true });
+        });
+      });
+
+      ["click", "keydown", "mousemove", "input"].forEach((eventName) => {
+        document.addEventListener(
+          eventName,
+          function () {
+            lastActivity = Date.now();
+          },
+          true
+        );
+      });
+
+      document.addEventListener("copy", function () {
+        violation("COPY_ATTEMPT", { reason: "copy" });
+      });
+      document.addEventListener("paste", function () {
+        violation("PASTE_ATTEMPT", { reason: "paste" });
+      });
+      document.addEventListener("cut", function () {
+        violation("COPY_ATTEMPT", { reason: "cut" });
+      });
+
+      document.addEventListener("visibilitychange", function () {
+        if (started && document.visibilityState !== "visible") {
+          violation("TAB_SWITCH", { visibility: document.visibilityState });
+        }
+      });
+
+      document.addEventListener("fullscreenchange", function () {
+        if (started && lockOn && !document.fullscreenElement) {
+          handleFullscreenDrop("fullscreenchange");
+        }
+      });
+
+      document.addEventListener("keydown", function (event) {
+        if (started && lockOn && event.key === "Escape") {
+          event.preventDefault();
+          event.stopPropagation();
+          handleFullscreenDrop("escape_key");
+        }
+      });
+
+      window.addEventListener("beforeunload", function () {
+        suppressViolation = true;
+        if (cameraStream) {
+          cameraStream.getTracks().forEach(function (track) { track.stop(); });
+        }
+      });
+
+      window.setInterval(function () {
+        if (!started || violationSent || isSubmitting) return;
+        const idle = Math.floor((Date.now() - lastActivity) / 1000);
+        if (idle >= idleSeconds) {
+          violation("INACTIVITY_TIMEOUT", { idle_seconds: idle });
+        }
+        const liveTrack = cameraStream && cameraStream.getVideoTracks().find((track) => track.readyState === "live");
+        if (lockOn && !liveTrack) {
+          setCameraBadge("error", "Camera Blocked");
+          violation("CAMERA_BLOCKED", { reason: "no_live_track" });
+        }
+      }, 5000);
+
+      window.setInterval(function () {
+        if (!started || violationSent || isSubmitting) return;
+        seconds = Math.max(0, seconds - 1);
+        paintTimer();
+        if (seconds <= 0 && !timeoutSubmitTriggered) {
+          timeoutSubmitTriggered = true;
+          submitAttempt(true);
+        }
+      }, 1000);
+
+      window.setInterval(heartbeat, hbSeconds * 1000);
+      window.setInterval(autosaveCurrentQuestion, 16000);
+
+      showQuestion(activeIndex);
+      paintTimer();
+    })();
+  </script>
+{% endblock %}
