@@ -1,0 +1,193 @@
+S/N — Student Name — Admission No — Class
+If admission number is missing → NIL
+
+NOTRE DAME GIRLS’ ACADEMY – MASTER STUDENT REGISTER
+JS1 GOLD
+
+1 — Alozie Chiziterem Christine — NDGAK/25/381 — JS1 GOLD
+2 — Anuebunwa Imelda Kosisochukwu — NDGAK/25/375 — JS1 GOLD
+3 — Aondoakaa Sophia Kpamkwase — NDGAK/25/400 — JS1 GOLD
+4 — Emelogu Perpetual Amarachi — NDGAK/25/372 — JS1 GOLD
+5 — Ezeani Chiamaka Divine — NDGAK/25/395 — JS1 GOLD
+6 — Geraga Emmanuella Sechivir — NDGAK/25/370 — JS1 GOLD
+7 — Kenechukwu Emmanuella Oluchukwu — NDGAK/25/379 — JS1 GOLD
+8 — Lebile Greatfavour Oluwaseun — NDGAK/25/402 — JS1 GOLD
+9 — Mathias Noella Shekwokuzhigami — NDGAK/25/398 — JS1 GOLD
+10 — Nwokedike Roseria Omasirichi — NDGAK/25/382 — JS1 GOLD
+11 — Ochenehi Cheryl Somtochukwu — NDGAK/25/399 — JS1 GOLD
+12 — Offor Ariane Mesomachi — NDGAK/25/376 — JS1 GOLD
+13 — Okechukwu Cherish Chizaram — NDGAK/25/397 — JS1 GOLD
+14 — Onoh Chimbusomma Jasmine — NDGAK/25/385 — JS1 GOLD
+15 — Ukaigwe Lucy Chimamanda — NDGAK/25/371 — JS1 GOLD
+16 — Umeh Emmanuella Chikayinma — NDGAK/25/401 — JS1 GOLD
+17 — Umejiaku Ifeadigo — NDGAK/25/394 — JS1 GOLD
+
+JS1 BLUE
+
+18 — Adonike Chimuanya Favour — NDGAK/25/396 — JS1 BLUE
+19 — Akaeme Victory Chimamanda — NDGAK/25/377 — JS1 BLUE
+20 — Chibuzo Awesome Iluomachi — NDGAK/25/387 — JS1 BLUE
+21 — Ejikeme Kaima Alexis — NDGAK/25/393 — JS1 BLUE
+22 — Ekwueme Treasure Uchechukwu — NDGAK/25/383 — JS1 BLUE
+23 — Eneh Chikamso Jennifer — NDGAK/25/369 — JS1 BLUE
+24 — Ezea Amuchechukwu Mirabel — NDGAK/25/391 — JS1 BLUE
+25 — Frank Favour Amarachi — NDGAK/25/390 — JS1 BLUE
+26 — Imokhai Annabelle Omokhefue — NDGAK/25/388 — JS1 BLUE
+27 — Jebe Blessing Iveren — NDGAK/25/389 — JS1 BLUE
+28 — Madu Ebubechukwu Francisca — NDGAK/25/373 — JS1 BLUE
+29 — Nnadi Ezinne Rita — NDGAK/25/384 — JS1 BLUE
+30 — Odonwodo Emmanuella Chinemelum — NDGAK/25/378 — JS1 BLUE
+31 — Okeke Ndochukwu Perpetual — NDGAK/25/392 — JS1 BLUE
+32 — Onuoha Henry Chimbusomma Joan — NDGAK/25/418 — JS1 BLUE
+33 — Ugeh Ifeoma Gift — NDGAK/25/419 — JS1 BLUE
+34 — Ume-Ezeoke Esther Chiamaka — NDGAK/25/386 — JS1 BLUE
+35 — Wilfred Inere Stephen — NDGAK/25/380 — JS1 BLUE
+
+JS2 GOLD
+
+36 — Achirga Theresa Nguemo — NDGAK/24/317 — JS2 GOLD
+37 — Akpabio Natasha Edidiong — NDGAK/24/314 — JS2 GOLD
+38 — Chika Onyinyechi Peculiar — NDGAK/25/422 — JS2 GOLD
+39 — Nwoye Chiamaka Maryann — NDGAK/24/312 — JS2 GOLD
+40 — Oche Eboh Joy — NDGAK/24/304 — JS2 GOLD
+41 — Onunkwo Glitter Olaedo — NDGAK/24/308 — JS2 GOLD
+42 — Paul Valerie Awele — NDGAK/24/303 — JS2 GOLD
+43 — Unachukwu Esther Chidimma — NDGAK/24/302 — JS2 GOLD
+44 — Ogbuke Kamsiyochukwu Frances — NDGAK/24/363 — JS2 GOLD
+45 — Obia Amblessed Kamsiyochukwu — NDGAK/25/403 — JS2 GOLD
+46 — Ogbonna Chikamso Vicmario — NDGAK/25/404 — JS2 GOLD
+
+JS2 BLUE
+
+47 — Achonwa Michelle Chizurum — NDGAK/24/311 — JS2 BLUE
+48 — Asogwu Chimamanda Renata — NDGAK/24/313 — JS2 BLUE
+49 — Ikechukwu Faith Onyinye — NDGAK/24/319 — JS2 BLUE
+50 — Iwegbunam Chikaima Christabel — NDGAK/24/310 — JS2 BLUE
+51 — Ndupu Chikamso Mary — NDGAK/24/307 — JS2 BLUE
+52 — Nwerem Faustina Ifunanya — NDGAK/24/299 — JS2 BLUE
+53 — Ogbodo Jovita Chikamso — NDGAK/24/300 — JS2 BLUE
+54 — Onyemelukwe Princess Kamsi Sofia — NDGAK/24/306 — JS2 BLUE
+55 — Orisakwe Joan Chinaza — NDGAK/24/301 — JS2 BLUE
+56 — Unimke-Ateb Nathalie — NDGAK/24/322 — JS2 BLUE
+57 — Umeh Chimamanda Jessica — NDGAK/24/327 — JS2 BLUE
+
+JS3 GOLD
+
+58 — Ezeonyido Ifechukwu Maryann — NDGAK/23/262 — JS3 GOLD
+59 — Nwigbo Gabriella Akachukwu — NDGAK/23/266 — JS3 GOLD
+60 — Orji Praise Chimezuru — NDGAK/23/269 — JS3 GOLD
+61 — Oko Audrey Ochanya — NDGAK/24/364 — JS3 GOLD
+62 — Sunny-Ogbu Joan Onyaole — NDGAK/24/332 — JS3 GOLD
+63 — Umeh Chidimma Jennifer — NDGAK/24/326 — JS3 GOLD
+64 — Onyeaka Ifeoma Ngozika — NDGAK/24/338 — JS3 GOLD
+
+JS3 BLUE
+
+65 — Ani Alice Chidindu Lotti — NDGAK/23/260 — JS3 BLUE
+66 — Egwuenu Michelle Chimelumonwor — NDGAK/23/268 — JS3 BLUE
+67 — Agber Vivian Sechiviter — NDGAK/24/323 — JS3 BLUE
+68 — Nsofor Adaeze Beulah — NDGAK/23/261 — JS3 BLUE
+69 — Nwankwo Christabel Chizara — NDGAK/23/270 — JS3 BLUE
+70 — Onyele Chidiogo Emmanuella — NDGAK/23/263 — JS3 BLUE
+71 — Osagie Philothea Efua Ose — NDGAK/23/273 — JS3 BLUE
+72 — Chux-Onyekwere Lotanna Laura — NDGAK/24/328 — JS3 BLUE
+73 — Ugwu Somtochukwu Nicole — NDGAK/24/331 — JS3 BLUE
+
+SS1 GOLD
+
+74 — Ademola Iyanuoluwa Precious — NDGAK/23/282 — SS1 GOLD
+75 — Alozie Chioma Catherine — NDGAK/25/412 — SS1 GOLD
+76 — Bem-Unokyur Angela Doose — NDGAK/22/221 — SS1 GOLD
+77 — Ezea Onyinyechi Faustina — NDGAK/22/243 — SS1 GOLD
+78 — Gundu Monique Mwuese — NDGAK/23/280 — SS1 GOLD
+79 — Oche Enuwa Ann — NDGAK/22/228 — SS1 GOLD
+80 — Ogaji Trump Oluwatoyin — NDGAK/22/253 — SS1 GOLD
+81 — Nwerem Judith Mmesoma — NDGAK/22/219 — SS1 GOLD
+82 — Okwoli Valerie Enyo-ojo — NDGAK/24/334 — SS1 GOLD
+83 — Omachonu MaryAnn — NIL — SS1 GOLD
+84 — Offor Kayla Chigozirim — NDGAK/22/247 — SS1 GOLD
+85 — Ogbonna Ifunanya Emmanuella — NDGAL/25/416 — SS1 GOLD
+86 — Anthony Annabel Kpenom — NDGAK/22/252 — SS1 GOLD
+87 — Chinemelu Naomi Chigosim — NDGAK/25/408 — SS1 GOLD
+88 — Ojiabo Anne Chidiebube — NDGAK/25/415 — SS1 GOLD
+89 — Okonkwo-Onah Mary-Blossom Chimamanda — NDGAK/25/405 — SS1 GOLD
+90 — Onyeneke Munachimso Audrey — NDGAK/25/414 — SS1 GOLD
+91 — Thomas Favour Oluwabukunmi — NDGAK/25/421 — SS1 GOLD
+
+SS1 BLUE
+
+92 — Adizue Mmesoma Mirabelle — NDGAK/22/242 — SS1 BLUE
+93 — Assiak Inyene-Abasi Itan — NDGAK/22/248 — SS1 BLUE
+94 — Agakwu Kayla Urungikwen — NDGAK/24/337 — SS1 BLUE
+95 — Bassey Annabel Sediong — NDGAK/22/250 — SS1 BLUE
+96 — Chika Ngozichukwu Purity — NDGAK/23/283 — SS1 BLUE
+97 — Onyeaka Onyinyechukwu Nnenna — NDGAK/24/339 — SS1 BLUE
+98 — Kusa Kamimiuter Benedicta — NDGAK/22/249 — SS1 BLUE
+99 — Okigbo Nicole Zienna — NDGAK/22/218 — SS1 BLUE
+100 — Onu Nneoma Irene — NDGAK/22/230 — SS1 BLUE
+101 — Nwigbo B’Claire Chimeremeze — NDGAK/22/225 — SS1 BLUE
+102 — Ashioba Favour Chukwunonso — NDGAK/25/407 — SS1 BLUE
+103 — Chukwuemeka Chinecherem Esther — NDGAK/25/410 — SS1 BLUE
+104 — Edo Eghonghon Emmanuella — NDGAK/25/409 — SS1 BLUE
+105 — Isa Favour Miriam — NDGAK/25/413 — SS1 BLUE
+106 — Lewis Edidiong Tiffany — NDGAK/25/406 — SS1 BLUE
+107 — Okafor Chimsimdiri Gift — NDGAK/25/411 — SS1 BLUE
+108 — Nwadike Zita Nmesoma — NDGAK/24/336 — SS1 BLUE
+
+SS2 GOLD
+
+109 — Achimugu Sharon-Queen Ojonugwa — NDGAK/22/238 — SS2 GOLD
+110 — Agashieze Chimdinma Esther — NDGAK/24/342 — SS2 GOLD
+111 — Atoo-Tion Nanenter Zita — NDGAK/21/201 — SS2 GOLD
+112 — Chukwuemeka Chimemerem Emmanuella — NDGAK/24/348 — SS2 GOLD
+113 — Chux-Onyekwere Kamsy Kimberly — NDGAK/24/350 — SS2 GOLD
+114 — Ekwefi Chisom MaryJane — NDGAK/24/353 — SS2 GOLD
+115 — Eneh Kamsiyochukwu Jessica — NDGAK/21/196 — SS2 GOLD
+116 — Eze Chifurumnanya Marygold — NDGAK/21/181 — SS2 GOLD
+117 — Geraga Anthonia Princess — NDGAK/21/199 — SS2 GOLD
+118 — Nwakanma Louisa-Pearl Chiamaka — NDGAK/23/294 — SS2 GOLD
+119 — Obekpa Ehi Divine — NDGAK/22/257 — SS2 GOLD
+
+SS2 BLUE
+
+120 — Chijuka Chukwufumnaya Elizabeth — NDGAK/21/200 — SS2 BLUE
+121 — Ejikeme Somma Bellanita — NDGAK/21/197 — SS2 BLUE
+122 — Eze Christabel Chimuanya — NDGAK/21/190 — SS2 BLUE
+123 — Okanandu Favour Nneoma — NDGAK/21/191 — SS2 BLUE
+124 — Owan Blossom Onyedema — NDGAK/21/202 — SS2 BLUE
+125 — George Onome Naomi — NDGAK/21/180 — SS2 BLUE
+126 — Ibe Oluchi Aldrianne — NDGAK/21/193 — SS2 BLUE
+127 — Onaga Ozioma Pamela — NDGAK/21/182 — SS2 BLUE
+128 — Ude Divine Amarachi — NDGAK/22/246 — SS2 BLUE
+129 — Agbogu Kosisochukwu Helen — NDGAK/24/352 — SS2 BLUE
+130 — Attah Sophie Enyoojo — NDGAK/24/356 — SS2 BLUE
+131 — Ekemezie Chinaza Christabel — NDGAK/24/349 — SS2 BLUE
+132 — Nwosu Glory Chibuzor — NDGAK/24/343 — SS2 BLUE
+133 — Ohiemi Ojone Catherine — NDGAK/24/357 — SS2 BLUE
+134 — Okoye Mmesoma Irene — NDGAK/24/355 — SS2 BLUE
+135 — Unimke-Ateb Nicole Biwom — NDGAK/24/358 — SS2 BLUE
+136 — Irabor Nna-kaka Esther — NDGAK/24/360 — SS2 BLUE
+137 — Onyejimbe Kamsiyochukwu Favour — NDGAK/24/361 — SS2 BLUE
+138 — Ekigho Faith Oseyi — NIL — SS2 BLUE
+139 — Owan Nissi Assama — NDGAK/25/417 — SS2 BLUE
+
+SS3 GOLD
+
+140 — Adeojo Feyikemi Catherine — NDGAK/20/145 — SS3 GOLD
+141 — Anyanwu Chinazor Geraldine — NDGAK/20/147 — SS3 GOLD
+142 — Orjianevoh Chinaemerem Rita — NDGAK/20/171 — SS3 GOLD
+143 — Otalu Esther-Precious Ojoma — NDGAK/21/209 — SS3 GOLD
+144 — Ndupu Mmesomachukwu Rachel — NDGAK/20/154 — SS3 GOLD
+145 — Eziefula Njoku Precious — NIL — SS3 GOLD
+146 — Ogbodo Anthonia Chinecherem — NDGAK/20/132 — SS3 GOLD
+147 — Achife Zinachidi — NDGAK/20/170 — SS3 GOLD
+148 — Modilim Ebelechukwu Claire — NDGAK/20/175 — SS3 GOLD
+149 — Onunkwo Blossom Ugomma — NDGAK/20/137 — SS3 GOLD
+150 — Obaka Emmanuella Bumojo — NDGAK/20/128 — SS3 GOLD
+151 — Uchechukwu Anabel Onumsinachi — NDGAK/23/287 — SS3 GOLD
+152 — Uchechukwu Christabel Nmasinachi — NDGAK/23/288 — SS3 GOLD
+153 — Ikechukwu Christabel Chinaecherem — NDGAK/23/285 — SS3 GOLD
+154 — Matthew Ojonemile Hephzibah — NDGAK/23/289 — SS3 GOLD
+155 — Eze Desire Adaezechukwu — NDGAK/23/290 — SS3 GOLD
+156 — Aganama Ifunanya Jessica — NDGAK/23/291 — SS3 GOLD
+157 — Eneh Jessica Chimbusonma — NDGAK/25/420 — SS3 GOLD

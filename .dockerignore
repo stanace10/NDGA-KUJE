@@ -9,7 +9,6 @@ node_modules/
 .postgres/
 .run/
 .tools/
-SCHOOL/
 gradex format/
 media/
 staticfiles/
@@ -19,3 +18,5 @@ deploy/docker/.env.lan
 deploy/docker/.env.cloud
 deploy/env/.env.prod
 *.log
+SCHOOL/ndga_generated_credentials.txt
+SCHOOL/generated_credentials.txt

@@ -13,6 +13,7 @@ media/
 .postgres/
 .run/
 .tools/
-SCHOOL/
 gradex format/
 *.log
+SCHOOL/ndga_generated_credentials.txt
+SCHOOL/generated_credentials.txt
