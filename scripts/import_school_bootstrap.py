@@ -51,6 +51,71 @@ STUDENT_ROW_RE = re.compile(r"^\s*(\d+)\s*(?:\u2014|-)\s*(.*?)\s*(?:\u2014|-)\s*
 CLASS_LEVEL_RE = re.compile(r"(JS|SS)([123](?:,[123])*)")
 JUNIOR_SELECTIVE_LANGUAGE_NAMES = {"HAUSA LANGUAGE", "IGBO LANGUAGE", "YORUBA LANGUAGE"}
 JS1_COMPULSORY_LANGUAGE_NAMES = {"HAUSA LANGUAGE"}
+JUNIOR_CLASS_OFFERING_LABELS = {
+    "JS1": {
+        "Mathematics",
+        "English Language",
+        "English Literature",
+        "Basic Science",
+        "Basic Technology",
+        "Business Studies",
+        "CCA",
+        "Christian Religious Studies",
+        "Digital Technology",
+        "French",
+        "Hausa Language",
+        "History",
+        "Home Economics",
+        "Igbo Language",
+        "Yoruba Language",
+        "Livestock",
+        "Music",
+        "Physical and Health Education",
+        "Social and Citizenship Studies",
+    },
+    "JS2": {
+        "Mathematics",
+        "English Language",
+        "English Literature",
+        "Basic Science",
+        "Basic Technology",
+        "Business Studies",
+        "CCA",
+        "Christian Religious Studies",
+        "Computer Science",
+        "French",
+        "Hausa Language",
+        "History",
+        "Fashion",
+        "Igbo Language",
+        "Yoruba Language",
+        "Agricultural Science",
+        "Music",
+        "Physical and Health Education",
+        "Social and Citizenship Studies",
+    },
+    "JS3": {
+        "Mathematics",
+        "English Language",
+        "English Literature",
+        "Basic Science",
+        "Basic Technology",
+        "Business Studies",
+        "CCA",
+        "Christian Religious Studies",
+        "Computer Science",
+        "French",
+        "Hausa Language",
+        "History",
+        "Fashion",
+        "Igbo Language",
+        "Yoruba Language",
+        "Agricultural Science",
+        "Music",
+        "Physical and Health Education",
+        "Social and Citizenship Studies",
+    },
+}
 
 DEFAULT_PORTAL_ACCOUNTS = (
     ("VP", ("vp@ndgakuje.org", "NDGAK/VP"), "admin/vp"),
@@ -299,34 +364,48 @@ def ensure_classes():
 def ensure_subjects_and_mappings(teacher_rows, base_classes):
     subjects = {}
     offerings = defaultdict(set)
-    junior_union = set()
+
+    def ensure_subject_record(label):
+        name, code = canonical_subject(label)
+        subject = Subject.objects.filter(code=code).first() or Subject.objects.filter(name__iexact=name).first()
+        if subject is None:
+            subject = Subject.objects.create(name=name, code=code, category=SubjectCategory.GENERAL, is_active=True)
+        else:
+            updates = []
+            if subject.name != name:
+                subject.name = name
+                updates.append("name")
+            if not subject.is_active:
+                subject.is_active = True
+                updates.append("is_active")
+            if updates:
+                updates.append("updated_at")
+                subject.save(update_fields=updates)
+        subjects[normalize_subject(name)] = subject
+        return subject
+
     for row in teacher_rows:
         for assignment in row["assignments"]:
-            name, code = canonical_subject(assignment["subject_label"])
-            subject = Subject.objects.filter(code=code).first() or Subject.objects.filter(name__iexact=name).first()
-            if subject is None:
-                subject = Subject.objects.create(name=name, code=code, category=SubjectCategory.GENERAL, is_active=True)
-            else:
-                updates = []
-                if subject.name != name:
-                    subject.name = name
-                    updates.append("name")
-                if not subject.is_active:
-                    subject.is_active = True
-                    updates.append("is_active")
-                if updates:
-                    updates.append("updated_at")
-                    subject.save(update_fields=updates)
-            subjects[normalize_subject(name)] = subject
+            subject = ensure_subject_record(assignment["subject_label"])
             for level in assignment["class_levels"]:
                 offerings[level].add(subject.id)
-                if level.startswith("JS"):
-                    junior_union.add(subject.id)
-    for level in ("JS1", "JS2", "JS3"):
-        offerings[level].update(junior_union)
+
+    for level, labels in JUNIOR_CLASS_OFFERING_LABELS.items():
+        offerings[level] = {ensure_subject_record(label).id for label in labels}
+
     for level, subject_ids in offerings.items():
+        academic_class = base_classes[level]
+        if level in JUNIOR_CLASS_OFFERING_LABELS:
+            ClassSubject.objects.filter(academic_class=academic_class).exclude(subject_id__in=subject_ids).update(is_active=False)
         for subject_id in subject_ids:
-            ClassSubject.objects.get_or_create(academic_class=base_classes[level], subject_id=subject_id, defaults={"is_active": True})
+            row, created = ClassSubject.objects.get_or_create(
+                academic_class=academic_class,
+                subject_id=subject_id,
+                defaults={"is_active": True},
+            )
+            if not created and not row.is_active:
+                row.is_active = True
+                row.save(update_fields=["is_active", "updated_at"])
     return subjects
 
 def enroll_junior_subjects(user, session, academic_class):
