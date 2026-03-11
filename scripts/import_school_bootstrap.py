@@ -18,7 +18,7 @@ from django.core.management import call_command
 from django.db import transaction
 from django.utils import timezone
 
-from apps.accounts.constants import ROLE_STUDENT, ROLE_SUBJECT_TEACHER
+from apps.accounts.constants import ROLE_DEAN, ROLE_FORM_TEACHER, ROLE_STUDENT, ROLE_SUBJECT_TEACHER
 from apps.accounts.forms import (
     _generate_staff_id_for_role,
     _generate_student_number,
@@ -31,6 +31,7 @@ from apps.academics.models import (
     AcademicClass,
     AcademicSession,
     ClassSubject,
+    FormTeacherAssignment,
     GradeScale,
     StudentClassEnrollment,
     StudentSubjectEnrollment,
@@ -447,6 +448,23 @@ def run_import(source_dir, session_name, term_name, credentials_output):
                 "class_label": academic_class.display_name,
             }
         )
+
+    form_teacher_role = Role.objects.get(code=ROLE_FORM_TEACHER)
+    dean_role = Role.objects.get(code=ROLE_DEAN)
+    vp_user = User.objects.filter(username='vp@ndgakuje.org').first()
+    if vp_user:
+        if vp_user.primary_role_id != form_teacher_role.id and not vp_user.secondary_roles.filter(id=form_teacher_role.id).exists():
+            vp_user.secondary_roles.add(form_teacher_role)
+        FormTeacherAssignment.objects.update_or_create(
+            teacher=vp_user,
+            academic_class=base_classes['JS1'],
+            session=session,
+            defaults={'is_active': True},
+        )
+
+    gabriel_user = User.objects.filter(username='emmanuel@ndgakuje.org').first()
+    if gabriel_user and gabriel_user.primary_role_id != dean_role.id and not gabriel_user.secondary_roles.filter(id=dean_role.id).exists():
+        gabriel_user.secondary_roles.add(dean_role)
 
     output_path = Path(credentials_output)
     if not output_path.is_absolute():
