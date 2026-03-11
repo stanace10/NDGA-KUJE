@@ -68,6 +68,7 @@ from apps.cbt.models import (
 )
 from apps.cbt.simulation_catalog import CURATED_SIMULATION_CATALOG, grouped_catalog_labels
 from apps.cbt.subject_matrix import resolve_subject_simulation_profile
+from apps.results.cbt_policy import merge_policy_from_blueprint, normalize_result_cbt_policies
 from apps.results.models import ResultSheet, ResultSheetStatus, StudentSubjectScore
 from apps.audit.services import log_event, log_lockdown_violation
 from apps.audit.models import AuditCategory, AuditStatus
@@ -1804,6 +1805,7 @@ def build_exam_with_ai_draft(
     topic,
     question_count,
     exam_type,
+    flow_type="OBJECTIVE_THEORY",
     ca_target="",
     difficulty=CBTQuestionDifficulty.MEDIUM,
     lesson_note_text="",
@@ -1847,17 +1849,16 @@ def build_exam_with_ai_draft(
     )
     ensure_default_blueprint(exam)
 
+    flow_type = (flow_type or "OBJECTIVE_THEORY").strip() or "OBJECTIVE_THEORY"
+    if exam_type == CBTExamType.FREE_TEST:
+        flow_type = "OBJECTIVE_ONLY"
     target_count = max(int(question_count or 0), 1)
-    if exam_type != CBTExamType.FREE_TEST:
+    if exam_type != CBTExamType.FREE_TEST and flow_type == "OBJECTIVE_THEORY":
         target_count = max(target_count, 2)
-    planned_theory_count = (
-        0
-        if exam_type == CBTExamType.FREE_TEST
-        else max(1, min(5, target_count // 4 or 1))
-    )
-    planned_objective_count = (
-        target_count if exam_type == CBTExamType.FREE_TEST else max(1, target_count - planned_theory_count)
-    )
+    planned_theory_count = 0
+    if flow_type == "OBJECTIVE_THEORY" and exam_type != CBTExamType.FREE_TEST:
+        planned_theory_count = max(1, min(5, target_count // 4 or 1))
+    planned_objective_count = max(1, target_count - planned_theory_count) if flow_type != "THEORY_ONLY" else 0
     generated = []
     seen_stems = set()
 
@@ -1988,7 +1989,6 @@ def build_exam_with_ai_draft(
         )
         created_theory_count += 1
 
-    flow_type = "OBJECTIVE_ONLY" if exam_type == CBTExamType.FREE_TEST else "OBJECTIVE_THEORY"
     objective_total, theory_total = _default_section_totals(
         exam_type=exam_type,
         flow_type=flow_type,
@@ -2007,17 +2007,18 @@ def build_exam_with_ai_draft(
         effective_ca_target = (ca_target or default_ca_target).strip()
         if effective_ca_target == CBTWritebackTarget.CA3:
             effective_ca_target = CBTWritebackTarget.CA2
-        if effective_ca_target == CBTWritebackTarget.CA2:
-            objective_target = CBTWritebackTarget.CA2
-            theory_target = CBTWritebackTarget.CA3
+        if flow_type == "THEORY_ONLY":
+            objective_target = CBTWritebackTarget.NONE
+            theory_target = CBTWritebackTarget.NONE
+        else:
+            objective_target = CBTWritebackTarget.CA2 if effective_ca_target == CBTWritebackTarget.CA2 else effective_ca_target
+            theory_target = CBTWritebackTarget.NONE
+        if effective_ca_target == CBTWritebackTarget.CA2 and flow_type == "OBJECTIVE_THEORY":
             objective_total = Decimal("10.00")
             theory_total = Decimal("10.00")
-        else:
-            objective_target = effective_ca_target
-            theory_target = effective_ca_target
     else:
         objective_target = CBTWritebackTarget.OBJECTIVE
-        theory_target = CBTWritebackTarget.THEORY
+        theory_target = CBTWritebackTarget.THEORY if flow_type == "OBJECTIVE_THEORY" else CBTWritebackTarget.NONE
         effective_ca_target = ""
     blueprint.section_config = {
         "flow_type": flow_type,
@@ -2026,7 +2027,7 @@ def build_exam_with_ai_draft(
         "theory_response_mode": "PAPER",
         "ca_target": effective_ca_target,
         "is_free_test": exam_type == CBTExamType.FREE_TEST,
-        "manual_score_split": False,
+        "manual_score_split": exam_type in {CBTExamType.CA, CBTExamType.PRACTICAL} and flow_type == "OBJECTIVE_THEORY",
         "objective_target_max": str(objective_total),
         "theory_target_max": str(theory_total),
     }
@@ -2058,6 +2059,7 @@ def build_exam_from_uploaded_document(
     assignment,
     title,
     exam_type,
+    flow_type="OBJECTIVE_THEORY",
     ca_target="",
     source_file,
 ):
@@ -2154,11 +2156,19 @@ def build_exam_from_uploaded_document(
                 "No valid questions detected. Ensure your document uses numbered questions and A-D options, then retry."
             )
 
+        flow_type = (flow_type or "OBJECTIVE_THEORY").strip() or "OBJECTIVE_THEORY"
+        if exam_type == CBTExamType.FREE_TEST:
+            flow_type = "OBJECTIVE_ONLY"
+
         created_count = 0
         objective_count = 0
         theory_count = 0
         for index, row in enumerate(parsed_questions, start=1):
             question_type = row.get("question_type", "OBJECTIVE")
+            if flow_type == "OBJECTIVE_ONLY" and question_type != "OBJECTIVE":
+                continue
+            if flow_type == "THEORY_ONLY" and question_type == "OBJECTIVE":
+                continue
             question = Question.objects.create(
                 question_bank=question_bank,
                 created_by=actor,
@@ -2211,7 +2221,7 @@ def build_exam_from_uploaded_document(
             )
             created_count += 1
 
-        if exam_type != CBTExamType.FREE_TEST:
+        if exam_type != CBTExamType.FREE_TEST and flow_type != "THEORY_ONLY":
             if objective_count <= 0:
                 created_count += 1
                 fallback_objective = Question.objects.create(
@@ -2253,7 +2263,7 @@ def build_exam_from_uploaded_document(
                 )
                 objective_count += 1
 
-            if theory_count <= 0:
+            if flow_type == "OBJECTIVE_THEORY" and theory_count <= 0:
                 created_count += 1
                 fallback_theory = Question.objects.create(
                     question_bank=question_bank,
@@ -2279,11 +2289,6 @@ def build_exam_from_uploaded_document(
                 )
                 theory_count += 1
 
-        if exam_type == CBTExamType.FREE_TEST:
-            flow_type = "OBJECTIVE_ONLY"
-        else:
-            flow_type = "OBJECTIVE_THEORY"
-
         blueprint = ensure_default_blueprint(exam)
         objective_total, theory_total = _default_section_totals(
             exam_type=exam_type,
@@ -2302,17 +2307,18 @@ def build_exam_from_uploaded_document(
             effective_ca_target = (ca_target or default_ca_target).strip()
             if effective_ca_target == CBTWritebackTarget.CA3:
                 effective_ca_target = CBTWritebackTarget.CA2
-            if effective_ca_target == CBTWritebackTarget.CA2:
-                objective_target = CBTWritebackTarget.CA2
-                theory_target = CBTWritebackTarget.CA3
+            if flow_type == "THEORY_ONLY":
+                objective_target = CBTWritebackTarget.NONE
+                theory_target = CBTWritebackTarget.NONE
+            else:
+                objective_target = CBTWritebackTarget.CA2 if effective_ca_target == CBTWritebackTarget.CA2 else effective_ca_target
+                theory_target = CBTWritebackTarget.NONE
+            if effective_ca_target == CBTWritebackTarget.CA2 and flow_type == "OBJECTIVE_THEORY":
                 objective_total = Decimal("10.00")
                 theory_total = Decimal("10.00")
-            else:
-                objective_target = effective_ca_target
-                theory_target = effective_ca_target
         else:
             objective_target = CBTWritebackTarget.OBJECTIVE
-            theory_target = CBTWritebackTarget.THEORY
+            theory_target = CBTWritebackTarget.THEORY if flow_type == "OBJECTIVE_THEORY" else CBTWritebackTarget.NONE
             effective_ca_target = ""
         blueprint.section_config = {
             "flow_type": flow_type,
@@ -2321,7 +2327,7 @@ def build_exam_from_uploaded_document(
             "theory_response_mode": "PAPER",
             "ca_target": effective_ca_target,
             "is_free_test": exam_type == CBTExamType.FREE_TEST,
-            "manual_score_split": False,
+            "manual_score_split": exam_type in {CBTExamType.CA, CBTExamType.PRACTICAL} and flow_type == "OBJECTIVE_THEORY",
             "objective_target_max": str(objective_total),
             "theory_target_max": str(theory_total),
         }
@@ -2976,8 +2982,44 @@ def _apply_writeback(*, attempt, target, score_value, component_key):
     sheet, score = _get_or_create_score_row(attempt)
     if sheet.status == ResultSheetStatus.PUBLISHED:
         return {"skipped": True, "reason": "Result sheet already published."}
+    blueprint = getattr(attempt.exam, "blueprint", None)
+    section_config = getattr(blueprint, "section_config", {}) if blueprint else {}
+    if not isinstance(section_config, dict):
+        section_config = {}
+    manual_split = bool(section_config.get("manual_score_split"))
+    if manual_split:
+        merged_policies = merge_policy_from_blueprint(sheet.cbt_component_policies, blueprint)
+        normalized_policies = normalize_result_cbt_policies(sheet.cbt_component_policies)
+        if merged_policies != normalized_policies:
+            sheet.cbt_component_policies = merged_policies
+            sheet.save(update_fields=["cbt_component_policies", "updated_at"])
     previous = _to_decimal(getattr(score, field))
     normalized = _to_decimal(score_value)
+
+    if manual_split and target in {CBTWritebackTarget.CA1, CBTWritebackTarget.CA4} and component_key == "objective":
+        objective_key = f"{field}_objective"
+        theory_key = f"{field}_theory"
+        score.set_breakdown_value(objective_key, normalized)
+        current_theory = score.breakdown_value(theory_key)
+        total_value = (normalized + current_theory).quantize(DECIMAL_2)
+        setattr(score, field, total_value)
+        score.save()
+        return {
+            "sheet_id": str(sheet.id),
+            "field": field,
+            "before": str(previous),
+            "after": str(total_value),
+            "objective_auto_score": str(normalized),
+            "manual_theory_score": str(current_theory),
+            "component": component_key,
+            "split_manual_theory": True,
+        }
+
+    if manual_split and target == CBTWritebackTarget.CA2 and component_key == "objective":
+        score.set_breakdown_value("ca2_objective", normalized)
+    elif target == CBTWritebackTarget.OBJECTIVE and component_key == "objective":
+        score.set_breakdown_value("objective_auto", normalized)
+
     setattr(score, field, normalized)
     score.lock_components(field)
     score.save()

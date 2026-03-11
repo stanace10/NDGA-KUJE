@@ -57,6 +57,16 @@
           <button type="submit" class="ndga-btn ndga-btn-primary">Update Password</button>
         </form>
       </article>
+
+      <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-xl font-bold text-slate-900">Account Security</h2>
+        <p class="mt-1 text-sm text-slate-600">
+          Optional email verification for privileged sign-in is managed on the dedicated security page.
+        </p>
+        <div class="mt-4">
+          <a href="{% url 'dashboard:account-security-settings' %}" class="ndga-btn ndga-btn-secondary">Open Account Security</a>
+        </div>
+      </article>
     </div>
 
     <article class="mt-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">

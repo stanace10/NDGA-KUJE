@@ -12,6 +12,7 @@ from apps.dashboard.feature_views import (
     WeeklyChallengeManagementView,
 )
 from apps.dashboard.views import (
+    AccountSecuritySettingsView,
     BursarPortalView,
     CBTPortalView,
     ElectionPortalView,
@@ -64,6 +65,7 @@ urlpatterns = [
     path("portal/it/feature-toggle/", ITFeatureToggleView.as_view(), name="it-feature-toggle"),
     path("portal/it/documents/", DocumentVaultManagementView.as_view(), name="it-document-vault"),
     path("portal/it/weekly-challenge/", WeeklyChallengeManagementView.as_view(), name="weekly-challenge-manage"),
+    path("portal/account/security/", AccountSecuritySettingsView.as_view(), name="account-security-settings"),
     path("portal/clubs/", ClubManagementView.as_view(), name="club-management"),
     path("portal/bursar/", BursarPortalView.as_view(), name="bursar-portal"),
     path("portal/vp/", VPPortalView.as_view(), name="vp-portal"),

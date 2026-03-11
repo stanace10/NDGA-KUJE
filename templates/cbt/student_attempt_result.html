@@ -1,18 +1,19 @@
 {% extends "layouts/base.html" %}
 
 {% block title %}Attempt Result{% endblock %}
+{% block body_class %}min-h-screen bg-slate-950{% endblock %}
 
 {% block content %}
   <section class="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
-    <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-      <p class="text-xs font-semibold uppercase tracking-[0.18em] text-ndga-navy/70">Submission Summary</p>
-      <h1 class="mt-2 text-2xl font-bold text-ndga-navy">{{ exam.title }}</h1>
-      <p class="mt-1 text-sm text-slate-600">{{ exam.subject.name }} | {{ exam.academic_class.code }} | Attempt {{ attempt.attempt_number }}</p>
+    <div class="rounded-3xl border border-slate-700 bg-slate-900 p-6 text-slate-100 shadow-2xl">
+      <p class="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">Submission Summary</p>
+      <h1 class="mt-2 text-2xl font-bold text-white">{{ exam.title }}</h1>
+      <p class="mt-1 text-sm text-slate-300">{{ exam.subject.name }} | {{ exam.academic_class.code }} | Attempt {{ attempt.attempt_number }}</p>
 
       {% if exam.exam_type == "EXAM" %}
-        <div class="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-          <p class="text-sm font-semibold text-slate-800">Exam submission received.</p>
-          <p class="mt-1 text-sm text-slate-600">
+        <div class="mt-5 rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
+          <p class="text-sm font-semibold text-slate-100">Exam submission received.</p>
+          <p class="mt-1 text-sm text-slate-300">
             Score is hidden for formal exam policy. Your result will appear after official release.
           </p>
         </div>
@@ -20,50 +21,50 @@
 
       {% if has_question_results %}
         <div class="mt-5 grid gap-3 sm:grid-cols-3">
-          <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Objective Score</p>
+          <article class="rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
+            <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Objective Score</p>
             {% if exam.exam_type == "EXAM" %}
-              <p class="mt-1 text-xl font-bold text-slate-500">Hidden</p>
-              <p class="text-xs text-slate-500">Official exam result policy.</p>
+              <p class="mt-1 text-xl font-bold text-slate-400">Hidden</p>
+              <p class="text-xs text-slate-400">Official exam result policy.</p>
             {% else %}
-              <p class="mt-1 text-2xl font-bold text-slate-900">{{ attempt.objective_score }}</p>
-              <p class="text-xs text-slate-500">Raw {{ attempt.objective_raw_score }} / {{ attempt.objective_max_score }}</p>
+              <p class="mt-1 text-2xl font-bold text-white">{{ attempt.objective_score }}</p>
+              <p class="text-xs text-slate-400">Raw {{ attempt.objective_raw_score }} / {{ attempt.objective_max_score }}</p>
             {% endif %}
           </article>
-          <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Theory Score</p>
+          <article class="rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
+            <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Theory Score</p>
             {% if exam.exam_type == "EXAM" %}
-              <p class="mt-1 text-xl font-bold text-slate-500">Hidden</p>
-              <p class="text-xs text-slate-500">Will appear after official marking/release.</p>
+              <p class="mt-1 text-xl font-bold text-slate-400">Hidden</p>
+              <p class="text-xs text-slate-400">Will appear after official marking/release.</p>
             {% else %}
               {% if attempt.theory_marking_completed %}
-                <p class="mt-1 text-2xl font-bold text-slate-900">{{ attempt.theory_score }}</p>
-                <p class="text-xs text-slate-500">Raw {{ attempt.theory_raw_score }} / {{ attempt.theory_max_score }}</p>
+                <p class="mt-1 text-2xl font-bold text-white">{{ attempt.theory_score }}</p>
+                <p class="text-xs text-slate-400">Raw {{ attempt.theory_raw_score }} / {{ attempt.theory_max_score }}</p>
               {% else %}
                 <p class="mt-1 text-xl font-bold text-amber-700">Pending Teacher Marking</p>
-                <p class="text-xs text-slate-500">Theory responses submitted successfully.</p>
+                <p class="text-xs text-slate-400">Theory responses submitted successfully.</p>
               {% endif %}
             {% endif %}
           </article>
-          <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Total</p>
+          <article class="rounded-2xl border border-slate-700 bg-slate-950/60 p-4">
+            <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Total</p>
             {% if exam.exam_type == "EXAM" %}
-              <p class="mt-1 text-xl font-bold text-slate-500">Hidden</p>
-              <p class="text-xs text-slate-500">Status: {{ attempt.get_status_display }}</p>
+              <p class="mt-1 text-xl font-bold text-slate-400">Hidden</p>
+              <p class="text-xs text-slate-400">Status: {{ attempt.get_status_display }}</p>
             {% else %}
-              <p class="mt-1 text-2xl font-bold text-slate-900">{{ attempt.total_score }}</p>
-              <p class="text-xs text-slate-500">Status: {{ attempt.get_status_display }}</p>
+              <p class="mt-1 text-2xl font-bold text-white">{{ attempt.total_score }}</p>
+              <p class="text-xs text-slate-400">Status: {{ attempt.get_status_display }}</p>
             {% endif %}
           </article>
         </div>
       {% endif %}
 
       {% if objective_rows and exam.exam_type != "EXAM" and has_question_results %}
-        <h2 class="mt-6 text-lg font-semibold text-ndga-navy">Objective Review</h2>
+        <h2 class="mt-6 text-lg font-semibold text-white">Objective Review</h2>
         <div class="mt-2 overflow-x-auto rounded-2xl border border-slate-200">
           <table class="min-w-full divide-y divide-slate-200 text-sm">
             <thead>
-              <tr class="bg-slate-50 text-left text-slate-500">
+              <tr class="bg-slate-50 text-left text-slate-400">
                 <th class="px-3 py-2">#</th>
                 <th class="px-3 py-2">Question</th>
                 <th class="px-3 py-2">Score</th>
@@ -72,7 +73,7 @@
             <tbody class="divide-y divide-slate-100">
               {% for row in objective_rows %}
                 <tr>
-                  <td class="px-3 py-2 font-semibold text-slate-800">{{ row.exam_question.sort_order }}</td>
+                  <td class="px-3 py-2 font-semibold text-slate-100">{{ row.exam_question.sort_order }}</td>
                   <td class="px-3 py-2 text-slate-700">{{ row.exam_question.question.stem|truncatechars:120 }}</td>
                   <td class="px-3 py-2 text-slate-700">
                     {{ row.auto_score }} / {{ row.exam_question.marks }}
@@ -92,11 +93,11 @@
       {% endif %}
 
       {% if show_simulation_summary %}
-        <h2 class="mt-6 text-lg font-semibold text-ndga-navy">Simulation Practical Summary</h2>
+        <h2 class="mt-6 text-lg font-semibold text-white">Simulation Practical Summary</h2>
         <div class="mt-2 overflow-x-auto rounded-2xl border border-slate-200">
           <table class="min-w-full divide-y divide-slate-200 text-sm">
             <thead>
-              <tr class="bg-slate-50 text-left text-slate-500">
+              <tr class="bg-slate-50 text-left text-slate-400">
                 <th class="px-3 py-2">#</th>
                 <th class="px-3 py-2">Tool</th>
                 <th class="px-3 py-2">Mode</th>
@@ -107,7 +108,7 @@
             <tbody class="divide-y divide-slate-100">
               {% for row in simulation_records %}
                 <tr>
-                  <td class="px-3 py-2 font-semibold text-slate-800">{{ row.exam_simulation.sort_order }}</td>
+                  <td class="px-3 py-2 font-semibold text-slate-100">{{ row.exam_simulation.sort_order }}</td>
                   <td class="px-3 py-2 text-slate-700">{{ row.exam_simulation.simulation_wrapper.tool_name }}</td>
                   <td class="px-3 py-2 text-slate-700">{{ row.exam_simulation.simulation_wrapper.get_score_mode_display }}</td>
                   <td class="px-3 py-2 text-slate-700">{{ row.get_status_display }}</td>
@@ -128,8 +129,8 @@
       <div class="mt-6 flex flex-wrap gap-2">
         <button type="button" id="finishNowBtn" class="ndga-btn ndga-btn-primary">Finish And Logout</button>
       </div>
-      <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-        This result page will close your CBT session automatically in <span id="autoLogoutCountdown" class="font-semibold text-slate-900">30</span> seconds.
+      <div class="mt-4 rounded-2xl border border-slate-700 bg-slate-950/60 px-4 py-3 text-sm text-slate-300">
+        This result page will close your CBT session automatically in <span id="autoLogoutCountdown" class="font-semibold text-white">10</span> seconds.
       </div>
       <form id="autoLogoutForm" method="post" action="{% url 'accounts:logout' %}" class="hidden">
         {% csrf_token %}
@@ -147,7 +148,7 @@
           logoutForm.submit();
         });
       }
-      var remaining = 30;
+      var remaining = 10;
       var timer = window.setInterval(function () {
         remaining -= 1;
         countdownNode.textContent = String(Math.max(remaining, 0));

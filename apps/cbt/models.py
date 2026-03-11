@@ -471,6 +471,8 @@ class ExamBlueprint(TimeStampedModel):
         ordering = ("exam_id",)
 
     def clean(self):
+        section_config = self.section_config if isinstance(self.section_config, dict) else {}
+        manual_score_split = bool(section_config.get("manual_score_split"))
         if self.duration_minutes < 1:
             raise ValidationError("Duration must be at least 1 minute.")
         if self.max_attempts < 1:
@@ -488,7 +490,7 @@ class ExamBlueprint(TimeStampedModel):
             raise ValidationError("Invalid objective writeback target.")
         if self.objective_writeback_target == CBTWritebackTarget.THEORY:
             raise ValidationError("Objective writeback target cannot be theory.")
-        if self.theory_enabled and self.theory_writeback_target == CBTWritebackTarget.NONE:
+        if self.theory_enabled and self.theory_writeback_target == CBTWritebackTarget.NONE and not manual_score_split:
             raise ValidationError("Theory writeback target must be set when theory is enabled.")
         if self.theory_enabled and self.theory_writeback_target == CBTWritebackTarget.OBJECTIVE:
             raise ValidationError("Theory writeback target cannot be objective.")

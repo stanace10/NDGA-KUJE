@@ -51,6 +51,19 @@
           {% if prefill_assignment and form.exam_type.errors %}
             <p class="text-xs text-rose-700">{{ form.exam_type.errors|striptags }}</p>
           {% endif %}
+          <div class="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ form.flow_type.id_for_label }}">{{ form.flow_type.label }}</label>
+              {{ form.flow_type }}
+              {% if form.flow_type.errors %}<p class="mt-1 text-xs text-rose-700">{{ form.flow_type.errors|striptags }}</p>{% endif %}
+            </div>
+            <div>
+              <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ form.ca_target.id_for_label }}">{{ form.ca_target.label }}</label>
+              {{ form.ca_target }}
+              <p class="mt-1 text-xs text-slate-500">For CA, choose CA1, CA2/CA3 joint, or CA4.</p>
+              {% if form.ca_target.errors %}<p class="mt-1 text-xs text-rose-700">{{ form.ca_target.errors|striptags }}</p>{% endif %}
+            </div>
+          </div>
           <div>
             <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ form.source_file.id_for_label }}">{{ form.source_file.label }}</label>
             {{ form.source_file }}

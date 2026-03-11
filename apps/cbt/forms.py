@@ -584,6 +584,12 @@ class ExamCreateForm(forms.Form):
             if flow_type == self.FLOW_SIMULATION:
                 objective_target = CBTWritebackTarget.NONE
                 theory_target = CBTWritebackTarget.NONE
+            elif bool(self.cleaned_data.get("manual_score_split")):
+                if effective_target in {CBTWritebackTarget.CA2, CBTWritebackTarget.CA3}:
+                    objective_target = CBTWritebackTarget.CA2
+                else:
+                    objective_target = effective_target
+                theory_target = CBTWritebackTarget.NONE
             elif effective_target in {CBTWritebackTarget.CA2, CBTWritebackTarget.CA3}:
                 objective_target = CBTWritebackTarget.CA2
                 theory_target = CBTWritebackTarget.CA3
@@ -592,7 +598,7 @@ class ExamCreateForm(forms.Form):
                 theory_target = effective_target
         elif self.cleaned_data["exam_type"] == CBTExamType.EXAM:
             objective_target = CBTWritebackTarget.OBJECTIVE
-            theory_target = CBTWritebackTarget.THEORY
+            theory_target = CBTWritebackTarget.NONE if bool(self.cleaned_data.get("manual_score_split")) else CBTWritebackTarget.THEORY
         elif self.cleaned_data["exam_type"] == CBTExamType.FREE_TEST:
             objective_target = CBTWritebackTarget.NONE
             theory_target = CBTWritebackTarget.NONE
@@ -711,7 +717,23 @@ class ExamUploadImportForm(forms.Form):
             (CBTExamType.FREE_TEST, "Free Test"),
         ]
     )
-    ca_target = forms.CharField(required=False, widget=forms.HiddenInput())
+    flow_type = forms.ChoiceField(
+        choices=[
+            (ExamCreateForm.FLOW_OBJECTIVE_ONLY, "Objective Only"),
+            (ExamCreateForm.FLOW_OBJECTIVE_THEORY, "Objective + Theory"),
+        ],
+        initial=ExamCreateForm.FLOW_OBJECTIVE_THEORY,
+        required=False,
+    )
+    ca_target = forms.ChoiceField(
+        choices=[
+            ("", "Select CA Target"),
+            (CBTWritebackTarget.CA1, "CA1"),
+            (CBTWritebackTarget.CA2, "CA2 / CA3 (Joint)"),
+            (CBTWritebackTarget.CA4, "CA4"),
+        ],
+        required=False,
+    )
     source_file = forms.FileField(required=False)
     pasted_text = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 8}))
 
@@ -750,7 +772,12 @@ class ExamUploadImportForm(forms.Form):
             ".tiff",
             ".webp",
         )
-        if cleaned.get("exam_type") in {CBTExamType.CA, CBTExamType.PRACTICAL}:
+        exam_type = cleaned.get("exam_type")
+        flow_type = (cleaned.get("flow_type") or ExamCreateForm.FLOW_OBJECTIVE_THEORY).strip()
+        if exam_type == CBTExamType.FREE_TEST:
+            flow_type = ExamCreateForm.FLOW_OBJECTIVE_ONLY
+        cleaned["flow_type"] = flow_type
+        if exam_type in {CBTExamType.CA, CBTExamType.PRACTICAL}:
             assignment = cleaned.get("assignment")
             if assignment is not None:
                 ca_target = (cleaned.get("ca_target") or "").strip()
@@ -770,12 +797,14 @@ class ExamUploadImportForm(forms.Form):
                 if has_completed_ca_target_exam(
                     assignment=assignment,
                     ca_target=ca_target,
-                    flow_type=ExamCreateForm.FLOW_OBJECTIVE_THEORY,
+                    flow_type=flow_type,
                 ):
                     self.add_error(
                         "exam_type",
                         f"{ca_target} CBT has already been completed for this class/subject.",
                     )
+        else:
+            cleaned["ca_target"] = ""
         if not source_file and not pasted_text.strip():
             raise forms.ValidationError("Upload file or paste questions.")
         if source_file and not (source_file.name or "").lower().endswith(allowed_file_types):
@@ -799,7 +828,23 @@ class AIExamDraftForm(forms.Form):
             (CBTExamType.FREE_TEST, "Free Test"),
         ]
     )
-    ca_target = forms.CharField(required=False, widget=forms.HiddenInput())
+    flow_type = forms.ChoiceField(
+        choices=[
+            (ExamCreateForm.FLOW_OBJECTIVE_ONLY, "Objective Only"),
+            (ExamCreateForm.FLOW_OBJECTIVE_THEORY, "Objective + Theory"),
+        ],
+        initial=ExamCreateForm.FLOW_OBJECTIVE_THEORY,
+        required=False,
+    )
+    ca_target = forms.ChoiceField(
+        choices=[
+            ("", "Select CA Target"),
+            (CBTWritebackTarget.CA1, "CA1"),
+            (CBTWritebackTarget.CA2, "CA2 / CA3 (Joint)"),
+            (CBTWritebackTarget.CA4, "CA4"),
+        ],
+        required=False,
+    )
     difficulty = forms.ChoiceField(choices=CBTQuestionDifficulty.choices, initial=CBTQuestionDifficulty.MEDIUM)
     lesson_note_text = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 5}))
     lesson_note_file = forms.FileField(required=False)
@@ -849,7 +894,12 @@ class AIExamDraftForm(forms.Form):
                 "lesson_note_file",
                 "Upload PDF, DOC, DOCX, TXT, or image file.",
             )
-        if cleaned.get("exam_type") in {CBTExamType.CA, CBTExamType.PRACTICAL}:
+        exam_type = cleaned.get("exam_type")
+        flow_type = (cleaned.get("flow_type") or ExamCreateForm.FLOW_OBJECTIVE_THEORY).strip()
+        if exam_type == CBTExamType.FREE_TEST:
+            flow_type = ExamCreateForm.FLOW_OBJECTIVE_ONLY
+        cleaned["flow_type"] = flow_type
+        if exam_type in {CBTExamType.CA, CBTExamType.PRACTICAL}:
             assignment = cleaned.get("assignment")
             if assignment is not None:
                 ca_target = (cleaned.get("ca_target") or "").strip()
@@ -869,12 +919,14 @@ class AIExamDraftForm(forms.Form):
                 if has_completed_ca_target_exam(
                     assignment=assignment,
                     ca_target=ca_target,
-                    flow_type=ExamCreateForm.FLOW_OBJECTIVE_THEORY,
+                    flow_type=flow_type,
                 ):
                     self.add_error(
                         "exam_type",
                         f"{ca_target} CBT has already been completed for this class/subject.",
                     )
+        else:
+            cleaned["ca_target"] = ""
         return cleaned
 
 class SimulationWrapperCreateForm(forms.ModelForm):

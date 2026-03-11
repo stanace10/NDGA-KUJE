@@ -295,6 +295,14 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
         )
         items.append(
             _nav_item(
+                label="Account Security",
+                url="/portal/account/security/",
+                request_path=request_path,
+                matches=("/portal/account/security/",),
+            )
+        )
+        items.append(
+            _nav_item(
                 label="Logout",
                 url="/auth/logout/",
                 request_path=request_path,
@@ -387,6 +395,7 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                     matches=("/results/report/",),
                 )
             )
+        if role_codes & {ROLE_FORM_TEACHER}:
             items.append(
                 _nav_item(
                     label="Send Results",
@@ -485,6 +494,12 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                     url="/notifications/media/",
                     request_path=request_path,
                     matches=("/notifications/media/",),
+                ),
+                _nav_item(
+                    label="Account Security",
+                    url="/portal/account/security/",
+                    request_path=request_path,
+                    matches=("/portal/account/security/",),
                 ),
                 _nav_item(
                     label="Election Live",
@@ -598,6 +613,12 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                     url="/notifications/media/",
                     request_path=request_path,
                     matches=("/notifications/media/",),
+                ),
+                _nav_item(
+                    label="Account Security",
+                    url="/portal/account/security/",
+                    request_path=request_path,
+                    matches=("/portal/account/security/",),
                 ),
                 _nav_item(
                     label="Settings",
@@ -787,6 +808,12 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                     url="/results/report/send-results/",
                     request_path=request_path,
                     matches=("/results/report/",),
+                ),
+                _nav_item(
+                    label="Account Security",
+                    url="/portal/account/security/",
+                    request_path=request_path,
+                    matches=("/portal/account/security/",),
                 ),
                 _nav_item(
                     label="Settings",

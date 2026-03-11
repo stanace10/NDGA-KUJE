@@ -53,6 +53,7 @@
 {% endif %}
   <link rel="stylesheet" href="{% static 'vendor/font-manrope/index.css' %}">
   <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+  {% block extra_head %}{% endblock %}
 </head>
 <body class="{% block body_class %}min-h-screen bg-ndga-ash{% endblock %}">
   <div id="ndga-app-shell" class="{% if show_portal_shell %}portal-shell{% else %}relative min-h-screen{% endif %}">

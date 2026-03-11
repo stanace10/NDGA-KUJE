@@ -14,12 +14,7 @@ class StudentSubjectScoreForm(forms.ModelForm):
             "ca4",
             "objective",
             "theory",
-            "has_override",
-            "override_reason",
         )
-        widgets = {
-            "override_reason": forms.Textarea(attrs={"rows": 3}),
-        }
 
     def __init__(self, *args, **kwargs):
         self.actor = kwargs.pop("actor", None)
@@ -51,15 +46,6 @@ class StudentSubjectScoreForm(forms.ModelForm):
                 self.fields[field_name].disabled = True
                 self.fields[field_name].widget.attrs["title"] = "Locked by CBT auto-marking"
                 self.fields[field_name].widget.attrs["class"] += " cursor-not-allowed bg-slate-100 text-slate-500"
-        self.fields["has_override"].widget.attrs.update(
-            {"class": "h-4 w-4 rounded border-slate-300 text-ndga-navy"}
-        )
-        self.fields["override_reason"].widget.attrs.update(
-            {
-                "class": "w-full rounded-xl border border-slate-300 px-3 py-2 text-sm",
-                "placeholder": "State reason for overriding score limits.",
-            }
-        )
 
     def clean(self):
         cleaned_data = super().clean()
@@ -73,8 +59,8 @@ class StudentSubjectScoreForm(forms.ModelForm):
             ca4=cleaned_data.get("ca4"),
             objective=cleaned_data.get("objective"),
             theory=cleaned_data.get("theory"),
-            allow_override=cleaned_data.get("has_override", False),
-            override_reason=cleaned_data.get("override_reason", ""),
+            allow_override=False,
+            override_reason="",
             actor=self.actor,
         )
         self.computed_payload = payload
@@ -88,10 +74,9 @@ class StudentSubjectScoreForm(forms.ModelForm):
             instance.total_exam = payload.total_exam
             instance.grand_total = payload.grand_total
             instance.grade = payload.grade
-            if instance.has_override:
-                instance.override_by = self.actor
-            else:
-                instance.override_by = None
+            instance.has_override = False
+            instance.override_reason = ""
+            instance.override_by = None
         if commit:
             instance.save()
         return instance

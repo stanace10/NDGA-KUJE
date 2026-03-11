@@ -1588,6 +1588,7 @@ class CBTUploadImportView(CBTAuthoringAccessMixin, TemplateView):
         if exam_type == CBTExamType.SIM:
             exam_type = CBTExamType.PRACTICAL
         ca_target = (self.request.GET.get("ca_target") or "").strip()
+        flow_type = (self.request.GET.get("flow_type") or "").strip()
         duration_minutes = (self.request.GET.get("duration_minutes") or "").strip()
         max_attempts = (self.request.GET.get("max_attempts") or "").strip()
         schedule_start = (self.request.GET.get("schedule_start") or "").strip()
@@ -1602,6 +1603,8 @@ class CBTUploadImportView(CBTAuthoringAccessMixin, TemplateView):
             initial["exam_type"] = exam_type
         if ca_target:
             initial["ca_target"] = ca_target
+        if flow_type:
+            initial["flow_type"] = flow_type
         if duration_minutes.isdigit():
             initial["duration_minutes"] = int(duration_minutes)
         if max_attempts.isdigit():
@@ -1661,6 +1664,7 @@ class CBTUploadImportView(CBTAuthoringAccessMixin, TemplateView):
                 assignment=form.cleaned_data["assignment"],
                 title=form.cleaned_data["title"].strip(),
                 exam_type=form.cleaned_data["exam_type"],
+                flow_type=form.cleaned_data.get("flow_type", ""),
                 ca_target=form.cleaned_data.get("ca_target", ""),
                 source_file=source_file,
             )
@@ -1749,6 +1753,7 @@ class CBTAIExamDraftView(CBTAuthoringAccessMixin, TemplateView):
         if exam_type == CBTExamType.SIM:
             exam_type = CBTExamType.PRACTICAL
         ca_target = (self.request.GET.get("ca_target") or "").strip()
+        flow_type = (self.request.GET.get("flow_type") or "").strip()
         initial = {}
         if assignment_id.isdigit():
             initial["assignment"] = int(assignment_id)
@@ -1758,6 +1763,8 @@ class CBTAIExamDraftView(CBTAuthoringAccessMixin, TemplateView):
             initial["exam_type"] = exam_type
         if ca_target:
             initial["ca_target"] = ca_target
+        if flow_type:
+            initial["flow_type"] = flow_type
         return initial
 
     def _form(self, data=None, files=None):
@@ -1785,6 +1792,7 @@ class CBTAIExamDraftView(CBTAuthoringAccessMixin, TemplateView):
                 topic=form.cleaned_data["topic"].strip(),
                 question_count=form.cleaned_data["question_count"],
                 exam_type=form.cleaned_data["exam_type"],
+                flow_type=form.cleaned_data.get("flow_type", ""),
                 ca_target=form.cleaned_data.get("ca_target", ""),
                 difficulty=form.cleaned_data["difficulty"],
                 lesson_note_text=form.cleaned_data.get("lesson_note_text", ""),

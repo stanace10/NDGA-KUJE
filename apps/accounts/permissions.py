@@ -105,7 +105,8 @@ def has_scope(user, scope_code):
 
 
 def requires_two_factor(user):
-    return bool(user_role_codes(user) & PRIVILEGED_2FA_ROLES)
+    enabled = bool(getattr(user, "two_factor_enabled", False))
+    return enabled and bool(user_role_codes(user) & PRIVILEGED_2FA_ROLES)
 
 
 def has_any_role(user, role_codes):

@@ -223,6 +223,43 @@ class PrincipalSettingsTests(TestCase):
         self.assertTrue(bool(signature.signature_image))
 
 
+class AccountSecuritySettingsTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        it_role = Role.objects.get(code=ROLE_IT_MANAGER)
+        cls.it_user = User.objects.create_user(
+            username="it-security-settings",
+            password="Password123!",
+            primary_role=it_role,
+            must_change_password=False,
+            email="it-security@ndgakuje.org",
+        )
+
+    def test_privileged_user_can_toggle_email_two_factor(self):
+        client = Client(HTTP_HOST="it.ndgakuje.org")
+        client.force_login(self.it_user)
+
+        response = client.get("/portal/account/security/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Privileged Sign-In Security")
+
+        post_response = client.post(
+            "/portal/account/security/",
+            {
+                "action": "update_security",
+                "two_factor_enabled": "on",
+                "two_factor_email": "otp@ndgakuje.org",
+            },
+            follow=False,
+        )
+        self.assertEqual(post_response.status_code, 302)
+        self.assertEqual(post_response["Location"], "/portal/account/security/")
+
+        self.it_user.refresh_from_db()
+        self.assertTrue(self.it_user.two_factor_enabled)
+        self.assertEqual(self.it_user.two_factor_email, "otp@ndgakuje.org")
+
+
 class DashboardIntelligenceTests(TestCase):
     @classmethod
     def setUpTestData(cls):

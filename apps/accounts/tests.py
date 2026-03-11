@@ -949,7 +949,9 @@ class StageNineteenSecurityTests(TestCase):
     def test_privileged_roles_require_email_two_factor_verification(self):
         cache.clear()
         self.it_user.email = "security-it@ndgakuje.org"
-        self.it_user.save(update_fields=["email"])
+        self.it_user.two_factor_enabled = True
+        self.it_user.two_factor_email = "security-it@ndgakuje.org"
+        self.it_user.save(update_fields=["email", "two_factor_enabled", "two_factor_email"])
 
         client = Client(HTTP_HOST="it.ndgakuje.org")
         response = client.post(
@@ -976,3 +978,14 @@ class StageNineteenSecurityTests(TestCase):
                 event_type="LOGIN_2FA_VERIFIED",
             ).exists()
         )
+
+    def test_privileged_roles_without_opt_in_two_factor_log_in_directly(self):
+        cache.clear()
+        client = Client(HTTP_HOST="it.ndgakuje.org")
+        response = client.post(
+            "/auth/login/?audience=it",
+            {"username": "security-it", "password": "Password123!"},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, "http://it.ndgakuje.org/")
+        self.assertEqual(int(client.session["_auth_user_id"]), self.it_user.id)

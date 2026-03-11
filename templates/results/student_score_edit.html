@@ -35,7 +35,7 @@
 
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {% for field in form %}
-            <div class="{% if field.name == 'override_reason' %}sm:col-span-2 lg:col-span-3{% endif %}">
+            <div>
               <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ field.id_for_label }}">
                 {{ field.label }}
               </label>

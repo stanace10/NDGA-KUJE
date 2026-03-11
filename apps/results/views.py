@@ -47,6 +47,12 @@ from apps.cbt.models import (
 from apps.notifications.models import NotificationCategory
 from apps.notifications.services import create_notification, notify_results_published, send_email_event
 from apps.pdfs.services import can_staff_download_term_report
+from apps.results.entry_flow import (
+    build_posted_score_bundle,
+    read_sheet_policies_from_post,
+    row_component_state,
+    sheet_policy_state,
+)
 from apps.results.forms import (
     RejectActionForm,
     ResultActionForm,
@@ -530,8 +536,10 @@ def _behavior_average_rating(breakdown):
 
 
 class ResultsAccessMixin(LoginRequiredMixin, UserPassesTestMixin):
+    allowed_roles = RESULTS_STAGE7_ROLES
+
     def test_func(self):
-        return has_any_role(self.request.user, RESULTS_STAGE7_ROLES)
+        return has_any_role(self.request.user, self.allowed_roles)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -797,6 +805,7 @@ class AssignmentScoreListView(ResultsAccessMixin, TemplateView):
                 student_id__in=student_ids,
             )
         }
+        policies = sheet_policy_state(sheet)
         rows = []
         for enrollment in enrollments:
             score = score_map.get(enrollment.student_id)
@@ -805,6 +814,7 @@ class AssignmentScoreListView(ResultsAccessMixin, TemplateView):
                     "enrollment": enrollment,
                     "score": score,
                     "locked_fields": score.normalized_locked_fields() if score else [],
+                    "cbt": row_component_state(score, policies),
                 }
             )
         return self.render_to_response(
@@ -812,6 +822,7 @@ class AssignmentScoreListView(ResultsAccessMixin, TemplateView):
                 assignment=assignment,
                 result_sheet=sheet,
                 rows=rows,
+                cbt_policies=policies,
                 can_edit=(
                     request_user_can_edit_session(request.user, assignment.session)
                     and sheet_is_editable_by_subject_owner(request.user, sheet)
@@ -857,36 +868,26 @@ class AssignmentScoreListView(ResultsAccessMixin, TemplateView):
                 student_id__in=[row.student_id for row in enrollments],
             )
         }
+        policies, policy_warnings, policy_changed = read_sheet_policies_from_post(
+            sheet,
+            request.POST,
+            list(existing_scores.values()),
+        )
+        if policy_changed:
+            sheet.cbt_component_policies = policies
+            sheet.save(update_fields=["cbt_component_policies", "updated_at"])
         updates = []
-        row_errors = []
+        row_errors = list(policy_warnings)
         for enrollment in enrollments:
             student = enrollment.student
             student_id = student.id
             current_score = existing_scores.get(student_id)
-            locked_fields = set(current_score.normalized_locked_fields() if current_score else [])
-            posted_scores = {
-                "ca1": (request.POST.get(f"ca1_{student_id}") or "0").strip(),
-                "ca2": (request.POST.get(f"ca2_{student_id}") or "0").strip(),
-                "ca3": (request.POST.get(f"ca3_{student_id}") or "0").strip(),
-                "ca4": (request.POST.get(f"ca4_{student_id}") or "0").strip(),
-                "objective": (request.POST.get(f"objective_{student_id}") or "0").strip(),
-                "theory": (request.POST.get(f"theory_{student_id}") or "0").strip(),
-            }
-            if current_score:
-                for field_name in locked_fields:
-                    posted_scores[field_name] = str(getattr(current_score, field_name))
-            has_override = bool(request.POST.get(f"override_{student_id}"))
-            override_reason = (request.POST.get(f"override_reason_{student_id}") or "").strip()
             try:
-                payload = compute_grade_payload(
-                    ca1=posted_scores["ca1"],
-                    ca2=posted_scores["ca2"],
-                    ca3=posted_scores["ca3"],
-                    ca4=posted_scores["ca4"],
-                    objective=posted_scores["objective"],
-                    theory=posted_scores["theory"],
-                    allow_override=has_override,
-                    override_reason=override_reason,
+                bundle = build_posted_score_bundle(
+                    current_score=current_score,
+                    post=request.POST,
+                    student_id=student_id,
+                    policies=policies,
                     actor=request.user,
                 )
             except ValidationError as exc:
@@ -901,10 +902,9 @@ class AssignmentScoreListView(ResultsAccessMixin, TemplateView):
             updates.append(
                 {
                     "student": student,
-                    "has_override": has_override,
-                    "override_reason": override_reason,
-                    "payload": payload,
-                    "locked_fields": sorted(locked_fields),
+                    "payload": bundle["payload"],
+                    "locked_fields": bundle["locked_fields"],
+                    "breakdown_updates": bundle["breakdown_updates"],
                 }
             )
 
@@ -926,9 +926,11 @@ class AssignmentScoreListView(ResultsAccessMixin, TemplateView):
                     score.total_exam = payload.total_exam
                     score.grand_total = payload.grand_total
                     score.grade = payload.grade
-                    score.has_override = row["has_override"]
-                    score.override_reason = row["override_reason"]
-                    score.override_by = request.user if row["has_override"] else None
+                    score.has_override = False
+                    score.override_reason = ""
+                    score.override_by = None
+                    for breakdown_key, breakdown_value in row["breakdown_updates"].items():
+                        score.set_breakdown_value(breakdown_key, breakdown_value)
                     if row["locked_fields"]:
                         score.cbt_locked_fields = sorted(set(score.normalized_locked_fields()) | set(row["locked_fields"]))
                     score.save()
@@ -938,8 +940,6 @@ class AssignmentScoreListView(ResultsAccessMixin, TemplateView):
                         metadata={
                             "sheet_id": str(sheet.id),
                             "student_id": str(score.student_id),
-                            "override": bool(score.has_override),
-                            "override_reason": score.override_reason if score.has_override else "",
                             "violations": payload.violations,
                         },
                     )
@@ -961,7 +961,9 @@ class AssignmentScoreListView(ResultsAccessMixin, TemplateView):
                 request,
                 f"{len(row_errors)} row(s) failed validation. Example: {sample}",
             )
-        return redirect(self._class_subjects_url(assignment=assignment))
+        assignment_url = reverse("results:assignment-scores", kwargs={"assignment_id": assignment.id})
+        query = self._filter_query()
+        return redirect(f"{assignment_url}?{query}" if query else assignment_url)
 
 
 class StudentScoreEditView(ResultsAccessMixin, TemplateView):
@@ -999,6 +1001,9 @@ class StudentScoreEditView(ResultsAccessMixin, TemplateView):
             student=self.enrollment.student,
         )
         self.locked_fields = set(self.score.normalized_locked_fields())
+        if any(sheet_policy_state(self.sheet)[key]["enabled"] for key in ("ca1", "ca23", "ca4", "exam")):
+            messages.info(request, "Use the full result entry table for CBT split scores on this subject.")
+            return redirect("results:assignment-scores", assignment_id=self.assignment.id)
         return super().dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
@@ -1033,8 +1038,6 @@ class StudentScoreEditView(ResultsAccessMixin, TemplateView):
             metadata={
                 "sheet_id": str(self.sheet.id),
                 "student_id": str(score.student_id),
-                "override": bool(score.has_override),
-                "override_reason": score.override_reason if score.has_override else "",
                 "violations": payload.violations if payload else {},
             },
         )
@@ -2977,7 +2980,7 @@ class PerformanceReportView(ResultReportAccessMixin, TemplateView):
         context["report"] = report
         context["term_report_pdf_url"] = ""
         context["performance_pdf_url"] = ""
-        context["send_results_url"] = reverse("results:send-results")
+        context["send_results_url"] = reverse("results:send-results") if not self.request.user.has_role(ROLE_DEAN) else ""
         if report.get("available") and can_staff_download_term_report(user=self.request.user, compilation=report["compilation"]):
             context["term_report_pdf_url"] = reverse(
                 "pdfs:staff-term-report-download",
@@ -2992,7 +2995,7 @@ class PerformanceReportView(ResultReportAccessMixin, TemplateView):
 
 class SendResultsView(ResultReportAccessMixin, TemplateView):
     template_name = "results/send_results.html"
-    allowed_roles = RESULT_SHARE_ROLES
+    allowed_roles = RESULT_SHARE_ROLES - {ROLE_DEAN}
 
     @staticmethod
     def _filtered_redirect(request):

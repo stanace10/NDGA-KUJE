@@ -1,4 +1,6 @@
 from django.conf import settings
+from decimal import Decimal, InvalidOperation
+
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
@@ -41,6 +43,7 @@ class ResultSheet(TimeStampedModel):
         on_delete=models.CASCADE,
         related_name="result_sheets",
     )
+    cbt_component_policies = models.JSONField(default=dict, blank=True)
     status = models.CharField(
         max_length=40,
         choices=ResultSheetStatus.choices,
@@ -130,6 +133,7 @@ class StudentSubjectScore(TimeStampedModel):
     has_override = models.BooleanField(default=False)
     override_reason = models.TextField(blank=True)
     cbt_locked_fields = models.JSONField(default=list, blank=True)
+    cbt_component_breakdown = models.JSONField(default=dict, blank=True)
     override_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.SET_NULL,
@@ -150,6 +154,7 @@ class StudentSubjectScore(TimeStampedModel):
 
     def save(self, *args, **kwargs):
         self.cbt_locked_fields = self.normalized_locked_fields()
+        self.cbt_component_breakdown = self.normalized_breakdown()
         payload = compute_grade_payload(
             ca1=self.ca1,
             ca2=self.ca2,
@@ -181,6 +186,35 @@ class StudentSubjectScore(TimeStampedModel):
             return []
         allowed = set(self.SCORE_COMPONENT_FIELDS)
         return sorted({str(field).strip() for field in raw if str(field).strip() in allowed})
+
+    def normalized_breakdown(self):
+        raw = self.cbt_component_breakdown
+        if not isinstance(raw, dict):
+            return {}
+        normalized = {}
+        for key, value in raw.items():
+            name = str(key).strip()
+            if not name:
+                continue
+            try:
+                normalized[name] = str(Decimal(str(value)).quantize(Decimal("0.01")))
+            except (InvalidOperation, TypeError, ValueError):
+                continue
+        return normalized
+
+    def breakdown_value(self, key):
+        try:
+            return Decimal(str(self.normalized_breakdown().get(key, "0.00"))).quantize(Decimal("0.01"))
+        except (InvalidOperation, TypeError, ValueError):
+            return Decimal("0.00")
+
+    def set_breakdown_value(self, key, value):
+        breakdown = self.normalized_breakdown()
+        try:
+            breakdown[str(key).strip()] = str(Decimal(str(value)).quantize(Decimal("0.01")))
+        except (InvalidOperation, TypeError, ValueError):
+            breakdown[str(key).strip()] = "0.00"
+        self.cbt_component_breakdown = breakdown
 
     def is_component_locked(self, component_field):
         return component_field in set(self.normalized_locked_fields())

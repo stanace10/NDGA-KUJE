@@ -19,8 +19,12 @@
             {% if voter_photo_url %}
               <img src="{{ voter_photo_url }}" alt="{{ voter_name }}" class="h-12 w-12 rounded-xl border border-slate-200 object-cover">
             {% else %}
-              <span class="inline-flex h-12 w-12 items-center justify-center rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700">
-                {{ voter_name|slice:":1"|upper }}
+              <span class="relative inline-flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white">
+                <svg viewBox="0 0 64 64" class="absolute inset-0 h-full w-full text-slate-300" fill="currentColor" aria-hidden="true">
+                  <circle cx="32" cy="24" r="12"></circle>
+                  <path d="M12 56c2-12 11-18 20-18s18 6 20 18"></path>
+                </svg>
+                <span class="relative text-sm font-semibold text-slate-700">{{ voter_name|slice:":1"|upper }}</span>
               </span>
             {% endif %}
             <div class="text-right">
@@ -72,8 +76,14 @@
                         {% elif candidate.user.staff_profile and candidate.user.staff_profile.profile_photo %}
                           <img src="{{ candidate.user.staff_profile.profile_photo.url }}" alt="{{ candidate.display_name|default:candidate.user.username }}" class="h-14 w-14 rounded-xl border border-slate-200 object-cover">
                         {% else %}
-                          <span class="inline-flex h-14 w-14 items-center justify-center rounded-xl border border-slate-200 bg-slate-100 text-base font-semibold text-slate-700">
-                            {{ candidate.display_name|default:candidate.user.get_full_name|default:candidate.user.username|slice:":1"|upper }}
+                          <span class="relative inline-flex h-14 w-14 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                            <svg viewBox="0 0 64 64" class="absolute inset-0 h-full w-full text-slate-300" fill="currentColor" aria-hidden="true">
+                              <circle cx="32" cy="24" r="12"></circle>
+                              <path d="M12 56c2-12 11-18 20-18s18 6 20 18"></path>
+                            </svg>
+                            <span class="relative text-base font-semibold text-slate-700">
+                              {{ candidate.display_name|default:candidate.user.get_full_name|default:candidate.user.username|slice:":1"|upper }}
+                            </span>
                           </span>
                         {% endif %}
                         <div>

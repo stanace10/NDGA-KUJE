@@ -398,6 +398,28 @@ class PrivilegedLoginVerifyView(FormView):
 class LogoutView(RedirectView):
     permanent = False
 
+    def _redirect_target(self):
+        portal_key = getattr(self.request, "portal_key", "") or self.request.session.get("last_authenticated_portal", "")
+        portal_map = {
+            "cbt": ("cbt", "cbt"),
+            "election": ("election", "election"),
+            "student": ("student", "student"),
+            "staff": ("staff", "staff"),
+            "it": ("it", "staff"),
+            "bursar": ("bursar", "staff"),
+            "vp": ("vp", "staff"),
+            "principal": ("principal", "staff"),
+        }
+        if portal_key in portal_map:
+            target_portal, audience = portal_map[portal_key]
+            return build_portal_url(
+                self.request,
+                target_portal,
+                reverse("accounts:login"),
+                query={"audience": audience},
+            )
+        return reverse("dashboard:landing")
+
     def _perform_logout(self):
         if self.request.user.is_authenticated:
             finalized_attempts = 0
@@ -422,12 +444,14 @@ class LogoutView(RedirectView):
         logout(self.request)
 
     def get(self, request, *args, **kwargs):
+        target = self._redirect_target()
         self._perform_logout()
-        return redirect("dashboard:landing")
+        return redirect(target)
 
     def post(self, request, *args, **kwargs):
+        target = self._redirect_target()
         self._perform_logout()
-        return redirect("dashboard:landing")
+        return redirect(target)
 
 
 class RoleRedirectView(LoginRequiredMixin, RedirectView):

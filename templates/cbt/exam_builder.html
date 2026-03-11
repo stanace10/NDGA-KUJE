@@ -1,8 +1,230 @@
 {% extends "layouts/base.html" %}
+{% load static %}
 
 {% block title %}CBT Question Builder{% endblock %}
 
+{% block extra_head %}
+  <link rel="stylesheet" href="{% static 'vendor/mathlive/mathlive-fonts.css' %}">
+  <link rel="stylesheet" href="{% static 'vendor/mathlive/mathlive-static.css' %}">
+{% endblock %}
+
 {% block content %}
+  <style>
+    .cbt-editor-toolbar button,
+    .cbt-editor-toolbar select,
+    .cbt-editor-toolbar input {
+      border-radius: 0.75rem;
+      border: 1px solid rgb(203 213 225);
+      background: #fff;
+      color: rgb(30 41 59);
+      font-size: 0.75rem;
+      font-weight: 700;
+      line-height: 1rem;
+      padding: 0.55rem 0.8rem;
+    }
+
+    .cbt-editor-toolbar button:hover,
+    .cbt-editor-toolbar select:hover,
+    .cbt-editor-toolbar input:hover {
+      border-color: rgba(18, 59, 112, 0.45);
+    }
+
+    .cbt-editor-toolbar button.cbt-tool-active {
+      background: #123b70;
+      border-color: #123b70;
+      color: #fff;
+    }
+
+    .cbt-editor-panel {
+      display: none;
+    }
+
+    .cbt-editor-panel.cbt-editor-panel-open {
+      display: block;
+    }
+
+    .cbt-editor-surface {
+      min-height: 18rem;
+      border: 1px solid rgb(203 213 225);
+      border-radius: 1rem;
+      background:
+        linear-gradient(180deg, rgba(248, 250, 252, 0.8) 0%, rgba(255, 255, 255, 1) 4rem),
+        repeating-linear-gradient(
+          180deg,
+          rgba(148, 163, 184, 0.12),
+          rgba(148, 163, 184, 0.12) 1px,
+          transparent 1px,
+          transparent 2.1rem
+        );
+      color: rgb(15 23 42);
+      font-size: 1rem;
+      line-height: 1.8;
+      outline: none;
+      overflow-wrap: break-word;
+      padding: 1.4rem;
+    }
+
+    .cbt-editor-surface:focus {
+      border-color: rgba(18, 59, 112, 0.55);
+      box-shadow: 0 0 0 4px rgba(18, 59, 112, 0.08);
+    }
+
+    .cbt-editor-surface p {
+      margin: 0 0 0.9rem;
+    }
+
+    .cbt-editor-surface table {
+      border-collapse: collapse;
+      margin: 0.85rem 0;
+      width: 100%;
+    }
+
+    .cbt-editor-surface td,
+    .cbt-editor-surface th {
+      border: 1px solid #475569;
+      min-width: 4rem;
+      padding: 0.45rem 0.6rem;
+      vertical-align: top;
+    }
+
+    .cbt-editor-surface img {
+      height: auto;
+      max-width: 100%;
+    }
+
+    .cbt-symbol-grid {
+      display: grid;
+      gap: 0.5rem;
+      grid-template-columns: repeat(auto-fit, minmax(3rem, 1fr));
+    }
+
+    .cbt-symbol-grid button {
+      font-size: 1.05rem;
+      font-weight: 600;
+      min-height: 2.8rem;
+      padding: 0.5rem;
+    }
+
+    .cbt-snippet-grid {
+      display: grid;
+      gap: 0.65rem;
+      grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+    }
+
+    .cbt-snippet-grid button {
+      text-align: left;
+    }
+
+    .cbt-draw-modal.hidden {
+      display: none;
+    }
+
+    .cbt-draw-canvas {
+      background:
+        linear-gradient(180deg, rgba(248, 250, 252, 0.85), rgba(255, 255, 255, 1)),
+        repeating-linear-gradient(
+          180deg,
+          rgba(148, 163, 184, 0.16),
+          rgba(148, 163, 184, 0.16) 1px,
+          transparent 1px,
+          transparent 2rem
+        ),
+        repeating-linear-gradient(
+          90deg,
+          rgba(148, 163, 184, 0.12),
+          rgba(148, 163, 184, 0.12) 1px,
+          transparent 1px,
+          transparent 2rem
+        );
+      border: 1px solid rgb(148 163 184);
+      border-radius: 1rem;
+      cursor: crosshair;
+      touch-action: none;
+      width: 100%;
+    }
+
+    .cbt-equation-workbench {
+      background: linear-gradient(180deg, rgba(241, 245, 249, 0.82), rgba(255, 255, 255, 1));
+    }
+
+    .cbt-equation-field {
+      display: block;
+      min-height: 4.6rem;
+      width: 100%;
+      border: 1px solid rgba(148, 163, 184, 0.9);
+      border-radius: 1rem;
+      background: #fff;
+      color: rgb(15 23 42);
+      padding: 0.9rem 1rem;
+    }
+
+    .cbt-equation-field:focus-within {
+      border-color: rgba(18, 59, 112, 0.55);
+      box-shadow: 0 0 0 4px rgba(18, 59, 112, 0.08);
+    }
+
+    .cbt-equation-preview {
+      min-height: 8rem;
+      border: 1px dashed rgb(148 163 184);
+      border-radius: 1rem;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(248, 250, 252, 0.95));
+      padding: 1rem;
+      color: rgb(15 23 42);
+      overflow-x: auto;
+    }
+
+    .cbt-equation-preview .ML__latex,
+    .cbt-editor-surface .ML__latex,
+    .cbt-editor-surface .ML__base {
+      max-width: 100%;
+      white-space: normal;
+    }
+
+    .cbt-latex-mirror {
+      width: 100%;
+      min-height: 6rem;
+      border: 1px solid rgb(203 213 225);
+      border-radius: 1rem;
+      background: rgb(248 250 252);
+      color: rgb(15 23 42);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+      font-size: 0.82rem;
+      line-height: 1.5;
+      padding: 0.85rem 1rem;
+      resize: vertical;
+    }
+
+    .cbt-palette-grid {
+      display: grid;
+      gap: 0.65rem;
+      grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    }
+
+    .cbt-palette-grid button {
+      text-align: left;
+    }
+
+    .cbt-math-chip,
+    .cbt-math-block {
+      background: rgba(239, 246, 255, 0.9);
+      border: 1px solid rgba(14, 116, 144, 0.28);
+      border-radius: 0.95rem;
+      padding: 0.35rem 0.7rem;
+    }
+
+    .cbt-math-chip {
+      display: inline-block;
+      margin: 0 0.2rem;
+      vertical-align: middle;
+    }
+
+    .cbt-math-block {
+      display: block;
+      margin: 0.75rem 0;
+      padding: 0.85rem 1rem;
+      text-align: center;
+    }
+  </style>
   <section class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
     <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
       <div class="flex flex-wrap items-start justify-between gap-3">
@@ -51,35 +273,199 @@
           </div>
 
           <div>
-            <label class="mb-1 block text-sm font-semibold text-slate-700" for="stem">Question Text</label>
+            <label class="mb-1 block text-sm font-semibold text-slate-700" for="stemEditor">Question Text</label>
             {% if can_edit %}
-              <div class="mb-2 space-y-2">
-                <div class="flex flex-wrap gap-2">
-                  <button type="button" class="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-ndga-navy/50" data-insert-wrap="<strong>|</strong>">Bold</button>
-                  <button type="button" class="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-ndga-navy/50" data-insert-wrap="<em>|</em>">Italic</button>
-                  <button type="button" class="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-ndga-navy/50" data-insert-wrap="<u>|</u>">Underline</button>
-                  <button type="button" class="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-ndga-navy/50" data-insert-text="<div>x^2 + y^2 = r^2</div>">Formula</button>
-                  <button type="button" class="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-ndga-navy/50" data-insert-text="<div>&plusmn; &times; &divide; &le; &ge; &ne; &asymp; &theta; &pi; &Delta; &radic; &sum; &lambda; &mu; &Omega; &deg;</div>">Symbols</button>
-                  <button type="button" class="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-ndga-navy/50" data-insert-text="<div>&#9651; &#9675; &#9633; &#8592; &#8593; &#8594; &#8595;</div>">Shapes</button>
+              <div class="mb-3 rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                <div class="cbt-editor-toolbar flex flex-wrap gap-2">
+                  <button type="button" data-editor-command="bold">Bold</button>
+                  <button type="button" data-editor-command="italic">Italic</button>
+                  <button type="button" data-editor-command="underline">Underline</button>
+                  <button type="button" data-editor-command="strikeThrough">Strike</button>
+                  <button type="button" data-editor-command="superscript">Sup</button>
+                  <button type="button" data-editor-command="subscript">Sub</button>
+                  <button type="button" data-editor-command="insertUnorderedList">Bullets</button>
+                  <button type="button" data-editor-command="insertOrderedList">Numbering</button>
+                  <button type="button" data-editor-command="justifyLeft">Left</button>
+                  <button type="button" data-editor-command="justifyCenter">Center</button>
+                  <button type="button" data-editor-command="justifyRight">Right</button>
+                  <button type="button" data-editor-command="undo">Undo</button>
+                  <button type="button" data-editor-command="redo">Redo</button>
+                  <button type="button" data-editor-block="P">Paragraph</button>
+                  <button type="button" data-editor-block="H3">H3</button>
+                  <button type="button" data-editor-block="H4">H4</button>
+                  <button type="button" data-editor-block="BLOCKQUOTE">Quote</button>
+                  <button type="button" data-editor-command="removeFormat">Clear</button>
                 </div>
-                <div class="flex flex-wrap gap-2">
-                  <button type="button" class="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-ndga-navy/50" data-insert-text="<table class='w-full border-collapse border border-slate-500'><tr><th class='border border-slate-500 px-2 py-1'>Heading 1</th><th class='border border-slate-500 px-2 py-1'>Heading 2</th></tr><tr><td class='border border-slate-500 px-2 py-1'>Value</td><td class='border border-slate-500 px-2 py-1'>Value</td></tr></table>">2x2 Table</button>
-                  <button type="button" class="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-ndga-navy/50" data-insert-text="<table class='w-full border-collapse border border-slate-500'><tr><th class='border border-slate-500 px-2 py-1'>A</th><th class='border border-slate-500 px-2 py-1'>B</th><th class='border border-slate-500 px-2 py-1'>C</th></tr><tr><td class='border border-slate-500 px-2 py-1'>1</td><td class='border border-slate-500 px-2 py-1'>2</td><td class='border border-slate-500 px-2 py-1'>3</td></tr></table>">3-Column Table</button>
-                  <button type="button" class="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-ndga-navy/50" data-insert-text="<div class='my-3 border-t border-slate-500 pt-3'>Working Space</div>">Line / Work Space</button>
-                  <button type="button" class="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-ndga-navy/50" data-insert-text="<div class='rounded-xl border border-dashed border-slate-500 p-6 text-center text-sm'>Graph Area</div>">Graph Area</button>
-                  <button type="button" class="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-ndga-navy/50" data-insert-text="<div>Quadratic: x = (-b +/- sqrt(b^2 - 4ac)) / 2a</div><div>Physics: v = u + at, s = ut + 1/2at^2, V = IR, P = VI</div>">Maths / Physics</button>
-                  <button type="button" class="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-ndga-navy/50" data-insert-text="<div>Na+, Cl-, SO4^2-, H2SO4, CO2, NH3, CH4</div>">Chemistry Symbols</button>
+
+                <div class="mt-3 flex flex-wrap gap-2 cbt-editor-toolbar">
+                  <button type="button" data-open-panel="equationsPanel">Equations</button>
+                  <button type="button" data-open-panel="symbolsPanel">Symbols</button>
+                  <button type="button" data-open-panel="tablesPanel">Tables</button>
+                  <button type="button" data-open-panel="shapesPanel">Shapes</button>
+                  <button type="button" data-open-panel="sciencePanel">Maths / Science</button>
+                  <button type="button" data-open-draw-modal="1">Draw / Pencil</button>
                 </div>
-                <p class="text-xs text-slate-500">Quick inserts help with maths symbols, formulas, tables, shapes, and structured exam layouts. These render inside the live CBT page.</p>
+
+                                <div id="equationsPanel" data-tool-panel="equationsPanel" class="cbt-editor-panel cbt-editor-panel-open mt-3 rounded-2xl border border-slate-200 bg-white p-4">
+                  <div class="grid gap-4 xl:grid-cols-[1.35fr_0.85fr]">
+                    <div class="cbt-equation-workbench rounded-2xl border border-slate-200 p-4">
+                      <div class="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Equation Workbench</p>
+                          <h4 class="mt-1 text-sm font-semibold text-slate-800">Build full maths, further maths, physics, and chemistry notation</h4>
+                        </div>
+                        <button type="button" id="equationKeyboardBtn">Keyboard</button>
+                      </div>
+                      <math-field id="equationMathfield" class="cbt-equation-field mt-3" virtual-keyboard-mode="manual" smart-mode></math-field>
+                      <div class="mt-3 flex flex-wrap gap-2 cbt-editor-toolbar">
+                        <button type="button" data-math-command="\frac{#@}{#?}">Fraction</button>
+                        <button type="button" data-math-command="\sqrt{#?}">Square root</button>
+                        <button type="button" data-math-command="\sqrt[#?]{#@}">Nth root</button>
+                        <button type="button" data-math-command="x^{#?}">Power</button>
+                        <button type="button" data-math-command="x_{#?}">Subscript</button>
+                        <button type="button" data-math-command="\int_{#?}^{#@}">Integral</button>
+                        <button type="button" data-math-command="\sum_{#?}^{#@}">Summation</button>
+                        <button type="button" data-math-command="\lim_{x \to #?}">Limit</button>
+                        <button type="button" data-math-command="\vec{#?}">Vector</button>
+                        <button type="button" data-math-command="\overline{#?}">Bar</button>
+                        <button type="button" data-math-command="\sin(#?)">sin</button>
+                        <button type="button" data-math-command="\cos(#?)">cos</button>
+                        <button type="button" data-math-command="\tan(#?)">tan</button>
+                        <button type="button" data-math-command="\log_{10}(#?)">log</button>
+                        <button type="button" data-math-command="\ln(#?)">ln</button>
+                        <button type="button" data-math-command="\begin{pmatrix}#? & #? \\ #? & #?\end{pmatrix}">Matrix</button>
+                      </div>
+                      <div class="mt-3 flex flex-wrap gap-2 cbt-editor-toolbar">
+                        <button type="button" id="equationInsertInlineBtn">Insert Inline</button>
+                        <button type="button" id="equationInsertBlockBtn">Insert Block</button>
+                        <button type="button" id="equationInsertFieldBtn">Insert Into Focused Field</button>
+                        <button type="button" id="equationClearBtn">Clear</button>
+                      </div>
+                      <div class="mt-3">
+                        <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500" for="equationLatex">Equation Source</label>
+                        <textarea id="equationLatex" class="cbt-latex-mirror" readonly></textarea>
+                      </div>
+                      <p class="mt-3 text-xs text-slate-500">Tip: click inside Option A-D or any focused field, then use <span class="font-semibold text-slate-700">Insert Into Focused Field</span> to store inline maths like \(x^2 + y^2\) that will render on the live CBT page.</p>
+                    </div>
+                    <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Live Preview</p>
+                      <div id="equationPreview" class="cbt-equation-preview mt-3"></div>
+                      <div class="mt-4">
+                        <p class="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Ready-Made Equation Sets</p>
+                        <div class="cbt-palette-grid cbt-editor-toolbar">
+                          <button type="button" data-math-template="x=\frac{-b \pm \sqrt{b^2-4ac}}{2a}">Quadratic formula</button>
+                          <button type="button" data-math-template="s=ut+\frac{1}{2}at^2">Motion equation</button>
+                          <button type="button" data-math-template="V=IR">Ohm's law</button>
+                          <button type="button" data-math-template="F=ma">Newton's law</button>
+                          <button type="button" data-math-template="\sin^2\theta+\cos^2\theta=1">Trig identity</button>
+                          <button type="button" data-math-template="\frac{dy}{dx}">Differentiation</button>
+                          <button type="button" data-math-template="\int_a^b f(x)\,dx">Definite integral</button>
+                          <button type="button" data-math-template="\left(x-h\right)^2+\left(y-k\right)^2=r^2">Circle equation</button>
+                          <button type="button" data-math-template="H_2SO_4">Chemistry formula</button>
+                          <button type="button" data-math-template="Na^+ + Cl^- \rightarrow NaCl">Chemical reaction</button>
+                          <button type="button" data-math-template="\begin{array}{c|c}x & y \\ 1 & 2 \\ 2 & 4\end{array}">Maths table</button>
+                          <button type="button" data-math-template="\begin{cases}2x+y=7\\x-y=1\end{cases}">Simultaneous equations</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div id="symbolsPanel" data-tool-panel="symbolsPanel" class="cbt-editor-panel mt-3 rounded-2xl border border-slate-200 bg-white p-4">
+                  <p class="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Symbols And Operators</p>
+                  <div class="cbt-symbol-grid cbt-editor-toolbar">
+                    <button type="button" data-insert-text="&plusmn;">&plusmn;</button>
+                    <button type="button" data-insert-text="&times;">&times;</button>
+                    <button type="button" data-insert-text="&divide;">&divide;</button>
+                    <button type="button" data-insert-text="&le;">&le;</button>
+                    <button type="button" data-insert-text="&ge;">&ge;</button>
+                    <button type="button" data-insert-text="&ne;">&ne;</button>
+                    <button type="button" data-insert-text="&asymp;">&asymp;</button>
+                    <button type="button" data-insert-text="&infin;">&infin;</button>
+                    <button type="button" data-insert-text="&ang;">&ang;</button>
+                    <button type="button" data-insert-text="&pi;">&pi;</button>
+                    <button type="button" data-insert-text="&theta;">&theta;</button>
+                    <button type="button" data-insert-text="&Delta;">&Delta;</button>
+                    <button type="button" data-insert-text="&lambda;">&lambda;</button>
+                    <button type="button" data-insert-text="&mu;">&mu;</button>
+                    <button type="button" data-insert-text="&Omega;">&Omega;</button>
+                    <button type="button" data-insert-text="&deg;">&deg;</button>
+                    <button type="button" data-insert-text="&rarr;">&rarr;</button>
+                    <button type="button" data-insert-text="&larr;">&larr;</button>
+                    <button type="button" data-insert-text="&uarr;">&uarr;</button>
+                    <button type="button" data-insert-text="&darr;">&darr;</button>
+                    <button type="button" data-insert-text="&#8741;">&#8741;</button>
+                    <button type="button" data-insert-text="&perp;">&perp;</button>
+                    <button type="button" data-insert-text="&isin;">&isin;</button>
+                    <button type="button" data-insert-text="&notin;">&notin;</button>
+                    <button type="button" data-insert-text="&cup;">&cup;</button>
+                    <button type="button" data-insert-text="&cap;">&cap;</button>
+                    <button type="button" data-insert-text="&sub;">&sub;</button>
+                    <button type="button" data-insert-text="&sube;">&sube;</button>
+                    <button type="button" data-insert-text="&there4;">&there4;</button>
+                    <button type="button" data-insert-text="&#8757;">&#8757;</button>
+                    <button type="button" data-insert-text="&sum;">&sum;</button>
+                    <button type="button" data-insert-text="&radic;">&radic;</button>
+                  </div>
+                </div>
+
+                <div id="tablesPanel" data-tool-panel="tablesPanel" class="cbt-editor-panel mt-3 rounded-2xl border border-slate-200 bg-white p-4">
+                  <p class="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Table Designer</p>
+                  <div class="flex flex-wrap items-end gap-3 cbt-editor-toolbar">
+                    <label class="text-xs font-semibold text-slate-600">
+                      Rows
+                      <input type="number" id="tableRows" min="1" max="12" value="2">
+                    </label>
+                    <label class="text-xs font-semibold text-slate-600">
+                      Columns
+                      <input type="number" id="tableCols" min="1" max="12" value="2">
+                    </label>
+                    <button type="button" id="insertTableBtn">Insert Table</button>
+                    <button type="button" id="insertFourFigureBtn">Four-Figure Table</button>
+                    <button type="button" id="addRowBtn">Add Row Below</button>
+                    <button type="button" id="addColBtn">Add Column Right</button>
+                    <button type="button" id="deleteRowBtn">Delete Row</button>
+                    <button type="button" id="deleteColBtn">Delete Column</button>
+                  </div>
+                  <p class="mt-3 text-xs text-slate-500">Place the cursor inside a table cell before using row or column controls.</p>
+                </div>
+
+                <div id="shapesPanel" data-tool-panel="shapesPanel" class="cbt-editor-panel mt-3 rounded-2xl border border-slate-200 bg-white p-4">
+                  <p class="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Shapes And Diagram Blocks</p>
+                  <div class="cbt-snippet-grid cbt-editor-toolbar">
+                    <button type="button" data-insert-html="<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; viewBox=&quot;0 0 220 24&quot; style=&quot;display:block;max-width:220px;width:100%;height:auto;margin:10px 0;&quot;><line x1=&quot;8&quot; y1=&quot;12&quot; x2=&quot;212&quot; y2=&quot;12&quot; stroke=&quot;#0f172a&quot; stroke-width=&quot;2.2&quot; /></svg>">Line</button>
+                    <button type="button" data-insert-html="<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; viewBox=&quot;0 0 240 40&quot; style=&quot;display:block;max-width:240px;width:100%;height:auto;margin:10px 0;&quot;><defs><marker id=&quot;arrow-head&quot; markerWidth=&quot;8&quot; markerHeight=&quot;8&quot; refX=&quot;6&quot; refY=&quot;3&quot; orient=&quot;auto&quot;><polygon points=&quot;0 0, 6 3, 0 6&quot; fill=&quot;#0f172a&quot; /></marker></defs><line x1=&quot;10&quot; y1=&quot;20&quot; x2=&quot;220&quot; y2=&quot;20&quot; stroke=&quot;#0f172a&quot; stroke-width=&quot;2.2&quot; marker-end=&quot;url(#arrow-head)&quot; /></svg>">Arrow</button>
+                    <button type="button" data-insert-html="<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; viewBox=&quot;0 0 180 120&quot; style=&quot;display:block;max-width:180px;width:100%;height:auto;margin:10px 0;&quot;><rect x=&quot;15&quot; y=&quot;15&quot; width=&quot;150&quot; height=&quot;90&quot; fill=&quot;none&quot; stroke=&quot;#0f172a&quot; stroke-width=&quot;2&quot; rx=&quot;8&quot; /></svg>">Rectangle</button>
+                    <button type="button" data-insert-html="<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; viewBox=&quot;0 0 140 140&quot; style=&quot;display:block;max-width:140px;width:100%;height:auto;margin:10px 0;&quot;><circle cx=&quot;70&quot; cy=&quot;70&quot; r=&quot;52&quot; fill=&quot;none&quot; stroke=&quot;#0f172a&quot; stroke-width=&quot;2&quot; /></svg>">Circle</button>
+                    <button type="button" data-insert-html="<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; viewBox=&quot;0 0 180 160&quot; style=&quot;display:block;max-width:180px;width:100%;height:auto;margin:10px 0;&quot;><polygon points=&quot;90,15 160,140 20,140&quot; fill=&quot;none&quot; stroke=&quot;#0f172a&quot; stroke-width=&quot;2&quot; /></svg>">Triangle</button>
+                    <button type="button" data-insert-html="<svg xmlns=&quot;http://www.w3.org/2000/svg&quot; viewBox=&quot;0 0 220 180&quot; style=&quot;display:block;max-width:220px;width:100%;height:auto;margin:10px 0;&quot;><line x1=&quot;18&quot; y1=&quot;160&quot; x2=&quot;210&quot; y2=&quot;160&quot; stroke=&quot;#0f172a&quot; stroke-width=&quot;2.1&quot; /><line x1=&quot;42&quot; y1=&quot;172&quot; x2=&quot;42&quot; y2=&quot;10&quot; stroke=&quot;#0f172a&quot; stroke-width=&quot;2.1&quot; /><polyline fill=&quot;none&quot; stroke=&quot;#0284c7&quot; stroke-width=&quot;2.6&quot; points=&quot;42,130 76,118 110,95 144,68 178,38&quot; /></svg>">Graph Axes</button>
+                  </div>
+                </div>
+
+                <div id="sciencePanel" data-tool-panel="sciencePanel" class="cbt-editor-panel mt-3 rounded-2xl border border-slate-200 bg-white p-4">
+                  <p class="mb-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Maths, Further Maths, Physics And Chemistry Helpers</p>
+                  <div class="cbt-snippet-grid cbt-editor-toolbar">
+                    <button type="button" data-insert-html="<div style=&quot;border:1px dashed #94a3b8;border-radius:12px;padding:18px;margin:12px 0;text-align:center;color:#334155;&quot;>Graph working space</div>">Graph Working Space</button>
+                    <button type="button" data-insert-html="<div style=&quot;border:1px dashed #94a3b8;border-radius:12px;padding:18px;margin:12px 0;color:#0f172a;&quot;><strong>Physics Formula Bank</strong><div style=&quot;margin-top:8px;&quot;>v = u + at, &nbsp; s = ut + 1/2at<sup>2</sup>, &nbsp; V = IR, &nbsp; P = VI, &nbsp; F = ma</div></div>">Physics formulas</button>
+                    <button type="button" data-insert-html="<div style=&quot;border:1px dashed #94a3b8;border-radius:12px;padding:18px;margin:12px 0;color:#0f172a;&quot;><strong>Further Maths</strong><div style=&quot;margin-top:8px;&quot;>dy/dx, &nbsp; lim x&rarr;a, &nbsp; sin&theta;, cos&theta;, tan&theta;, &nbsp; log<sub>10</sub>x, &nbsp; e<sup>x</sup></div></div>">Further maths helpers</button>
+                    <button type="button" data-insert-html="<div style=&quot;border:1px dashed #94a3b8;border-radius:12px;padding:18px;margin:12px 0;color:#0f172a;&quot;><strong>Chemistry Symbols</strong><div style=&quot;margin-top:8px;&quot;>Na<sup>+</sup>, Cl<sup>-</sup>, SO<sub>4</sub><sup>2-</sup>, CO<sub>2</sub>, NH<sub>3</sub>, CH<sub>4</sub>, H<sub>2</sub>O</div></div>">Chemistry symbols</button>
+                    <button type="button" data-insert-html="<div style=&quot;border-top:1px solid #475569;margin:18px 0;padding-top:14px;min-height:40px;&quot;>Working line</div>">Working line</button>
+                  </div>
+                </div>
+
+                <p class="mt-3 text-xs text-slate-500">
+                  Teachers can type directly, format like a document editor, insert equations and symbols, create tables, add diagram shapes, and sketch with the draw tool. Toolbar inserts also work on whichever option field is focused last.
+                </p>
               </div>
             {% endif %}
-            <textarea
-              id="stem"
-              name="stem"
-              rows="4"
-              class="w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm"
-              {% if not can_edit %}disabled{% endif %}
-            >{{ current_stem }}</textarea>
+            {% if can_edit %}
+              <div id="stemEditor" class="cbt-editor-surface" contenteditable="true" spellcheck="true" aria-label="Question editor"></div>
+              <textarea id="stem" name="stem" rows="4" class="hidden">{{ current_stem }}</textarea>
+            {% else %}
+              <div class="rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-800">
+                {{ current_stem|safe }}
+              </div>
+            {% endif %}
           </div>
 
           <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -118,6 +504,24 @@
           </div>
 
           {% if current_bundle.section == "OBJECTIVE" %}
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p class="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Focused Field Inserts</p>
+              <div class="flex flex-wrap gap-2 cbt-editor-toolbar">
+                <button type="button" data-insert-text="&pi;">&pi;</button>
+                <button type="button" data-insert-text="&theta;">&theta;</button>
+                <button type="button" data-insert-text="&radic;">&radic;</button>
+                <button type="button" data-insert-text="&sup2;">&sup2;</button>
+                <button type="button" data-insert-text="&sup3;">&sup3;</button>
+                <button type="button" data-insert-text="&ge;">&ge;</button>
+                <button type="button" data-insert-text="&le;">&le;</button>
+                <button type="button" data-insert-text="&rarr;">&rarr;</button>
+                <button type="button" data-insert-text="&Delta;">&Delta;</button>
+                <button type="button" data-insert-text="&Omega;">&Omega;</button>
+                <button type="button" data-open-panel="equationsPanel">Equation Workbench</button>
+                <button type="button" id="focusedFieldEquationBtn">Equation To Field</button>
+              </div>
+            </div>
+
             <div class="w-full max-w-sm">
               <label class="mb-1 block text-sm font-semibold text-slate-700" for="objective_mode">Objective Mode</label>
               <select id="objective_mode" name="objective_mode" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" {% if not can_edit %}disabled{% endif %}>
@@ -210,6 +614,35 @@
             </div>
           {% endif %}
         </form>
+
+        {% if can_edit %}
+          <div id="drawModal" class="cbt-draw-modal hidden fixed inset-0 z-50 p-4" style="background: rgba(2, 6, 23, 0.6);">
+            <div class="mx-auto flex max-w-5xl flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-2xl">
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Teacher Sketch Pad</p>
+                  <h3 class="text-lg font-semibold text-ndga-navy">Draw a diagram, graph, line sketch, or label guide</h3>
+                </div>
+                <button type="button" id="closeDrawModal" class="ndga-btn ndga-btn-secondary">Close</button>
+              </div>
+              <div class="flex flex-wrap gap-3 cbt-editor-toolbar">
+                <label class="text-xs font-semibold text-slate-600">
+                  Pen colour
+                  <input type="color" id="drawColor" value="#123b70" class="h-10 w-16 p-1">
+                </label>
+                <label class="text-xs font-semibold text-slate-600">
+                  Pen size
+                  <input type="range" id="drawSize" min="1" max="18" value="3">
+                </label>
+                <button type="button" id="drawPenBtn" class="cbt-tool-active">Pen</button>
+                <button type="button" id="drawEraserBtn">Eraser</button>
+                <button type="button" id="clearDrawCanvasBtn">Clear</button>
+                <button type="button" id="insertDrawingBtn">Insert Into Question</button>
+              </div>
+              <canvas id="drawCanvas" class="cbt-draw-canvas" width="1200" height="560"></canvas>
+            </div>
+          </div>
+        {% endif %}
       </article>
     {% else %}
       <article class="mt-5 rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
@@ -222,7 +655,15 @@
 {% endblock %}
 
 {% block extra_scripts %}
-  <script>
+  <script type="module">
+    import { MathfieldElement, convertLatexToMarkup } from "{% static 'vendor/mathlive/mathlive.mjs' %}";
+
+    if (!window.customElements.get("math-field")) {
+      window.customElements.define("math-field", MathfieldElement);
+    }
+
+    await window.customElements.whenDefined("math-field");
+
     (function () {
       const canEdit = {% if can_edit %}true{% else %}false{% endif %};
       if (!canEdit) {
@@ -230,7 +671,9 @@
       }
       const form = document.getElementById("cbt-builder-form");
       const status = document.getElementById("cbt-autosave-status");
-      if (!form || !status) {
+      const stemArea = document.getElementById("stem");
+      const stemEditor = document.getElementById("stemEditor");
+      if (!form || !status || !stemArea || !stemEditor) {
         return;
       }
 
@@ -238,6 +681,98 @@
       const index = "{{ current_index }}";
       const storageKey = "ndga.cbt.builder." + examId + "." + index;
       let timer = null;
+      let savedEditorRange = null;
+      let lastFocusedField = stemEditor;
+
+      const equationField = document.getElementById("equationMathfield");
+      const equationPreview = document.getElementById("equationPreview");
+      const equationLatex = document.getElementById("equationLatex");
+      const equationKeyboardBtn = document.getElementById("equationKeyboardBtn");
+      const equationInsertInlineBtn = document.getElementById("equationInsertInlineBtn");
+      const equationInsertBlockBtn = document.getElementById("equationInsertBlockBtn");
+      const equationInsertFieldBtn = document.getElementById("equationInsertFieldBtn");
+      const focusedFieldEquationBtn = document.getElementById("focusedFieldEquationBtn");
+      const equationClearBtn = document.getElementById("equationClearBtn");
+
+      function escapeHtml(value) {
+        return String(value || "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/\"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      }
+
+      function getEquationLatex() {
+        if (!equationField) {
+          return "";
+        }
+        if (typeof equationField.getValue === "function") {
+          return equationField.getValue("latex-expanded") || equationField.value || "";
+        }
+        return equationField.value || "";
+      }
+
+      function syncEquationWorkbench() {
+        if (!equationField) {
+          return;
+        }
+        const latex = getEquationLatex().trim();
+        if (equationLatex) {
+          equationLatex.value = latex;
+        }
+        if (equationPreview) {
+          equationPreview.innerHTML = latex
+            ? convertLatexToMarkup(latex)
+            : '<span class="text-sm text-slate-400">Equation preview appears here.</span>';
+        }
+      }
+
+      function setEquationLatex(value) {
+        if (!equationField) {
+          return;
+        }
+        if (typeof equationField.setValue === "function") {
+          equationField.setValue(value || "", { silenceNotifications: true });
+        } else {
+          equationField.value = value || "";
+        }
+        syncEquationWorkbench();
+      }
+
+      function buildEquationHtml(latex, displayMode) {
+        const markup = convertLatexToMarkup(latex);
+        if (displayMode === "block") {
+          return '<div class="cbt-math-block" data-math-source="' + escapeHtml(latex) + '">' + markup + '</div>';
+        }
+        return '<span class="cbt-math-chip" data-math-source="' + escapeHtml(latex) + '">' + markup + '</span>';
+      }
+
+      function insertEquation(displayMode, forceFocusedField) {
+        const latex = getEquationLatex().trim();
+        if (!latex) {
+          window.alert("Build the equation first.");
+          return;
+        }
+        if ((forceFocusedField || (lastFocusedField && lastFocusedField !== stemEditor)) && lastFocusedField && lastFocusedField !== stemEditor && typeof lastFocusedField.value !== "undefined") {
+          insertIntoInput(lastFocusedField, '\\(' + latex + '\\)');
+          return;
+        }
+        insertHtmlAtCursor(buildEquationHtml(latex, displayMode || "inline"));
+      }
+
+      function insertMathCommand(command) {
+        if (!equationField || !command) {
+          return;
+        }
+        equationField.focus();
+        if (typeof equationField.insert === "function") {
+          equationField.insert(command, { format: "latex", selectionMode: "placeholder" });
+        } else {
+          equationField.value += command;
+        }
+        syncEquationWorkbench();
+      }
 
       function setStatus(text, tone) {
         status.textContent = text;
@@ -257,9 +792,7 @@
       }
 
       function trackedInputs() {
-        return Array.from(
-          form.querySelectorAll("textarea[name], input[name], select[name]")
-        ).filter((node) => {
+        return Array.from(form.querySelectorAll("textarea[name], input[name], select[name]")).filter((node) => {
           const name = node.getAttribute("name") || "";
           if (!name || name === "csrfmiddlewaretoken" || name === "_autosave") {
             return false;
@@ -271,7 +804,18 @@
         });
       }
 
+      function syncEditorToTextarea() {
+        const html = (stemEditor.innerHTML || "").trim();
+        stemArea.value = html === "<br>" ? "" : html;
+      }
+
+      function syncTextareaToEditor() {
+        const initial = (stemArea.value || "").trim();
+        stemEditor.innerHTML = initial || "<p></p>";
+      }
+
       function saveDraftToLocal() {
+        syncEditorToTextarea();
         const payload = {};
         trackedInputs().forEach((node) => {
           if (node.type === "checkbox") {
@@ -306,10 +850,12 @@
             node.value = draft[node.name];
           }
         });
+        syncTextareaToEditor();
         setStatus("Draft restored", "");
       }
 
       function runAutosave() {
+        syncEditorToTextarea();
         saveDraftToLocal();
         const payload = new FormData(form);
         payload.set("action", "save");
@@ -334,6 +880,7 @@
       }
 
       function scheduleAutosave() {
+        syncEditorToTextarea();
         saveDraftToLocal();
         if (timer) {
           clearTimeout(timer);
@@ -341,47 +888,323 @@
         timer = window.setTimeout(runAutosave, 1200);
       }
 
+      function rememberRange() {
+        const selection = window.getSelection();
+        if (!selection || selection.rangeCount === 0) {
+          return;
+        }
+        const range = selection.getRangeAt(0);
+        if (stemEditor.contains(range.commonAncestorContainer)) {
+          savedEditorRange = range.cloneRange();
+        }
+      }
+
+      function restoreRange() {
+        if (!savedEditorRange) {
+          stemEditor.focus();
+          return;
+        }
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(savedEditorRange);
+      }
+
+      function focusEditor() {
+        stemEditor.focus();
+        restoreRange();
+      }
+
+      function stripHtml(html) {
+        const wrapper = document.createElement("div");
+        wrapper.innerHTML = html;
+        return wrapper.textContent || wrapper.innerText || "";
+      }
+
+      function insertIntoInput(target, text) {
+        if (!target || typeof target.value === "undefined") {
+          return;
+        }
+        const start = target.selectionStart || 0;
+        const end = target.selectionEnd || 0;
+        const current = target.value || "";
+        target.value = current.slice(0, start) + text + current.slice(end);
+        const caret = start + text.length;
+        target.selectionStart = caret;
+        target.selectionEnd = caret;
+        target.focus();
+        scheduleAutosave();
+      }
+
+      function insertHtmlAtCursor(html) {
+        focusEditor();
+        document.execCommand("insertHTML", false, html);
+        rememberRange();
+        scheduleAutosave();
+      }
+
+      function insertTextAtCursor(text) {
+        if (lastFocusedField && lastFocusedField !== stemEditor && typeof lastFocusedField.value !== "undefined") {
+          insertIntoInput(lastFocusedField, text);
+          return;
+        }
+        focusEditor();
+        document.execCommand("insertText", false, text);
+        rememberRange();
+        scheduleAutosave();
+      }
+
+      function execEditorCommand(command, value) {
+        focusEditor();
+        document.execCommand(command, false, value || null);
+        rememberRange();
+        scheduleAutosave();
+      }
+
+      function currentTableCell() {
+        const selection = window.getSelection();
+        if (!selection || selection.rangeCount === 0) {
+          return null;
+        }
+        let node = selection.anchorNode;
+        if (!node) {
+          return null;
+        }
+        if (node.nodeType === Node.TEXT_NODE) {
+          node = node.parentNode;
+        }
+        return node ? node.closest("td, th") : null;
+      }
+
+      function buildTableHtml(rows, cols) {
+        const safeRows = Math.max(1, Math.min(Number(rows) || 2, 12));
+        const safeCols = Math.max(1, Math.min(Number(cols) || 2, 12));
+        let html = `<table style="width:100%;border-collapse:collapse;margin:12px 0;">`;
+        for (let r = 0; r < safeRows; r += 1) {
+          html += "<tr>";
+          for (let c = 0; c < safeCols; c += 1) {
+            const tag = r === 0 ? "th" : "td";
+            html += `<${tag} style="border:1px solid #475569;padding:8px 10px;vertical-align:top;min-width:72px;">${r === 0 ? "Heading" : "Value"}</${tag}>`;
+          }
+          html += "</tr>";
+        }
+        html += "</table>";
+        return html;
+      }
+
+      function insertTable(rows, cols) {
+        insertHtmlAtCursor(buildTableHtml(rows, cols));
+      }
+
+      function addRowBelow() {
+        const cell = currentTableCell();
+        if (!cell) {
+          window.alert("Place the cursor inside a table cell first.");
+          return;
+        }
+        const row = cell.parentElement;
+        const clone = row.cloneNode(true);
+        clone.querySelectorAll("td, th").forEach((node) => {
+          node.innerHTML = "Value";
+        });
+        row.parentElement.insertBefore(clone, row.nextSibling);
+        scheduleAutosave();
+      }
+
+      function addColumnRight() {
+        const cell = currentTableCell();
+        if (!cell) {
+          window.alert("Place the cursor inside a table cell first.");
+          return;
+        }
+        const row = cell.parentElement;
+        const index = Array.from(row.children).indexOf(cell);
+        const table = row.closest("table");
+        Array.from(table.rows).forEach((tableRow, rowIndex) => {
+          const tag = rowIndex === 0 ? "th" : "td";
+          const node = document.createElement(tag);
+          node.setAttribute("style", "border:1px solid #475569;padding:8px 10px;vertical-align:top;min-width:72px;");
+          node.innerHTML = rowIndex === 0 ? "Heading" : "Value";
+          if (tableRow.children[index] && tableRow.children[index].nextSibling) {
+            tableRow.insertBefore(node, tableRow.children[index].nextSibling);
+          } else {
+            tableRow.appendChild(node);
+          }
+        });
+        scheduleAutosave();
+      }
+
+      function deleteRow() {
+        const cell = currentTableCell();
+        if (!cell) {
+          window.alert("Place the cursor inside a table cell first.");
+          return;
+        }
+        const row = cell.parentElement;
+        const table = row.closest("table");
+        if (table.rows.length <= 1) {
+          table.remove();
+        } else {
+          row.remove();
+        }
+        scheduleAutosave();
+      }
+
+      function deleteColumn() {
+        const cell = currentTableCell();
+        if (!cell) {
+          window.alert("Place the cursor inside a table cell first.");
+          return;
+        }
+        const row = cell.parentElement;
+        const index = Array.from(row.children).indexOf(cell);
+        const table = row.closest("table");
+        Array.from(table.rows).forEach((tableRow) => {
+          if (tableRow.children[index]) {
+            tableRow.children[index].remove();
+          }
+        });
+        if (table.rows[0] && table.rows[0].children.length === 0) {
+          table.remove();
+        }
+        scheduleAutosave();
+      }
+
+      function togglePanel(panelId) {
+        document.querySelectorAll("[data-tool-panel]").forEach((panel) => {
+          panel.classList.toggle("cbt-editor-panel-open", panel.id === panelId);
+        });
+        document.querySelectorAll("[data-open-panel]").forEach((button) => {
+          button.classList.toggle("cbt-tool-active", button.getAttribute("data-open-panel") === panelId);
+        });
+      }
+
+      if (equationField) {
+        if (typeof equationField.setOptions === "function") {
+          equationField.setOptions({
+            smartFence: true,
+            smartMode: true,
+            virtualKeyboardMode: "manual",
+            virtualKeyboards: "numeric symbols roman greek functions",
+          });
+        }
+        equationField.addEventListener("input", syncEquationWorkbench);
+        equationField.addEventListener("change", syncEquationWorkbench);
+        equationField.addEventListener("focus", () => togglePanel("equationsPanel"));
+        syncEquationWorkbench();
+      }
+      if (equationKeyboardBtn) {
+        equationKeyboardBtn.addEventListener("click", () => {
+          if (equationField) {
+            equationField.focus();
+          }
+          if (window.mathVirtualKeyboard) {
+            window.mathVirtualKeyboard.layouts = ["numeric", "symbols", "alphabetic", "greek", "functions"];
+            window.mathVirtualKeyboard.show();
+          }
+        });
+      }
+      document.querySelectorAll("[data-math-command]").forEach((button) => {
+        button.addEventListener("click", () => insertMathCommand(button.getAttribute("data-math-command") || ""));
+      });
+      document.querySelectorAll("[data-math-template]").forEach((button) => {
+        button.addEventListener("click", () => setEquationLatex(button.getAttribute("data-math-template") || ""));
+      });
+      if (equationInsertInlineBtn) {
+        equationInsertInlineBtn.addEventListener("click", () => insertEquation("inline", false));
+      }
+      if (equationInsertBlockBtn) {
+        equationInsertBlockBtn.addEventListener("click", () => insertEquation("block", false));
+      }
+      if (equationInsertFieldBtn) {
+        equationInsertFieldBtn.addEventListener("click", () => insertEquation("inline", true));
+      }
+      if (focusedFieldEquationBtn) {
+        focusedFieldEquationBtn.addEventListener("click", () => {
+          togglePanel("equationsPanel");
+          insertEquation("inline", true);
+        });
+      }
+      if (equationClearBtn) {
+        equationClearBtn.addEventListener("click", () => setEquationLatex(""));
+      }
+      stemEditor.addEventListener("click", (event) => {
+        const mathNode = event.target.closest("[data-math-source]");
+        if (!mathNode) {
+          return;
+        }
+        const latex = mathNode.getAttribute("data-math-source") || "";
+        if (latex) {
+          togglePanel("equationsPanel");
+          setEquationLatex(latex);
+        }
+      });
+
+      syncTextareaToEditor();
       restoreDraftFromLocal();
       trackedInputs().forEach((node) => {
         node.addEventListener("input", scheduleAutosave);
         node.addEventListener("change", scheduleAutosave);
       });
 
-      const stemArea = document.getElementById("stem");
-      function insertText(value) {
-        if (!stemArea || !value) return;
-        const start = stemArea.selectionStart || 0;
-        const end = stemArea.selectionEnd || 0;
-        const current = stemArea.value || "";
-        stemArea.value = current.slice(0, start) + value + current.slice(end);
-        const caret = start + value.length;
-        stemArea.selectionStart = caret;
-        stemArea.selectionEnd = caret;
-        stemArea.focus();
-        scheduleAutosave();
-      }
-      function wrapSelection(token) {
-        if (!stemArea || !token) return;
-        const start = stemArea.selectionStart || 0;
-        const end = stemArea.selectionEnd || 0;
-        const current = stemArea.value || "";
-        const selected = current.slice(start, end) || "text";
-        const parts = token.includes("|") ? token.split("|") : [token, token];
-        const openToken = parts[0] || "";
-        const closeToken = parts[1] || openToken;
-        const wrapped = openToken + selected + closeToken;
-        stemArea.value = current.slice(0, start) + wrapped + current.slice(end);
-        stemArea.selectionStart = start;
-        stemArea.selectionEnd = start + wrapped.length;
-        stemArea.focus();
-        scheduleAutosave();
-      }
-      form.querySelectorAll("[data-insert-text]").forEach((btn) => {
-        btn.addEventListener("click", () => insertText(btn.dataset.insertText || ""));
+      stemEditor.addEventListener("input", scheduleAutosave);
+      stemEditor.addEventListener("keyup", rememberRange);
+      stemEditor.addEventListener("mouseup", rememberRange);
+      stemEditor.addEventListener("focus", () => {
+        lastFocusedField = stemEditor;
+        rememberRange();
       });
-      form.querySelectorAll("[data-insert-wrap]").forEach((btn) => {
-        btn.addEventListener("click", () => wrapSelection(btn.dataset.insertWrap || ""));
+      form.addEventListener("focusin", (event) => {
+        const target = event.target;
+        if (target === stemEditor || target.matches("input, textarea, select")) {
+          lastFocusedField = target;
+        }
       });
+
+      form.querySelectorAll("[data-editor-command]").forEach((button) => {
+        button.addEventListener("click", () => execEditorCommand(button.dataset.editorCommand));
+      });
+      form.querySelectorAll("[data-editor-block]").forEach((button) => {
+        button.addEventListener("click", () => execEditorCommand("formatBlock", button.dataset.editorBlock));
+      });
+      form.querySelectorAll("[data-insert-html]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const html = button.dataset.insertHtml || "";
+          if (lastFocusedField && lastFocusedField !== stemEditor && typeof lastFocusedField.value !== "undefined") {
+            insertIntoInput(lastFocusedField, stripHtml(html));
+            return;
+          }
+          insertHtmlAtCursor(html);
+        });
+      });
+      form.querySelectorAll("[data-insert-text]").forEach((button) => {
+        button.addEventListener("click", () => insertTextAtCursor(button.dataset.insertText || ""));
+      });
+      form.querySelectorAll("[data-open-panel]").forEach((button) => {
+        button.addEventListener("click", () => togglePanel(button.dataset.openPanel));
+      });
+
+      const tableRows = document.getElementById("tableRows");
+      const tableCols = document.getElementById("tableCols");
+      const insertTableBtn = document.getElementById("insertTableBtn");
+      const insertFourFigureBtn = document.getElementById("insertFourFigureBtn");
+      const addRowBtn = document.getElementById("addRowBtn");
+      const addColBtn = document.getElementById("addColBtn");
+      const deleteRowBtn = document.getElementById("deleteRowBtn");
+      const deleteColBtn = document.getElementById("deleteColBtn");
+      if (insertTableBtn) {
+        insertTableBtn.addEventListener("click", () => insertTable(tableRows.value, tableCols.value));
+      }
+      if (insertFourFigureBtn) {
+        insertFourFigureBtn.addEventListener("click", () => {
+          insertHtmlAtCursor(
+            `<table style="width:100%;border-collapse:collapse;margin:12px 0;"><tr><th style="border:1px solid #475569;padding:8px 10px;">x</th><th style="border:1px solid #475569;padding:8px 10px;">y</th><th style="border:1px solid #475569;padding:8px 10px;">log x</th><th style="border:1px solid #475569;padding:8px 10px;">sin &theta;</th></tr><tr><td style="border:1px solid #475569;padding:8px 10px;">1.0</td><td style="border:1px solid #475569;padding:8px 10px;"> </td><td style="border:1px solid #475569;padding:8px 10px;"> </td><td style="border:1px solid #475569;padding:8px 10px;"> </td></tr><tr><td style="border:1px solid #475569;padding:8px 10px;">2.0</td><td style="border:1px solid #475569;padding:8px 10px;"> </td><td style="border:1px solid #475569;padding:8px 10px;"> </td><td style="border:1px solid #475569;padding:8px 10px;"> </td></tr></table>`
+          );
+        });
+      }
+      if (addRowBtn) addRowBtn.addEventListener("click", addRowBelow);
+      if (addColBtn) addColBtn.addEventListener("click", addColumnRight);
+      if (deleteRowBtn) deleteRowBtn.addEventListener("click", deleteRow);
+      if (deleteColBtn) deleteColBtn.addEventListener("click", deleteColumn);
 
       const objectiveMode = document.getElementById("objective_mode");
       const correctLabel = document.getElementById("correct_label");
@@ -428,6 +1251,122 @@
         });
       }
       refreshTheoryMode();
+
+      const drawModal = document.getElementById("drawModal");
+      const openDrawButtons = document.querySelectorAll("[data-open-draw-modal]");
+      const closeDrawModal = document.getElementById("closeDrawModal");
+      const drawCanvas = document.getElementById("drawCanvas");
+      const drawColor = document.getElementById("drawColor");
+      const drawSize = document.getElementById("drawSize");
+      const drawPenBtn = document.getElementById("drawPenBtn");
+      const drawEraserBtn = document.getElementById("drawEraserBtn");
+      const clearDrawCanvasBtn = document.getElementById("clearDrawCanvasBtn");
+      const insertDrawingBtn = document.getElementById("insertDrawingBtn");
+
+      if (drawModal && drawCanvas) {
+        const ctx = drawCanvas.getContext("2d");
+        let drawing = false;
+        let erasing = false;
+        let lastPoint = null;
+
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, drawCanvas.width, drawCanvas.height);
+
+        function openDrawModalFn() {
+          drawModal.classList.remove("hidden");
+          document.body.classList.add("overflow-hidden");
+        }
+
+        function closeDrawModalFn() {
+          drawModal.classList.add("hidden");
+          document.body.classList.remove("overflow-hidden");
+        }
+
+        function pointFromEvent(event) {
+          const rect = drawCanvas.getBoundingClientRect();
+          const source = event.touches ? event.touches[0] : event;
+          const scaleX = drawCanvas.width / rect.width;
+          const scaleY = drawCanvas.height / rect.height;
+          return {
+            x: (source.clientX - rect.left) * scaleX,
+            y: (source.clientY - rect.top) * scaleY,
+          };
+        }
+
+        function startDrawing(event) {
+          event.preventDefault();
+          drawing = true;
+          lastPoint = pointFromEvent(event);
+        }
+
+        function moveDrawing(event) {
+          if (!drawing) {
+            return;
+          }
+          event.preventDefault();
+          const next = pointFromEvent(event);
+          ctx.strokeStyle = erasing ? "#ffffff" : (drawColor ? drawColor.value : "#123b70");
+          ctx.lineWidth = Number(drawSize ? drawSize.value : 3);
+          ctx.beginPath();
+          ctx.moveTo(lastPoint.x, lastPoint.y);
+          ctx.lineTo(next.x, next.y);
+          ctx.stroke();
+          lastPoint = next;
+        }
+
+        function stopDrawing() {
+          drawing = false;
+          lastPoint = null;
+        }
+
+        drawCanvas.addEventListener("mousedown", startDrawing);
+        drawCanvas.addEventListener("mousemove", moveDrawing);
+        drawCanvas.addEventListener("mouseup", stopDrawing);
+        drawCanvas.addEventListener("mouseleave", stopDrawing);
+        drawCanvas.addEventListener("touchstart", startDrawing, { passive: false });
+        drawCanvas.addEventListener("touchmove", moveDrawing, { passive: false });
+        drawCanvas.addEventListener("touchend", stopDrawing);
+
+        openDrawButtons.forEach((button) => button.addEventListener("click", openDrawModalFn));
+        if (closeDrawModal) closeDrawModal.addEventListener("click", closeDrawModalFn);
+        drawModal.addEventListener("click", (event) => {
+          if (event.target === drawModal) {
+            closeDrawModalFn();
+          }
+        });
+        if (drawPenBtn) {
+          drawPenBtn.addEventListener("click", () => {
+            erasing = false;
+            drawPenBtn.classList.add("cbt-tool-active");
+            drawEraserBtn.classList.remove("cbt-tool-active");
+          });
+        }
+        if (drawEraserBtn) {
+          drawEraserBtn.addEventListener("click", () => {
+            erasing = true;
+            drawEraserBtn.classList.add("cbt-tool-active");
+            drawPenBtn.classList.remove("cbt-tool-active");
+          });
+        }
+        if (clearDrawCanvasBtn) {
+          clearDrawCanvasBtn.addEventListener("click", () => {
+            ctx.fillStyle = "#ffffff";
+            ctx.fillRect(0, 0, drawCanvas.width, drawCanvas.height);
+          });
+        }
+        if (insertDrawingBtn) {
+          insertDrawingBtn.addEventListener("click", () => {
+            const dataUrl = drawCanvas.toDataURL("image/png");
+            insertHtmlAtCursor(`<img src="${dataUrl}" alt="Teacher drawing" style="display:block;max-width:100%;width:auto;height:auto;border:1px solid #94a3b8;border-radius:12px;margin:12px 0;" />`);
+            closeDrawModalFn();
+          });
+        }
+      }
+
+      togglePanel("equationsPanel");
+      syncEditorToTextarea();
     })();
   </script>
 {% endblock %}

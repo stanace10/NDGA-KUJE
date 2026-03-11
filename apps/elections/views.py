@@ -161,13 +161,20 @@ class ElectionHomeView(ElectionPortalAccessMixin, TemplateView):
                     "is_completed": position_count > 0 and voted_count >= position_count,
                 }
             )
+        show_management = user.has_role(ROLE_IT_MANAGER)
+        show_analytics = can_view_live_analytics(user)
         context["open_elections"] = rows
-        context["show_management"] = user.has_role(ROLE_IT_MANAGER)
-        context["show_analytics"] = can_view_live_analytics(user)
-        context["recent_closed"] = Election.objects.filter(
-            status=ElectionStatus.CLOSED,
-            is_active=True,
-        ).order_by("-closed_at")[:10]
+        context["show_management"] = show_management
+        context["show_analytics"] = show_analytics
+        context["show_closed_elections"] = show_analytics
+        context["recent_closed"] = (
+            Election.objects.filter(
+                status=ElectionStatus.CLOSED,
+                is_active=True,
+            ).order_by("-closed_at")[:10]
+            if show_analytics
+            else []
+        )
         return context
 
 

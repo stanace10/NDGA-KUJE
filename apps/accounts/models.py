@@ -39,6 +39,8 @@ class User(AbstractUser):
     )
     password_changed_count = models.PositiveSmallIntegerField(default=0)
     must_change_password = models.BooleanField(default=True)
+    two_factor_enabled = models.BooleanField(default=False)
+    two_factor_email = models.EmailField(blank=True)
     login_code_hash = models.CharField(max_length=128, blank=True)
     login_code_expires_at = models.DateTimeField(null=True, blank=True)
     permission_scopes = models.JSONField(default=list, blank=True)
@@ -51,6 +53,9 @@ class User(AbstractUser):
         if self.primary_role_id:
             role_codes.add(self.primary_role.code)
         role_codes.update(self.secondary_roles.values_list("code", flat=True))
+        # Some legacy/imported student accounts may have a profile before role repair.
+        if ROLE_STUDENT not in role_codes and hasattr(self, "student_profile"):
+            role_codes.add(ROLE_STUDENT)
         return role_codes
 
     def has_role(self, role_code):

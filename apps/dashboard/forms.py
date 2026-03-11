@@ -1,7 +1,15 @@
 from django import forms
 
 from apps.academics.models import AcademicClass, AcademicSession, Subject, TeacherSubjectAssignment, Term
-from apps.accounts.constants import ROLE_DEAN, ROLE_FORM_TEACHER, ROLE_SUBJECT_TEACHER
+from apps.accounts.constants import (
+    ROLE_BURSAR,
+    ROLE_DEAN,
+    ROLE_FORM_TEACHER,
+    ROLE_IT_MANAGER,
+    ROLE_PRINCIPAL,
+    ROLE_SUBJECT_TEACHER,
+    ROLE_VP,
+)
 from apps.accounts.models import User
 from apps.dashboard.models import Club, LearningResource, LessonPlanDraft, PortalDocument, SchoolProfile, StudentClubMembership, WeeklyChallenge, WeeklyChallengeSubmission
 from apps.setup_wizard.services import get_setup_state
@@ -53,6 +61,43 @@ class StudentDisplaySettingsForm(forms.ModelForm):
     def clean_display_name(self):
         value = (self.cleaned_data.get("display_name") or "").strip()
         return value
+
+
+PRIVILEGED_SECURITY_ROLE_CODES = {ROLE_IT_MANAGER, ROLE_BURSAR, ROLE_VP, ROLE_PRINCIPAL}
+
+
+class PrivilegedSecuritySettingsForm(_StyledFormMixin, forms.ModelForm):
+    class Meta:
+        model = User
+        fields = ("two_factor_enabled", "two_factor_email")
+
+    def __init__(self, *args, user=None, **kwargs):
+        self.actor = user
+        super().__init__(*args, **kwargs)
+        self.fields["two_factor_enabled"].required = False
+        self.fields["two_factor_enabled"].label = "Enable email verification for privileged sign-in"
+        self.fields["two_factor_email"].required = False
+        self.fields["two_factor_email"].help_text = (
+            "Brevo will send the login code to this address. If left blank, the account email is used."
+        )
+        self.fields["two_factor_email"].widget.attrs.setdefault(
+            "placeholder",
+            "security@ndgakuje.org",
+        )
+
+    def clean_two_factor_email(self):
+        return (self.cleaned_data.get("two_factor_email") or "").strip().lower()
+
+    def clean(self):
+        cleaned = super().clean()
+        enabled = bool(cleaned.get("two_factor_enabled"))
+        email = cleaned.get("two_factor_email") or (getattr(self.instance, "email", "") or "").strip()
+        if enabled and not email:
+            self.add_error(
+                "two_factor_email",
+                "Add a verification email or save a valid account email before enabling two-factor sign-in.",
+            )
+        return cleaned
 
 
 class PrincipalSignatureForm(forms.Form):

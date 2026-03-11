@@ -5,7 +5,7 @@ from django.utils import timezone
 from apps.accounts.constants import ROLE_IT_MANAGER, ROLE_STUDENT, ROLE_SUBJECT_TEACHER
 from apps.accounts.models import Role, User
 from apps.setup_wizard.models import SetupStateCode, SystemSetupState
-from apps.tenancy.utils import current_portal_key
+from apps.tenancy.utils import build_portal_url, current_portal_key
 
 
 @override_settings(
@@ -117,6 +117,18 @@ class StageTwoHostRoutingTests(TestCase):
         )
         self.assertNotContains(response, "staff.ndgakuje.org:8000")
 
+    def test_public_secure_verification_links_use_live_domain(self):
+        request = RequestFactory().get(
+            "/portal/student/id-card/",
+            HTTP_HOST="ndgakuje.org",
+            secure=True,
+        )
+        request.user = self.student
+        self.assertEqual(
+            build_portal_url(request, "landing", "/id/verify/DEMO-STU-001/"),
+            "https://ndgakuje.org/id/verify/DEMO-STU-001/",
+        )
+
     def test_localhost_staff_cbt_response_keeps_sidebar_shell(self):
         client = Client(HTTP_HOST="localhost:8000")
         client.force_login(self.teacher_user)
@@ -163,6 +175,10 @@ class StageTwoHostRoutingTests(TestCase):
         self.assertNotContains(response, "Staff ID (or portal username)")
 
     def test_it_login_from_localhost_staff_audience_redirects_to_local_it_path(self):
+        self.it_user.two_factor_enabled = True
+        self.it_user.two_factor_email = "it-host@ndgakuje.org"
+        self.it_user.save(update_fields=["two_factor_enabled", "two_factor_email"])
+
         client = Client(HTTP_HOST="localhost:8000")
         response = client.post(
             "/auth/login/?audience=staff",

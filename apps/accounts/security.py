@@ -15,7 +15,7 @@ def privileged_login_ttl_seconds():
 
 
 def privileged_login_target_email(user):
-    email = (getattr(user, "email", "") or "").strip()
+    email = (getattr(user, "two_factor_email", "") or getattr(user, "email", "") or "").strip()
     if email:
         return email
     username = (getattr(user, "username", "") or "").strip()

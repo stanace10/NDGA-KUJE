@@ -47,6 +47,7 @@ from apps.elections.models import Election
 from apps.notifications.models import Notification, NotificationCategory
 from apps.accounts.forms import PolicyPasswordChangeForm
 from apps.accounts.services import apply_self_service_password_change
+from apps.accounts.security import privileged_login_target_email
 from apps.accounts.permissions import has_any_role
 from apps.results.models import (
     ClassCompilationStatus,
@@ -63,7 +64,11 @@ from apps.setup_wizard.services import get_setup_state, setup_is_ready
 from apps.setup_wizard.feature_flags import FLAG_FIELD_MAP, get_runtime_feature_flags
 from apps.setup_wizard.models import RuntimeFeatureFlags
 from apps.tenancy.utils import current_portal_key
-from apps.dashboard.forms import PrincipalSignatureForm, StudentDisplaySettingsForm
+from apps.dashboard.forms import (
+    PrincipalSignatureForm,
+    PrivilegedSecuritySettingsForm,
+    StudentDisplaySettingsForm,
+)
 from apps.dashboard.intelligence import (
     build_school_intelligence,
     build_student_academic_analytics,
@@ -1670,6 +1675,52 @@ class StaffSettingsView(StaffPortalBaseView):
 
         messages.error(request, "Invalid settings action.")
         return redirect("dashboard:staff-settings")
+
+
+class AccountSecuritySettingsView(PortalPageView):
+    template_name = "dashboard/account_security_settings.html"
+    portal_name = "Account Security"
+    portal_description = "Optional email verification for privileged portal sign-ins."
+
+    def dispatch(self, request, *args, **kwargs):
+        if not has_any_role(request.user, {ROLE_IT_MANAGER, ROLE_BURSAR, ROLE_VP, ROLE_PRINCIPAL}):
+            messages.error(request, "Account security settings are available only to privileged portal roles.")
+            return redirect("dashboard:landing")
+        return super().dispatch(request, *args, **kwargs)
+
+    def _security_form(self):
+        return PrivilegedSecuritySettingsForm(instance=self.request.user, user=self.request.user)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["security_form"] = kwargs.get("security_form") or self._security_form()
+        context["effective_two_factor_email"] = privileged_login_target_email(self.request.user)
+        return context
+
+    def post(self, request, *args, **kwargs):
+        action = (request.POST.get("action") or "").strip().lower()
+        if action != "update_security":
+            messages.error(request, "Invalid security settings action.")
+            return redirect("dashboard:account-security-settings")
+
+        security_form = PrivilegedSecuritySettingsForm(request.POST, instance=request.user, user=request.user)
+        if security_form.is_valid():
+            security_form.save()
+            log_event(
+                category=AuditCategory.AUTH,
+                event_type="LOGIN_2FA_SETTINGS_UPDATED",
+                status=AuditStatus.SUCCESS,
+                actor=request.user,
+                request=request,
+                metadata={
+                    "two_factor_enabled": bool(request.user.two_factor_enabled),
+                    "two_factor_email": request.user.two_factor_email or request.user.email or "",
+                },
+            )
+            messages.success(request, "Account security settings updated.")
+            return redirect("dashboard:account-security-settings")
+
+        return self.render_to_response(self.get_context_data(security_form=security_form))
 
 
 class ITPortalView(PortalPageView):
