@@ -6,9 +6,9 @@
   <section class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
     <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
       <p class="text-xs font-semibold uppercase tracking-[0.18em] text-ndga-navy/70">Exam Center</p>
-      <h1 class="mt-2 text-3xl font-bold text-ndga-navy">Today's CBT Schedule</h1>
+      <h1 class="mt-2 text-3xl font-bold text-ndga-navy">CBT Schedule</h1>
       <p class="mt-2 text-sm text-slate-600">
-        Only today's class exams stay on this board. Completed papers move out of the recent panel after {{ recent_window_hours }} hours.
+        Scheduled class exams stay on this board. Future papers appear as Not Yet, and completed papers move out of the recent panel after {{ recent_window_hours }} hours.
       </p>
     </div>
 
@@ -33,7 +33,7 @@
           </select>
         </div>
         <div>
-          <label for="statusFilter" class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Today's Board</label>
+          <label for="statusFilter" class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Board Status</label>
           <select id="statusFilter" name="status" class="w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm">
             <option value="">All board states</option>
             <option value="open" {% if selected_status == "open" %}selected{% endif %}>Open</option>
@@ -61,7 +61,7 @@
 
     <div class="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
       <div class="flex flex-wrap items-center justify-between gap-3">
-        <h2 class="text-lg font-semibold text-ndga-navy">Today's Exams</h2>
+        <h2 class="text-lg font-semibold text-ndga-navy">Scheduled Exams</h2>
         <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">{{ exam_rows|length }} shown</span>
       </div>
       <div class="mt-3 overflow-x-auto rounded-2xl border border-slate-200">

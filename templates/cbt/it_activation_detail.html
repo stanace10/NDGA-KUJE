@@ -21,6 +21,11 @@
           Timed CBTs close automatically once the end time passes. Use timer pause only for hall-wide interruptions such as power outage.
         </div>
 
+        <div class="mt-4 flex flex-wrap gap-3">
+          <a href="{{ builder_url }}" class="ndga-btn ndga-btn-primary">Edit Questions</a>
+          <a href="{{ detail_url }}" class="ndga-btn ndga-btn-secondary">Open Exam Detail</a>
+        </div>
+
         <h2 class="mt-6 text-lg font-semibold text-ndga-navy">Schedule / Activate Exam</h2>
         <form method="post" class="mt-3 space-y-3">
           {% csrf_token %}

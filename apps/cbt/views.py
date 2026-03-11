@@ -2213,7 +2213,7 @@ class CBTITActivationListView(CBTITAccessMixin, TemplateView):
         context["subject_options"] = _unique_exam_options(exams, "subject")
         context["teacher_options"] = _unique_exam_options(exams, "created_by")
         context["selected_day"] = selected_day
-        context["selected_day_value"] = selected_day.isoformat()
+        context["selected_day_value"] = selected_day.isoformat() if selected_day else ""
         context["selected_class_id"] = selected_class_id
         context["selected_subject_id"] = selected_subject_id
         context["selected_teacher_id"] = selected_teacher_id
@@ -2256,6 +2256,8 @@ class CBTITActivationDetailView(CBTITAccessMixin, TemplateView):
         context["timer_is_paused"] = bool(self.exam.timer_is_paused)
         context["timer_pause_reason"] = self.exam.timer_pause_reason
         context["active_attempt_count"] = self.exam.attempts.filter(status=CBTAttemptStatus.IN_PROGRESS).count()
+        context["builder_url"] = reverse("cbt:exam-builder", kwargs={"exam_id": self.exam.id})
+        context["detail_url"] = reverse("cbt:exam-detail", kwargs={"exam_id": self.exam.id})
         return context
 
     def post(self, request, *args, **kwargs):

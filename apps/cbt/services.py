@@ -2659,7 +2659,6 @@ def student_exam_authorization_reason(*, student, exam, now=None):
 
 def student_available_exams(student):
     now = timezone.now()
-    today = timezone.localdate(now)
     close_expired_exams(now=now)
     exams = (
         Exam.objects.select_related(
@@ -2674,8 +2673,6 @@ def student_available_exams(student):
     )
     payload = []
     for exam in exams:
-        if not exam_occurs_on_day(exam, today):
-            continue
         if not _student_enrolled_for_exam(student, exam):
             continue
 
