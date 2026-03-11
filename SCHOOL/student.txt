@@ -118,7 +118,7 @@ SS1 BLUE
 
 92 — Adizue Mmesoma Mirabelle — NDGAK/22/242 — SS1 BLUE
 93 — Assiak Inyene-Abasi Itan — NDGAK/22/248 — SS1 BLUE
-94 — Agakwu Kayla Urungikwen — NDGAK/24/337 — SS1 BLUE
+94 — Agakwu Kayla Urungikwen — NDGAK/24/387 — SS1 BLUE
 95 — Bassey Annabel Sediong — NDGAK/22/250 — SS1 BLUE
 96 — Chika Ngozichukwu Purity — NDGAK/23/283 — SS1 BLUE
 97 — Onyeaka Onyinyechukwu Nnenna — NDGAK/24/339 — SS1 BLUE
@@ -192,13 +192,13 @@ SS3 GOLD
 156 — Aganama Ifunanya Jessica — NDGAK/23/291 — SS3 GOLD
 157 — Eneh Jessica Chimbusonma — NDGAK/25/420 — SS3 GOLD
 
-158 ? Onunkwo Godsgift ? NDGAK/21/198 ? SS2
-159 ? Ikechukwu Mirabel ? NDGAK/24/347 ? SS2
-160 ? Munachi Dim ? NDGAK/24/362 ? SS2
-161 ? Okafor Emmanuella ? NDGAK/21/183 ? SS2
-162 ? Okwoli Augustina ? NDGAK/24/335 ? SS2
-163 ? Amos Favour ? NDGAK/24/346 ? SS2
-164 ? Uneobu Chinelo ? NDGAK/20/169 ? SS3
-165 ? Anetor Esther ? NDGAK/20/134 ? SS3
-166 ? Abuchi Chinazam ? NIL ? SS3
-167 ? Inejirika Ezinne ? NDGAK/24/345 ? SS2
+158 - Onunkwo Godsgift - NDGAK/21/198 - SS2 GOLD
+159 - Ikechukwu Mirabel - NDGAK/24/347 - SS2 GOLD
+160 - Munachi Dim - NDGAK/24/362 - SS2 GOLD
+161 - Okafor Emmanuella - NDGAK/21/183 - SS2 GOLD
+162 - Okwoli Augustina - NDGAK/24/335 - SS2 GOLD
+163 - Amos Favour - NDGAK/24/346 - SS2 GOLD
+164 - Uneobu Chinelo - NDGAK/20/169 - SS3 BLUE
+165 - Anetor Esther - NDGAK/20/134 - SS3 BLUE
+166 - Abuchi Chinazam - NDGAK/NIL/001 - SS3 GOLD
+167 - Inejirika Ezinne - NDGAK/24/345 - SS2 GOLD
