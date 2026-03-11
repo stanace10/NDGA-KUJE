@@ -13,3 +13,5 @@ media
 __pycache__
 *.pyc
 SCHOOL/ndga_generated_credentials.txt
+
+README copy.md

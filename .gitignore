@@ -10,3 +10,5 @@ __pycache__/
 *.py[cod]
 *.sqlite3
 SCHOOL/ndga_generated_credentials.txt
+
+README copy.md
