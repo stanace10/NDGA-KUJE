@@ -333,6 +333,8 @@ RESULTS_POLICY = {
 IT_BOOTSTRAP_USERNAME = env("IT_BOOTSTRAP_USERNAME", default="admin@ndgakuje.org")
 NDGA_BASE_DOMAIN = env("NDGA_BASE_DOMAIN", default="ndgakuje.org")
 NDGA_LOCAL_SIMPLE_HOST_MODE = env.bool("NDGA_LOCAL_SIMPLE_HOST_MODE", default=False)
+if NDGA_LOCAL_SIMPLE_HOST_MODE and "*" not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS = ["*"]
 
 _session_cookie_domain = env("SESSION_COOKIE_DOMAIN", default="")
 if NDGA_LOCAL_SIMPLE_HOST_MODE:
@@ -411,20 +413,26 @@ SYNC_ENDPOINT_AUTH_TOKEN = env("SYNC_ENDPOINT_AUTH_TOKEN", default="")
 SYNC_MAX_RETRIES = env.int("SYNC_MAX_RETRIES", default=8)
 SYNC_RETRY_BASE_SECONDS = env.int("SYNC_RETRY_BASE_SECONDS", default=20)
 SYNC_RETRY_MAX_SECONDS = env.int("SYNC_RETRY_MAX_SECONDS", default=1800)
+_local_sync_connectivity_timeout_default = 1 if NDGA_LOCAL_SIMPLE_HOST_MODE else 2
+_local_sync_connectivity_cache_ttl_default = 60 if NDGA_LOCAL_SIMPLE_HOST_MODE else 5
+_local_sync_auto_on_request_default = not NDGA_LOCAL_SIMPLE_HOST_MODE
 SYNC_CONNECTIVITY_TIMEOUT_SECONDS = env.int(
     "SYNC_CONNECTIVITY_TIMEOUT_SECONDS",
-    default=2,
+    default=_local_sync_connectivity_timeout_default,
 )
 SYNC_CONNECTIVITY_CACHE_TTL_SECONDS = env.int(
     "SYNC_CONNECTIVITY_CACHE_TTL_SECONDS",
-    default=5,
+    default=_local_sync_connectivity_cache_ttl_default,
 )
 SYNC_NODE_ROLE = env("SYNC_NODE_ROLE", default="CLOUD").strip().upper()
 SYNC_ENFORCE_ACTIVE_SESSION_AUTHORITY = env.bool(
     "SYNC_ENFORCE_ACTIVE_SESSION_AUTHORITY",
     default=True,
 )
-SYNC_AUTO_ON_REQUEST = env.bool("SYNC_AUTO_ON_REQUEST", default=True)
+SYNC_AUTO_ON_REQUEST = env.bool(
+    "SYNC_AUTO_ON_REQUEST",
+    default=_local_sync_auto_on_request_default,
+)
 SYNC_AUTO_MIN_INTERVAL_SECONDS = env.int("SYNC_AUTO_MIN_INTERVAL_SECONDS", default=5)
 SYNC_AUTO_BATCH_LIMIT = env.int("SYNC_AUTO_BATCH_LIMIT", default=60)
 SYNC_PROCESS_BEAT_INTERVAL_SECONDS = env.int("SYNC_PROCESS_BEAT_INTERVAL_SECONDS", default=5)

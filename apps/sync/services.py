@@ -14,7 +14,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Case, IntegerField, Q, Value, When
 from django.utils import timezone
 
 from apps.sync.models import (
@@ -423,11 +423,16 @@ def queue_vote_submission_sync(
 
 def ready_queue_queryset():
     now = timezone.now()
+    priority_order = Case(
+        When(operation_type=SyncOperationType.CBT_CONTENT_CHANGE, then=Value(0)),
+        default=Value(1),
+        output_field=IntegerField(),
+    )
     return SyncQueue.objects.filter(
         status__in=PENDING_SYNC_STATES,
     ).filter(
         Q(next_retry_at__isnull=True) | Q(next_retry_at__lte=now)
-    ).order_by("created_at", "id")
+    ).order_by(priority_order, "created_at", "id")
 
 
 def _cloud_endpoint():

@@ -41,11 +41,13 @@ from apps.sync.services import (
     import_sync_queue_snapshot,
     process_queue_row,
     pull_remote_outbox_updates,
+    ready_queue_queryset,
     queue_student_registration_sync,
     queue_sync_operation,
     queue_vote_submission_sync,
 )
 from apps.sync.content_sync import register_cbt_content_change
+from apps.sync.model_sync import apply_generic_model_payload
 from apps.sync.models import SyncContentOperation
 
 
@@ -209,6 +211,24 @@ class SyncServiceTests(TestCase):
                 operation=SyncContentOperation.UPSERT,
             )
         self.assertIsNone(result)
+
+    def test_ready_queue_prioritizes_cbt_content_changes(self):
+        model_row, _ = queue_sync_operation(
+            operation_type=SyncOperationType.MODEL_RECORD_UPSERT,
+            payload={"model": "academics.academicsession", "identity": {"source_node_id": "lan", "source_pk": "1", "lookup": {"name": "2025/2026"}}},
+            object_ref="academics.academicsession:lan:1",
+            idempotency_key="model-first",
+        )
+        content_row, _ = queue_sync_operation(
+            operation_type=SyncOperationType.CBT_CONTENT_CHANGE,
+            payload={"id": 1, "stream": "CBT_CONTENT", "object_type": "EXAM", "operation": "UPSERT", "object_pk": "1", "payload": {}, "created_at": ""},
+            object_ref="cbt-change:1",
+            idempotency_key="content-second",
+        )
+
+        ordered_ids = list(ready_queue_queryset().values_list("id", flat=True)[:2])
+
+        self.assertEqual(ordered_ids, [content_row.id, model_row.id])
 
     def test_queue_student_registration_sync_serializes_profile_and_enrollment(self):
         role_student = Role.objects.get(code=ROLE_STUDENT)
@@ -562,6 +582,50 @@ class GenericModelSyncTests(TestCase):
             for role_payload in row.payload["m2m"]["secondary_roles"]
         )
         self.assertEqual(secondary_role_codes, [ROLE_IT_MANAGER])
+
+    def test_apply_generic_model_payload_allows_nullable_foreign_key(self):
+        payload = {
+            "model": "accounts.user",
+            "identity": {
+                "model": "accounts.user",
+                "source_node_id": "cloud-node",
+                "source_pk": "user-null-role",
+                "lookup": {"username": "nullable-role-user"},
+            },
+            "fields": {
+                "username": "nullable-role-user",
+                "password": "!",
+                "first_name": "Null",
+                "last_name": "Role",
+                "email": "",
+                "display_name": "",
+                "is_active": True,
+                "is_staff": False,
+                "is_superuser": False,
+                "must_change_password": False,
+                "password_changed_count": 0,
+                "two_factor_enabled": False,
+                "two_factor_email": "",
+                "login_code_hash": "",
+                "login_code_expires_at": None,
+                "last_login": None,
+                "primary_role": None,
+                "date_joined": "2026-03-11T22:27:26.858076+00:00",
+                "permission_scopes": [],
+            },
+            "m2m": {"secondary_roles": []},
+            "created_at": "",
+            "updated_at": "",
+        }
+
+        result = apply_generic_model_payload(
+            payload=payload,
+            operation_type=SyncOperationType.MODEL_RECORD_UPSERT,
+        )
+
+        synced_user = User.objects.get(username="nullable-role-user")
+        self.assertIsNone(synced_user.primary_role)
+        self.assertIn("accounts.user", result["reference"])
 
     @override_settings(
         SYNC_CLOUD_ENDPOINT="https://sync.example/sync/api",

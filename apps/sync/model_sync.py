@@ -423,7 +423,10 @@ def _apply_field_values(instance, payload_fields):
         field = model._meta.get_field(field_name)
         if isinstance(field, (models.ForeignKey, models.OneToOneField)):
             related_model_label = field.related_model._meta.label_lower
-            setattr(instance, field_name, _resolve_identity(related_model_label, raw_value))
+            if raw_value in (None, ""):
+                setattr(instance, field_name, None)
+            else:
+                setattr(instance, field_name, _resolve_identity(related_model_label, raw_value))
             continue
         if isinstance(field, models.FileField):
             file_payload = _decode_file_payload(
