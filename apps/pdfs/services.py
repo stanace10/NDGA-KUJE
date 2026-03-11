@@ -303,9 +303,7 @@ def _behavior_metric_rows(record):
     rows = []
     for code, label in configured:
         value = breakdown.get(code)
-        if value in (None, ""):
-            continue
-        rows.append({"code": code, "label": label, "value": value})
+        rows.append({"code": code, "label": label, "value": value if value not in (None, "") else "-"})
     return rows
 
 
@@ -622,6 +620,7 @@ def build_term_report_payload(*, student, compilation):
             "weight_start_kg": getattr(record, "weight_start_kg", None) if record else None,
             "weight_end_kg": getattr(record, "weight_end_kg", None) if record else None,
             "medical_incidents": getattr(record, "medical_incidents", 0) if record else 0,
+            "nature_of_illness": "",
             "doctor_remark": getattr(record, "doctor_remark", "") if record else "",
         },
         "co_curricular": {

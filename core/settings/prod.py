@@ -60,8 +60,8 @@ if MEDIA_STORAGE_BACKEND == "s3":
         raise ImproperlyConfigured(
             "MEDIA_STORAGE_BACKEND=s3 requires django-storages and boto3."
         )
-    AWS_ACCESS_KEY_ID = env("AWS_ACCESS_KEY_ID", default="")
-    AWS_SECRET_ACCESS_KEY = env("AWS_SECRET_ACCESS_KEY", default="")
+    AWS_ACCESS_KEY_ID = env("AWS_ACCESS_KEY_ID", default="").strip() or None
+    AWS_SECRET_ACCESS_KEY = env("AWS_SECRET_ACCESS_KEY", default="").strip() or None
     AWS_STORAGE_BUCKET_NAME = env("AWS_STORAGE_BUCKET_NAME", default="")
     AWS_S3_REGION_NAME = env("AWS_S3_REGION_NAME", default=env("AWS_REGION", default=""))
     AWS_S3_ENDPOINT_URL = env("AWS_S3_ENDPOINT_URL", default="")
