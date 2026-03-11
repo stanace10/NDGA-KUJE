@@ -192,14 +192,20 @@ def _generate_student_username(student_number):
     return candidate
 
 
-def _instructional_class_id_for_selection(selected_class_id):
-    if not selected_class_id:
+def _instructional_class_id_for_selection(selected_class):
+    if not selected_class:
         return None
-    try:
-        academic_class = AcademicClass.objects.select_related("base_class").get(pk=selected_class_id)
-    except (AcademicClass.DoesNotExist, ValueError, TypeError):
-        return None
-    return academic_class.instructional_class_id
+    if isinstance(selected_class, AcademicClass):
+        academic_class = selected_class
+    else:
+        try:
+            academic_class = AcademicClass.objects.select_related("base_class").get(
+                pk=selected_class
+            )
+        except (AcademicClass.DoesNotExist, ValueError, TypeError):
+            return None
+    instructional_class = getattr(academic_class, "instructional_class", None)
+    return instructional_class.id if instructional_class else None
 
 
 def _decode_data_url_image(data_url):

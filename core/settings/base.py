@@ -217,7 +217,10 @@ else:
             "PORT": env("DB_PORT", default=LOCAL_POSTGRES_PORT),
         }
     }
-DATABASES["default"]["CONN_MAX_AGE"] = env.int("DATABASE_CONN_MAX_AGE", default=60)
+DATABASES["default"]["CONN_MAX_AGE"] = env.int(
+    "DATABASE_CONN_MAX_AGE",
+    default=env.int("CONN_MAX_AGE", default=60),
+)
 
 _cache_backend = env("CACHE_BACKEND", default="redis").strip().lower()
 if _cache_backend == "locmem":

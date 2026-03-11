@@ -23,6 +23,7 @@ from apps.accounts.constants import (
     ROLE_SUBJECT_TEACHER,
     ROLE_VP,
 )
+from apps.accounts.forms import _instructional_class_id_for_selection
 from apps.accounts.models import Role, StaffProfile, StudentProfile, User
 from apps.academics.models import (
     AcademicClass,
@@ -989,3 +990,27 @@ class StageNineteenSecurityTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, "http://it.ndgakuje.org/")
         self.assertEqual(int(client.session["_auth_user_id"]), self.it_user.id)
+
+
+class StudentInstructionalClassSelectionTests(TestCase):
+    def test_returns_instructional_class_id_for_arm_selection(self):
+        base_class = AcademicClass.objects.create(code="SS1", display_name="SS1")
+        arm_class = AcademicClass.objects.create(
+            code="SS1A",
+            display_name="SS1 A",
+            base_class=base_class,
+            arm_name="A",
+        )
+
+        self.assertEqual(_instructional_class_id_for_selection(arm_class.id), base_class.id)
+
+    def test_accepts_academic_class_instance(self):
+        academic_class = AcademicClass.objects.create(code="JSS1", display_name="JSS1")
+
+        self.assertEqual(
+            _instructional_class_id_for_selection(academic_class),
+            academic_class.id,
+        )
+
+    def test_returns_none_for_invalid_selection(self):
+        self.assertIsNone(_instructional_class_id_for_selection("missing"))
