@@ -51,7 +51,7 @@ services:
       dockerfile: Dockerfile
     restart: always
     env_file:
-      - ./.env
+      - ./.env.cloud
     command: ["/app/entrypoint.sh"]
     depends_on:
       db:
@@ -76,7 +76,7 @@ services:
       dockerfile: Dockerfile
     restart: always
     env_file:
-      - ./.env
+      - ./.env.cloud
     command:
       [
         "celery",
@@ -104,7 +104,7 @@ services:
       dockerfile: Dockerfile
     restart: always
     env_file:
-      - ./.env
+      - ./.env.cloud
     command: ["celery", "-A", "core", "beat", "--loglevel=INFO"]
     depends_on:
       db:
@@ -139,3 +139,4 @@ volumes:
   ndga_redis_data:
   ndga_static_data:
   ndga_media_data:
+

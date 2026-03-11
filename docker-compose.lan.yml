@@ -47,7 +47,7 @@ services:
       dockerfile: Dockerfile
     restart: always
     env_file:
-      - ./.env
+      - ./.env.lan
     command: ["/app/entrypoint.sh"]
     depends_on:
       db:
@@ -66,7 +66,7 @@ services:
       dockerfile: Dockerfile
     restart: always
     env_file:
-      - ./.env
+      - ./.env.lan
     command:
       [
         "celery",
@@ -94,7 +94,7 @@ services:
       dockerfile: Dockerfile
     restart: always
     env_file:
-      - ./.env
+      - ./.env.lan
     command: ["celery", "-A", "core", "beat", "--loglevel=INFO"]
     depends_on:
       db:
@@ -124,3 +124,4 @@ volumes:
   ndga_lan_redis_data:
   ndga_lan_static_data:
   ndga_lan_media_data:
+

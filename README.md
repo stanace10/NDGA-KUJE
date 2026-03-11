@@ -386,8 +386,9 @@ npm install
 3. Environment
 
 ```powershell
-# .env is already the live environment file in this project.
-# Update values directly before running locally or deploying.
+# LAN Docker uses .env.lan.
+# Cloud Docker deploys use .env.cloud.
+# Root .env is optional for host-side local runs only.
 ```
 
 4. Start local services
@@ -408,7 +409,7 @@ python manage.py migrate
 python manage.py runserver 0.0.0.0:8000
 ```
 
-If `.env` uses the default local database URL, it should point at:
+If `.env.lan` uses the default local database URL, it should point at:
 
 ```powershell
 DATABASE_URL=postgresql://ndga:ndga@127.0.0.1:5433/ndga
@@ -509,7 +510,7 @@ Use a dual-mode approach:
 
 ## 16.2 Recommended LAN stack (Windows 11 school PC)
 
-- Docker Compose LAN package in `deploy/docker/`
+- Docker Compose LAN package from the repo root (`docker-compose.lan.yml`)
 - local services:
   - nginx
   - django/gunicorn
@@ -577,8 +578,8 @@ Use this as the production baseline for first public go-live:
 - Media: AWS S3 (`private bucket`) for cloud images/PDFs/assets
 
 2. LAN node (offline exam authority)
-- Windows 11 school server using Docker Compose from `deploy/docker/`
-- runtime env file: root `.env` on the LAN machine (same filename as cloud, but LAN-specific values; LAN writes locally to the `db` service and syncs outward through the app-level outbox)
+- Windows 11 school server using Docker Compose from the repo root (`docker-compose.lan.yml`)
+- runtime env file: `.env.lan` on the LAN machine; LAN writes locally to the `db` service and syncs outward through the app-level outbox
 - Services: `nginx + django + postgres + redis + celery (+ minio when needed)`
 - Primary role: CBT + Election runtime and local writes during internet outage
 
@@ -589,43 +590,43 @@ Use this as the production baseline for first public go-live:
 
 ### EC2 Docker deployment files
 
-For the AWS Ubuntu cloud node, use the Docker deployment package in `deploy/docker/` with a single root `.env` on the server:
+For the AWS Ubuntu cloud node, use the root Docker deployment files with `.env.cloud` on the server:
 
-- `deploy/docker/docker-compose.cloud.yml`
-- `deploy/docker/Dockerfile.prod`
-- `deploy/docker/entrypoint.prod.sh`
-- `deploy/docker/nginx.prod.conf`
-- `deploy/nginx/ndga.conf`
+- `docker-compose.cloud.yml`
+- `Dockerfile`
+- `entrypoint.sh`
+- `nginx.conf`
+- `nginx.host.conf`
 
 Recommended EC2 flow from the repo root:
 
-1. Open the root `.env` on the server and fill every blank secret before first boot. Keep `DJANGO_SETTINGS_MODULE=core.settings.prod`, `DB_HOST=db`, and the live domain/S3 values. Use the same root `.env` filename on the LAN machine too, but with LAN-specific values such as `SYNC_NODE_ROLE=LAN`.
+1. Open `.env.cloud` on the server and fill every blank secret before first boot. Keep `DJANGO_SETTINGS_MODULE=core.settings.prod`, `DB_HOST=db`, and the live domain/S3 values. On the LAN machine, fill `.env.lan` with the LAN-specific sync and media values.
 2. Start the stack:
 
 ```bash
-docker compose --env-file .env -f deploy/docker/docker-compose.cloud.yml up -d --build
+docker compose --env-file .env.cloud -f docker-compose.cloud.yml up -d --build
 ```
 
 3. Confirm services:
 
 ```bash
-docker compose --env-file .env -f deploy/docker/docker-compose.cloud.yml ps
+docker compose --env-file .env.cloud -f docker-compose.cloud.yml ps
 ```
 
 4. Run first-boot commands if needed:
 
 ```bash
-docker compose --env-file .env -f deploy/docker/docker-compose.cloud.yml exec web python manage.py migrate --noinput
-docker compose --env-file .env -f deploy/docker/docker-compose.cloud.yml exec web python manage.py collectstatic --noinput
+docker compose --env-file .env.cloud -f docker-compose.cloud.yml exec web python manage.py migrate --noinput
+docker compose --env-file .env.cloud -f docker-compose.cloud.yml exec web python manage.py collectstatic --noinput
 ```
 
-5. Point host nginx/Certbot to `127.0.0.1:8080` using `deploy/nginx/ndga.conf`.
+5. Point host nginx/Certbot to `127.0.0.1:8080` using `nginx.host.conf`.
 
 Auto-deploy path:
 
-- `scripts/auto_deploy.sh` uses the root `.env` and the cloud compose file directly.
+- `scripts/auto_deploy.sh` uses `.env.cloud` and the root cloud compose file directly.
 - The GitHub Action in `.github/workflows/deploy-cloud.yml` SSHes into `~/NDGA`, `~/ndga`, or `~/ndga-platform` and runs that script on every push to `main`.
-- Old local-only files such as `deploy/docker/.env.cloud` and `deploy/docker/.env.lan` are not part of the current deploy path; each node should keep a real root `.env` instead.
+- Runtime env files are now `.env.cloud` for AWS and `.env.lan` for the LAN node. Root `.env` is optional for ad-hoc host runs only.
 - On EC2, enable Docker and host nginx on boot with `sudo systemctl enable docker nginx`.
 
 Notes:
@@ -845,3 +846,6 @@ NDGA can be treated as `10/10 operationally ready` when all are true:
 - mobile acceptance suite passes for Student + Teacher critical workflows
 - immutable CBT activation and integrity bundle are in production
 - security controls (2FA + audit integrity + backup restore proof) are signed off
+
+
+

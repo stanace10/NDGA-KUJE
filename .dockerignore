@@ -8,6 +8,8 @@ node_modules
 staticfiles
 media
 .env
+.env.cloud
+.env.lan
 __pycache__
 *.pyc
 SCHOOL/ndga_generated_credentials.txt

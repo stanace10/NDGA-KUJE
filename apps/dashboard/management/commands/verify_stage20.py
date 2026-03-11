@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.db import connection
@@ -25,15 +23,15 @@ class Command(BaseCommand):
 
         required_files = [
             root_dir / "core" / "settings" / "prod.py",
-            root_dir / "deploy" / "nginx" / "ndga.conf",
-            root_dir / "deploy" / "systemd" / "ndga-asgi.service",
-            root_dir / "deploy" / "systemd" / "ndga-celery-worker.service",
-            root_dir / "deploy" / "systemd" / "ndga-celery-beat.service",
-            root_dir / "deploy" / "docker" / "docker-compose.lan.yml",
-            root_dir / "deploy" / "docker" / "Dockerfile.lan",
-            root_dir / "docs" / "STAGE20_DEPLOYMENT_BLUEPRINT.md",
-            root_dir / "docs" / "GO_LIVE_CHECKLIST.md",
-            root_dir / "docs" / "OFFLINE_LAN_AND_PORTABLE_BACKUPS.md",
+            root_dir / "Dockerfile",
+            root_dir / "docker-compose.cloud.yml",
+            root_dir / "docker-compose.lan.yml",
+            root_dir / "entrypoint.sh",
+            root_dir / "nginx.conf",
+            root_dir / "nginx.host.conf",
+            root_dir / "docs" / "MOBILE_WORKFLOW_ACCEPTANCE.md",
+            root_dir / "docs" / "OPS_RUNTIME_AND_RESTORE_DRILLS.md",
+            root_dir / "scripts" / "auto_deploy.sh",
             root_dir / "scripts" / "backup_ndga.ps1",
             root_dir / "scripts" / "restore_ndga.ps1",
             root_dir / "scripts" / "pg_dump_custom.ps1",
@@ -44,10 +42,12 @@ class Command(BaseCommand):
             if not path.exists():
                 failures.append(f"Missing required artifact: {path}")
 
-        root_env = root_dir / ".env"
-        legacy_lan_env = root_dir / "deploy" / "docker" / ".env.lan"
-        if not root_env.exists() and not legacy_lan_env.exists():
-            failures.append("Missing runtime environment file: create a root .env for cloud or LAN deployment.")
+        cloud_env = root_dir / ".env.cloud"
+        lan_env = root_dir / ".env.lan"
+        if not cloud_env.exists():
+            failures.append("Missing runtime environment file: create .env.cloud for the cloud node.")
+        if not lan_env.exists():
+            failures.append("Missing runtime environment file: create .env.lan for the LAN node.")
 
         if settings.DEBUG:
             failures.append("DEBUG=True is not allowed for production settings.")

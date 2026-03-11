@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="${NDGA_PROJECT_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 BRANCH="${NDGA_DEPLOY_BRANCH:-main}"
 COMPOSE_FILE="${NDGA_COMPOSE_FILE:-$PROJECT_DIR/docker-compose.cloud.yml}"
-ENV_FILE="${NDGA_ENV_FILE:-$PROJECT_DIR/.env}"
+ENV_FILE="${NDGA_ENV_FILE:-$PROJECT_DIR/.env.cloud}"
 WEB_SERVICE="${NDGA_WEB_SERVICE:-web}"
 
 log() {
@@ -50,3 +50,5 @@ log "Collecting static"
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" exec -T "$WEB_SERVICE" python manage.py collectstatic --noinput
 
 log "Deployment finished"
+
+

@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 import sys
 
@@ -79,7 +80,24 @@ env = environ.Env(
     CHANNEL_LAYER_BACKEND=(str, "redis"),
     NDGA_LOCAL_SIMPLE_HOST_MODE=(bool, False),
 )
-environ.Env.read_env(ROOT_DIR / ".env")
+_configured_env_file = os.environ.get("NDGA_ENV_FILE", "").strip()
+_env_candidates: list[Path] = []
+if _configured_env_file:
+    configured_path = Path(_configured_env_file)
+    if not configured_path.is_absolute():
+        configured_path = ROOT_DIR / configured_path
+    _env_candidates.append(configured_path)
+_env_candidates.extend(
+    [
+        ROOT_DIR / ".env",
+        ROOT_DIR / ".env.lan",
+        ROOT_DIR / ".env.cloud",
+    ]
+)
+for _env_path in _env_candidates:
+    if _env_path.exists():
+        environ.Env.read_env(_env_path)
+        break
 
 SECRET_KEY = env(
     "DJANGO_SECRET_KEY",
@@ -532,3 +550,5 @@ UPLOAD_SECURITY = {
 }
 
 AUDIT_RETENTION_DAYS = env.int("AUDIT_RETENTION_DAYS", default=2555)
+
+
