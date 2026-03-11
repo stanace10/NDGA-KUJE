@@ -2009,13 +2009,15 @@ def build_exam_with_ai_draft(
             effective_ca_target = CBTWritebackTarget.CA2
         if flow_type == "THEORY_ONLY":
             objective_target = CBTWritebackTarget.NONE
-            theory_target = CBTWritebackTarget.NONE
-        else:
-            objective_target = CBTWritebackTarget.CA2 if effective_ca_target == CBTWritebackTarget.CA2 else effective_ca_target
-            theory_target = CBTWritebackTarget.NONE
-        if effective_ca_target == CBTWritebackTarget.CA2 and flow_type == "OBJECTIVE_THEORY":
+            theory_target = CBTWritebackTarget.CA3 if effective_ca_target == CBTWritebackTarget.CA2 else effective_ca_target
+        elif effective_ca_target == CBTWritebackTarget.CA2 and flow_type == "OBJECTIVE_THEORY":
+            objective_target = CBTWritebackTarget.CA2
+            theory_target = CBTWritebackTarget.CA3
             objective_total = Decimal("10.00")
             theory_total = Decimal("10.00")
+        else:
+            objective_target = CBTWritebackTarget.CA2 if effective_ca_target == CBTWritebackTarget.CA2 else effective_ca_target
+            theory_target = effective_ca_target
     else:
         objective_target = CBTWritebackTarget.OBJECTIVE
         theory_target = CBTWritebackTarget.THEORY if flow_type == "OBJECTIVE_THEORY" else CBTWritebackTarget.NONE
@@ -2309,13 +2311,15 @@ def build_exam_from_uploaded_document(
                 effective_ca_target = CBTWritebackTarget.CA2
             if flow_type == "THEORY_ONLY":
                 objective_target = CBTWritebackTarget.NONE
-                theory_target = CBTWritebackTarget.NONE
-            else:
-                objective_target = CBTWritebackTarget.CA2 if effective_ca_target == CBTWritebackTarget.CA2 else effective_ca_target
-                theory_target = CBTWritebackTarget.NONE
-            if effective_ca_target == CBTWritebackTarget.CA2 and flow_type == "OBJECTIVE_THEORY":
+                theory_target = CBTWritebackTarget.CA3 if effective_ca_target == CBTWritebackTarget.CA2 else effective_ca_target
+            elif effective_ca_target == CBTWritebackTarget.CA2 and flow_type == "OBJECTIVE_THEORY":
+                objective_target = CBTWritebackTarget.CA2
+                theory_target = CBTWritebackTarget.CA3
                 objective_total = Decimal("10.00")
                 theory_total = Decimal("10.00")
+            else:
+                objective_target = CBTWritebackTarget.CA2 if effective_ca_target == CBTWritebackTarget.CA2 else effective_ca_target
+                theory_target = effective_ca_target
         else:
             objective_target = CBTWritebackTarget.OBJECTIVE
             theory_target = CBTWritebackTarget.THEORY if flow_type == "OBJECTIVE_THEORY" else CBTWritebackTarget.NONE
