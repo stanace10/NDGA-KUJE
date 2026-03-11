@@ -33,7 +33,7 @@
             Focus the schedule by day, class, subject, or teacher. Closed papers stay in history only.
           </p>
         </div>
-        <p class="text-sm font-semibold text-slate-500">Viewing: {{ selected_day|date:"d M Y" }}</p>
+        {% if selected_day %}<p class="text-sm font-semibold text-slate-500">Viewing: {{ selected_day|date:"d M Y" }}</p>{% else %}<p class="text-sm font-semibold text-slate-500">Viewing: All scheduled days</p>{% endif %}
       </div>
       <form method="get" class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         <div>

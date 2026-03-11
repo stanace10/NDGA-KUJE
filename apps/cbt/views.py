@@ -2127,11 +2127,11 @@ class CBTDeanReviewDetailView(CBTDeanAccessMixin, TemplateView):
 def _parse_schedule_day(raw_value):
     raw_value = (raw_value or "").strip()
     if not raw_value:
-        return timezone.localdate()
+        return None
     try:
         return datetime.strptime(raw_value, "%Y-%m-%d").date()
     except ValueError:
-        return timezone.localdate()
+        return None
 
 
 

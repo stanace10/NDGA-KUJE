@@ -189,8 +189,17 @@ def parse_time_window(label):
     match = re.search(r"(\d{1,2}:\d{2})-(\d{1,2}:\d{2})", text)
     if not match:
         return None, None
-    start = datetime.strptime(match.group(1), "%H:%M").time()
-    end = datetime.strptime(match.group(2), "%H:%M").time()
+
+    def _parse_school_time(value):
+        parsed = datetime.strptime(value, "%H:%M")
+        hour = parsed.hour
+        # Timetable afternoon slots are written as 1:30 / 2:10 without PM.
+        if hour < 7:
+            hour += 12
+        return parsed.replace(hour=hour).time()
+
+    start = _parse_school_time(match.group(1))
+    end = _parse_school_time(match.group(2))
     return start, end
 
 
