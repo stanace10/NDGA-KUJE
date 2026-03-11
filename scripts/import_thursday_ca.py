@@ -178,6 +178,7 @@ def class_code_from_value(value):
 
 def normalize_time_text(value):
     text = safe_text(collapse(value)).replace(";", ":")
+    text = re.sub(r"\s*:\s*", ":", text)
     text = re.sub(r"\s*-\s*", "-", text)
     text = re.sub(r"(?<=\d)\s+(?=\d)", ":", text)
     return text

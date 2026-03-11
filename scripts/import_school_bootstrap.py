@@ -49,6 +49,8 @@ DEFAULT_SESSION = "2025/2026"
 DEFAULT_TERM = TermName.SECOND
 STUDENT_ROW_RE = re.compile(r"^\s*(\d+)\s*(?:\u2014|-)\s*(.*?)\s*(?:\u2014|-)\s*(.*?)\s*(?:\u2014|-)\s*(.*?)\s*$")
 CLASS_LEVEL_RE = re.compile(r"(JS|SS)([123](?:,[123])*)")
+JUNIOR_SELECTIVE_LANGUAGE_NAMES = {"HAUSA LANGUAGE", "IGBO LANGUAGE", "YORUBA LANGUAGE"}
+JS1_COMPULSORY_LANGUAGE_NAMES = {"HAUSA LANGUAGE"}
 
 DEFAULT_PORTAL_ACCOUNTS = (
     ("VP", ("vp@ndgakuje.org", "NDGAK/VP"), "admin/vp"),
@@ -331,8 +333,31 @@ def enroll_junior_subjects(user, session, academic_class):
     base_class = academic_class.base_class or academic_class
     if base_class.code not in {"JS1", "JS2", "JS3"}:
         return 0
+    class_subject_rows = list(
+        ClassSubject.objects.filter(academic_class=base_class, is_active=True).select_related("subject")
+    )
+    if base_class.code == "JS1":
+        disallowed_language_names = JUNIOR_SELECTIVE_LANGUAGE_NAMES - JS1_COMPULSORY_LANGUAGE_NAMES
+    else:
+        disallowed_language_names = set(JUNIOR_SELECTIVE_LANGUAGE_NAMES)
+    allowed_subject_ids = {
+        row.subject_id
+        for row in class_subject_rows
+        if row.subject.name.upper() not in disallowed_language_names
+    }
+    disallowed_subject_ids = {
+        row.subject_id
+        for row in class_subject_rows
+        if row.subject.name.upper() in disallowed_language_names
+    }
+    if disallowed_subject_ids:
+        StudentSubjectEnrollment.objects.filter(
+            student=user,
+            session=session,
+            subject_id__in=disallowed_subject_ids,
+        ).delete()
     created_total = 0
-    for subject_id in ClassSubject.objects.filter(academic_class=base_class, is_active=True).values_list("subject_id", flat=True):
+    for subject_id in sorted(allowed_subject_ids):
         _, created = StudentSubjectEnrollment.objects.get_or_create(
             student=user,
             subject_id=subject_id,
