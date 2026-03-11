@@ -4,8 +4,11 @@ from django.contrib import admin
 from django.urls import include, path
 
 from core.ops import healthz, readyz
+from core.seo import robots_txt, sitemap_xml
 
 urlpatterns = [
+    path("robots.txt", robots_txt, name="robots-txt"),
+    path("sitemap.xml", sitemap_xml, name="sitemap-xml"),
     path("ops/healthz/", healthz, name="ops-healthz"),
     path("ops/readyz/", readyz, name="ops-readyz"),
     path("admin/", admin.site.urls),
@@ -24,5 +27,6 @@ urlpatterns = [
     path("", include("apps.dashboard.urls")),
 ]
 
-if settings.DEBUG:
+if settings.DEBUG or getattr(settings, 'NDGA_LOCAL_SIMPLE_HOST_MODE', False):
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

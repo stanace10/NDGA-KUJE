@@ -53,13 +53,24 @@
           <div>
             <label class="mb-1 block text-sm font-semibold text-slate-700" for="stem">Question Text</label>
             {% if can_edit %}
-              <div class="mb-2 flex flex-wrap gap-2">
-                <button type="button" class="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-ndga-navy/50" data-insert-wrap="**">Bold</button>
-                <button type="button" class="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-ndga-navy/50" data-insert-wrap="_">Italic</button>
-                <button type="button" class="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-ndga-navy/50" data-insert-text="\\( x^2 + y^2 = r^2 \\)">Formula</button>
-                <button type="button" class="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-ndga-navy/50" data-insert-text="△ ○ □ ↔ → ←">Shapes</button>
-                <button type="button" class="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-ndga-navy/50" data-insert-text="\n----------------\n">Line</button>
-                <button type="button" class="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-ndga-navy/50" data-insert-text="\n[GRAPH AREA]\n">Graph Placeholder</button>
+              <div class="mb-2 space-y-2">
+                <div class="flex flex-wrap gap-2">
+                  <button type="button" class="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-ndga-navy/50" data-insert-wrap="<strong>|</strong>">Bold</button>
+                  <button type="button" class="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-ndga-navy/50" data-insert-wrap="<em>|</em>">Italic</button>
+                  <button type="button" class="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-ndga-navy/50" data-insert-wrap="<u>|</u>">Underline</button>
+                  <button type="button" class="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-ndga-navy/50" data-insert-text="<div>x^2 + y^2 = r^2</div>">Formula</button>
+                  <button type="button" class="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-ndga-navy/50" data-insert-text="<div>&plusmn; &times; &divide; &le; &ge; &ne; &asymp; &theta; &pi; &Delta; &radic; &sum; &lambda; &mu; &Omega; &deg;</div>">Symbols</button>
+                  <button type="button" class="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-ndga-navy/50" data-insert-text="<div>&#9651; &#9675; &#9633; &#8592; &#8593; &#8594; &#8595;</div>">Shapes</button>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  <button type="button" class="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-ndga-navy/50" data-insert-text="<table class='w-full border-collapse border border-slate-500'><tr><th class='border border-slate-500 px-2 py-1'>Heading 1</th><th class='border border-slate-500 px-2 py-1'>Heading 2</th></tr><tr><td class='border border-slate-500 px-2 py-1'>Value</td><td class='border border-slate-500 px-2 py-1'>Value</td></tr></table>">2x2 Table</button>
+                  <button type="button" class="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-ndga-navy/50" data-insert-text="<table class='w-full border-collapse border border-slate-500'><tr><th class='border border-slate-500 px-2 py-1'>A</th><th class='border border-slate-500 px-2 py-1'>B</th><th class='border border-slate-500 px-2 py-1'>C</th></tr><tr><td class='border border-slate-500 px-2 py-1'>1</td><td class='border border-slate-500 px-2 py-1'>2</td><td class='border border-slate-500 px-2 py-1'>3</td></tr></table>">3-Column Table</button>
+                  <button type="button" class="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-ndga-navy/50" data-insert-text="<div class='my-3 border-t border-slate-500 pt-3'>Working Space</div>">Line / Work Space</button>
+                  <button type="button" class="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-ndga-navy/50" data-insert-text="<div class='rounded-xl border border-dashed border-slate-500 p-6 text-center text-sm'>Graph Area</div>">Graph Area</button>
+                  <button type="button" class="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-ndga-navy/50" data-insert-text="<div>Quadratic: x = (-b +/- sqrt(b^2 - 4ac)) / 2a</div><div>Physics: v = u + at, s = ut + 1/2at^2, V = IR, P = VI</div>">Maths / Physics</button>
+                  <button type="button" class="rounded-lg border border-slate-300 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-ndga-navy/50" data-insert-text="<div>Na+, Cl-, SO4^2-, H2SO4, CO2, NH3, CH4</div>">Chemistry Symbols</button>
+                </div>
+                <p class="text-xs text-slate-500">Quick inserts help with maths symbols, formulas, tables, shapes, and structured exam layouts. These render inside the live CBT page.</p>
               </div>
             {% endif %}
             <textarea
@@ -151,14 +162,31 @@
               </div>
             </div>
           {% else %}
-            <div class="w-full max-w-sm">
-              <label class="mb-1 block text-sm font-semibold text-slate-700" for="theory_response_mode">Theory Answer Mode</label>
-              <select id="theory_response_mode" name="theory_response_mode" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" {% if not can_edit %}disabled{% endif %}>
-                <option value="PAPER" {% if theory_response_mode == "PAPER" %}selected{% endif %}>Display only (paper answer)</option>
-              </select>
+            <div class="grid gap-3 lg:grid-cols-2">
+              <div class="w-full max-w-sm">
+                <label class="mb-1 block text-sm font-semibold text-slate-700" for="theory_response_mode">Theory Answer Mode</label>
+                <select id="theory_response_mode" name="theory_response_mode" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" {% if not can_edit %}disabled{% endif %}>
+                  <option value="TYPING" {% if theory_response_mode == "TYPING" %}selected{% endif %}>Student types in CBT</option>
+                  <option value="PAPER" {% if theory_response_mode == "PAPER" %}selected{% endif %}>Display only (paper answer)</option>
+                </select>
+              </div>
+              <div id="theoryTypeWrap" class="w-full max-w-sm">
+                <label class="mb-1 block text-sm font-semibold text-slate-700" for="theory_question_type">Theory Question Type</label>
+                <select id="theory_question_type" name="theory_question_type" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" {% if not can_edit %}disabled{% endif %}>
+                  <option value="SHORT_ANSWER" {% if theory_question_type == "SHORT_ANSWER" %}selected{% endif %}>Typed Long/Short Answer</option>
+                  <option value="LABELING" {% if theory_question_type == "LABELING" %}selected{% endif %}>Labeling</option>
+                  <option value="MATCHING" {% if theory_question_type == "MATCHING" %}selected{% endif %}>Matching</option>
+                  <option value="ORDERING" {% if theory_question_type == "ORDERING" %}selected{% endif %}>Ordering</option>
+                </select>
+              </div>
             </div>
-            <div class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-              Theory is paper-response mode. Student will read this question in CBT and answer on booklet.
+            <div id="structuredAnswerWrap" class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <label class="mb-1 block text-sm font-semibold text-slate-700" for="structured_answer_key">Structured Answer Key</label>
+              <textarea id="structured_answer_key" name="structured_answer_key" rows="3" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" {% if not can_edit %}disabled{% endif %}>{{ structured_answer_key }}</textarea>
+              <p class="mt-1 text-xs text-slate-500">Use this for labeling, matching, or ordering keys. Example: A=Stigma; B=Style or Step1&gt;Step2&gt;Step3.</p>
+            </div>
+            <div id="paperModeHelp" class="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+              In paper mode, the student reads the theory question in CBT and answers on booklet while the same timer continues running.
             </div>
           {% endif %}
 
@@ -338,7 +366,10 @@
         const end = stemArea.selectionEnd || 0;
         const current = stemArea.value || "";
         const selected = current.slice(start, end) || "text";
-        const wrapped = token + selected + token;
+        const parts = token.includes("|") ? token.split("|") : [token, token];
+        const openToken = parts[0] || "";
+        const closeToken = parts[1] || openToken;
+        const wrapped = openToken + selected + closeToken;
         stemArea.value = current.slice(0, start) + wrapped + current.slice(end);
         stemArea.selectionStart = start;
         stemArea.selectionEnd = start + wrapped.length;
@@ -370,20 +401,33 @@
         refreshObjectiveMode();
       }
 
+      const theoryResponseMode = document.getElementById("theory_response_mode");
       const theoryType = document.getElementById("theory_question_type");
+      const theoryTypeWrap = document.getElementById("theoryTypeWrap");
       const structuredWrap = document.getElementById("structuredAnswerWrap");
+      const paperModeHelp = document.getElementById("paperModeHelp");
       function refreshTheoryMode() {
-        if (!theoryType || !structuredWrap) return;
+        if (!theoryResponseMode || !theoryType || !structuredWrap || !theoryTypeWrap || !paperModeHelp) return;
+        const responseMode = theoryResponseMode.value || "PAPER";
         const mode = theoryType.value || "SHORT_ANSWER";
-        structuredWrap.style.display = mode === "SHORT_ANSWER" ? "none" : "";
+        const isPaper = responseMode === "PAPER";
+        theoryTypeWrap.style.display = isPaper ? "none" : "";
+        paperModeHelp.style.display = isPaper ? "" : "none";
+        structuredWrap.style.display = isPaper || mode === "SHORT_ANSWER" ? "none" : "";
+      }
+      if (theoryResponseMode) {
+        theoryResponseMode.addEventListener("change", () => {
+          refreshTheoryMode();
+          scheduleAutosave();
+        });
       }
       if (theoryType) {
         theoryType.addEventListener("change", () => {
           refreshTheoryMode();
           scheduleAutosave();
         });
-        refreshTheoryMode();
       }
+      refreshTheoryMode();
     })();
   </script>
 {% endblock %}

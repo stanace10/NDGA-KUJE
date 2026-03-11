@@ -21,6 +21,9 @@
     data-theory-count="{{ theory_count|default:0 }}"
     data-active-index="{{ active_index|default:1 }}"
     data-theory-stage-unlocked="{% if theory_stage_unlocked %}1{% else %}0{% endif %}"
+    data-warning-url="{% url 'cbt:attempt-warning' attempt.id %}"
+    data-warning-limit="2"
+    data-timer-paused="{% if timer_paused %}1{% else %}0{% endif %}"
   >
     {{ navigator|json_script:"cbt-navigator-seed" }}
 
@@ -30,16 +33,28 @@
         <h1 class="mt-2 text-2xl font-bold">{{ exam.title }}</h1>
         <p class="mt-2 text-sm text-slate-300">{{ exam.subject.name }} | {{ exam.academic_class.code }} | {{ exam.term.get_name_display }}</p>
         <div class="mt-4 rounded-2xl border border-amber-700/50 bg-amber-500/10 p-3 text-xs text-amber-200">
-          Start enters strict secure mode. Leaving fullscreen/tab or blocking camera can lock this attempt.
+          Start enters strict secure mode. Fullscreen stays on until submit or timer expiry. Two warnings auto-submit the attempt.
         </div>
-        <div class="mt-4 grid gap-4 md:grid-cols-[1fr_220px]">
+        <div class="mt-4 grid gap-4 md:grid-cols-2">
           <div class="rounded-2xl border border-slate-700 bg-slate-950/70 p-3 text-xs text-slate-300">
-            <p class="font-semibold text-cyan-200">Camera Check</p>
-            <p class="mt-1">Secure CBT requires an active camera feed before you begin.</p>
-            <p id="cameraStatusText" class="mt-2 font-semibold text-amber-300">Waiting for camera permission.</p>
+            <p class="font-semibold text-cyan-200">Strict Secure Mode</p>
+            <ul class="mt-2 space-y-2">
+              <li>Stay in fullscreen throughout the exam.</li>
+              <li>Tab switch, ESC, copy, paste, or repeated exit attempts trigger warnings.</li>
+              <li>Students finish objective first, then click <span class="font-semibold text-white">Begin Theory</span>.</li>
+              <li>Keyboard shortcuts: <span class="font-semibold text-white">A-D / 1-4</span> answers, <span class="font-semibold text-white">Left / Right</span> move.</li>
+            </ul>
           </div>
-          <div class="rounded-2xl border border-slate-700 bg-black p-2">
-            <video id="cameraPreviewGate" class="h-36 w-full rounded-xl object-cover" autoplay muted playsinline></video>
+          <div class="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-slate-200">
+            <div class="flex items-center justify-between gap-2">
+              <p class="font-semibold text-emerald-100">Live Invigilation</p>
+              <span id="gateWatchBadge" class="inline-flex items-center gap-2 rounded-full border border-emerald-500/50 bg-emerald-500/20 px-3 py-1 font-semibold text-emerald-100 animate-pulse">
+                <span class="inline-block h-2.5 w-2.5 rounded-full bg-emerald-400"></span>
+                LIVE CCTV
+              </span>
+            </div>
+            <p class="mt-2">This hall is under CCTV supervision. NDGA secure mode will keep warning and submit on repeated violations.</p>
+            <p id="gateStatusText" class="mt-3 font-semibold text-amber-300">Ready. Begin when the student is seated.</p>
           </div>
         </div>
         <div class="mt-5 flex flex-wrap items-center gap-2">
@@ -66,17 +81,26 @@
               <p class="text-xs font-semibold text-white">{{ request.user.get_full_name|default:request.user.username }}</p>
               <p class="text-[11px] text-slate-300">{{ request.user.username }} | {{ exam.academic_class.code }}</p>
             </div>
+            <p id="phasePill" class="mt-1 inline-flex items-center rounded-full border border-indigo-500/40 bg-indigo-500/10 px-2.5 py-1 text-[11px] font-semibold text-indigo-100">
+              {% if theory_stage_unlocked or active_index > objective_count %}Theory Stage{% elif objective_count > 0 %}Objective Stage{% else %}Live Exam{% endif %}
+            </p>
             {% if student_photo_url %}
-              <img src="{{ student_photo_url }}" alt="Student" class="h-11 w-11 rounded-full border border-slate-600 object-cover">
+              <img src="{{ student_photo_url }}" alt="Student" class="h-12 w-12 rounded-full border border-slate-600 object-cover">
             {% else %}
-              <div class="flex h-11 w-11 items-center justify-center rounded-full border border-slate-600 bg-slate-800 text-sm font-bold text-cyan-200">{{ request.user.username|slice:":1"|upper }}</div>
+              <img src="{% static 'images/student-avatar.svg' %}" alt="Student" class="h-12 w-12 rounded-full border border-slate-600 bg-slate-800 object-cover p-1">
             {% endif %}
             <span id="lockBadge" class="inline-flex items-center gap-2 rounded-full border border-slate-600 bg-slate-800 px-2.5 py-1 text-[11px] font-semibold text-slate-200">
               <span class="inline-block h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
-              Secure
+              Secure Lock
             </span>
-            <div class="flex h-16 w-16 flex-col items-center justify-center rounded-full border border-rose-400/50 bg-rose-500/20 text-rose-100">
-              <span id="timerPill" class="text-xs font-extrabold leading-none">00:00:00</span>
+            <span id="warningBadge" class="inline-flex items-center gap-2 rounded-full border border-amber-500/50 bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-100">
+              Warnings
+              <span id="warningCount">0 / 2</span>
+            </span>
+            <span id="timerStateBadge" class="hidden rounded-full border border-amber-500/50 bg-amber-500/15 px-2.5 py-1 text-[11px] font-semibold text-amber-100">Timer Paused By IT</span>
+            <div class="flex h-20 w-20 flex-col items-center justify-center rounded-full border border-rose-400/50 bg-rose-500/20 text-rose-100 shadow-[0_0_30px_rgba(244,63,94,0.2)]">
+              <span id="timerPill" class="text-lg font-black leading-none tracking-[0.06em]">00:00:00</span>
+              <span class="mt-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-rose-100/80">Timer</span>
             </div>
           </div>
         </div>
@@ -127,7 +151,7 @@
                         {% for option in panel.option_entries %}
                           <label class="cursor-pointer rounded-xl border border-slate-700 bg-slate-800/60 px-3 py-2.5 hover:border-cyan-400/60">
                             <span class="flex items-start gap-3">
-                              <input type="radio" name="selected_options" value="{{ option.id }}" class="mt-1 h-4 w-4 text-cyan-400" {% if option.selected %}checked{% endif %}>
+                              <input type="radio" name="selected_options" value="{{ option.id }}" data-option-label="{{ option.label }}" class="mt-1 h-4 w-4 text-cyan-400" {% if option.selected %}checked{% endif %}>
                               <span class="text-sm text-slate-100"><span class="font-semibold text-cyan-200">{{ option.label }}.</span> {{ option.text }}</span>
                             </span>
                           </label>
@@ -138,7 +162,7 @@
                         {% for option in panel.option_entries %}
                           <label class="cursor-pointer rounded-xl border border-slate-700 bg-slate-800/60 px-3 py-2.5 hover:border-cyan-400/60">
                             <span class="flex items-start gap-3">
-                              <input type="checkbox" name="selected_options" value="{{ option.id }}" class="mt-1 h-4 w-4 text-cyan-400" {% if option.selected %}checked{% endif %}>
+                              <input type="checkbox" name="selected_options" value="{{ option.id }}" data-option-label="{{ option.label }}" class="mt-1 h-4 w-4 text-cyan-400" {% if option.selected %}checked{% endif %}>
                               <span class="text-sm text-slate-100"><span class="font-semibold text-cyan-200">{{ option.label }}.</span> {{ option.text }}</span>
                             </span>
                           </label>
@@ -160,7 +184,7 @@
                     <button type="button" id="prevBtn" class="ndga-btn ndga-btn-secondary !px-3 !py-1.5 !text-xs" {% if active_index <= 1 %}disabled{% endif %}>Prev</button>
                     <button type="button" id="nextBtn" class="ndga-btn ndga-btn-secondary !px-3 !py-1.5 !text-xs" {% if active_index >= question_count %}disabled{% endif %}>Next</button>
                     <button type="button" id="reviewBtn" class="ndga-btn ndga-btn-secondary !px-3 !py-1.5 !text-xs">Review</button>
-                    <button type="button" id="moveTheoryBtn" class="ndga-btn !bg-indigo-600 !px-3 !py-1.5 !text-xs !text-white hover:!bg-indigo-700 {% if not is_last_objective_page or theory_count <= 0 or theory_stage_unlocked %}hidden{% endif %}">Move To Theory</button>
+                    <button type="button" id="moveTheoryBtn" class="ndga-btn !bg-indigo-600 !px-3 !py-1.5 !text-xs !text-white hover:!bg-indigo-700 {% if not is_last_objective_page or theory_count <= 0 or theory_stage_unlocked %}hidden{% endif %}">Begin Theory</button>
                   </div>
                   <button type="button" id="submitBtn" class="ndga-btn !bg-emerald-600 !px-3 !py-1.5 !text-xs !text-white hover:!bg-emerald-700">Submit</button>
                 </div>
@@ -193,12 +217,102 @@
                   {% endfor %}
                 </div>
               </article>
+              {% if calculator_enabled %}
+                <article id="examToolCard" data-calculator-mode="{{ calculator_mode }}" class="rounded-3xl border border-slate-700 bg-slate-900 p-3">
+                  <div class="flex items-center justify-between gap-2">
+                    <h3 class="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200">Maths Support Tools</h3>
+                    <span class="rounded-full border border-cyan-500/50 bg-cyan-500/10 px-2 py-0.5 text-[11px] font-semibold text-cyan-100">{{ calculator_mode }}</span>
+                  </div>
+                  <p class="mt-2 text-[11px] text-slate-300">Use only the tools enabled for this paper. The timer keeps running while you use them.</p>
+                  {% if calculator_mode == "GRAPH" %}
+                    <div class="mt-3 overflow-hidden rounded-2xl border border-slate-700 bg-white">
+                      <div class="flex items-center justify-between border-b border-slate-200 px-3 py-2 text-[11px] font-semibold text-slate-700">
+                        <span>Graph Board</span>
+                        <span>Maths Helper</span>
+                      </div>
+                      <iframe title="Graph Helper" src="{% static 'sims/ndga-graph-practical/index.html' %}" class="h-64 w-full" loading="lazy"></iframe>
+                    </div>
+                  {% endif %}
+                  <div class="mt-3 grid gap-3 xl:grid-cols-2">
+                    <div class="rounded-2xl border border-slate-700 bg-slate-950/70 p-3">
+                      <label for="calcDisplay" class="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Calculator</label>
+                      <input id="calcDisplay" type="text" value="" readonly class="mt-2 w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2 text-right font-mono text-sm text-white">
+                      <div class="mt-3 grid grid-cols-4 gap-2 text-xs">
+                        <button type="button" data-calc-action="clear" class="rounded-xl border border-rose-500/50 bg-rose-500/10 px-2 py-2 font-semibold text-rose-200">AC</button>
+                        <button type="button" data-calc-action="backspace" class="rounded-xl border border-slate-600 bg-slate-800 px-2 py-2 font-semibold text-slate-100">DEL</button>
+                        <button type="button" data-calc-token="(" class="rounded-xl border border-slate-600 bg-slate-800 px-2 py-2 font-semibold text-slate-100">(</button>
+                        <button type="button" data-calc-token=")" class="rounded-xl border border-slate-600 bg-slate-800 px-2 py-2 font-semibold text-slate-100">)</button>
+                        <button type="button" data-calc-token="7" class="rounded-xl border border-slate-600 bg-slate-800 px-2 py-2 font-semibold text-slate-100">7</button>
+                        <button type="button" data-calc-token="8" class="rounded-xl border border-slate-600 bg-slate-800 px-2 py-2 font-semibold text-slate-100">8</button>
+                        <button type="button" data-calc-token="9" class="rounded-xl border border-slate-600 bg-slate-800 px-2 py-2 font-semibold text-slate-100">9</button>
+                        <button type="button" data-calc-token="/" class="rounded-xl border border-cyan-500/50 bg-cyan-500/10 px-2 py-2 font-semibold text-cyan-100">/</button>
+                        <button type="button" data-calc-token="4" class="rounded-xl border border-slate-600 bg-slate-800 px-2 py-2 font-semibold text-slate-100">4</button>
+                        <button type="button" data-calc-token="5" class="rounded-xl border border-slate-600 bg-slate-800 px-2 py-2 font-semibold text-slate-100">5</button>
+                        <button type="button" data-calc-token="6" class="rounded-xl border border-slate-600 bg-slate-800 px-2 py-2 font-semibold text-slate-100">6</button>
+                        <button type="button" data-calc-token="*" class="rounded-xl border border-cyan-500/50 bg-cyan-500/10 px-2 py-2 font-semibold text-cyan-100">*</button>
+                        <button type="button" data-calc-token="1" class="rounded-xl border border-slate-600 bg-slate-800 px-2 py-2 font-semibold text-slate-100">1</button>
+                        <button type="button" data-calc-token="2" class="rounded-xl border border-slate-600 bg-slate-800 px-2 py-2 font-semibold text-slate-100">2</button>
+                        <button type="button" data-calc-token="3" class="rounded-xl border border-slate-600 bg-slate-800 px-2 py-2 font-semibold text-slate-100">3</button>
+                        <button type="button" data-calc-token="-" class="rounded-xl border border-cyan-500/50 bg-cyan-500/10 px-2 py-2 font-semibold text-cyan-100">-</button>
+                        <button type="button" data-calc-token="0" class="rounded-xl border border-slate-600 bg-slate-800 px-2 py-2 font-semibold text-slate-100">0</button>
+                        <button type="button" data-calc-token="." class="rounded-xl border border-slate-600 bg-slate-800 px-2 py-2 font-semibold text-slate-100">.</button>
+                        <button type="button" data-calc-token="^" class="rounded-xl border border-slate-600 bg-slate-800 px-2 py-2 font-semibold text-slate-100">^</button>
+                        <button type="button" data-calc-token="+" class="rounded-xl border border-cyan-500/50 bg-cyan-500/10 px-2 py-2 font-semibold text-cyan-100">+</button>
+                      </div>
+                      {% if calculator_mode != "BASIC" %}
+                        <div class="mt-2 grid grid-cols-4 gap-2 text-[11px]">
+                          <button type="button" data-calc-token="sin(" class="rounded-xl border border-indigo-500/40 bg-indigo-500/10 px-2 py-2 font-semibold text-indigo-100">sin</button>
+                          <button type="button" data-calc-token="cos(" class="rounded-xl border border-indigo-500/40 bg-indigo-500/10 px-2 py-2 font-semibold text-indigo-100">cos</button>
+                          <button type="button" data-calc-token="tan(" class="rounded-xl border border-indigo-500/40 bg-indigo-500/10 px-2 py-2 font-semibold text-indigo-100">tan</button>
+                          <button type="button" data-calc-token="sqrt(" class="rounded-xl border border-indigo-500/40 bg-indigo-500/10 px-2 py-2 font-semibold text-indigo-100">sqrt</button>
+                          <button type="button" data-calc-token="log10(" class="rounded-xl border border-indigo-500/40 bg-indigo-500/10 px-2 py-2 font-semibold text-indigo-100">log</button>
+                          <button type="button" data-calc-token="ln(" class="rounded-xl border border-indigo-500/40 bg-indigo-500/10 px-2 py-2 font-semibold text-indigo-100">ln</button>
+                          <button type="button" data-calc-token="pi" class="rounded-xl border border-indigo-500/40 bg-indigo-500/10 px-2 py-2 font-semibold text-indigo-100">pi</button>
+                          <button type="button" data-calc-action="evaluate" class="rounded-xl border border-emerald-500/50 bg-emerald-500/10 px-2 py-2 font-semibold text-emerald-100">=</button>
+                        </div>
+                      {% else %}
+                        <button type="button" data-calc-action="evaluate" class="mt-2 w-full rounded-xl border border-emerald-500/50 bg-emerald-500/10 px-2 py-2 text-xs font-semibold text-emerald-100">Evaluate</button>
+                      {% endif %}
+                      <p id="calcStatus" class="mt-2 text-[11px] font-semibold text-slate-400">Ready.</p>
+                    </div>
+                    <div class="rounded-2xl border border-slate-700 bg-slate-950/70 p-3">
+                      <div class="flex items-center justify-between gap-2">
+                        <h4 class="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">4-Figure & Formula Helper</h4>
+                        <span class="rounded-full border border-indigo-500/40 bg-indigo-500/10 px-2 py-0.5 text-[10px] font-semibold text-indigo-100">Maths Aid</span>
+                      </div>
+                      <label for="fourFigureInput" class="mt-3 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">Quick Lookup</label>
+                      <div class="mt-2 flex gap-2">
+                        <input id="fourFigureInput" type="text" placeholder="e.g. 23.4 or 0.756" class="w-full rounded-xl border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-white focus:border-cyan-400/70 focus:outline-none">
+                        <button id="fourFigureRunBtn" type="button" class="rounded-xl border border-cyan-500/50 bg-cyan-500/10 px-3 py-2 text-xs font-semibold text-cyan-100">Lookup</button>
+                      </div>
+                      <div id="fourFigureOutput" class="mt-2 rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-[11px] text-slate-200">Enter a positive number to see log, antilog, square root, reciprocal, and trigonometric helper values.</div>
+                      <div class="mt-3 grid gap-2 text-[11px] text-slate-200">
+                        <div class="rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2">Quadratic: x = (-b +/- sqrt(b^2 - 4ac)) / 2a</div>
+                        <div class="rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2">Physics: v = u + at, s = ut + 1/2at^2, V = IR, P = VI</div>
+                        <div class="rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2">Angles: sin, cos, tan values are shown in degrees for quick revision.</div>
+                        <div class="rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2">Statistics: mean = sum(x)/n, variance = sum((x - xbar)^2)/n</div>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              {% endif %}
               <article class="rounded-3xl border border-slate-700 bg-slate-900 p-3">
                 <div class="flex items-center justify-between gap-2">
-                  <h3 class="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200">Camera Monitor</h3>
-                  <span id="cameraLiveBadge" class="rounded-full border border-amber-500/60 bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-200">Waiting</span>
+                  <h3 class="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200">Invigilator Watch</h3>
+                  <span id="invigilatorBadge" class="inline-flex items-center gap-2 rounded-full border border-emerald-500/50 bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-200 animate-pulse">
+                    <span class="inline-block h-2 w-2 rounded-full bg-emerald-400"></span>
+                    LIVE CCTV
+                  </span>
                 </div>
-                <video id="cameraPreviewLive" class="mt-2 h-40 w-full rounded-2xl border border-slate-700 bg-black object-cover" autoplay muted playsinline></video>
+                <p id="warningHelpText" class="mt-2 text-[11px] text-slate-300">Warnings 0 / 2. The second security warning submits the attempt automatically.</p>
+                <div class="mt-3 rounded-2xl border border-slate-700 bg-slate-950/70 p-3 text-[11px] text-slate-200">
+                  <p class="font-semibold uppercase tracking-[0.14em] text-slate-400">Strict Actions</p>
+                  <ul class="mt-2 space-y-2">
+                    <li>Stay in fullscreen until final submission.</li>
+                    <li>Tab switch, ESC, copy, paste, and idle breaches are logged live.</li>
+                    <li>Theory starts only after objective is completed and confirmed.</li>
+                  </ul>
+                </div>
               </article>
             {% endif %}
           </aside>
@@ -207,7 +321,7 @@
     </div>
 
     <div id="reviewModal" class="fixed inset-0 z-[85] hidden"><div class="absolute inset-0 bg-slate-950/60"></div><div class="relative mx-auto mt-16 w-[94%] max-w-2xl rounded-3xl border border-slate-700 bg-slate-900 p-5 text-slate-100 shadow-2xl"><h2 class="text-lg font-semibold text-white">Attempt Review</h2><p class="mt-1 text-sm text-slate-300">Jump to unanswered/flagged questions before final submission.</p><div class="mt-4 grid grid-cols-4 gap-2 sm:grid-cols-6">{% for item in navigator %}<a href="?q={{ item.index }}" data-jump-index="{{ item.index }}" class="js-nav-item flex h-9 items-center justify-center rounded-xl border text-xs font-semibold {% if item.answered %}border-emerald-500/70 bg-emerald-500/15 text-emerald-200{% elif item.flagged %}border-amber-500/70 bg-amber-500/15 text-amber-200{% else %}border-slate-600 bg-slate-800 text-slate-300{% endif %}">{{ item.index }}</a>{% endfor %}</div><div class="mt-5 flex justify-end gap-2"><button type="button" id="closeReviewBtn" class="ndga-btn ndga-btn-secondary">Close</button></div></div></div>
-    <div id="theoryConfirmModal" class="fixed inset-0 z-[86] hidden"><div class="absolute inset-0 bg-slate-950/65"></div><div class="relative mx-auto mt-28 w-[92%] max-w-md rounded-3xl border border-slate-700 bg-slate-900 p-5 text-slate-100 shadow-2xl"><h2 class="text-lg font-semibold text-white">Move To Theory?</h2><p class="mt-2 text-sm text-slate-300">Are you done with objective questions? If yes, move to theory. If no, continue review.</p><div class="mt-5 flex justify-end gap-2"><button type="button" id="cancelTheoryMoveBtn" class="ndga-btn ndga-btn-secondary">No</button><button type="button" id="confirmTheoryMoveBtn" class="ndga-btn !bg-indigo-600 !text-white hover:!bg-indigo-700">Yes</button></div></div></div>
+    <div id="theoryConfirmModal" class="fixed inset-0 z-[86] hidden"><div class="absolute inset-0 bg-slate-950/65"></div><div class="relative mx-auto mt-28 w-[92%] max-w-md rounded-3xl border border-slate-700 bg-slate-900 p-5 text-slate-100 shadow-2xl"><h2 class="text-lg font-semibold text-white">Begin Theory?</h2><p class="mt-2 text-sm text-slate-300">Are you done with objective questions? If yes, begin the theory section. The same timer continues running.</p><div class="mt-5 flex justify-end gap-2"><button type="button" id="cancelTheoryMoveBtn" class="ndga-btn ndga-btn-secondary">No</button><button type="button" id="confirmTheoryMoveBtn" class="ndga-btn !bg-indigo-600 !text-white hover:!bg-indigo-700">Begin Theory</button></div></div></div>
     <div id="submitModal" class="fixed inset-0 z-[87] hidden"><div class="absolute inset-0 bg-slate-950/65"></div><div class="relative mx-auto mt-28 w-[92%] max-w-md rounded-3xl border border-slate-700 bg-slate-900 p-5 text-slate-100 shadow-2xl"><h2 class="text-lg font-semibold text-white">Submit Attempt?</h2><p class="mt-2 text-sm text-slate-300">Once submitted, this attempt is final except IT Manager override policy.</p><div class="mt-5 flex justify-end gap-2"><button type="button" id="cancelSubmitBtn" class="ndga-btn ndga-btn-secondary">Cancel</button><button type="button" id="confirmSubmitBtn" class="ndga-btn !bg-emerald-600 !text-white hover:!bg-emerald-700">Submit Now</button></div></div></div>
     <p id="autosaveNote" class="mt-2 text-center text-xs font-semibold text-slate-300"></p>
   </section>
@@ -219,8 +333,10 @@
 
       const lockOn = root.dataset.lockdownEnabled === "1";
       const hbUrl = root.dataset.heartbeatUrl;
-      const vUrl = root.dataset.violationUrl;
+      const warningUrl = root.dataset.warningUrl;
       const resultUrl = root.dataset.resultUrl;
+      const warningLimit = Math.max(parseInt(root.dataset.warningLimit || "2", 10), 1);
+      let timerPaused = root.dataset.timerPaused === "1";
       const hbSeconds = Math.max(parseInt(root.dataset.heartbeatSeconds || "12", 10), 5);
       const idleSeconds = Math.max(parseInt(root.dataset.inactivitySeconds || "45", 10), 15);
 
@@ -234,12 +350,14 @@
       const runWrap = document.getElementById("cbtRunWrap");
       const beginBtn = document.getElementById("cbtBeginBtn");
       const gateErr = document.getElementById("cbtGateError");
+      const gateStatusText = document.getElementById("gateStatusText");
       const timerNode = document.getElementById("timerPill");
       const autosaveNote = document.getElementById("autosaveNote");
-      const cameraPreviewGate = document.getElementById("cameraPreviewGate");
-      const cameraPreviewLive = document.getElementById("cameraPreviewLive");
-      const cameraStatusText = document.getElementById("cameraStatusText");
-      const cameraLiveBadge = document.getElementById("cameraLiveBadge");
+      const warningCountNode = document.getElementById("warningCount");
+      const warningHelpText = document.getElementById("warningHelpText");
+      const timerStateBadge = document.getElementById("timerStateBadge");
+      const phasePill = document.getElementById("phasePill");
+      const invigilatorBadge = document.getElementById("invigilatorBadge");
 
       const deck = document.getElementById("questionDeck");
       const questionPanels = deck ? Array.from(deck.querySelectorAll(".attempt-question-panel")) : [];
@@ -273,8 +391,8 @@
       let started = false;
       let violationSent = false;
       let autosaveBusy = false;
-      let cameraStream = null;
-      let fullscreenRecoveryBusy = false;
+      let warningBusy = false;
+      let warningCount = 0;
       let lastActivity = Date.now();
       let seconds = parseInt("{{ remaining_seconds|default:0 }}", 10) || 0;
       let suppressViolation = false;
@@ -434,6 +552,9 @@
           isSubmitting = true;
           suppressViolation = true;
           sessionStorage.removeItem(startedKey);
+          if (document.fullscreenElement && document.exitFullscreen) {
+            document.exitFullscreen().catch(function () { return null; });
+          }
           window.location.href = response.redirect_url || resultUrl;
           return;
         }
@@ -482,90 +603,120 @@
         return !!document.fullscreenElement;
       }
 
-      function setCameraBadge(state, label) {
-        if (cameraStatusText) cameraStatusText.textContent = label;
-        if (!cameraLiveBadge) return;
-        cameraLiveBadge.textContent = label;
-        cameraLiveBadge.className = "rounded-full border px-2 py-0.5 text-[11px] font-semibold ";
-        if (state === "live") {
-          cameraLiveBadge.className += "border-emerald-500/60 bg-emerald-500/15 text-emerald-200";
-        } else if (state === "error") {
-          cameraLiveBadge.className += "border-rose-500/60 bg-rose-500/15 text-rose-200";
+      function setGateStatus(message, isError) {
+        if (!gateStatusText) return;
+        gateStatusText.textContent = message;
+        gateStatusText.className = "mt-3 font-semibold " + (isError ? "text-rose-300" : "text-amber-300");
+      }
+
+      function setInvigilatorState(state, label) {
+        if (!invigilatorBadge) return;
+        invigilatorBadge.className = "inline-flex items-center gap-2 rounded-full border px-2 py-0.5 text-[11px] font-semibold ";
+        if (state === "warning") {
+          invigilatorBadge.className += "border-amber-500/50 bg-amber-500/15 text-amber-200 animate-pulse";
+        } else if (state === "alert") {
+          invigilatorBadge.className += "border-rose-500/50 bg-rose-500/15 text-rose-200 animate-pulse";
         } else {
-          cameraLiveBadge.className += "border-amber-500/60 bg-amber-500/15 text-amber-200";
+          invigilatorBadge.className += "border-emerald-500/50 bg-emerald-500/15 text-emerald-200 animate-pulse";
+        }
+        invigilatorBadge.innerHTML = '<span class="inline-block h-2 w-2 rounded-full bg-current"></span>' + label;
+      }
+
+      function setTimerPausedState(isPaused, reason) {
+        timerPaused = !!isPaused;
+        if (!timerStateBadge) return;
+        if (timerPaused) {
+          timerStateBadge.classList.remove("hidden");
+          timerStateBadge.textContent = reason ? "Timer Paused: " + reason : "Timer Paused By IT";
+          setAutoMessage(timerStateBadge.textContent, false);
+          return;
+        }
+        timerStateBadge.classList.add("hidden");
+        if (!warningBusy && !violationSent && !isSubmitting) {
+          setAutoMessage("", true);
         }
       }
 
-      function bindCameraPreview(stream) {
-        [cameraPreviewGate, cameraPreviewLive].forEach(function (node) {
-          if (!node) return;
-          node.srcObject = stream;
-        });
+      function updateWarningUi(reasonLabel) {
+        if (warningCountNode) {
+          warningCountNode.textContent = warningCount + " / " + warningLimit;
+        }
+        if (warningHelpText) {
+          let message = "Warnings " + warningCount + " / " + warningLimit + ". The second security warning submits the attempt automatically.";
+          if (reasonLabel) {
+            message = "Warning " + warningCount + " / " + warningLimit + ": " + reasonLabel + ". One more warning auto-submits.";
+          }
+          warningHelpText.textContent = message;
+        }
       }
 
-      async function ensureCamera() {
-        if (!lockOn) return true;
-        if (cameraStream && cameraStream.getVideoTracks().some((track) => track.readyState === "live")) {
-          bindCameraPreview(cameraStream);
-          setCameraBadge("live", "Camera Live");
-          return true;
+      function updatePhaseUi() {
+        if (!phasePill) return;
+        if (objectiveCount > 0 && activeIndex > objectiveCount) {
+          phasePill.textContent = "Theory Stage";
+          return;
         }
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          setCameraBadge("error", "Camera not supported");
-          return false;
+        if (objectiveCount > 0) {
+          phasePill.textContent = "Objective Stage";
+          return;
         }
+        phasePill.textContent = "Live Exam";
+      }
+
+      async function postWarning(eventType, details, csrfToken) {
+        if (!warningUrl) return { ok: true };
         try {
-          cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
-          bindCameraPreview(cameraStream);
-          const tracks = cameraStream.getVideoTracks();
-          tracks.forEach(function (track) {
-            track.onended = function () {
-              setCameraBadge("error", "Camera Blocked");
-              if (started) {
-                violation("CAMERA_BLOCKED", { reason: "track_ended" });
-              }
-            };
-          });
-          setCameraBadge("live", "Camera Live");
-          return true;
+          const response = await postJson(
+            warningUrl,
+            {
+              event_type: eventType,
+              details: details || {},
+              tab_token: token,
+            },
+            csrfToken || getCsrfToken(getActivePanel())
+          );
+          return await response.json().catch(() => ({ ok: true }));
         } catch (_error) {
-          setCameraBadge("error", "Camera permission denied");
-          return false;
+          return { ok: false };
         }
       }
 
-      function violation(eventType, details, csrfToken) {
-        if (!lockOn || violationSent || suppressViolation) return;
-        if (startedAt && Date.now() - startedAt < 1200) return;
-        violationSent = true;
-        sessionStorage.removeItem(startedKey);
-        postJson(
-          vUrl,
+      async function issueWarning(eventType, details, options) {
+        if (!started || suppressViolation || violationSent || isSubmitting) return;
+        if (warningBusy) return;
+        warningBusy = true;
+        warningCount += 1;
+        const settings = options || {};
+        const label = settings.label || eventType.replace(/_/g, " ");
+        updateWarningUi(label);
+        setInvigilatorState(warningCount >= warningLimit ? "alert" : "warning", "WARNING " + warningCount + "/" + warningLimit);
+        await postWarning(
+          eventType,
           {
-            event_type: eventType,
-            details: details || {},
-            tab_token: token,
+            ...(details || {}),
+            warning_count: warningCount,
+            warning_limit: warningLimit,
           },
-          csrfToken || getCsrfToken(getActivePanel())
-        )
-          .then((row) => row.json().catch(() => ({})))
-          .then((data) => {
-            window.location.href = (data && data.redirect_url) ? data.redirect_url : resultUrl;
-          })
-          .catch(function () {
-            window.location.href = resultUrl;
-          });
-      }
-
-      async function handleFullscreenDrop(source) {
-        if (!started || !lockOn || suppressViolation || violationSent || isSubmitting) return;
-        if (fullscreenRecoveryBusy) return;
-        fullscreenRecoveryBusy = true;
-        const recovered = await restoreFullscreen();
-        fullscreenRecoveryBusy = false;
-        if (!recovered) {
-          violation("FULLSCREEN_EXIT", { source: source || "fullscreenchange" });
+          getCsrfToken(getActivePanel())
+        );
+        if (warningCount >= warningLimit) {
+          timeoutSubmitTriggered = true;
+          suppressViolation = true;
+          setAutoMessage("Security warning limit reached. Attempt submitted automatically.", false);
+          warningBusy = false;
+          submitAttempt(true);
+          return;
         }
+        if (settings.tryRestore !== false && lockOn && !document.fullscreenElement) {
+          await restoreFullscreen();
+        }
+        setAutoMessage("Warning " + warningCount + "/" + warningLimit + ": " + label + ".", false);
+        window.setTimeout(function () {
+          if (!violationSent && !isSubmitting) {
+            setAutoMessage("", true);
+          }
+        }, 1800);
+        warningBusy = false;
       }
 
       function heartbeat() {
@@ -586,6 +737,14 @@
           .then((data) => {
             if (data && data.locked) {
               window.location.href = data.redirect_url || resultUrl;
+              return;
+            }
+            if (data && Object.prototype.hasOwnProperty.call(data, "remaining_seconds")) {
+              seconds = Math.max(parseInt(data.remaining_seconds || 0, 10), 0);
+              paintTimer();
+            }
+            if (data && Object.prototype.hasOwnProperty.call(data, "paused")) {
+              setTimerPausedState(!!data.paused, data.pause_reason || "");
             }
           })
           .catch(function () {
@@ -598,6 +757,10 @@
         sessionStorage.setItem(startedKey, "1");
         if (gate) gate.classList.add("hidden");
         if (runWrap) runWrap.classList.remove("hidden");
+        setInvigilatorState("live", "LIVE CCTV");
+        setGateStatus("Exam running in strict mode.", false);
+        updateWarningUi();
+        setTimerPausedState(timerPaused, "{{ timer_pause_reason|escapejs }}");
         showQuestion(activeIndex);
         paintTimer();
         heartbeat();
@@ -611,11 +774,7 @@
         const ok = await restoreFullscreen();
         if (!ok) {
           if (gateErr) gateErr.textContent = "Fullscreen is required for secure CBT.";
-          return;
-        }
-        const cameraOk = await ensureCamera();
-        if (!cameraOk) {
-          if (gateErr) gateErr.textContent = "Camera access is required for secure CBT.";
+          setGateStatus("Fullscreen must be allowed before the exam can begin.", true);
           return;
         }
         startRunUi();
@@ -632,6 +791,9 @@
           suppressViolation = true;
           isSubmitting = true;
           sessionStorage.removeItem(startedKey);
+          if (document.fullscreenElement && document.exitFullscreen) {
+            document.exitFullscreen().catch(function () { return null; });
+          }
           practicalSubmitForm.submit();
         }
       }
@@ -698,6 +860,7 @@
       if (confirmSubmitBtn && submitModal) {
         confirmSubmitBtn.addEventListener("click", function () {
           submitModal.classList.add("hidden");
+          suppressViolation = true;
           submitAttempt(false);
         });
       }
@@ -740,39 +903,76 @@
       });
 
       document.addEventListener("copy", function () {
-        violation("COPY_ATTEMPT", { reason: "copy" });
+        issueWarning("COPY_ATTEMPT", { reason: "copy" }, { label: "Copy is not allowed", tryRestore: false });
+      });
+      document.addEventListener("contextmenu", function (event) {
+        event.preventDefault();
+        issueWarning("COPY_ATTEMPT", { reason: "context_menu" }, { label: "Right click is disabled", tryRestore: false });
       });
       document.addEventListener("paste", function () {
-        violation("PASTE_ATTEMPT", { reason: "paste" });
+        issueWarning("PASTE_ATTEMPT", { reason: "paste" }, { label: "Paste is not allowed", tryRestore: false });
       });
       document.addEventListener("cut", function () {
-        violation("COPY_ATTEMPT", { reason: "cut" });
+        issueWarning("COPY_ATTEMPT", { reason: "cut" }, { label: "Cut is not allowed", tryRestore: false });
       });
 
       document.addEventListener("visibilitychange", function () {
         if (started && document.visibilityState !== "visible") {
-          violation("TAB_SWITCH", { visibility: document.visibilityState });
+          issueWarning("TAB_SWITCH", { visibility: document.visibilityState }, { label: "Tab switch detected", tryRestore: false });
         }
       });
 
       document.addEventListener("fullscreenchange", function () {
-        if (started && lockOn && !document.fullscreenElement) {
-          handleFullscreenDrop("fullscreenchange");
+        if (started && lockOn && !document.fullscreenElement && !suppressViolation && !isSubmitting) {
+          issueWarning("FULLSCREEN_EXIT", { source: "fullscreenchange" }, { label: "Fullscreen exit detected" });
         }
       });
 
       document.addEventListener("keydown", function (event) {
-        if (started && lockOn && event.key === "Escape") {
+        if (!started || violationSent || isSubmitting) return;
+        if (lockOn && event.key === "Escape") {
           event.preventDefault();
           event.stopPropagation();
-          handleFullscreenDrop("escape_key");
+          issueWarning("FULLSCREEN_EXIT", { source: "escape_key" }, { label: "Escape key is blocked" });
+          return;
+        }
+        const activeNode = document.activeElement;
+        const tag = (activeNode && activeNode.tagName ? activeNode.tagName : "").toUpperCase();
+        if (tag === "TEXTAREA" || (tag === "INPUT" && activeNode.id !== "calcDisplay")) {
+          return;
+        }
+        const key = (event.key || "").toLowerCase();
+        const optionMap = { a: "A", b: "B", c: "C", d: "D", 1: "A", 2: "B", 3: "C", 4: "D" };
+        if (optionMap[key]) {
+          const panel = getActivePanel();
+          const input = panel ? panel.querySelector("input[name='selected_options'][data-option-label='" + optionMap[key] + "']") : null;
+          if (input) {
+            if (input.type === "checkbox") {
+              input.checked = !input.checked;
+            } else {
+              input.checked = true;
+            }
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+            markPanelAnswered(activeIndex, true);
+            event.preventDefault();
+          }
+          return;
+        }
+        if (event.key === "ArrowRight") {
+          event.preventDefault();
+          handleQuestionAction("save_next");
+          return;
+        }
+        if (event.key === "ArrowLeft") {
+          event.preventDefault();
+          handleQuestionAction("save_prev");
         }
       });
 
-      window.addEventListener("beforeunload", function () {
-        suppressViolation = true;
-        if (cameraStream) {
-          cameraStream.getTracks().forEach(function (track) { track.stop(); });
+      window.addEventListener("beforeunload", function (event) {
+        if (started && !suppressViolation && !isSubmitting && seconds > 0) {
+          event.preventDefault();
+          event.returnValue = "";
         }
       });
 
@@ -780,30 +980,139 @@
         if (!started || violationSent || isSubmitting) return;
         const idle = Math.floor((Date.now() - lastActivity) / 1000);
         if (idle >= idleSeconds) {
-          violation("INACTIVITY_TIMEOUT", { idle_seconds: idle });
-        }
-        const liveTrack = cameraStream && cameraStream.getVideoTracks().find((track) => track.readyState === "live");
-        if (lockOn && !liveTrack) {
-          setCameraBadge("error", "Camera Blocked");
-          violation("CAMERA_BLOCKED", { reason: "no_live_track" });
+          issueWarning("INACTIVITY_TIMEOUT", { idle_seconds: idle }, { label: "Activity timeout", tryRestore: false });
+          lastActivity = Date.now();
         }
       }, 5000);
 
       window.setInterval(function () {
-        if (!started || violationSent || isSubmitting) return;
+        if (!started || violationSent || isSubmitting || timerPaused) return;
         seconds = Math.max(0, seconds - 1);
         paintTimer();
         if (seconds <= 0 && !timeoutSubmitTriggered) {
           timeoutSubmitTriggered = true;
+          suppressViolation = true;
+          if (document.fullscreenElement && document.exitFullscreen) {
+            document.exitFullscreen().catch(function () { return null; });
+          }
           submitAttempt(true);
         }
       }, 1000);
 
-      window.setInterval(heartbeat, hbSeconds * 1000);
+      const calcDisplay = document.getElementById("calcDisplay");
+      const calcStatus = document.getElementById("calcStatus");
+      const fourFigureInput = document.getElementById("fourFigureInput");
+      const fourFigureOutput = document.getElementById("fourFigureOutput");
+      const fourFigureRunBtn = document.getElementById("fourFigureRunBtn");
+      const calculatorButtons = Array.from(document.querySelectorAll("[data-calc-token], [data-calc-action]"));
+
+      function updateCalcStatus(message, isError) {
+        if (!calcStatus) return;
+        calcStatus.textContent = message;
+        calcStatus.className = "mt-2 text-[11px] font-semibold " + (isError ? "text-rose-300" : "text-slate-400");
+      }
+
+      function evaluateCalcExpression() {
+        if (!calcDisplay) return;
+        const raw = calcDisplay.value || "";
+        if (!raw.trim()) {
+          updateCalcStatus("Enter an expression first.", true);
+          return;
+        }
+        const normalized = raw
+          .replace(/\^/g, "**")
+          .replace(/\bpi\b/gi, "PI");
+        if (!/^[0-9+\-*/().,\sA-Za-z_]*$/.test(normalized)) {
+          updateCalcStatus("Unsupported expression.", true);
+          return;
+        }
+        try {
+          const result = Function(
+            '"use strict";' +
+            'const PI = Math.PI;' +
+            'const sqrt = (v) => Math.sqrt(v);' +
+            'const log10 = (v) => Math.log10(v);' +
+            'const ln = (v) => Math.log(v);' +
+            'const sin = (v) => Math.sin((v * PI) / 180);' +
+            'const cos = (v) => Math.cos((v * PI) / 180);' +
+            'const tan = (v) => Math.tan((v * PI) / 180);' +
+            'return (' + normalized + ');'
+          )();
+          if (typeof result === "number" && Number.isFinite(result)) {
+            calcDisplay.value = String(result);
+            updateCalcStatus("Calculated.", false);
+          } else {
+            updateCalcStatus("Could not evaluate expression.", true);
+          }
+        } catch (_error) {
+          updateCalcStatus("Invalid expression.", true);
+        }
+      }
+
+      function renderFourFigure() {
+        if (!fourFigureInput || !fourFigureOutput) return;
+        const raw = (fourFigureInput.value || "").trim();
+        const value = Number(raw);
+        if (!raw || !Number.isFinite(value) || value <= 0) {
+          fourFigureOutput.textContent = "Enter a positive number to see log, antilog, square root, reciprocal, and trigonometric helper values.";
+          return;
+        }
+        const radians = (value * Math.PI) / 180;
+        const log10 = Math.log10(value).toFixed(4);
+        const antilog = Math.pow(10, value % 1).toFixed(4);
+        const sqrt = Math.sqrt(value).toFixed(4);
+        const reciprocal = (1 / value).toFixed(4);
+        const sinv = Math.sin(radians).toFixed(4);
+        const cosv = Math.cos(radians).toFixed(4);
+        const tanv = Math.tan(radians).toFixed(4);
+        fourFigureOutput.innerHTML = "log10(x) = <strong>" + log10 + "</strong> | antilog(frac x) = <strong>" + antilog + "</strong><br>sqrt(x) = <strong>" + sqrt + "</strong> | 1/x = <strong>" + reciprocal + "</strong><br>sin(x deg) = <strong>" + sinv + "</strong> | cos(x deg) = <strong>" + cosv + "</strong> | tan(x deg) = <strong>" + tanv + "</strong>";
+      }
+
+      calculatorButtons.forEach(function (button) {
+        button.addEventListener("click", function () {
+          if (!calcDisplay) return;
+          const tokenValue = button.getAttribute("data-calc-token");
+          const actionValue = button.getAttribute("data-calc-action");
+          if (tokenValue) {
+            calcDisplay.value += tokenValue;
+            updateCalcStatus("Ready.", false);
+            return;
+          }
+          if (actionValue === "clear") {
+            calcDisplay.value = "";
+            updateCalcStatus("Cleared.", false);
+            return;
+          }
+          if (actionValue === "backspace") {
+            calcDisplay.value = calcDisplay.value.slice(0, -1);
+            updateCalcStatus("Ready.", false);
+            return;
+          }
+          if (actionValue === "evaluate") {
+            evaluateCalcExpression();
+          }
+        });
+      });
+      if (fourFigureRunBtn) {
+        fourFigureRunBtn.addEventListener("click", renderFourFigure);
+      }
+      if (fourFigureInput) {
+        fourFigureInput.addEventListener("keydown", function (event) {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            renderFourFigure();
+          }
+        });
+      }
+
+      window.setInterval(heartbeat, Math.min(hbSeconds, 5) * 1000);
       window.setInterval(autosaveCurrentQuestion, 16000);
 
       showQuestion(activeIndex);
       paintTimer();
+      updateWarningUi();
+      updatePhaseUi();
+      setTimerPausedState(timerPaused, "{{ timer_pause_reason|escapejs }}");
     })();
   </script>
 {% endblock %}

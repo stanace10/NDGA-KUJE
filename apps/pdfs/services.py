@@ -575,6 +575,7 @@ def build_term_report_payload(*, student, compilation):
     behavior_rows = _behavior_metric_rows(record) if record else []
     class_code = compilation.academic_class.display_name or compilation.academic_class.code
     level_code = compilation.academic_class.instructional_class.display_name or compilation.academic_class.instructional_class.code
+    layout_padding_rows = list(range(max(0, 20 - subject_count)))
 
     return {
         "document_type": PDFDocumentType.TERM_REPORT,
@@ -614,6 +615,7 @@ def build_term_report_payload(*, student, compilation):
             }
             for row in get_grade_key_rows()
         ],
+        "layout_padding_rows": layout_padding_rows,
         "health": {
             "height_start_cm": getattr(record, "height_start_cm", None) if record else None,
             "height_end_cm": getattr(record, "height_end_cm", None) if record else None,

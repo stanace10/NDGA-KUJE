@@ -1,51 +1,10 @@
 from __future__ import annotations
 
-import json
-import os
-
-from django.conf import settings
+from core.ai import ai_json_response
 
 
 def _openai_json_response(*, system_prompt, user_prompt):
-    api_key = (
-        getattr(settings, "OPENAI_API_KEY", "") or os.getenv("OPENAI_API_KEY", "")
-    ).strip()
-    if not api_key:
-        return None
-    try:
-        from openai import OpenAI
-    except Exception:
-        return None
-
-    client = OpenAI(api_key=api_key)
-    model = getattr(settings, "OPENAI_CBT_MODEL", "gpt-4.1-mini") or "gpt-4.1-mini"
-    try:
-        response = client.responses.create(
-            model=model,
-            input=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            response_format={"type": "json_object"},
-        )
-        raw_text = getattr(response, "output_text", "") or ""
-    except Exception:
-        try:
-            response = client.chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                response_format={"type": "json_object"},
-            )
-            raw_text = response.choices[0].message.content or ""
-        except Exception:
-            return None
-    try:
-        return json.loads(raw_text)
-    except Exception:
-        return None
+    return ai_json_response(system_prompt=system_prompt, user_prompt=user_prompt)
 
 
 def generate_lesson_plan_bundle(*, subject_name, topic, class_code, teaching_goal="", teacher_notes=""):
@@ -71,7 +30,7 @@ def generate_lesson_plan_bundle(*, subject_name, topic, class_code, teaching_goa
             "activity": str(payload.get("activity") or f"Students solve a short guided task on {topic} in pairs.").strip(),
             "assignment": str(payload.get("assignment") or f"Answer five questions on {topic} and submit at the next lesson.").strip(),
             "quiz": str(payload.get("quiz") or f"1. Define {topic}.\n2. Give one example linked to {subject_name}.").strip(),
-            "generator": "openai",
+            "generator": "ai",
         }
 
     return {
@@ -112,7 +71,7 @@ def answer_student_tutor_prompt(*, subject_name, question, class_code, weak_subj
             "answer": str(payload.get("answer") or "Review the concept carefully and break it into smaller parts.").strip(),
             "steps": [str(row).strip() for row in steps if str(row).strip()],
             "practice_tip": str(payload.get("practice_tip") or "Try two extra practice questions immediately after reading this.").strip(),
-            "generator": "openai",
+            "generator": "ai",
         }
 
     weak_hint = " Focus extra attention there." if weak_subjects else ""

@@ -798,7 +798,7 @@ class StageElevenCBTRunnerTests(TestCase):
                 "theory_enabled": theory_enabled,
                 "theory_writeback_target": CBTWritebackTarget.THEORY,
                 "auto_show_result_on_submit": True,
-                "finalize_on_logout": True,
+                "finalize_on_logout": False,
                 "allow_retake": False,
             },
         )
@@ -1144,7 +1144,7 @@ class StageElevenCBTRunnerTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertFalse(ExamAttempt.objects.filter(exam=exam, student=self.student_user).exists())
 
-    def test_logout_finalizes_open_cbt_attempt(self):
+    def test_logout_keeps_open_cbt_attempt_running(self):
         exam, objective_question, _ = self._create_exam(theory_enabled=False)
         student_client = self.login_client(
             host="cbt.ndgakuje.org",
@@ -1165,8 +1165,8 @@ class StageElevenCBTRunnerTests(TestCase):
         logout_response = student_client.get("/auth/logout/")
         self.assertEqual(logout_response.status_code, 302)
         attempt.refresh_from_db()
-        self.assertEqual(attempt.status, CBTAttemptStatus.FINALIZED)
-        self.assertIsNotNone(attempt.submitted_at)
+        self.assertEqual(attempt.status, CBTAttemptStatus.IN_PROGRESS)
+        self.assertIsNone(attempt.submitted_at)
 
     def test_ca_split_combines_objective_and_theory_into_same_ca_target(self):
         exam, objective_question, theory_question = self._create_exam(
@@ -1263,7 +1263,10 @@ class StageTwelveLockdownTests(StageElevenCBTRunnerTests):
             HTTP_USER_AGENT="NDGA-Lockdown-Test-Agent/1.0",
         )
         self.assertEqual(first.status_code, 200)
-        self.assertJSONEqual(first.content, {"ok": True})
+        first_payload = first.json()
+        self.assertTrue(first_payload.get("ok"))
+        self.assertFalse(first_payload.get("paused"))
+        self.assertIn("remaining_seconds", first_payload)
 
         second = student_client.post(
             f"/cbt/attempts/{attempt.id}/heartbeat/",

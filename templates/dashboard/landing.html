@@ -1,7 +1,12 @@
 {% extends "layouts/base.html" %}
 {% load static %}
 
-{% block title %}NDGA Enterprise Platform{% endblock %}
+{% block title %}Notre Dame Girls Academy | NDGA AI Enterprise Platform{% endblock %}
+{% block meta_description %}Notre Dame Girls Academy, Kuje Abuja uses the NDGA AI Enterprise Platform for governance-first school operations, CBT, elections, finance, and student services.{% endblock %}
+{% block og_title %}Notre Dame Girls Academy | NDGA AI Enterprise Platform{% endblock %}
+{% block og_description %}Governance-first academic operations, CBT, elections, finance, and student services for Notre Dame Girls Academy, Kuje Abuja.{% endblock %}
+{% block twitter_title %}Notre Dame Girls Academy | NDGA AI Enterprise Platform{% endblock %}
+{% block twitter_description %}Governance-first academic operations, CBT, elections, finance, and student services for Notre Dame Girls Academy, Kuje Abuja.{% endblock %}
 
 {% block body_class %}landing-shell{% endblock %}
 
@@ -11,16 +16,19 @@
       src="{% static 'images/ndga/hero-main.jpg' %}"
       alt="NDGA students in class activity"
       class="hero-bg-image hero-bg-1"
+      fetchpriority="high"
     >
     <img
       src="{% static 'images/ndga/hero-alt-1.jpg' %}"
       alt="NDGA students on campus"
       class="hero-bg-image hero-bg-2"
+      loading="lazy"
     >
     <img
       src="{% static 'images/ndga/hero-alt-2.jpg' %}"
       alt="NDGA school event"
       class="hero-bg-image hero-bg-3"
+      loading="lazy"
     >
     <div class="hero-bg-vignette"></div>
     <div class="hero-bg-tint"></div>

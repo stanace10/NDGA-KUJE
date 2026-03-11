@@ -12,9 +12,13 @@
           <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-700">Status: {{ exam.get_status_display }}</span>
           <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-700">Dean: {{ exam.dean_reviewed_by.username|default:"-" }}</span>
           <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-700">Questions: {{ exam_questions|length }}</span>
+          <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-700">Active Attempts: {{ active_attempt_count }}</span>
+          {% if timer_is_paused %}
+            <span class="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-amber-700">Timer Paused</span>
+          {% endif %}
         </div>
         <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-          Timed CBTs close automatically once the end time passes. Closed papers remain history only and cannot be reopened.
+          Timed CBTs close automatically once the end time passes. Use timer pause only for hall-wide interruptions such as power outage.
         </div>
 
         <h2 class="mt-6 text-lg font-semibold text-ndga-navy">Schedule / Activate Exam</h2>
@@ -29,13 +33,38 @@
               {% if field.errors %}<p class="mt-1 text-xs text-rose-700">{{ field.errors|striptags }}</p>{% endif %}
             </div>
           {% endfor %}
-          <button type="submit" class="ndga-btn ndga-btn-primary" {% if not can_activate %}disabled{% endif %}>
-            Save Schedule
-          </button>
-          {% if not can_activate %}
-            <p class="text-xs text-slate-500">Only Dean-approved exams can be scheduled. Closed exams stay read-only.</p>
-          {% endif %}
+          <button type="submit" class="ndga-btn ndga-btn-primary" {% if not can_activate %}disabled{% endif %}>Save Schedule</button>
+          {% if not can_activate %}<p class="text-xs text-slate-500">Only Dean-approved exams can be scheduled. Closed exams stay read-only.</p>{% endif %}
         </form>
+
+        <h2 class="mt-6 text-lg font-semibold text-ndga-navy">Timer Controls</h2>
+        <div class="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+          {% if timer_is_paused %}
+            <p class="font-semibold text-amber-700">Timer is currently paused for this exam.</p>
+            <p class="mt-1">Students who reconnect will keep the same remaining time until you resume.</p>
+            {% if timer_pause_reason %}<p class="mt-2 text-xs text-slate-500">Reason: {{ timer_pause_reason }}</p>{% endif %}
+          {% else %}
+            <p class="font-semibold text-slate-800">Timer is running normally.</p>
+            <p class="mt-1">Pause only when the whole hall is interrupted and every candidate must keep the same remaining time.</p>
+          {% endif %}
+        </div>
+        <div class="mt-3 grid gap-3 md:grid-cols-2">
+          <form method="post" class="space-y-3 rounded-2xl border border-slate-200 p-4">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="pause_timer">
+            <div>
+              <label for="timerPauseReason" class="mb-1 block text-sm font-semibold text-slate-700">Pause Reason</label>
+              <input id="timerPauseReason" type="text" name="timer_pause_reason" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" placeholder="e.g. Hall power outage">
+            </div>
+            <button type="submit" class="ndga-btn ndga-btn-secondary" {% if exam.status != "ACTIVE" or timer_is_paused %}disabled{% endif %}>Pause Timer</button>
+          </form>
+          <form method="post" class="space-y-3 rounded-2xl border border-slate-200 p-4">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="resume_timer">
+            <p class="text-sm text-slate-600">Resume the exam timer and restore the paused time to all active attempts.</p>
+            <button type="submit" class="ndga-btn ndga-btn-primary" {% if not timer_is_paused %}disabled{% endif %}>Resume Timer</button>
+          </form>
+        </div>
 
         <h2 class="mt-6 text-lg font-semibold text-ndga-navy">Close Active Exam</h2>
         <form method="post" class="mt-3 space-y-3">
@@ -48,9 +77,7 @@
               {% if field.errors %}<p class="mt-1 text-xs text-rose-700">{{ field.errors|striptags }}</p>{% endif %}
             </div>
           {% endfor %}
-          <button type="submit" class="ndga-btn ndga-btn-secondary" {% if exam.status != "ACTIVE" %}disabled{% endif %}>
-            Close Exam
-          </button>
+          <button type="submit" class="ndga-btn ndga-btn-secondary" {% if exam.status != "ACTIVE" %}disabled{% endif %}>Close Exam</button>
         </form>
       </article>
 
@@ -60,9 +87,7 @@
           {% for row in review_actions %}
             <div class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
               <p class="text-sm font-semibold text-slate-800">{{ row.action }} | {{ row.from_status }} -> {{ row.to_status }}</p>
-              <p class="text-xs text-slate-500">
-                {{ row.created_at|date:"d M Y H:i" }}{% if row.actor %} | {{ row.actor.username }}{% endif %}
-              </p>
+              <p class="text-xs text-slate-500">{{ row.created_at|date:"d M Y H:i" }}{% if row.actor %} | {{ row.actor.username }}{% endif %}</p>
               {% if row.comment %}<p class="mt-1 text-xs text-slate-600">{{ row.comment }}</p>{% endif %}
             </div>
           {% empty %}

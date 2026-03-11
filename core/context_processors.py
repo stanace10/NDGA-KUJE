@@ -8,6 +8,7 @@ from apps.setup_wizard.feature_flags import get_runtime_feature_flags
 from apps.setup_wizard.services import get_setup_state
 from apps.sync.services import build_runtime_status_payload
 from apps.tenancy.utils import build_portal_url, current_portal_key
+from core.seo import build_seo_context
 
 
 def _mode_chips(*, feature_flags, sync_runtime_status, portal_key):
@@ -135,6 +136,8 @@ def platform_context(request):
         setup_is_ready=setup_is_ready,
     )
 
+    seo_context = build_seo_context(request)
+
     return {
         "feature_flags": runtime_feature_flags,
         "portal_subdomains": settings.PORTAL_SUBDOMAINS,
@@ -159,6 +162,7 @@ def platform_context(request):
         "portal_nav_items": portal_nav_items,
         "portal_nav_sections": _portal_nav_sections(portal_nav_items),
         "portal_shell_title": PORTAL_TITLES.get(portal_key, "NDGA Platform"),
+        **seo_context,
     }
 
 

@@ -16,9 +16,11 @@ from copy import deepcopy
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import transaction
-from django.db.models import Max, Q
+from django.db.models import F, Max, Q
 from django.utils.text import slugify
 from django.utils import timezone
+
+from core.ai import ai_json_response
 
 from apps.accounts.constants import (
     ROLE_IT_MANAGER,
@@ -203,6 +205,24 @@ def _save_attempt_integrity_bundle(attempt, *, event_type, request=None, details
     )
     attempt.save(update_fields=["integrity_bundle", "updated_at"])
     return attempt.integrity_bundle
+
+
+def _exam_live_pause_seconds(exam):
+    if not getattr(exam, "timer_is_paused", False):
+        return 0
+    paused_at = getattr(exam, "timer_paused_at", None)
+    if not paused_at:
+        return 0
+    return max(int((timezone.now() - paused_at).total_seconds()), 0)
+
+
+def attempt_timer_is_paused(attempt):
+    exam = getattr(attempt, "exam", None)
+    return bool(exam and getattr(exam, "timer_is_paused", False) and getattr(exam, "timer_paused_at", None))
+
+
+def attempt_remaining_seconds(attempt):
+    return max(int((attempt_deadline(attempt) - timezone.now()).total_seconds()), 0)
 
 
 def can_manage_all_cbt(user):
@@ -988,52 +1008,7 @@ def _extract_json_payload(raw_text):
 
 
 def _openai_json_response(*, system_prompt, user_prompt):
-    api_key = (
-        getattr(settings, "OPENAI_API_KEY", "") or os.getenv("OPENAI_API_KEY", "")
-    ).strip()
-    if not api_key:
-        return None
-    model = (
-        getattr(settings, "OPENAI_CBT_MODEL", "") or os.getenv("OPENAI_CBT_MODEL", "")
-    ).strip() or "gpt-4.1-mini"
-    try:
-        from openai import OpenAI
-    except Exception:
-        return None
-
-    client = OpenAI(api_key=api_key)
-    raw_text = ""
-    try:
-        response = client.responses.create(
-            model=model,
-            temperature=0.1,
-            input=[
-                {"role": "system", "content": [{"type": "text", "text": system_prompt}]},
-                {"role": "user", "content": [{"type": "text", "text": user_prompt}]},
-            ],
-        )
-        raw_text = getattr(response, "output_text", "") or ""
-    except Exception:
-        try:
-            response = client.chat.completions.create(
-                model=model,
-                temperature=0.1,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-            )
-            raw_text = (response.choices[0].message.content or "").strip()
-        except Exception:
-            return None
-
-    payload_text = _extract_json_payload(raw_text)
-    if not payload_text:
-        return None
-    try:
-        return json.loads(payload_text)
-    except json.JSONDecodeError:
-        return None
+    return ai_json_response(system_prompt=system_prompt, user_prompt=user_prompt)
 
 
 def _normalize_objective_ai_rows(rows):
@@ -2152,16 +2127,16 @@ def build_exam_from_uploaded_document(
                 seen_keys.add(key)
                 parsed_questions.append(row)
             if parsed_questions:
-                parser_used = "deterministic_plus_openai_repair"
+                parser_used = "deterministic_plus_ai_repair"
             else:
-                parser_used = "openai_repair_only"
+                parser_used = "ai_repair_only"
 
         if not parsed_questions:
             parsed_questions = _parse_questions_with_openai(
                 extracted_text=normalized_text,
                 subject_name=assignment.subject.name,
             )
-            parser_used = "openai_fallback_fulltext"
+            parser_used = "ai_fallback_fulltext"
         if not parsed_questions:
             linewise_rows = _parse_questions_linewise(normalized_text)
             linewise_objective = sum(
@@ -3298,10 +3273,11 @@ def apply_theory_scores(*, attempt, actor, score_payload):
 
 def attempt_deadline(attempt):
     blueprint = getattr(attempt.exam, "blueprint", None) or ensure_default_blueprint(attempt.exam)
-    duration_minutes = blueprint.duration_minutes + int(attempt.extra_time_minutes or 0)
-    deadline = attempt.started_at + timezone.timedelta(minutes=duration_minutes)
+    pause_seconds = int(attempt.timer_pause_seconds or 0) + _exam_live_pause_seconds(attempt.exam)
+    duration_seconds = (int(blueprint.duration_minutes or 0) * 60) + (int(attempt.extra_time_minutes or 0) * 60) + pause_seconds
+    deadline = attempt.started_at + timezone.timedelta(seconds=duration_seconds)
     if attempt.exam.schedule_end and int(attempt.extra_time_minutes or 0) <= 0:
-        deadline = min(deadline, attempt.exam.schedule_end)
+        deadline = min(deadline, attempt.exam.schedule_end + timezone.timedelta(seconds=pause_seconds))
     return deadline
 
 
@@ -3804,11 +3780,13 @@ def lockdown_enabled():
 @transaction.atomic
 def register_lockdown_heartbeat(*, attempt, tab_token, request, client_state=None):
     if not lockdown_enabled():
-        return {"ok": True, "lockdown_enabled": False}
+        return {"ok": True, "lockdown_enabled": False, "remaining_seconds": attempt_remaining_seconds(attempt)}
     if attempt.is_locked:
         return {"locked": True}
     if attempt.status != CBTAttemptStatus.IN_PROGRESS:
-        return {"ok": True, "attempt_closed": True}
+        return {"ok": True, "attempt_closed": True, "remaining_seconds": attempt_remaining_seconds(attempt)}
+    if attempt_timer_is_paused(attempt):
+        return {"ok": True, "paused": True, "remaining_seconds": attempt_remaining_seconds(attempt), "pause_reason": attempt.exam.timer_pause_reason}
 
     token = (tab_token or "").strip()[:120]
     if not token:
@@ -3841,7 +3819,44 @@ def register_lockdown_heartbeat(*, attempt, tab_token, request, client_state=Non
         request=request,
         details={"client_state": client_state or {}, "tab_token": token},
     )
-    return {"ok": True}
+    return {"ok": True, "paused": False, "remaining_seconds": attempt_remaining_seconds(attempt), "pause_reason": ""}
+
+
+@transaction.atomic
+def record_lockdown_warning(*, attempt, event_type, request, details=None):
+    if not lockdown_enabled():
+        return attempt
+    if event_type not in LOCKDOWN_EVENT_TYPES:
+        raise ValidationError("Unsupported lockdown event type.")
+    if attempt.is_locked:
+        return attempt
+
+    details = details or {}
+    metadata = {
+        "event_type": event_type,
+        "attempt_id": str(attempt.id),
+        "exam_id": str(attempt.exam_id),
+        "student_id": str(attempt.student_id),
+        "device": request.META.get("HTTP_USER_AGENT", ""),
+        "warning_only": True,
+        "details": details,
+    }
+    log_event(
+        category=AuditCategory.LOCKDOWN,
+        event_type="LOCKDOWN_WARNING",
+        status=AuditStatus.DENIED,
+        actor=attempt.student,
+        request=request,
+        metadata=metadata,
+    )
+    _save_attempt_integrity_bundle(
+        attempt,
+        event_type=event_type,
+        request=request,
+        details={**details, "warning_only": True},
+    )
+    _queue_attempt_snapshot(attempt, event_type="ATTEMPT_LOCKDOWN_WARNING")
+    return attempt
 
 
 @transaction.atomic
@@ -3903,6 +3918,100 @@ def record_lockdown_violation(*, attempt, event_type, request, details=None):
     )
     _queue_attempt_snapshot(attempt, event_type="ATTEMPT_LOCKDOWN_LOCKED")
     return attempt
+
+
+@transaction.atomic
+def pause_exam_timer(*, exam, actor, reason="", request=None):
+    if not has_scope(actor, SCOPE_UNLOCK_CBT):
+        raise ValidationError("You do not have scope to pause CBT timers.")
+    if exam.status != CBTExamStatus.ACTIVE:
+        raise ValidationError("Only active exams can be paused.")
+    if exam.timer_is_paused:
+        return exam
+
+    now = timezone.now()
+    exam.timer_is_paused = True
+    exam.timer_paused_at = now
+    exam.timer_paused_by = actor
+    exam.timer_pause_reason = (reason or "").strip()
+    exam.save(update_fields=["timer_is_paused", "timer_paused_at", "timer_paused_by", "timer_pause_reason", "updated_at"])
+
+    active_attempts = list(
+        ExamAttempt.objects.select_related("exam").filter(
+            exam=exam,
+            status=CBTAttemptStatus.IN_PROGRESS,
+        )
+    )
+    if active_attempts:
+        ExamAttempt.objects.filter(id__in=[row.id for row in active_attempts]).update(active_tab_token="")
+        for attempt in active_attempts:
+            attempt.active_tab_token = ""
+            _save_attempt_integrity_bundle(
+                attempt,
+                event_type="ATTEMPT_TIMER_PAUSED",
+                request=request,
+                details={"reason": exam.timer_pause_reason},
+            )
+            _queue_attempt_snapshot(attempt, event_type="ATTEMPT_TIMER_PAUSED")
+
+    if request is not None:
+        log_event(
+            category=AuditCategory.CBT,
+            event_type="CBT_TIMER_PAUSED",
+            status=AuditStatus.SUCCESS,
+            actor=actor,
+            request=request,
+            metadata={"exam_id": str(exam.id), "reason": exam.timer_pause_reason},
+        )
+    return exam
+
+
+@transaction.atomic
+def resume_exam_timer(*, exam, actor, request=None):
+    if not has_scope(actor, SCOPE_UNLOCK_CBT):
+        raise ValidationError("You do not have scope to resume CBT timers.")
+    if not exam.timer_is_paused or not exam.timer_paused_at:
+        return 0
+
+    paused_seconds = max(int((timezone.now() - exam.timer_paused_at).total_seconds()), 0)
+    exam.timer_is_paused = False
+    exam.timer_paused_at = None
+    exam.timer_pause_reason = ""
+    exam.timer_paused_by = None
+    exam.save(update_fields=["timer_is_paused", "timer_paused_at", "timer_pause_reason", "timer_paused_by", "updated_at"])
+
+    active_attempts = list(
+        ExamAttempt.objects.select_related("exam").filter(
+            exam=exam,
+            status=CBTAttemptStatus.IN_PROGRESS,
+        )
+    )
+    if paused_seconds and active_attempts:
+        ExamAttempt.objects.filter(id__in=[row.id for row in active_attempts]).update(
+            timer_pause_seconds=F("timer_pause_seconds") + paused_seconds,
+            active_tab_token="",
+        )
+        for attempt in active_attempts:
+            attempt.timer_pause_seconds = int(attempt.timer_pause_seconds or 0) + paused_seconds
+            attempt.active_tab_token = ""
+            _save_attempt_integrity_bundle(
+                attempt,
+                event_type="ATTEMPT_TIMER_RESUMED",
+                request=request,
+                details={"paused_seconds": paused_seconds},
+            )
+            _queue_attempt_snapshot(attempt, event_type="ATTEMPT_TIMER_RESUMED")
+
+    if request is not None:
+        log_event(
+            category=AuditCategory.CBT,
+            event_type="CBT_TIMER_RESUMED",
+            status=AuditStatus.SUCCESS,
+            actor=actor,
+            request=request,
+            metadata={"exam_id": str(exam.id), "paused_seconds": paused_seconds},
+        )
+    return paused_seconds
 
 
 @transaction.atomic

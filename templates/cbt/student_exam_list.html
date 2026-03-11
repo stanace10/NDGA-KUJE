@@ -8,12 +8,62 @@
       <p class="text-xs font-semibold uppercase tracking-[0.18em] text-ndga-navy/70">Exam Center</p>
       <h1 class="mt-2 text-3xl font-bold text-ndga-navy">Today's CBT Schedule</h1>
       <p class="mt-2 text-sm text-slate-600">
-        Only today's class exams stay on this board. Completed papers show as done, and future slots remain locked until their time opens.
+        Only today's class exams stay on this board. Completed papers move out of the recent panel after {{ recent_window_hours }} hours.
       </p>
     </div>
 
     <div class="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h2 class="text-lg font-semibold text-ndga-navy">Today's Exams</h2>
+      <form method="get" class="grid gap-3 lg:grid-cols-4">
+        <div>
+          <label for="subjectFilter" class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Subject</label>
+          <select id="subjectFilter" name="subject_id" class="w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm">
+            <option value="">All subjects</option>
+            {% for subject in subject_options %}
+              <option value="{{ subject.id }}" {% if selected_subject_id == subject.id|stringformat:"s" %}selected{% endif %}>{{ subject.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="examTypeFilter" class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Exam Type</label>
+          <select id="examTypeFilter" name="exam_type" class="w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm">
+            <option value="">All types</option>
+            {% for value, label in exam_type_options %}
+              <option value="{{ value }}" {% if selected_exam_type == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="statusFilter" class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Today's Board</label>
+          <select id="statusFilter" name="status" class="w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm">
+            <option value="">All board states</option>
+            <option value="open" {% if selected_status == "open" %}selected{% endif %}>Open</option>
+            <option value="in_progress" {% if selected_status == "in_progress" %}selected{% endif %}>In Progress</option>
+            <option value="done" {% if selected_status == "done" %}selected{% endif %}>Done</option>
+            <option value="not_yet" {% if selected_status == "not_yet" %}selected{% endif %}>Not Yet</option>
+            <option value="closed" {% if selected_status == "closed" %}selected{% endif %}>Closed</option>
+          </select>
+        </div>
+        <div>
+          <label for="recentStatusFilter" class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Recent Attempts</label>
+          <select id="recentStatusFilter" name="recent_status" class="w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm">
+            <option value="">All recent attempts</option>
+            {% for value, label in attempt_status_options %}
+              <option value="{{ value }}" {% if selected_recent_status == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="flex flex-wrap items-end gap-2 lg:col-span-4">
+          <button type="submit" class="ndga-btn ndga-btn-primary">Apply Filters</button>
+          <a href="{% url 'cbt:student-exam-list' %}" class="ndga-btn ndga-btn-secondary">Reset</a>
+        </div>
+      </form>
+    </div>
+
+    <div class="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <h2 class="text-lg font-semibold text-ndga-navy">Today's Exams</h2>
+        <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">{{ exam_rows|length }} shown</span>
+      </div>
       <div class="mt-3 overflow-x-auto rounded-2xl border border-slate-200">
         <table class="min-w-full divide-y divide-slate-200 text-sm">
           <thead>
@@ -64,11 +114,7 @@
                     <form method="post" action="{% url 'cbt:student-exam-start' row.exam.id %}">
                       {% csrf_token %}
                       <button type="submit" class="ndga-btn ndga-btn-primary">
-                        {% if row.is_in_progress %}
-                          Continue
-                        {% else %}
-                          Start
-                        {% endif %}
+                        {% if row.is_in_progress %}Continue{% else %}Start{% endif %}
                       </button>
                     </form>
                   {% elif row.is_done and row.latest_attempt %}
@@ -82,7 +128,7 @@
                 </td>
               </tr>
             {% empty %}
-              <tr><td colspan="6" class="px-3 py-4 text-slate-500">No CBT is scheduled for your profile today.</td></tr>
+              <tr><td colspan="6" class="px-3 py-4 text-slate-500">No CBT matches the current filters.</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -90,7 +136,13 @@
     </div>
 
     <div class="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h2 class="text-lg font-semibold text-ndga-navy">Recent Attempts</h2>
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 class="text-lg font-semibold text-ndga-navy">Recent Attempts</h2>
+          <p class="mt-1 text-xs text-slate-500">Only attempts from the last {{ recent_window_hours }} hours remain here.</p>
+        </div>
+        <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">{{ recent_attempts|length }} shown</span>
+      </div>
       <div class="mt-3 overflow-x-auto rounded-2xl border border-slate-200">
         <table class="min-w-full divide-y divide-slate-200 text-sm">
           <thead>
@@ -107,7 +159,7 @@
               <tr>
                 <td class="px-3 py-2">
                   <p class="font-semibold text-slate-900">{{ attempt.exam.title }}</p>
-                  <p class="text-xs text-slate-500">Attempt {{ attempt.attempt_number }}</p>
+                  <p class="text-xs text-slate-500">{{ attempt.exam.subject.name }} | Attempt {{ attempt.attempt_number }}</p>
                 </td>
                 <td class="px-3 py-2 text-slate-700">{{ attempt.get_status_display }}</td>
                 <td class="px-3 py-2 text-slate-700">{{ attempt.objective_score }}</td>
@@ -127,7 +179,7 @@
                 </td>
               </tr>
             {% empty %}
-              <tr><td colspan="5" class="px-3 py-4 text-slate-500">No attempts yet.</td></tr>
+              <tr><td colspan="5" class="px-3 py-4 text-slate-500">No attempts in the last {{ recent_window_hours }} hours.</td></tr>
             {% endfor %}
           </tbody>
         </table>

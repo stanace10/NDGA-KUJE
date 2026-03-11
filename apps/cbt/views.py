@@ -79,6 +79,8 @@ from apps.cbt.models import (
 from apps.cbt.services import (
     apply_theory_scores,
     attempt_deadline,
+    attempt_remaining_seconds,
+    attempt_timer_is_paused,
     authoring_assignment_queryset,
     authoring_exam_queryset,
     authoring_question_bank_queryset,
@@ -101,6 +103,7 @@ from apps.cbt.services import (
     simulation_registry_queryset,
     seed_curated_simulation_library,
     record_lockdown_violation,
+    record_lockdown_warning,
     register_lockdown_heartbeat,
     save_attempt_answer,
     submit_rubric_simulation_start,
@@ -111,6 +114,8 @@ from apps.cbt.services import (
     teacher_verify_simulation_score,
     theory_marking_queryset_for_user,
     ensure_simulation_records_for_attempt,
+    pause_exam_timer,
+    resume_exam_timer,
 )
 from apps.cbt.workflow import (
     dean_approve_simulation,
@@ -1440,6 +1445,9 @@ class CBTExamDetailView(CBTAuthoringAccessMixin, TemplateView):
             "simulation_wrapper"
         ).order_by("sort_order")
         context["review_actions"] = self.exam.review_actions.select_related("actor").order_by("created_at")
+        context["timer_is_paused"] = bool(self.exam.timer_is_paused)
+        context["timer_pause_reason"] = self.exam.timer_pause_reason
+        context["active_attempt_count"] = self.exam.attempts.filter(status=CBTAttemptStatus.IN_PROGRESS).count()
         return context
 
 
@@ -2237,6 +2245,9 @@ class CBTITActivationDetailView(CBTITAccessMixin, TemplateView):
             "simulation_wrapper"
         ).order_by("sort_order")
         context["review_actions"] = self.exam.review_actions.select_related("actor").order_by("created_at")
+        context["timer_is_paused"] = bool(self.exam.timer_is_paused)
+        context["timer_pause_reason"] = self.exam.timer_pause_reason
+        context["active_attempt_count"] = self.exam.attempts.filter(status=CBTAttemptStatus.IN_PROGRESS).count()
         return context
 
     def post(self, request, *args, **kwargs):
@@ -2296,6 +2307,33 @@ class CBTITActivationDetailView(CBTITAccessMixin, TemplateView):
             messages.success(request, "Exam closed.")
             return redirect("cbt:it-activation-detail", exam_id=self.exam.id)
 
+        if action == "pause_timer":
+            try:
+                pause_exam_timer(
+                    exam=self.exam,
+                    actor=request.user,
+                    reason=(request.POST.get("timer_pause_reason") or "").strip(),
+                    request=request,
+                )
+            except ValidationError as exc:
+                messages.error(request, "; ".join(exc.messages))
+                return redirect("cbt:it-activation-detail", exam_id=self.exam.id)
+            messages.success(request, "Exam timer paused. Active candidates keep their remaining time until you resume.")
+            return redirect("cbt:it-activation-detail", exam_id=self.exam.id)
+
+        if action == "resume_timer":
+            try:
+                paused_seconds = resume_exam_timer(
+                    exam=self.exam,
+                    actor=request.user,
+                    request=request,
+                )
+            except ValidationError as exc:
+                messages.error(request, "; ".join(exc.messages))
+                return redirect("cbt:it-activation-detail", exam_id=self.exam.id)
+            messages.success(request, f"Exam timer resumed. {paused_seconds} second(s) were restored to active attempts.")
+            return redirect("cbt:it-activation-detail", exam_id=self.exam.id)
+
         messages.error(request, "Invalid IT activation action.")
         return redirect("cbt:it-activation-detail", exam_id=self.exam.id)
 
@@ -2312,15 +2350,67 @@ class CBTMarkingAccessMixin(LoginRequiredMixin, UserPassesTestMixin):
 
 class CBTStudentExamListView(CBTStudentAccessMixin, TemplateView):
     template_name = "cbt/student_exam_list.html"
+    RECENT_WINDOW_HOURS = 24
+
+    def _filter_value(self, key):
+        return (self.request.GET.get(key) or "").strip()
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["exam_rows"] = student_available_exams(self.request.user)
-        context["recent_attempts"] = (
+        subject_id = self._filter_value("subject_id")
+        exam_type = self._filter_value("exam_type")
+        schedule_status = self._filter_value("status")
+        recent_status = self._filter_value("recent_status")
+
+        all_exam_rows = student_available_exams(self.request.user)
+        exam_rows = list(all_exam_rows)
+        if subject_id.isdigit():
+            exam_rows = [row for row in exam_rows if row["exam"].subject_id == int(subject_id)]
+        if exam_type:
+            exam_rows = [row for row in exam_rows if row["exam"].exam_type == exam_type]
+        if schedule_status:
+            status_map = {
+                "open": {"Open"},
+                "in_progress": {"In Progress"},
+                "done": {"Done"},
+                "not_yet": {"Not Yet"},
+                "closed": {"Closed"},
+            }
+            allowed = status_map.get(schedule_status, set())
+            if allowed:
+                exam_rows = [row for row in exam_rows if row["status_label"] in allowed]
+
+        recent_since = timezone.now() - timezone.timedelta(hours=self.RECENT_WINDOW_HOURS)
+        recent_attempts = (
             ExamAttempt.objects.select_related("exam", "exam__subject", "exam__academic_class")
-            .filter(student=self.request.user)
-            .order_by("-updated_at")[:15]
+            .filter(student=self.request.user, updated_at__gte=recent_since)
+            .order_by("-updated_at")
         )
+        if subject_id.isdigit():
+            recent_attempts = recent_attempts.filter(exam__subject_id=int(subject_id))
+        if exam_type:
+            recent_attempts = recent_attempts.filter(exam__exam_type=exam_type)
+        if recent_status:
+            recent_attempts = recent_attempts.filter(status=recent_status)
+
+        subject_options = {}
+        for row in all_exam_rows:
+            subject_options[row["exam"].subject_id] = row["exam"].subject
+        for attempt in recent_attempts[:20]:
+            subject_options[attempt.exam.subject_id] = attempt.exam.subject
+
+        context.update({
+            "exam_rows": exam_rows,
+            "recent_attempts": list(recent_attempts[:12]),
+            "subject_options": sorted(subject_options.values(), key=lambda subject: subject.name.lower()),
+            "selected_subject_id": subject_id,
+            "selected_exam_type": exam_type,
+            "selected_status": schedule_status,
+            "selected_recent_status": recent_status,
+            "recent_window_hours": self.RECENT_WINDOW_HOURS,
+            "exam_type_options": CBTExamType.choices,
+            "attempt_status_options": CBTAttemptStatus.choices,
+        })
         return context
 
 
@@ -2490,8 +2580,7 @@ class CBTStudentAttemptRunView(CBTStudentAccessMixin, TemplateView):
         return randomized
 
     def _remaining_seconds(self):
-        remaining = int((self.deadline - timezone.now()).total_seconds())
-        return max(0, remaining)
+        return attempt_remaining_seconds(self.attempt)
 
     def _save_current_answer(self, request, answer):
         if answer is None:
@@ -2640,6 +2729,8 @@ class CBTStudentAttemptRunView(CBTStudentAccessMixin, TemplateView):
                     ]
                 ),
                 "student_photo_url": student_photo_url,
+                "timer_paused": attempt_timer_is_paused(self.attempt),
+                "timer_pause_reason": self.attempt.exam.timer_pause_reason,
                 "question_panels": question_panels,
                 "has_question_flow": bool(self.answers),
                 "show_simulation_tasks": bool(self.simulation_records) and not bool(self.answers),
@@ -3270,7 +3361,34 @@ class CBTAttemptHeartbeatView(CBTStudentAccessMixin, View):
                     "redirect_url": reverse("cbt:student-attempt-locked", args=[attempt.id]),
                 }
             )
-        return JsonResponse({"ok": True})
+        return JsonResponse({"ok": True, **result})
+
+
+class CBTAttemptWarningView(CBTStudentAccessMixin, View):
+    def post(self, request, *args, **kwargs):
+        attempt = get_object_or_404(
+            ExamAttempt.objects.select_related("exam", "exam__blueprint"),
+            pk=kwargs["attempt_id"],
+            student=request.user,
+        )
+        if not settings.FEATURE_FLAGS.get("LOCKDOWN_ENABLED", False):
+            return JsonResponse({"ok": True, "lockdown_enabled": False})
+        try:
+            payload = json.loads(request.body.decode("utf-8") or "{}")
+        except Exception:
+            payload = {}
+        event_type = (payload.get("event_type") or "").strip().upper()
+        details = payload.get("details") or {}
+        try:
+            record_lockdown_warning(
+                attempt=attempt,
+                event_type=event_type,
+                request=request,
+                details=details,
+            )
+        except ValidationError as exc:
+            return JsonResponse({"ok": False, "error": "; ".join(exc.messages)}, status=400)
+        return JsonResponse({"ok": True, "warning_only": True})
 
 
 class CBTAttemptViolationView(CBTStudentAccessMixin, View):

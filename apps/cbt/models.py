@@ -387,6 +387,16 @@ class Exam(TimeStampedModel):
     is_free_test = models.BooleanField(default=False)
     activation_snapshot = models.JSONField(default=dict, blank=True)
     activation_snapshot_hash = models.CharField(max_length=64, blank=True, db_index=True)
+    timer_is_paused = models.BooleanField(default=False)
+    timer_paused_at = models.DateTimeField(null=True, blank=True)
+    timer_paused_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="cbt_exam_timer_pauses",
+    )
+    timer_pause_reason = models.CharField(max_length=255, blank=True)
 
     class Meta:
         ordering = ("-updated_at",)
@@ -454,7 +464,7 @@ class ExamBlueprint(TimeStampedModel):
         default=CBTWritebackTarget.THEORY,
     )
     auto_show_result_on_submit = models.BooleanField(default=True)
-    finalize_on_logout = models.BooleanField(default=True)
+    finalize_on_logout = models.BooleanField(default=False)
     allow_retake = models.BooleanField(default=False)
 
     class Meta:
@@ -754,6 +764,7 @@ class ExamAttempt(TimeStampedModel):
     locked_at = models.DateTimeField(null=True, blank=True)
     allow_resume_by_it = models.BooleanField(default=False)
     extra_time_minutes = models.PositiveIntegerField(default=0)
+    timer_pause_seconds = models.PositiveIntegerField(default=0)
     active_tab_token = models.CharField(max_length=120, blank=True)
     last_heartbeat_at = models.DateTimeField(null=True, blank=True)
     last_activity_at = models.DateTimeField(null=True, blank=True)
