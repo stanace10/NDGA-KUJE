@@ -407,7 +407,6 @@ def _apply_remote_operation(*, operation_type, payload, object_ref="", conflict_
     raise ValidationError("Unsupported sync operation type.")
 
 
-@transaction.atomic
 def ingest_remote_outbox_event(*, envelope):
     payload = envelope.get("payload")
     operation_type = (envelope.get("operation_type") or "").strip()
@@ -434,13 +433,14 @@ def ingest_remote_outbox_event(*, envelope):
         return {"status": "duplicate", "reference": queue_row.remote_reference}
 
     try:
-        result = _apply_remote_operation(
-            operation_type=operation_type,
-            payload=payload,
-            object_ref=envelope.get("object_ref") or "",
-            conflict_key=envelope.get("conflict_key") or "",
-            source_node_id=envelope.get("local_node_id") or "",
-        )
+        with transaction.atomic():
+            result = _apply_remote_operation(
+                operation_type=operation_type,
+                payload=payload,
+                object_ref=envelope.get("object_ref") or "",
+                conflict_key=envelope.get("conflict_key") or "",
+                source_node_id=envelope.get("local_node_id") or "",
+            )
     except ValidationError as exc:
         detail = "; ".join(exc.messages)
         dependency_error = "dependency" in detail.lower() or "authority" in detail.lower()

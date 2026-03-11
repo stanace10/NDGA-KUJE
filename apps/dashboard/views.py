@@ -16,6 +16,8 @@ from django.utils import timezone
 from django.views import View
 from django.views.generic import TemplateView
 
+from core.ops import collect_ops_runtime_snapshot
+
 from apps.accounts.constants import (
     ROLE_BURSAR,
     ROLE_DEAN,
@@ -285,6 +287,145 @@ def _flatten_portal_action_items(*, portal_key: str, nav_items: list[dict]):
                     )
 
     return action_rows
+
+
+def _portal_action_icon_hint(*, label: str, description: str = "", fallback: str = "home"):
+    text = f"{label} {description}".lower()
+    if any(token in text for token in ["profile", "biodata", "account", "id card", "digital id"]):
+        return "user"
+    if "attendance" in text:
+        return "attendance"
+    if any(token in text for token in ["result", "report", "approval", "publish", "score", "grade"]):
+        return "results"
+    if any(token in text for token in ["transcript", "document", "vault", "certificate"]):
+        return "transcript"
+    if any(token in text for token in ["subject", "class", "learning", "challenge", "lesson"]):
+        return "subjects"
+    if any(token in text for token in ["fee", "finance", "payment", "salary", "expense", "receipt"]):
+        return "finance"
+    if any(token in text for token in ["notification", "message", "broadcast", "mail"]):
+        return "notification"
+    if any(token in text for token in ["setting", "toggle", "sync", "audit", "backup", "ops", "restore"]):
+        return "settings"
+    return fallback
+
+
+def _build_portal_priority_actions(
+    *,
+    portal_key: str,
+    portal_action_items: list[dict],
+    role_panels: list[dict] | None = None,
+    student_quick_links: list[dict] | None = None,
+    student_next_action: dict | None = None,
+):
+    rows = []
+    seen = set()
+
+    def add_row(*, label, url, description="", icon="home", badge="", metric=None, kicker=""):
+        label = (label or "").strip()
+        url = (url or "").strip()
+        if not label or not url:
+            return
+        key = (label.lower(), url)
+        if key in seen:
+            return
+        seen.add(key)
+        rows.append(
+            {
+                "label": label,
+                "url": url,
+                "description": (description or "Open this workflow page.").strip(),
+                "icon": icon or "home",
+                "badge": (badge or "").strip(),
+                "metric": metric,
+                "kicker": (kicker or "").strip(),
+            }
+        )
+
+    if portal_key == "student":
+        if student_next_action and student_next_action.get("action_url"):
+            add_row(
+                label=student_next_action.get("action_label") or student_next_action.get("title") or "Continue",
+                url=student_next_action.get("action_url"),
+                description=student_next_action.get("message") or "Continue the next student workflow.",
+                icon=_portal_action_icon_hint(
+                    label=student_next_action.get("action_label") or student_next_action.get("title") or "Continue",
+                    description=student_next_action.get("message") or "",
+                    fallback="results",
+                ),
+                badge="Now",
+                kicker=student_next_action.get("title") or "Student Workflow",
+            )
+        for row in student_quick_links or []:
+            add_row(
+                label=row.get("label"),
+                url=row.get("url"),
+                description=row.get("description") or "Open this student workflow.",
+                icon=_portal_action_icon_hint(
+                    label=row.get("label") or "",
+                    description=row.get("description") or "",
+                ),
+                badge=row.get("badge") or "Open",
+                kicker="Student Workflow",
+            )
+        return rows[:6]
+
+    for panel in role_panels or []:
+        panel_title = (panel.get("title") or "").strip()
+        panel_subtitle = (panel.get("subtitle") or "").strip()
+        for item in panel.get("items") or []:
+            add_row(
+                label=item.get("label"),
+                url=item.get("url"),
+                description=item.get("description") or panel_subtitle or "Open this workflow page.",
+                icon=_portal_action_icon_hint(
+                    label=item.get("label") or "",
+                    description=item.get("description") or panel_subtitle,
+                ),
+                badge=panel_title or "Role",
+                metric=item.get("metric"),
+                kicker=panel_subtitle or panel_title,
+            )
+
+    for action in portal_action_items or []:
+        add_row(
+            label=action.get("label"),
+            url=action.get("url"),
+            description=action.get("description") or "Open this workflow page.",
+            icon=action.get("icon") or _portal_action_icon_hint(
+                label=action.get("label") or "",
+                description=action.get("description") or "",
+            ),
+            badge="Menu",
+            kicker="Dedicated Workflow",
+        )
+
+    return rows[:6]
+
+
+def _build_ops_command_rows():
+    return [
+        {
+            "label": "Runtime Snapshot",
+            "command": "python manage.py ops_runtime_snapshot",
+            "description": "Inspect database, cache, disk pressure, sync backlog, and audit chain health before live operations.",
+        },
+        {
+            "label": "Restore Drill",
+            "command": "python manage.py run_restore_drill --output-dir backups/drills --keep-archive",
+            "description": "Create a fresh backup archive, validate it, and measure the drill without touching the live database.",
+        },
+        {
+            "label": "Audit Chain Verify",
+            "command": "python manage.py verify_audit_chain",
+            "description": "Validate the tamper-evident audit chain for privileged and governance-critical events.",
+        },
+        {
+            "label": "HTTP Ready Check",
+            "command": "curl http://127.0.0.1:8000/ops/readyz/",
+            "description": "Confirm the node is ready before opening exam or result workflows to users.",
+        },
+    ]
 
 
 def _student_dashboard_payload(request, user):
@@ -1098,6 +1239,10 @@ class PortalPageView(LoginRequiredMixin, TemplateView):
             portal_key=portal_key,
             role_codes=role_codes,
         )
+        context["portal_priority_actions"] = _build_portal_priority_actions(
+            portal_key=portal_key,
+            portal_action_items=context["portal_action_items"],
+        )
         return context
 
 
@@ -1108,6 +1253,12 @@ class StudentPortalView(PortalPageView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context.update(_student_dashboard_payload(self.request, self.request.user))
+        context["portal_priority_actions"] = _build_portal_priority_actions(
+            portal_key=context["portal_key"],
+            portal_action_items=context.get("portal_action_items", []),
+            student_quick_links=context.get("student_quick_links", []),
+            student_next_action=context.get("student_next_action"),
+        )
         return context
 
 
@@ -1402,6 +1553,11 @@ class StaffPortalView(PortalPageView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context.update(_staff_dashboard_payload(self.request.user))
+        context["portal_priority_actions"] = _build_portal_priority_actions(
+            portal_key=context["portal_key"],
+            portal_action_items=context.get("portal_action_items", []),
+            role_panels=context.get("role_panels", []),
+        )
         return context
 
 
@@ -1545,6 +1701,12 @@ class ITPortalView(PortalPageView):
         }
         context["it_enrollment_snapshot"] = _it_enrollment_snapshot(current_session=current_session)
         context["runtime_flags"] = runtime_flags
+        context["ops_runtime_snapshot"] = collect_ops_runtime_snapshot()
+        context["ops_command_rows"] = _build_ops_command_rows()
+        context["portal_priority_actions"] = _build_portal_priority_actions(
+            portal_key=context["portal_key"],
+            portal_action_items=context.get("portal_action_items", []),
+        )
         return context
 
 

@@ -14,26 +14,27 @@ from django.views import View
 from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import TemplateView
 
-from apps.accounts.constants import ROLE_IT_MANAGER, ROLE_PRINCIPAL
+from apps.accounts.permissions import SCOPE_MANAGE_SYNC, has_scope
 from apps.audit.models import AuditCategory, AuditStatus
 from apps.audit.services import log_event
 from apps.sync.content_sync import build_cbt_content_feed
 from apps.sync.forms import SyncDashboardFilterForm, SyncImportForm
 from apps.sync.inbound_sync import ingest_remote_outbox_event
-from apps.sync.models import SyncQueue, SyncQueueStatus, SyncTransferBatch
+from apps.sync.models import SyncQueue, SyncQueueEvent, SyncQueueStatus, SyncTransferBatch
 from apps.sync.services import (
     build_outbox_feed,
     build_runtime_status_payload,
     export_sync_queue_snapshot,
     import_sync_queue_snapshot,
     process_sync_queue_batch,
+    sync_policy_for_operation,
+    sync_policy_rows,
 )
 
 
 class SyncDashboardAccessMixin(LoginRequiredMixin, UserPassesTestMixin):
     def test_func(self):
-        user = self.request.user
-        return user.has_role(ROLE_IT_MANAGER) or user.has_role(ROLE_PRINCIPAL)
+        return has_scope(self.request.user, SCOPE_MANAGE_SYNC)
 
 
 class SyncDashboardView(SyncDashboardAccessMixin, TemplateView):
@@ -63,6 +64,18 @@ class SyncDashboardView(SyncDashboardAccessMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         queryset, filter_form = self._queue_queryset()
         page_obj = Paginator(queryset, self.page_size).get_page(self.request.GET.get("page", 1))
+        queue_ids = [row.id for row in page_obj.object_list]
+        timeline_map = {}
+        if queue_ids:
+            for event in SyncQueueEvent.objects.filter(queue_row_id__in=queue_ids).order_by(
+                "queue_row_id",
+                "created_at",
+                "id",
+            ):
+                timeline_map.setdefault(event.queue_row_id, []).append(event)
+            for row in page_obj.object_list:
+                row.timeline_preview = timeline_map.get(row.id, [])[-4:]
+                row.sync_policy = sync_policy_for_operation(row.operation_type)
         counts = {
             row["status"]: row["count"]
             for row in SyncQueue.objects.values("status").annotate(count=Count("id"))
@@ -78,6 +91,7 @@ class SyncDashboardView(SyncDashboardAccessMixin, TemplateView):
         context["recent_batches"] = SyncTransferBatch.objects.select_related("performed_by").order_by(
             "-created_at"
         )[:20]
+        context["sync_policy_rows"] = sync_policy_rows()
         return context
 
     def post(self, request, *args, **kwargs):

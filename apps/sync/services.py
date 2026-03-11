@@ -23,6 +23,7 @@ from apps.sync.models import (
     SyncOperationType,
     SyncPullCursor,
     SyncQueue,
+    SyncQueueEvent,
     SyncQueueStatus,
     SyncTransferBatch,
     SyncTransferDirection,
@@ -31,6 +32,36 @@ from apps.sync.models import (
 PENDING_SYNC_STATES = (SyncQueueStatus.PENDING, SyncQueueStatus.RETRY)
 _CONNECTIVITY_CACHE_KEY = "sync_cloud_connectivity_v1"
 _AUTO_SYNC_THROTTLE_CACHE_KEY = "sync_auto_process_lock_v1"
+SYNC_DOMAIN_POLICIES = {
+    SyncOperationType.CBT_EXAM_ATTEMPT: {
+        "domain": "CBT",
+        "policy": "LAN-authoritative during live exams. Remote writes append evidence and retry later instead of overriding active attempts.",
+    },
+    SyncOperationType.CBT_SIMULATION_ATTEMPT: {
+        "domain": "CBT",
+        "policy": "Simulation evidence is append-first. Score/writeback retries continue until cloud confirms receipt.",
+    },
+    SyncOperationType.CBT_CONTENT_CHANGE: {
+        "domain": "CBT",
+        "policy": "Teacher-authored CBT content pulls incrementally. Activated exam snapshots remain immutable after IT activation.",
+    },
+    SyncOperationType.STUDENT_REGISTRATION_UPSERT: {
+        "domain": "Registration",
+        "policy": "Directory records are upserted idempotently by source node identity with later reconciliation through model bindings.",
+    },
+    SyncOperationType.ELECTION_VOTE_SUBMISSION: {
+        "domain": "Election",
+        "policy": "Votes are strict-unique and LAN-authoritative during live polls. Duplicate vote envelopes are rejected as conflicts.",
+    },
+    SyncOperationType.MODEL_RECORD_UPSERT: {
+        "domain": "Academic/General",
+        "policy": "Model sync uses idempotent upserts. Active-session authority blocks unsafe overwrites for high-stakes workflows.",
+    },
+    SyncOperationType.MODEL_RECORD_DELETE: {
+        "domain": "Academic/General",
+        "policy": "Deletes are replayed only after binding resolution confirms the correct local record.",
+    },
+}
 
 
 def current_local_node_id():
@@ -61,6 +92,31 @@ def _as_int(value, *, fallback=0):
 def _connectivity_cache_ttl_seconds():
     value = _as_int(getattr(settings, "SYNC_CONNECTIVITY_CACHE_TTL_SECONDS", 2), fallback=2)
     return max(value, 1)
+def sync_policy_for_operation(operation_type):
+    return SYNC_DOMAIN_POLICIES.get(operation_type, {"domain": "General", "policy": "Idempotent queued sync with retry/backoff."})
+
+
+def sync_policy_rows():
+    rows = []
+    for operation_type, _label in SyncOperationType.choices:
+        policy = sync_policy_for_operation(operation_type)
+        rows.append({
+            "operation_type": operation_type,
+            "domain": policy["domain"],
+            "policy": policy["policy"],
+        })
+    return rows
+
+
+def _record_sync_queue_event(*, queue_row, event_type, from_status="", to_status="", message="", metadata=None):
+    return SyncQueueEvent.objects.create(
+        queue_row=queue_row,
+        event_type=event_type,
+        from_status=from_status,
+        to_status=to_status,
+        message=(message or "")[:255],
+        metadata=metadata or {},
+    )
 
 
 def compute_backoff_seconds(retry_count):
@@ -155,6 +211,13 @@ def queue_sync_operation(
         next_retry_at=timezone.now(),
         max_retries=int(max_retries or getattr(settings, "SYNC_MAX_RETRIES", 8)),
         is_manual_import=bool(is_manual_import),
+    )
+    _record_sync_queue_event(
+        queue_row=queue_row,
+        event_type="QUEUED",
+        to_status=queue_row.status,
+        message="Sync item queued for outbound processing.",
+        metadata={"operation_type": queue_row.operation_type, "object_ref": queue_row.object_ref},
     )
     return queue_row, True
 
@@ -693,6 +756,7 @@ def process_queue_row(queue_row):
     if queue_row.status in {SyncQueueStatus.SYNCED, SyncQueueStatus.CONFLICT}:
         return {"processed": False, "status": queue_row.status}
 
+    from_status = queue_row.status
     queue_row.last_attempt_at = timezone.now()
     outcome = _dispatch_to_cloud(queue_row)
     queue_row.response_code = outcome.get("status_code") or None
@@ -733,6 +797,18 @@ def process_queue_row(queue_row):
             "last_error",
             "updated_at",
         ]
+    )
+    _record_sync_queue_event(
+        queue_row=queue_row,
+        event_type="STATUS_TRANSITION",
+        from_status=from_status,
+        to_status=queue_row.status,
+        message=queue_row.last_error or f"Queue item moved to {queue_row.status}.",
+        metadata={
+            "response_code": queue_row.response_code,
+            "retry_count": queue_row.retry_count,
+            "remote_reference": queue_row.remote_reference,
+        },
     )
     return {"processed": True, "status": queue_row.status}
 

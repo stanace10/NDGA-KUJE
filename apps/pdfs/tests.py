@@ -1,7 +1,7 @@
 from decimal import Decimal
 from unittest.mock import patch
 
-from django.test import Client, TestCase
+from django.test import Client, TestCase, override_settings
 from django.utils import timezone
 
 from apps.accounts.constants import (
@@ -36,6 +36,23 @@ from apps.results.models import (
 from apps.setup_wizard.models import SetupStateCode, SystemSetupState
 
 
+
+
+PDF_TEST_HOST_SETTINGS = {
+    "ALLOWED_HOSTS": [
+        "testserver",
+        "ndgakuje.org",
+        "student.ndgakuje.org",
+        "staff.ndgakuje.org",
+        "vp.ndgakuje.org",
+        "principal.ndgakuje.org",
+        "it.ndgakuje.org",
+        "bursar.ndgakuje.org",
+    ]
+}
+
+
+@override_settings(**PDF_TEST_HOST_SETTINGS)
 class PDFStageEightTests(TestCase):
     @classmethod
     def setUpTestData(cls):

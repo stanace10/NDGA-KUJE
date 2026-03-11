@@ -75,6 +75,9 @@ env = environ.Env(
     UPLOAD_MAX_EVIDENCE_MB=(int, 20),
     UPLOAD_MAX_JSON_MB=(int, 15),
     AUDIT_RETENTION_DAYS=(int, 2555),
+    CACHE_BACKEND=(str, "redis"),
+    CHANNEL_LAYER_BACKEND=(str, "redis"),
+    NDGA_LOCAL_SIMPLE_HOST_MODE=(bool, False),
 )
 environ.Env.read_env(ROOT_DIR / ".env")
 
@@ -184,24 +187,41 @@ else:
     }
 DATABASES["default"]["CONN_MAX_AGE"] = env.int("DATABASE_CONN_MAX_AGE", default=60)
 
-CACHES = {
-    "default": {
-        "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": env("REDIS_CACHE_URL", default="redis://127.0.0.1:6379/1"),
+_cache_backend = env("CACHE_BACKEND", default="redis").strip().lower()
+if _cache_backend == "locmem":
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "ndga-local-cache",
+        }
     }
-}
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": env("REDIS_CACHE_URL", default="redis://127.0.0.1:6379/1"),
+        }
+    }
 
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {
-            "hosts": [env("CHANNEL_REDIS_URL", default="redis://127.0.0.1:6379/2")],
-            "capacity": env.int("CHANNEL_LAYER_CAPACITY", default=1500),
-            "expiry": env.int("CHANNEL_LAYER_EXPIRY_SECONDS", default=60),
-            "group_expiry": env.int("CHANNEL_LAYER_GROUP_EXPIRY_SECONDS", default=86400),
-        },
+_channel_layer_backend = env("CHANNEL_LAYER_BACKEND", default="redis").strip().lower()
+if _channel_layer_backend == "inmemory":
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer",
+        }
     }
-}
+else:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                "hosts": [env("CHANNEL_REDIS_URL", default="redis://127.0.0.1:6379/2")],
+                "capacity": env.int("CHANNEL_LAYER_CAPACITY", default=1500),
+                "expiry": env.int("CHANNEL_LAYER_EXPIRY_SECONDS", default=60),
+                "group_expiry": env.int("CHANNEL_LAYER_GROUP_EXPIRY_SECONDS", default=86400),
+            },
+        }
+    }
 
 CELERY_BROKER_URL = env("CELERY_BROKER_URL", default="redis://127.0.0.1:6379/0")
 CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", default=CELERY_BROKER_URL)
@@ -277,9 +297,12 @@ RESULTS_POLICY = {
 
 IT_BOOTSTRAP_USERNAME = env("IT_BOOTSTRAP_USERNAME", default="admin@ndgakuje.org")
 NDGA_BASE_DOMAIN = env("NDGA_BASE_DOMAIN", default="ndgakuje.org")
+NDGA_LOCAL_SIMPLE_HOST_MODE = env.bool("NDGA_LOCAL_SIMPLE_HOST_MODE", default=False)
 
 _session_cookie_domain = env("SESSION_COOKIE_DOMAIN", default="")
-if _session_cookie_domain:
+if NDGA_LOCAL_SIMPLE_HOST_MODE:
+    SESSION_COOKIE_DOMAIN = None
+elif _session_cookie_domain:
     SESSION_COOKIE_DOMAIN = _session_cookie_domain
 else:
     normalized_base_domain = (NDGA_BASE_DOMAIN or "").strip().lower()

@@ -2336,7 +2336,7 @@ class CBTStudentExamStartView(CBTStudentAccessMixin, RedirectView):
             pk=kwargs["exam_id"],
         )
         try:
-            attempt, created = get_or_start_attempt(student=request.user, exam=exam)
+            attempt, created = get_or_start_attempt(student=request.user, exam=exam, request=request)
         except ValidationError as exc:
             messages.error(request, "; ".join(exc.messages))
             return redirect("cbt:student-exam-list")
@@ -2380,7 +2380,7 @@ class CBTStudentAttemptRunView(CBTStudentAccessMixin, TemplateView):
 
         self.deadline = attempt_deadline(self.attempt)
         if timezone.now() >= self.deadline and self.attempt.status == CBTAttemptStatus.IN_PROGRESS:
-            submit_attempt(attempt=self.attempt)
+            submit_attempt(attempt=self.attempt, request=request)
             messages.info(request, "Exam time expired. Attempt submitted automatically.")
             return redirect("cbt:student-attempt-result", attempt_id=self.attempt.id)
 
@@ -2726,7 +2726,7 @@ class CBTStudentAttemptRunView(CBTStudentAccessMixin, TemplateView):
                     f"{reverse('cbt:student-attempt-run', args=[self.attempt.id])}?q={objective_count}"
                 )
             try:
-                submit_attempt(attempt=self.attempt)
+                submit_attempt(attempt=self.attempt, request=request)
             except ValidationError as exc:
                 message = "; ".join(exc.messages)
                 if is_ajax:

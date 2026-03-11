@@ -8,6 +8,7 @@ from django.test import TestCase
 from django.utils import timezone
 
 from apps.audit.models import AuditCategory, AuditEvent, AuditStatus
+from apps.audit.services import log_event, verify_audit_chain
 
 
 class AuditPruneCommandTests(TestCase):
@@ -49,3 +50,34 @@ class AuditPruneCommandTests(TestCase):
         call_command("prune_audit_events", "--days", "365", "--dry-run", stdout=out)
 
         self.assertTrue(AuditEvent.objects.filter(id=old.id).exists())
+
+
+class AuditIntegrityTests(TestCase):
+    def test_verify_audit_chain_detects_tampering(self):
+        first = log_event(
+            category=AuditCategory.SYSTEM,
+            event_type="CHAIN_START",
+            status=AuditStatus.SUCCESS,
+            message="first",
+        )
+        second = log_event(
+            category=AuditCategory.SYSTEM,
+            event_type="CHAIN_NEXT",
+            status=AuditStatus.SUCCESS,
+            message="second",
+        )
+
+        clean_summary = verify_audit_chain()
+        self.assertTrue(clean_summary["ok"])
+        self.assertEqual(clean_summary["verified_count"], 2)
+        self.assertEqual(second.previous_event_hash, first.event_hash)
+
+        AuditEvent.objects.filter(id=second.id).update(message="tampered")
+        tampered_summary = verify_audit_chain()
+        self.assertFalse(tampered_summary["ok"])
+        self.assertTrue(
+            any(
+                row["event_id"] == second.id and row["issue"] == "event_hash_mismatch"
+                for row in tampered_summary["mismatches"]
+            )
+        )

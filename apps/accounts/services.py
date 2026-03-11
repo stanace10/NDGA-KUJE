@@ -1,7 +1,5 @@
-from apps.accounts.constants import (
-    ROLE_IT_MANAGER,
-    ROLE_HOME_PORTAL,
-)
+from apps.accounts.permissions import SCOPE_ISSUE_LOGIN_CODES, has_scope
+from apps.accounts.constants import ROLE_HOME_PORTAL
 from apps.tenancy.utils import build_portal_url
 
 
@@ -34,8 +32,8 @@ def apply_self_service_password_change(user, raw_password):
 
 
 def issue_login_code(actor, target_user):
-    if not actor.has_role(ROLE_IT_MANAGER):
-        raise PermissionError("Only IT Manager can issue login code.")
+    if not has_scope(actor, SCOPE_ISSUE_LOGIN_CODES):
+        raise PermissionError("You do not have scope to issue login codes.")
     target_user.password_changed_count = 0
     target_user.must_change_password = False
     code = target_user.set_login_code()
@@ -51,8 +49,8 @@ def issue_login_code(actor, target_user):
 
 
 def reset_password_by_it_manager(actor, target_user, temporary_password):
-    if not actor.has_role(ROLE_IT_MANAGER):
-        raise PermissionError("Only IT Manager can reset user password.")
+    if not has_scope(actor, SCOPE_ISSUE_LOGIN_CODES):
+        raise PermissionError("You do not have scope to reset user passwords.")
     target_user.set_password(temporary_password)
     target_user.password_changed_count = 0
     target_user.must_change_password = False

@@ -1,7 +1,12 @@
 import io
+import json
+from io import StringIO
+from pathlib import Path
+import tempfile
 import zipfile
 
-from django.test import Client, TestCase
+from django.core.management import call_command
+from django.test import Client, TestCase, override_settings
 
 from apps.accounts.constants import ROLE_IT_MANAGER, ROLE_STUDENT
 from apps.accounts.models import Role, StudentProfile, User
@@ -395,3 +400,30 @@ class BackupCenterTests(TestCase):
         self.assertIn("metadata.json", members)
         self.assertIn("database/db.json", members)
         self.assertIn("media/manifest.json", members)
+
+class RestoreDrillCommandTests(TestCase):
+    def test_run_restore_drill_creates_valid_archive_without_mutating_data(self):
+        user_count_before = User.objects.count()
+        with tempfile.TemporaryDirectory() as media_dir, tempfile.TemporaryDirectory() as output_dir:
+            receipt_dir = Path(media_dir) / "receipts"
+            receipt_dir.mkdir(parents=True, exist_ok=True)
+            (receipt_dir / "sample.txt").write_text("ndga-restore-drill", encoding="utf-8")
+
+            with override_settings(MEDIA_ROOT=media_dir):
+                stdout = StringIO()
+                call_command(
+                    "run_restore_drill",
+                    "--output-dir",
+                    output_dir,
+                    "--keep-archive",
+                    stdout=stdout,
+                )
+
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(payload["status"], "ok")
+            self.assertTrue(payload["archive_kept"])
+            self.assertEqual(User.objects.count(), user_count_before)
+            self.assertGreaterEqual(payload["inspection"]["media_file_count"], 1)
+            self.assertTrue(Path(payload["archive_path"]).exists())
+            self.assertTrue(payload["inspection"]["required_entries_present"])
+

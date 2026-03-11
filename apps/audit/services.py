@@ -1,3 +1,8 @@
+import hashlib
+import json
+
+from django.db import transaction
+
 from apps.audit.models import AuditCategory, AuditEvent, AuditStatus
 
 
@@ -10,6 +15,32 @@ def get_client_ip(request):
     return request.META.get("REMOTE_ADDR")
 
 
+def _canonical_json(value):
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
+
+
+def _event_hash_payload(event):
+    return {
+        "id": int(event.id or 0),
+        "created_at": event.created_at.isoformat() if event.created_at else "",
+        "actor_id": int(event.actor_id or 0),
+        "actor_identifier": event.actor_identifier or "",
+        "category": event.category,
+        "event_type": event.event_type,
+        "status": event.status,
+        "message": event.message or "",
+        "path": event.path or "",
+        "ip_address": event.ip_address or "",
+        "metadata": event.metadata or {},
+        "previous_event_hash": event.previous_event_hash or "",
+    }
+
+
+def compute_audit_event_hash(event):
+    return hashlib.sha256(_canonical_json(_event_hash_payload(event)).encode("utf-8")).hexdigest()
+
+
+@transaction.atomic
 def log_event(
     *,
     category,
@@ -23,7 +54,8 @@ def log_event(
 ):
     metadata = metadata or {}
     path = request.path if request else ""
-    return AuditEvent.objects.create(
+    previous_event = AuditEvent.objects.select_for_update().order_by("-id").first()
+    event = AuditEvent.objects.create(
         actor=actor if getattr(actor, "is_authenticated", False) else None,
         actor_identifier=actor_identifier,
         category=category,
@@ -33,7 +65,47 @@ def log_event(
         path=path,
         ip_address=get_client_ip(request),
         metadata=metadata,
+        previous_event_hash=getattr(previous_event, "event_hash", "") or "",
     )
+    event.event_hash = compute_audit_event_hash(event)
+    event.save(update_fields=["event_hash", "updated_at"])
+    return event
+
+
+def verify_audit_chain(limit=None):
+    queryset = AuditEvent.objects.order_by("id")
+    if limit:
+        queryset = queryset[: max(int(limit), 1)]
+    previous_hash = ""
+    mismatches = []
+    verified_count = 0
+    for event in queryset:
+        expected_hash = compute_audit_event_hash(event)
+        if event.previous_event_hash != previous_hash:
+            mismatches.append(
+                {
+                    "event_id": int(event.id),
+                    "issue": "previous_hash_mismatch",
+                    "expected_previous_hash": previous_hash,
+                    "stored_previous_hash": event.previous_event_hash,
+                }
+            )
+        if event.event_hash != expected_hash:
+            mismatches.append(
+                {
+                    "event_id": int(event.id),
+                    "issue": "event_hash_mismatch",
+                    "expected_hash": expected_hash,
+                    "stored_hash": event.event_hash,
+                }
+            )
+        previous_hash = event.event_hash or expected_hash
+        verified_count += 1
+    return {
+        "verified_count": verified_count,
+        "ok": not mismatches,
+        "mismatches": mismatches,
+    }
 
 
 def log_permission_denied_redirect(*, actor, request, destination, reason):

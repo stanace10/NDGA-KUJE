@@ -36,10 +36,22 @@ from apps.accounts.forms import (
     ITStudentUpdateForm,
     NDGALoginForm,
     PasswordResetCodeForm,
+    PrivilegedTwoFactorForm,
     PasswordResetRequestForm,
     PolicyPasswordChangeForm,
 )
 from apps.accounts.models import StaffProfile, StudentProfile, User
+from apps.accounts.permissions import (
+    SCOPE_ISSUE_LOGIN_CODES,
+    SCOPE_MANAGE_USERS,
+    has_scope,
+    requires_two_factor,
+)
+from apps.accounts.security import (
+    clear_privileged_login_challenge,
+    issue_privileged_login_challenge,
+    verify_privileged_login_challenge,
+)
 from apps.accounts.services import (
     apply_self_service_password_change,
     issue_login_code,
@@ -65,10 +77,11 @@ logger = logging.getLogger(__name__)
 PROVISIONING_ALLOWED_ROLES = {ROLE_IT_MANAGER, ROLE_VP, ROLE_PRINCIPAL}
 MOBILE_CAPTURE_TOKEN_MAX_AGE_SECONDS = 15 * 60
 MOBILE_CAPTURE_CACHE_TTL_SECONDS = 20 * 60
+PRIVILEGED_LOGIN_SESSION_KEY = "pending_privileged_login_2fa"
 
 
 def _can_manage_school_users(user):
-    return any(user.has_role(role_code) for role_code in PROVISIONING_ALLOWED_ROLES)
+    return has_scope(user, SCOPE_MANAGE_USERS)
 
 
 def _mobile_capture_cache_key(token: str):
@@ -125,6 +138,57 @@ def _portal_redirect_response(request, target_url):
     return response
 
 
+def _clear_pending_privileged_login(request):
+    challenge = request.session.pop(PRIVILEGED_LOGIN_SESSION_KEY, None) or {}
+    clear_privileged_login_challenge(challenge.get("challenge_id"))
+    return challenge
+
+
+def _complete_login_response(
+    request,
+    *,
+    user,
+    portal_hint,
+    next_url="",
+    clear_login_code=False,
+    backend="",
+):
+    if clear_login_code:
+        user.clear_login_code()
+        user.save(update_fields=["login_code_hash", "login_code_expires_at"])
+    if backend:
+        login(request, user, backend=backend)
+    else:
+        login(request, user)
+    request.session["last_authenticated_portal"] = portal_hint
+    if portal_hint in settings.FRESH_LOGIN_REQUIRED_PORTALS:
+        request.session[f"fresh_auth_{portal_hint}"] = timezone.now().isoformat()
+    if user.must_change_password:
+        messages.info(request, "Password change required before continuing.")
+        return redirect("accounts:password-change")
+    if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+        return redirect(next_url)
+    return _portal_redirect_response(
+        request,
+        resolve_role_home_url(user, request=request),
+    )
+
+
+def _begin_privileged_login_challenge(request, *, user, portal_hint, next_url, clear_login_code):
+    challenge = issue_privileged_login_challenge(user=user)
+    request.session[PRIVILEGED_LOGIN_SESSION_KEY] = {
+        "challenge_id": challenge["challenge_id"],
+        "user_id": int(user.id),
+        "portal_hint": portal_hint,
+        "next_url": next_url or "",
+        "clear_login_code": bool(clear_login_code),
+        "backend": getattr(user, "backend", ""),
+        "masked_email": challenge["masked_email"],
+        "expires_at": challenge["expires_at"].isoformat(),
+    }
+    request.session.modified = True
+    return challenge
+
 @method_decorator(never_cache, name="dispatch")
 class LoginView(FormView):
     template_name = "accounts/login.html"
@@ -136,6 +200,7 @@ class LoginView(FormView):
                 request,
                 resolve_role_home_url(request.user, request=request),
             )
+        _clear_pending_privileged_login(request)
         return super().get(request, *args, **kwargs)
 
     def get_form_kwargs(self):
@@ -170,12 +235,6 @@ class LoginView(FormView):
             query={"audience": "student"},
         )
 
-    def _mark_portal_auth(self):
-        portal = self._portal_hint()
-        self.request.session["last_authenticated_portal"] = portal
-        if portal in settings.FRESH_LOGIN_REQUIRED_PORTALS:
-            self.request.session[f"fresh_auth_{portal}"] = timezone.now().isoformat()
-
     def form_valid(self, form):
         user = form.get_user()
         portal_hint = self._portal_hint()
@@ -191,24 +250,148 @@ class LoginView(FormView):
                 "Student accounts must sign in from the Student Portal.",
             )
             return redirect(self._student_login_url())
-        if form.used_login_code:
-            user.clear_login_code()
-            user.save(update_fields=["login_code_hash", "login_code_expires_at"])
-        login(self.request, user)
-        self._mark_portal_auth()
-        if user.must_change_password:
-            messages.info(
-                self.request, "Password change required before continuing."
-            )
-            return redirect("accounts:password-change")
+
         next_url = self.request.GET.get("next", "")
-        if next_url and url_has_allowed_host_and_scheme(
-            next_url, allowed_hosts={self.request.get_host()}
-        ):
-            return redirect(next_url)
-        return _portal_redirect_response(
+        if requires_two_factor(user):
+            try:
+                challenge = _begin_privileged_login_challenge(
+                    self.request,
+                    user=user,
+                    portal_hint=portal_hint,
+                    next_url=next_url,
+                    clear_login_code=form.used_login_code,
+                )
+            except ValueError as exc:
+                form.add_error(None, str(exc))
+                return self.form_invalid(form)
+            except Exception:
+                logger.exception("Unable to issue privileged login challenge.")
+                form.add_error(
+                    None,
+                    "Could not deliver the verification code right now. Try again shortly.",
+                )
+                return self.form_invalid(form)
+            log_event(
+                category=AuditCategory.AUTH,
+                event_type="LOGIN_2FA_CHALLENGE_SENT",
+                status=AuditStatus.SUCCESS,
+                actor=user,
+                request=self.request,
+                metadata={
+                    "portal_hint": portal_hint,
+                    "delivery": challenge["masked_email"],
+                },
+            )
+            messages.info(
+                self.request,
+                f"Verification code sent to {challenge['masked_email']}. Enter it to finish sign-in.",
+            )
+            return redirect("accounts:login-verify")
+
+        return _complete_login_response(
             self.request,
-            resolve_role_home_url(user, request=self.request),
+            user=user,
+            portal_hint=portal_hint,
+            next_url=next_url,
+            clear_login_code=form.used_login_code,
+        )
+
+
+@method_decorator(never_cache, name="dispatch")
+class PrivilegedLoginVerifyView(FormView):
+    template_name = "accounts/login_two_factor.html"
+    form_class = PrivilegedTwoFactorForm
+    pending_user = None
+    pending_challenge = None
+
+    def dispatch(self, request, *args, **kwargs):
+        self.pending_challenge = request.session.get(PRIVILEGED_LOGIN_SESSION_KEY) or {}
+        user_id = self.pending_challenge.get("user_id")
+        challenge_id = self.pending_challenge.get("challenge_id")
+        if not user_id or not challenge_id:
+            messages.error(request, "Start sign-in again to continue.")
+            return redirect("accounts:login")
+        self.pending_user = User.objects.filter(id=user_id).first()
+        if not self.pending_user:
+            _clear_pending_privileged_login(request)
+            messages.error(request, "Your verification step expired. Sign in again.")
+            return redirect("accounts:login")
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["masked_email"] = self.pending_challenge.get("masked_email", "")
+        context["audience"] = self.pending_challenge.get("portal_hint", "")
+        return context
+
+    def post(self, request, *args, **kwargs):
+        if (request.POST.get("action") or "").strip().lower() == "resend":
+            return self._resend_code()
+        return super().post(request, *args, **kwargs)
+
+    def _resend_code(self):
+        try:
+            challenge = _begin_privileged_login_challenge(
+                self.request,
+                user=self.pending_user,
+                portal_hint=self.pending_challenge.get("portal_hint", "staff"),
+                next_url=self.pending_challenge.get("next_url", ""),
+                clear_login_code=bool(self.pending_challenge.get("clear_login_code")),
+            )
+        except Exception:
+            logger.exception("Unable to resend privileged login challenge.")
+            messages.error(
+                self.request,
+                "Could not resend the verification code right now. Try again shortly.",
+            )
+            return redirect("accounts:login-verify")
+        log_event(
+            category=AuditCategory.AUTH,
+            event_type="LOGIN_2FA_CHALLENGE_RESENT",
+            status=AuditStatus.SUCCESS,
+            actor=self.pending_user,
+            request=self.request,
+            metadata={"delivery": challenge["masked_email"]},
+        )
+        messages.success(
+            self.request,
+            f"A new verification code has been sent to {challenge['masked_email']}.",
+        )
+        return redirect("accounts:login-verify")
+
+    def form_valid(self, form):
+        code = form.cleaned_data["verification_code"]
+        if not verify_privileged_login_challenge(
+            challenge_id=self.pending_challenge.get("challenge_id"),
+            user=self.pending_user,
+            raw_code=code,
+        ):
+            log_event(
+                category=AuditCategory.AUTH,
+                event_type="LOGIN_2FA_FAILED",
+                status=AuditStatus.DENIED,
+                actor=self.pending_user,
+                request=self.request,
+            )
+            form.add_error(None, "Invalid or expired verification code.")
+            return self.form_invalid(form)
+
+        challenge = _clear_pending_privileged_login(self.request)
+        log_event(
+            category=AuditCategory.AUTH,
+            event_type="LOGIN_2FA_VERIFIED",
+            status=AuditStatus.SUCCESS,
+            actor=self.pending_user,
+            request=self.request,
+            metadata={"portal_hint": challenge.get("portal_hint", "")},
+        )
+        return _complete_login_response(
+            self.request,
+            user=self.pending_user,
+            portal_hint=challenge.get("portal_hint", "staff"),
+            next_url=challenge.get("next_url", ""),
+            clear_login_code=bool(challenge.get("clear_login_code")),
+            backend=challenge.get("backend", ""),
         )
 
 
@@ -377,7 +560,7 @@ class ITCredentialResetView(LoginRequiredMixin, UserPassesTestMixin, FormView):
     generated_code = None
 
     def test_func(self):
-        return self.request.user.has_role(ROLE_IT_MANAGER)
+        return has_scope(self.request.user, SCOPE_ISSUE_LOGIN_CODES)
 
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()

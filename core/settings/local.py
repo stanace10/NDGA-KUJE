@@ -1,6 +1,7 @@
 from .base import *  # noqa
 
 DEBUG = env.bool("DJANGO_DEBUG", default=True)
+NDGA_LOCAL_SIMPLE_HOST_MODE = env.bool("NDGA_LOCAL_SIMPLE_HOST_MODE", default=True)
 ALLOWED_HOSTS = env.list(
     "DJANGO_ALLOWED_HOSTS",
     default=[
@@ -8,8 +9,6 @@ ALLOWED_HOSTS = env.list(
         "127.0.0.1",
         "[::1]",
         ".ndga.local",
-        ".ndgakuje.org",
-        "ndgakuje.org",
         "testserver",
     ],
 )
@@ -18,7 +17,7 @@ CSRF_TRUSTED_ORIGINS = env.list(
     default=[
         "http://localhost:8000",
         "http://127.0.0.1:8000",
-        "http://*.ndgakuje.org:8000",
+        "http://*.ndga.local:8000",
     ],
 )
 

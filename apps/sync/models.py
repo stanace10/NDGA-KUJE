@@ -99,6 +99,30 @@ class SyncQueue(TimeStampedModel):
         return f"{self.operation_type}:{self.status}:{self.idempotency_key}"
 
 
+
+
+class SyncQueueEvent(TimeStampedModel):
+    queue_row = models.ForeignKey(
+        SyncQueue,
+        on_delete=models.CASCADE,
+        related_name="timeline_events",
+    )
+    event_type = models.CharField(max_length=40)
+    from_status = models.CharField(max_length=20, blank=True)
+    to_status = models.CharField(max_length=20, blank=True)
+    message = models.CharField(max_length=255, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ("created_at", "id")
+        indexes = [
+            models.Index(fields=("queue_row", "created_at")),
+            models.Index(fields=("event_type",)),
+        ]
+
+    def __str__(self):
+        return f"{self.queue_row_id}:{self.event_type}:{self.to_status or '-'}"
+
 class SyncContentChange(TimeStampedModel):
     stream = models.CharField(
         max_length=32,

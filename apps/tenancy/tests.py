@@ -1,24 +1,66 @@
-from django.test import Client, TestCase, override_settings
+from django.core import mail
+from django.test import Client, RequestFactory, TestCase, override_settings
+from django.utils import timezone
 
-from apps.accounts.constants import ROLE_IT_MANAGER, ROLE_STUDENT
+from apps.accounts.constants import ROLE_IT_MANAGER, ROLE_STUDENT, ROLE_SUBJECT_TEACHER
 from apps.accounts.models import Role, User
+from apps.setup_wizard.models import SetupStateCode, SystemSetupState
+from apps.tenancy.utils import current_portal_key
 
 
+@override_settings(
+    ALLOWED_HOSTS=[
+        "localhost",
+        "127.0.0.1",
+        "[::1]",
+        "testserver",
+        "ndgakuje.org",
+        ".ndgakuje.org",
+        ".ndga.local",
+    ],
+    CSRF_TRUSTED_ORIGINS=[
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://ndgakuje.org:8000",
+        "http://ndgakuje.org",
+        "http://*.ndgakuje.org",
+        "https://ndgakuje.org",
+        "https://*.ndgakuje.org",
+    ],
+    FEATURE_FLAGS={
+        "CBT_ENABLED": True,
+        "ELECTION_ENABLED": True,
+        "OFFLINE_MODE_ENABLED": True,
+        "LOCKDOWN_ENABLED": True,
+    },
+)
 class StageTwoHostRoutingTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         role, _ = Role.objects.get_or_create(code=ROLE_STUDENT, defaults={"name": "Student"})
         role_it, _ = Role.objects.get_or_create(code=ROLE_IT_MANAGER, defaults={"name": "IT Manager"})
+        role_teacher, _ = Role.objects.get_or_create(code=ROLE_SUBJECT_TEACHER, defaults={"name": "Subject Teacher"})
         cls.student = User.objects.create_user(
             username="student_host",
             password="Password123!",
             primary_role=role,
             must_change_password=False,
         )
+        setup_state = SystemSetupState.get_solo()
+        setup_state.state = SetupStateCode.IT_READY
+        setup_state.finalized_at = timezone.now()
+        setup_state.save(update_fields=["state", "finalized_at", "updated_at"])
         cls.it_user = User.objects.create_user(
             username="it_host",
             password="Password123!",
             primary_role=role_it,
+            must_change_password=False,
+            email="it-host@ndgakuje.org",
+        )
+        cls.teacher_user = User.objects.create_user(
+            username="teacher_host",
+            password="Password123!",
+            primary_role=role_teacher,
             must_change_password=False,
         )
 
@@ -37,19 +79,69 @@ class StageTwoHostRoutingTests(TestCase):
             response.url,
         )
 
-    def test_landing_modal_login_urls_preserve_dev_port(self):
+
+    def test_localhost_staff_cbt_page_keeps_portal_shell(self):
+        request = RequestFactory().get("/cbt/authoring/", HTTP_HOST="localhost:8000")
+        request.user = self.teacher_user
+        self.assertEqual(current_portal_key(request), "staff")
+
+    def test_localhost_student_cbt_runtime_uses_cbt_portal(self):
+        request = RequestFactory().get("/cbt/exams/available/", HTTP_HOST="localhost:8000")
+        request.user = self.student
+        self.assertEqual(current_portal_key(request), "cbt")
+
+    def test_localhost_election_routes_use_election_portal(self):
+        request = RequestFactory().get("/elections/", HTTP_HOST="localhost:8000")
+        request.user = self.teacher_user
+        self.assertEqual(current_portal_key(request), "election")
+    def test_localhost_modal_login_urls_stay_on_localhost(self):
+        client = Client(HTTP_HOST="localhost:8000")
+        response = client.get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            'href="http://localhost:8000/auth/login/?audience=staff"',
+        )
+        self.assertContains(
+            response,
+            'href="http://localhost:8000/auth/login/?audience=student"',
+        )
+
+    def test_public_domain_links_do_not_leak_dev_port(self):
         client = Client(HTTP_HOST="ndgakuje.org:8000")
         response = client.get("/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(
             response,
-            'href="http://staff.ndgakuje.org:8000/auth/login/?audience=staff"',
+            'href="http://staff.ndgakuje.org/auth/login/?audience=staff"',
         )
-        self.assertContains(
-            response,
-            'href="http://student.ndgakuje.org:8000/auth/login/?audience=student"',
-        )
+        self.assertNotContains(response, "staff.ndgakuje.org:8000")
 
+    def test_localhost_staff_cbt_response_keeps_sidebar_shell(self):
+        client = Client(HTTP_HOST="localhost:8000")
+        client.force_login(self.teacher_user)
+        response = client.get("/cbt/authoring/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "portal-sidebar")
+        self.assertContains(response, "CBT Entry Center")
+
+    def test_localhost_election_home_renders_without_redirect_loop(self):
+        client = Client(HTTP_HOST="localhost:8000")
+        client.force_login(self.teacher_user)
+        session = client.session
+        session["fresh_auth_election"] = True
+        session.save()
+        response = client.get("/elections/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "portal-sidebar")
+        self.assertContains(response, "Election Operations Center")
+
+    def test_localhost_it_election_management_keeps_it_shell(self):
+        client = Client(HTTP_HOST="localhost:8000")
+        client.force_login(self.it_user)
+        response = client.get("/elections/it/manage/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "portal-sidebar")
     def test_staff_login_page_copy_is_staff_only(self):
         client = Client(HTTP_HOST="staff.ndgakuje.org")
         response = client.get("/auth/login/?audience=staff")
@@ -70,14 +162,22 @@ class StageTwoHostRoutingTests(TestCase):
         )
         self.assertNotContains(response, "Staff ID (or portal username)")
 
-    def test_it_login_from_staff_host_redirects_to_it_host_with_dev_port(self):
-        client = Client(HTTP_HOST="staff.ndgakuje.org:8000")
+    def test_it_login_from_localhost_staff_audience_redirects_to_local_it_path(self):
+        client = Client(HTTP_HOST="localhost:8000")
         response = client.post(
             "/auth/login/?audience=staff",
             {"username": "it_host", "password": "Password123!"},
         )
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, 'http://it.ndgakuje.org:8000/')
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, "/auth/login/verify/")
+        self.assertTrue(mail.outbox)
+        code = mail.outbox[-1].body.split("verification code is:")[1].splitlines()[0].strip()
+        verify_response = client.post(
+            "/auth/login/verify/",
+            {"verification_code": code},
+        )
+        self.assertEqual(verify_response.status_code, 302)
+        self.assertEqual(verify_response.url, "http://localhost:8000/portal/it/")
 
     def test_authenticated_user_opening_login_redirects_to_role_home(self):
         client = Client(HTTP_HOST="staff.ndgakuje.org")

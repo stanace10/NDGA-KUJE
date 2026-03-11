@@ -1,16 +1,12 @@
-.venv/
-__pycache__/
-*.py[cod]
-*.sqlite3
 .env
-.env.*
-deploy/env/.env.prod
-node_modules/
-staticfiles/
-media/
+.venv/
 .postgres/
 .run/
 .tools/
-gradex format/
-*.log
-SCHOOL/generated_credentials.txt
+node_modules/
+staticfiles/
+media/
+__pycache__/
+*.py[cod]
+*.sqlite3
+SCHOOL/ndga_generated_credentials.txt

@@ -8,12 +8,8 @@ if [ "$DJANGO_SETTINGS_MODULE" = "core.settings.local" ]; then
   exit 1
 fi
 
-if [ -z "${DJANGO_SECRET_KEY:-}" ] || \
-  [ "$DJANGO_SECRET_KEY" = "ndga-dev-only-secret-key-change-before-production" ] || \
-  [ "$DJANGO_SECRET_KEY" = "change-me-for-local-dev" ] || \
-  [ "$DJANGO_SECRET_KEY" = "ndga" ] || \
-  [ ${#DJANGO_SECRET_KEY} -lt 32 ]; then
-  echo "DJANGO_SECRET_KEY must be a real deployment secret of at least 32 characters." >&2
+if [ -z "${DJANGO_SECRET_KEY:-}" ] || [ ${#DJANGO_SECRET_KEY} -lt 32 ]; then
+  echo "DJANGO_SECRET_KEY must be set to a real value with at least 32 characters." >&2
   exit 1
 fi
 

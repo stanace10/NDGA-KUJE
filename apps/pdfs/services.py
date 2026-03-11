@@ -6,7 +6,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from django.conf import settings
-from django.db.models import Avg, Count, Max, Min, Q, Sum
+from django.db.models import Avg, Count, Max, Min, Model, Q, Sum
 from django.contrib.staticfiles import finders
 from django.template.loader import render_to_string
 from django.urls import reverse
@@ -70,6 +70,8 @@ STAFF_REPORT_DOWNLOAD_ROLES = {
 def _to_primitive(value):
     if isinstance(value, Decimal):
         return format(value, ".2f")
+    if isinstance(value, Model):
+        return str(value.pk) if getattr(value, "pk", None) is not None else str(value)
     if isinstance(value, (date, datetime)):
         return value.isoformat()
     if isinstance(value, dict):
@@ -116,6 +118,16 @@ def school_logo_data_uri():
     if fallback_path.exists():
         return _read_file_as_data_uri(fallback_path)
     return ""
+
+
+def school_stamp_data_uri():
+    profile = SchoolProfile.objects.first()
+    if not profile or not profile.school_stamp:
+        return ""
+    path = getattr(profile.school_stamp, "path", "")
+    if not path or not Path(path).exists():
+        return ""
+    return _read_file_as_data_uri(path)
 
 
 def principal_signature_data_uri(*, preferred_user=None):
@@ -979,6 +991,8 @@ def generate_transcript_pdf(*, request, student, generated_by, session=None):
 
 
 def generate_performance_analysis_pdf(*, request, student, compilation, generated_by):
+    from apps.results.analytics import build_student_performance_report
+
     payload = build_student_performance_report(
         student=student,
         session=compilation.session,

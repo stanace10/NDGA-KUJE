@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import re
 from dataclasses import dataclass
@@ -25,7 +26,12 @@ from apps.accounts.constants import (
     ROLE_STUDENT,
     ROLE_VP,
 )
-from apps.accounts.permissions import has_any_role
+from apps.accounts.permissions import (
+    SCOPE_MANAGE_ALL_CBT,
+    SCOPE_UNLOCK_CBT,
+    has_any_role,
+    has_scope,
+)
 from apps.academics.models import (
     StudentClassEnrollment,
     StudentSubjectEnrollment,
@@ -104,8 +110,103 @@ class RawQuestionBlock:
     body: str
 
 
+def _request_context_payload(request):
+    if request is None:
+        return {}
+    return {
+        "host": request.get_host(),
+        "path": getattr(request, "path", ""),
+        "method": getattr(request, "method", ""),
+        "remote_addr": request.META.get("REMOTE_ADDR", ""),
+        "forwarded_for": request.META.get("HTTP_X_FORWARDED_FOR", ""),
+        "user_agent": request.META.get("HTTP_USER_AGENT", ""),
+        "referer": request.META.get("HTTP_REFERER", ""),
+    }
+
+
+def _integrity_hash(payload):
+    serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def _build_attempt_integrity_bundle(attempt, *, event_type, request=None, details=None):
+    bundle = deepcopy(attempt.integrity_bundle or {})
+    session_context = dict(bundle.get("session_context") or {})
+    request_context = _request_context_payload(request)
+    if request_context:
+        session_context.setdefault("initial_request", request_context)
+        session_context["last_request"] = request_context
+    session_context.setdefault("exam_id", attempt.exam_id)
+    session_context.setdefault("student_id", attempt.student_id)
+    session_context.setdefault("attempt_number", attempt.attempt_number)
+    session_context.setdefault("started_at", attempt.started_at.isoformat() if attempt.started_at else "")
+    session_context.setdefault("exam_snapshot_hash", getattr(attempt.exam, "activation_snapshot_hash", ""))
+
+    event_list = list(bundle.get("events") or [])
+    event_payload = {
+        "event_type": event_type,
+        "at": timezone.now().isoformat(),
+        "status": attempt.status,
+        "is_locked": bool(attempt.is_locked),
+        "details": details or {},
+        "request": request_context,
+    }
+    previous_event_hash = event_list[-1].get("event_hash", "") if event_list else ""
+    event_payload["previous_event_hash"] = previous_event_hash
+    event_payload["event_hash"] = _integrity_hash({
+        "event_type": event_payload["event_type"],
+        "at": event_payload["at"],
+        "status": event_payload["status"],
+        "is_locked": event_payload["is_locked"],
+        "details": event_payload["details"],
+        "request": event_payload["request"],
+        "previous_event_hash": previous_event_hash,
+    })
+    event_list.append(event_payload)
+
+    summary = {
+        "status": attempt.status,
+        "submitted_at": attempt.submitted_at.isoformat() if attempt.submitted_at else "",
+        "finalized_at": attempt.finalized_at.isoformat() if attempt.finalized_at else "",
+        "last_heartbeat_at": attempt.last_heartbeat_at.isoformat() if attempt.last_heartbeat_at else "",
+        "last_activity_at": attempt.last_activity_at.isoformat() if attempt.last_activity_at else "",
+        "is_locked": bool(attempt.is_locked),
+        "lock_reason": attempt.lock_reason,
+        "allow_resume_by_it": bool(attempt.allow_resume_by_it),
+        "extra_time_minutes": int(attempt.extra_time_minutes or 0),
+        "event_count": len(event_list),
+        "violation_count": sum(1 for row in event_list if row.get("event_type") in LOCKDOWN_EVENT_TYPES),
+        "score_total": str(attempt.total_score),
+        "objective_score": str(attempt.objective_score),
+        "theory_score": str(attempt.theory_score),
+        "auto_marking_completed": bool(attempt.auto_marking_completed),
+        "theory_marking_completed": bool(attempt.theory_marking_completed),
+        "writeback_completed": bool(attempt.writeback_completed),
+    }
+
+    bundle = {
+        "exam_snapshot_hash": session_context.get("exam_snapshot_hash", ""),
+        "session_context": session_context,
+        "events": event_list,
+        "summary": summary,
+    }
+    bundle["bundle_hash"] = _integrity_hash(bundle)
+    return bundle
+
+
+def _save_attempt_integrity_bundle(attempt, *, event_type, request=None, details=None):
+    attempt.integrity_bundle = _build_attempt_integrity_bundle(
+        attempt,
+        event_type=event_type,
+        request=request,
+        details=details,
+    )
+    attempt.save(update_fields=["integrity_bundle", "updated_at"])
+    return attempt.integrity_bundle
+
+
 def can_manage_all_cbt(user):
-    return has_any_role(user, {ROLE_IT_MANAGER, ROLE_PRINCIPAL, ROLE_VP})
+    return has_scope(user, SCOPE_MANAGE_ALL_CBT)
 
 
 def authoring_assignment_queryset(
@@ -2714,7 +2815,7 @@ def ordered_attempt_simulation_records(attempt):
 
 
 @transaction.atomic
-def get_or_start_attempt(*, student, exam):
+def get_or_start_attempt(*, student, exam, request=None):
     if not student.has_role(ROLE_STUDENT):
         raise ValidationError("Only students can start CBT exams.")
     reason = student_exam_authorization_reason(student=student, exam=exam)
@@ -2733,6 +2834,12 @@ def get_or_start_attempt(*, student, exam):
     )
     if existing:
         ensure_simulation_records_for_attempt(existing)
+        _save_attempt_integrity_bundle(
+            existing,
+            event_type="ATTEMPT_RESUMED",
+            request=request,
+            details={"resumed": True},
+        )
         return existing, False
 
     blueprint = getattr(exam, "blueprint", None) or ensure_default_blueprint(exam)
@@ -2763,6 +2870,15 @@ def get_or_start_attempt(*, student, exam):
         ]
     )
     ensure_simulation_records_for_attempt(attempt)
+    _save_attempt_integrity_bundle(
+        attempt,
+        event_type="ATTEMPT_STARTED",
+        request=request,
+        details={
+            "question_order": attempt.writeback_metadata.get("question_order", []),
+            "simulation_count": attempt.simulation_attempts.count(),
+        },
+    )
     _queue_attempt_snapshot(attempt, event_type="ATTEMPT_STARTED")
     return attempt, True
 
@@ -2965,7 +3081,7 @@ def has_pending_required_simulation(attempt):
 
 
 @transaction.atomic
-def submit_attempt(*, attempt):
+def submit_attempt(*, attempt, request=None):
     if attempt.status == CBTAttemptStatus.FINALIZED:
         raise ValidationError("Attempt is already finalized.")
     if has_pending_required_simulation(attempt):
@@ -3021,6 +3137,12 @@ def submit_attempt(*, attempt):
             "updated_at",
         ]
     )
+    _save_attempt_integrity_bundle(
+        attempt,
+        event_type="ATTEMPT_SUBMITTED",
+        request=request,
+        details={"writeback_completed": bool(attempt.writeback_completed)},
+    )
     _queue_attempt_snapshot(attempt, event_type="ATTEMPT_SUBMITTED")
     return attempt
 
@@ -3072,6 +3194,11 @@ def apply_theory_scores(*, attempt, actor, score_payload):
                 "writeback_completed",
                 "updated_at",
             ]
+        )
+        _save_attempt_integrity_bundle(
+            attempt,
+            event_type="ATTEMPT_THEORY_MARKED",
+            details={"theory_marking_completed": True},
         )
         _queue_attempt_snapshot(attempt, event_type="ATTEMPT_THEORY_MARKED")
         return attempt
@@ -3160,6 +3287,11 @@ def apply_theory_scores(*, attempt, actor, score_payload):
             "updated_at",
         ]
     )
+    _save_attempt_integrity_bundle(
+        attempt,
+        event_type="ATTEMPT_THEORY_MARKED",
+        details={"theory_marking_completed": bool(attempt.theory_marking_completed)},
+    )
     _queue_attempt_snapshot(attempt, event_type="ATTEMPT_THEORY_MARKED")
     return attempt
 
@@ -3183,6 +3315,7 @@ def finalize_attempt(attempt):
         attempt.status = CBTAttemptStatus.FINALIZED
         attempt.finalized_at = timezone.now()
         attempt.save(update_fields=["status", "finalized_at", "updated_at"])
+        _save_attempt_integrity_bundle(attempt, event_type="ATTEMPT_FINALIZED")
         _queue_attempt_snapshot(attempt, event_type="ATTEMPT_FINALIZED")
     return attempt
 
@@ -3702,6 +3835,12 @@ def register_lockdown_heartbeat(*, attempt, tab_token, request, client_state=Non
             "updated_at",
         ]
     )
+    _save_attempt_integrity_bundle(
+        attempt,
+        event_type="LOCKDOWN_HEARTBEAT",
+        request=request,
+        details={"client_state": client_state or {}, "tab_token": token},
+    )
     return {"ok": True}
 
 
@@ -3731,7 +3870,7 @@ def record_lockdown_violation(*, attempt, event_type, request, details=None):
 
     should_lock_for_review = event_type in {"FULLSCREEN_EXIT", "CAMERA_BLOCKED"}
     if attempt.status == CBTAttemptStatus.IN_PROGRESS and not should_lock_for_review:
-        submit_attempt(attempt=attempt)
+        submit_attempt(attempt=attempt, request=request)
 
     attempt.is_locked = True
     attempt.lock_reason = event_type
@@ -3756,14 +3895,20 @@ def record_lockdown_violation(*, attempt, event_type, request, details=None):
             attempt.finalized_at = timezone.now()
         update_fields.extend(["status", "finalized_at"])
     attempt.save(update_fields=update_fields)
+    _save_attempt_integrity_bundle(
+        attempt,
+        event_type=event_type,
+        request=request,
+        details=details,
+    )
     _queue_attempt_snapshot(attempt, event_type="ATTEMPT_LOCKDOWN_LOCKED")
     return attempt
 
 
 @transaction.atomic
 def it_unlock_attempt(*, attempt, actor, allow_resume=False, extra_time_minutes=0, request=None):
-    if not actor.has_role(ROLE_IT_MANAGER):
-        raise ValidationError("Only IT Manager can unlock CBT attempts.")
+    if not has_scope(actor, SCOPE_UNLOCK_CBT):
+        raise ValidationError("You do not have scope to unlock CBT attempts.")
 
     extra_time_minutes = int(extra_time_minutes or 0)
     if extra_time_minutes < 0:
@@ -3784,7 +3929,7 @@ def it_unlock_attempt(*, attempt, actor, allow_resume=False, extra_time_minutes=
     else:
         attempt.allow_resume_by_it = False
         if attempt.status == CBTAttemptStatus.IN_PROGRESS:
-            submit_attempt(attempt=attempt)
+            submit_attempt(attempt=attempt, request=request)
         attempt.status = CBTAttemptStatus.FINALIZED
         if not attempt.finalized_at:
             attempt.finalized_at = timezone.now()
@@ -3802,6 +3947,12 @@ def it_unlock_attempt(*, attempt, actor, allow_resume=False, extra_time_minutes=
             "submitted_at",
             "updated_at",
         ]
+    )
+    _save_attempt_integrity_bundle(
+        attempt,
+        event_type="ATTEMPT_UNLOCKED_BY_IT",
+        request=request,
+        details={"allow_resume": bool(allow_resume), "extra_time_minutes_added": extra_time_minutes},
     )
     _queue_attempt_snapshot(attempt, event_type="ATTEMPT_UNLOCKED_BY_IT")
     if request is not None:

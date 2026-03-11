@@ -3,15 +3,15 @@ services:
     image: postgres:16
     restart: always
     environment:
-      POSTGRES_DB: ${DB_NAME:-ndga_db}
-      POSTGRES_USER: ${DB_USER:-ndga_user}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-ndga@admin}
+      POSTGRES_DB: ${DB_NAME:-ndga}
+      POSTGRES_USER: ${DB_USER:-ndga}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-ndga}
     volumes:
       - ndga_postgres_data:/var/lib/postgresql/data
     ports:
       - "127.0.0.1:5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-ndga_user} -d ${DB_NAME:-ndga_db}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-ndga} -d ${DB_NAME:-ndga}"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -47,12 +47,12 @@ services:
 
   web:
     build:
-      context: ../..
-      dockerfile: deploy/docker/Dockerfile.prod
+      context: .
+      dockerfile: Dockerfile
     restart: always
     env_file:
-      - ../../.env
-    command: ["/app/deploy/docker/entrypoint.prod.sh"]
+      - ./.env
+    command: ["/app/entrypoint.sh"]
     depends_on:
       db:
         condition: service_healthy
@@ -72,11 +72,11 @@ services:
 
   celery_worker:
     build:
-      context: ../..
-      dockerfile: deploy/docker/Dockerfile.prod
+      context: .
+      dockerfile: Dockerfile
     restart: always
     env_file:
-      - ../../.env
+      - ./.env
     command:
       [
         "celery",
@@ -100,11 +100,11 @@ services:
 
   celery_beat:
     build:
-      context: ../..
-      dockerfile: deploy/docker/Dockerfile.prod
+      context: .
+      dockerfile: Dockerfile
     restart: always
     env_file:
-      - ../../.env
+      - ./.env
     command: ["celery", "-A", "core", "beat", "--loglevel=INFO"]
     depends_on:
       db:
@@ -125,7 +125,7 @@ services:
     ports:
       - "127.0.0.1:8080:80"
     volumes:
-      - ./nginx.prod.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ndga_static_data:/app/staticfiles:ro
       - ndga_media_data:/app/media:ro
     healthcheck:

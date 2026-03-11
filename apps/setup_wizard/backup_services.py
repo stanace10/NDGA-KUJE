@@ -114,6 +114,54 @@ def create_local_backup_archive(*, actor=None):
     )
 
 
+def inspect_backup_archive(archive_path):
+    archive_path = Path(archive_path)
+    if not archive_path.exists():
+        raise ValidationError("Backup archive not found.")
+    if archive_path.suffix.lower() != ".zip":
+        raise ValidationError("Backup file must be a .zip archive.")
+
+    with zipfile.ZipFile(archive_path, "r") as archive:
+        members = set(archive.namelist())
+        required = {"metadata.json", "database/db.json", "media/manifest.json"}
+        missing_required = sorted(required - members)
+        if missing_required:
+            raise ValidationError(
+                "Backup archive is missing required entries: "
+                + ", ".join(missing_required)
+            )
+
+        metadata = json.loads(archive.read("metadata.json").decode("utf-8"))
+        if not isinstance(metadata, dict):
+            raise ValidationError("Invalid backup metadata format.")
+
+        manifest = json.loads(archive.read("media/manifest.json").decode("utf-8"))
+        if not isinstance(manifest, dict):
+            raise ValidationError("Invalid media manifest format.")
+        media_files = manifest.get("files", [])
+        if not isinstance(media_files, list):
+            raise ValidationError("Invalid media manifest format.")
+
+        database_dump_bytes = len(archive.read("database/db.json"))
+
+    return {
+        "archive": str(archive_path),
+        "archive_size_bytes": archive_path.stat().st_size,
+        "archive_sha256": _sha256_file(archive_path),
+        "required_entries_present": True,
+        "member_count": len(members),
+        "database_dump_bytes": database_dump_bytes,
+        "generated_at": metadata.get("generated_at", ""),
+        "generated_by": metadata.get("generated_by", ""),
+        "setup_state": metadata.get("setup_state", ""),
+        "current_session": metadata.get("current_session", ""),
+        "current_term": metadata.get("current_term", ""),
+        "media_file_count": len(media_files),
+        "manifest_media_files": int(manifest.get("file_count") or len(media_files)),
+        "format_version": metadata.get("format_version", 1),
+    }
+
+
 def _clear_media_root(media_root: Path):
     if not media_root.exists():
         return

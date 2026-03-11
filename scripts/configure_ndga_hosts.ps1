@@ -52,4 +52,4 @@ if ($missing.Count -eq 0) {
 
 ipconfig /flushdns | Out-Null
 Write-Output "DNS cache flushed."
-Write-Output "Use: http://ndgakuje.org:8000/"
+Write-Output "Use localhost: http://localhost:8000/`nUse NDGA host only after local hosts override: http://ndgakuje.org:8000/"

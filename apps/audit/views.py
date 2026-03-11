@@ -2,7 +2,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db.models import Q
 from django.views.generic import ListView
 
-from apps.accounts.constants import ROLE_IT_MANAGER, ROLE_PRINCIPAL
+from apps.accounts.permissions import SCOPE_VIEW_AUDIT, has_scope
 from apps.audit.models import AuditEvent
 
 
@@ -12,9 +12,7 @@ class AuditEventListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     paginate_by = 50
 
     def test_func(self):
-        return self.request.user.has_role(ROLE_IT_MANAGER) or self.request.user.has_role(
-            ROLE_PRINCIPAL
-        )
+        return has_scope(self.request.user, SCOPE_VIEW_AUDIT)
 
     def get_queryset(self):
         queryset = AuditEvent.objects.select_related("actor").all()
@@ -33,4 +31,3 @@ class AuditEventListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
                 | Q(actor__username__icontains=q)
             )
         return queryset
-

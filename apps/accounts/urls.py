@@ -22,6 +22,7 @@ from apps.accounts.views import (
     PasswordResetConfirmView,
     PasswordResetRequestView,
     PasswordChangeView,
+    PrivilegedLoginVerifyView,
     RoleRedirectView,
 )
 
@@ -29,6 +30,7 @@ app_name = "accounts"
 
 urlpatterns = [
     path("login/", LoginView.as_view(), name="login"),
+    path("login/verify/", PrivilegedLoginVerifyView.as_view(), name="login-verify"),
     path("logout/", LogoutView.as_view(), name="logout"),
     path("redirect/", RoleRedirectView.as_view(), name="role-redirect"),
     path("password/reset/", PasswordResetRequestView.as_view(), name="password-reset-request"),

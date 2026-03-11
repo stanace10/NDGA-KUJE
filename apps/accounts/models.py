@@ -41,6 +41,7 @@ class User(AbstractUser):
     must_change_password = models.BooleanField(default=True)
     login_code_hash = models.CharField(max_length=128, blank=True)
     login_code_expires_at = models.DateTimeField(null=True, blank=True)
+    permission_scopes = models.JSONField(default=list, blank=True)
 
     def __str__(self):
         return self.username
@@ -54,6 +55,12 @@ class User(AbstractUser):
 
     def has_role(self, role_code):
         return role_code in self.get_all_role_codes()
+
+    def get_permission_scopes(self):
+        stored_scopes = self.permission_scopes or []
+        if not isinstance(stored_scopes, list):
+            return []
+        return [str(scope).strip() for scope in stored_scopes if str(scope).strip()]
 
     def password_change_limit(self):
         if self.get_all_role_codes() & HIGH_TRUST_PASSWORD_ROLES:

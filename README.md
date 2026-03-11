@@ -552,9 +552,9 @@ Set these in cloud and LAN environments:
 
 Behavior:
 
-- Every registered sync-enabled create/update/delete writes to the outbox automatically.
+- Every create/update/delete for models registered in `apps/sync/model_sync.py`, plus the explicit outbox producers used by CBT, elections, registration, and simulation flows, writes to the outbox automatically.
 - Background workers process outbound and inbound batches every few seconds with retry/backoff.
-- LAN pushes attempts/votes/simulation attempt events and all sync-enabled portal records through the outbox worker.
+- LAN pushes attempts, votes, simulation attempt events, student-registration events, and sync-enabled model records through the outbox worker.
 - LAN pulls generic remote changes plus teacher-created CBT updates automatically through feed workers.
 - Both directions are idempotent, resumable, and largely invisible to users.
 
@@ -623,9 +623,10 @@ docker compose --env-file .env -f deploy/docker/docker-compose.cloud.yml exec we
 
 Auto-deploy path:
 
-- `scripts/auto_deploy.sh` now uses the root `.env` and the cloud compose file directly.
+- `scripts/auto_deploy.sh` uses the root `.env` and the cloud compose file directly.
 - The GitHub Action in `.github/workflows/deploy-cloud.yml` SSHes into `~/NDGA`, `~/ndga`, or `~/ndga-platform` and runs that script on every push to `main`.
-- On EC2, still enable Docker on boot with `sudo systemctl enable docker`.
+- Old local-only files such as `deploy/docker/.env.cloud` and `deploy/docker/.env.lan` are not part of the current deploy path; each node should keep a real root `.env` instead.
+- On EC2, enable Docker and host nginx on boot with `sudo systemctl enable docker nginx`.
 
 Notes:
 
@@ -643,7 +644,7 @@ Use split-horizon DNS so the same domain works both inside and outside school:
 - `ndgakuje.org` and `*.ndgakuje.org` -> EC2 Elastic IP
 
 2. School LAN DNS override (MikroTik static DNS)
-- `ndgakuje.org` -> LAN server IP (example `192.168.88.10`)
+- `ndgakuje.org` -> LAN server IP such as `192.168.88.10`
 - `student.ndgakuje.org` -> same LAN IP
 - `staff.ndgakuje.org` -> same LAN IP
 - `cbt.ndgakuje.org` -> same LAN IP

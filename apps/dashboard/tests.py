@@ -1,7 +1,10 @@
 from datetime import date
+import json
+from io import StringIO
 from unittest.mock import patch
 
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.management import call_command
 from django.test import Client, TestCase, override_settings
 
 from apps.accounts.constants import ROLE_IT_MANAGER, ROLE_PRINCIPAL, ROLE_STUDENT, ROLE_SUBJECT_TEACHER
@@ -44,6 +47,13 @@ class StudentDashboardAttendanceTests(TestCase):
             username="teacher-dash",
             password="Password123!",
             primary_role=subject_role,
+            must_change_password=False,
+        )
+        it_role = Role.objects.get(code=ROLE_IT_MANAGER)
+        cls.it_user = User.objects.create_user(
+            username="it-dash",
+            password="Password123!",
+            primary_role=it_role,
             must_change_password=False,
         )
         session = AcademicSession.objects.create(name="2025/2026")
@@ -108,6 +118,7 @@ class StudentDashboardAttendanceTests(TestCase):
         response = client.get("/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Welcome back")
+        self.assertContains(response, "Next Actions")
         self.assertContains(response, "Quick Access")
         self.assertContains(response, "Attendance")
         self.assertContains(response, "Attendance Metrics")
@@ -125,6 +136,7 @@ class StudentDashboardAttendanceTests(TestCase):
         self.assertEqual(login.status_code, 302)
         response = client.get("/")
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Next Actions")
         self.assertContains(response, "Quick Access")
         self.assertContains(response, "Profile")
         self.assertContains(response, "CBT Entry")
@@ -132,6 +144,16 @@ class StudentDashboardAttendanceTests(TestCase):
         self.assertContains(response, "Settings")
         self.assertNotContains(response, "Upload PDF/DOC")
         self.assertNotContains(response, "Submit To Dean")
+
+    def test_it_portal_shows_operations_center_and_drill_commands(self):
+        client = Client(HTTP_HOST="it.ndgakuje.org")
+        client.force_login(self.it_user)
+        response = client.get("/portal/it/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Operations Center")
+        self.assertContains(response, "Runtime Snapshot")
+        self.assertContains(response, "Restore Drill")
+
 
 
 class OpsEndpointsTests(TestCase):
@@ -150,6 +172,16 @@ class OpsEndpointsTests(TestCase):
         self.assertIn("checks", payload)
         self.assertIn("database", payload["checks"])
         self.assertIn("cache", payload["checks"])
+        self.assertIn("disk", payload)
+        self.assertIn("sync", payload)
+
+    def test_ops_runtime_snapshot_command_outputs_json(self):
+        stdout = StringIO()
+        call_command("ops_runtime_snapshot", stdout=stdout)
+        payload = json.loads(stdout.getvalue())
+        self.assertIn("status", payload)
+        self.assertIn("disk", payload)
+        self.assertIn("sync", payload)
 
 
 class PrincipalSettingsTests(TestCase):

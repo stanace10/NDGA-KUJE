@@ -334,6 +334,28 @@ class NDGALoginForm(forms.Form):
         return self.user_cache
 
 
+class PrivilegedTwoFactorForm(forms.Form):
+    verification_code = forms.CharField(max_length=6, min_length=6, label="Verification Code")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["verification_code"].widget.attrs.update(
+            {
+                "class": (
+                    "w-full rounded-2xl border border-white/35 bg-white/90 px-4 py-3 "
+                    "text-center text-base font-semibold tracking-[0.32em] text-slate-900 shadow-sm "
+                    "outline-none transition placeholder:text-slate-400 focus:border-ndga-navy/60 "
+                    "focus:ring-4 focus:ring-ndga-navy/10"
+                ),
+                "autocomplete": "one-time-code",
+                "inputmode": "numeric",
+                "placeholder": "000000",
+            }
+        )
+
+    def clean_verification_code(self):
+        return (self.cleaned_data.get("verification_code") or "").strip()
+
 class PasswordResetRequestForm(forms.Form):
     login_id = forms.CharField(max_length=150, label="Login ID")
 

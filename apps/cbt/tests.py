@@ -3,6 +3,7 @@ import io
 import zipfile
 
 from django.conf import settings
+from django.core import mail
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase, override_settings
 from django.utils import timezone
@@ -46,6 +47,29 @@ from apps.sync.models import SyncOperationType, SyncQueue
 from apps.setup_wizard.models import SetupStateCode, SystemSetupState
 
 
+CBT_TEST_HOST_SETTINGS = {
+    "ALLOWED_HOSTS": [
+        "localhost",
+        "127.0.0.1",
+        "[::1]",
+        "testserver",
+        "ndgakuje.org",
+        ".ndgakuje.org",
+        ".ndga.local",
+    ],
+    "CSRF_TRUSTED_ORIGINS": [
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://ndgakuje.org:8000",
+        "http://ndgakuje.org",
+        "http://*.ndgakuje.org",
+        "https://ndgakuje.org",
+        "https://*.ndgakuje.org",
+    ],
+}
+
+
+@override_settings(**CBT_TEST_HOST_SETTINGS)
 class StageTenCBTWorkflowTests(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -58,6 +82,7 @@ class StageTenCBTWorkflowTests(TestCase):
             password="Password123!",
             primary_role=cls.role_it,
             must_change_password=False,
+            email="it-cbt@ndgakuje.org",
         )
         cls.dean_user = User.objects.create_user(
             username="dean-cbt",
@@ -104,7 +129,14 @@ class StageTenCBTWorkflowTests(TestCase):
             "/auth/login/?audience=staff",
             {"username": username, "password": "Password123!"},
         )
-        self.assertEqual(response.status_code, 302)
+        if "/auth/login/verify/" in getattr(response, "url", ""):
+            self.assertTrue(mail.outbox)
+            code = mail.outbox[-1].body.split("verification code is:")[1].splitlines()[0].strip()
+            response = client.post(
+                "/auth/login/verify/",
+                {"verification_code": code},
+            )
+        self.assertIn(response.status_code, {200, 302})
         return client
 
     def _create_minimal_exam(self):
@@ -267,6 +299,40 @@ class StageTenCBTWorkflowTests(TestCase):
         self.assertIsNotNone(exam.schedule_start)
         self.assertIsNotNone(exam.schedule_end)
         self.assertGreater(exam.schedule_end, exam.schedule_start)
+
+    def test_it_activation_generates_immutable_snapshot_hash(self):
+        exam, _, question = self._create_minimal_exam()
+        exam.status = CBTExamStatus.APPROVED
+        exam.dean_reviewed_by = self.dean_user
+        exam.dean_reviewed_at = timezone.now()
+        exam.save(update_fields=["status", "dean_reviewed_by", "dean_reviewed_at", "updated_at"])
+
+        it_client = self.login_client(host="it.ndgakuje.org", username=self.it_user.username)
+        response = it_client.post(
+            f"/cbt/it/activation/{exam.id}/",
+            {
+                "action": "activate",
+                "open_now": "on",
+                "is_time_based": "on",
+                "duration_minutes": "30",
+                "max_attempts": "1",
+                "shuffle_questions": "on",
+                "shuffle_options": "on",
+                "instructions": "Immutable snapshot test",
+                "activation_comment": "Activate with snapshot.",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        exam.refresh_from_db()
+        self.assertEqual(exam.status, CBTExamStatus.ACTIVE)
+        self.assertTrue(exam.activation_snapshot_hash)
+        self.assertEqual(exam.activation_snapshot["exam"]["id"], exam.id)
+        self.assertEqual(len(exam.activation_snapshot["questions"]), 1)
+        self.assertEqual(exam.activation_snapshot["questions"][0]["question"]["stem"], question.stem)
+        self.assertEqual(
+            exam.activation_snapshot["blueprint"]["duration_minutes"],
+            30,
+        )
 
     def test_exam_cannot_be_activated_without_dean_approval(self):
         exam, _, _ = self._create_minimal_exam()
@@ -551,6 +617,7 @@ class StageTenCBTWorkflowTests(TestCase):
         "CBT_ENABLED": True,
     }
 )
+@override_settings(**CBT_TEST_HOST_SETTINGS)
 class StageElevenCBTRunnerTests(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -564,6 +631,7 @@ class StageElevenCBTRunnerTests(TestCase):
             password="Password123!",
             primary_role=cls.role_it,
             must_change_password=False,
+            email="it-stage11@ndgakuje.org",
         )
         cls.dean_user = User.objects.create_user(
             username="dean-stage11",
@@ -628,7 +696,14 @@ class StageElevenCBTRunnerTests(TestCase):
             f"/auth/login/?audience={audience}",
             {"username": username, "password": "Password123!"},
         )
-        self.assertEqual(response.status_code, 302)
+        if "/auth/login/verify/" in getattr(response, "url", ""):
+            self.assertTrue(mail.outbox)
+            code = mail.outbox[-1].body.split("verification code is:")[1].splitlines()[0].strip()
+            response = client.post(
+                "/auth/login/verify/",
+                {"verification_code": code},
+            )
+        self.assertIn(response.status_code, {200, 302})
         return client
 
     def _create_exam(self, *, theory_enabled=False, objective_target=CBTWritebackTarget.OBJECTIVE):
@@ -756,6 +831,35 @@ class StageElevenCBTRunnerTests(TestCase):
 
         score = StudentSubjectScore.objects.get(student=self.student_user)
         self.assertEqual(str(score.objective), "40.00")
+
+    def test_attempt_integrity_bundle_tracks_start_and_submit(self):
+        exam, objective_question, _ = self._create_exam(theory_enabled=False)
+        student_client = self.login_client(
+            host="cbt.ndgakuje.org",
+            username=self.student_user.username,
+            audience="cbt",
+        )
+        start_response = student_client.post(f"/cbt/exams/{exam.id}/start/")
+        self.assertEqual(start_response.status_code, 302)
+        attempt = ExamAttempt.objects.get(exam=exam, student=self.student_user)
+        self.assertTrue(attempt.integrity_bundle.get("bundle_hash"))
+        self.assertEqual(attempt.integrity_bundle["events"][0]["event_type"], "ATTEMPT_STARTED")
+
+        submit_response = student_client.post(
+            f"/cbt/attempts/{attempt.id}/run/",
+            {
+                "q": "1",
+                "action": "submit",
+                "selected_options": [str(objective_question.options.get(label="A").id)],
+            },
+        )
+        self.assertEqual(submit_response.status_code, 302)
+        attempt.refresh_from_db()
+        event_types = [row["event_type"] for row in attempt.integrity_bundle["events"]]
+        self.assertIn("ATTEMPT_STARTED", event_types)
+        self.assertIn("ATTEMPT_SUBMITTED", event_types)
+        self.assertEqual(attempt.integrity_bundle["summary"]["status"], CBTAttemptStatus.SUBMITTED)
+        self.assertTrue(all(row.get("event_hash") for row in attempt.integrity_bundle["events"]))
 
     def test_theory_remains_pending_until_teacher_marks(self):
         exam, _, theory_question = self._create_exam(
@@ -1140,6 +1244,7 @@ class StageElevenCBTRunnerTests(TestCase):
         "LOCKDOWN_ENABLED": True,
     }
 )
+@override_settings(**CBT_TEST_HOST_SETTINGS)
 class StageTwelveLockdownTests(StageElevenCBTRunnerTests):
     def test_multiple_tab_heartbeat_locks_attempt_and_logs_device_ip(self):
         exam, _, _ = self._create_exam(theory_enabled=False)
@@ -1182,6 +1287,36 @@ class StageTwelveLockdownTests(StageElevenCBTRunnerTests):
         self.assertEqual(log.metadata.get("attempt_id"), str(attempt.id))
         self.assertEqual(log.metadata.get("device"), "NDGA-Lockdown-Test-Agent/1.0")
         self.assertIsNotNone(log.ip_address)
+
+    def test_lockdown_events_are_recorded_in_attempt_integrity_bundle(self):
+        exam, _, _ = self._create_exam(theory_enabled=False)
+        student_client = self.login_client(
+            host="cbt.ndgakuje.org",
+            username=self.student_user.username,
+            audience="cbt",
+        )
+        student_client.post(f"/cbt/exams/{exam.id}/start/")
+        attempt = ExamAttempt.objects.get(exam=exam, student=self.student_user)
+
+        student_client.post(
+            f"/cbt/attempts/{attempt.id}/heartbeat/",
+            data=json.dumps({"tab_token": "tab-one"}),
+            content_type="application/json",
+            HTTP_USER_AGENT="NDGA-Lockdown-Test-Agent/1.0",
+        )
+        student_client.post(
+            f"/cbt/attempts/{attempt.id}/heartbeat/",
+            data=json.dumps({"tab_token": "tab-two"}),
+            content_type="application/json",
+            HTTP_USER_AGENT="NDGA-Lockdown-Test-Agent/1.0",
+        )
+
+        attempt.refresh_from_db()
+        event_types = [row["event_type"] for row in attempt.integrity_bundle["events"]]
+        self.assertIn("LOCKDOWN_HEARTBEAT", event_types)
+        self.assertIn("MULTIPLE_TAB", event_types)
+        self.assertGreaterEqual(attempt.integrity_bundle["summary"]["violation_count"], 1)
+        self.assertTrue(attempt.integrity_bundle.get("bundle_hash"))
 
     def test_locked_attempt_redirects_to_contact_it_screen(self):
         exam, _, _ = self._create_exam(theory_enabled=False)
@@ -1248,6 +1383,7 @@ class StageTwelveLockdownTests(StageElevenCBTRunnerTests):
         "CBT_ENABLED": True,
     }
 )
+@override_settings(**CBT_TEST_HOST_SETTINGS)
 class StageThirteenSimulationTests(StageElevenCBTRunnerTests):
     def _create_simulation_wrapper(self, *, score_mode, max_score="10.00", evidence_required=False):
         suffix = SimulationWrapper.objects.count() + 1
@@ -1650,6 +1786,7 @@ class StageThirteenSimulationTests(StageElevenCBTRunnerTests):
         "OFFLINE_MODE_ENABLED": True,
     }
 )
+@override_settings(**CBT_TEST_HOST_SETTINGS)
 class StageFourteenOfflineSyncTests(StageElevenCBTRunnerTests):
     def _create_simulation_wrapper(self):
         suffix = SimulationWrapper.objects.count() + 1

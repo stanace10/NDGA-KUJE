@@ -385,6 +385,8 @@ class Exam(TimeStampedModel):
     is_time_based = models.BooleanField(default=True)
     open_now = models.BooleanField(default=False)
     is_free_test = models.BooleanField(default=False)
+    activation_snapshot = models.JSONField(default=dict, blank=True)
+    activation_snapshot_hash = models.CharField(max_length=64, blank=True, db_index=True)
 
     class Meta:
         ordering = ("-updated_at",)
@@ -755,6 +757,7 @@ class ExamAttempt(TimeStampedModel):
     active_tab_token = models.CharField(max_length=120, blank=True)
     last_heartbeat_at = models.DateTimeField(null=True, blank=True)
     last_activity_at = models.DateTimeField(null=True, blank=True)
+    integrity_bundle = models.JSONField(default=dict, blank=True)
 
     class Meta:
         ordering = ("-updated_at",)

@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="${NDGA_PROJECT_DIR:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 BRANCH="${NDGA_DEPLOY_BRANCH:-main}"
-COMPOSE_FILE="${NDGA_COMPOSE_FILE:-$PROJECT_DIR/deploy/docker/docker-compose.cloud.yml}"
+COMPOSE_FILE="${NDGA_COMPOSE_FILE:-$PROJECT_DIR/docker-compose.cloud.yml}"
 ENV_FILE="${NDGA_ENV_FILE:-$PROJECT_DIR/.env}"
 WEB_SERVICE="${NDGA_WEB_SERVICE:-web}"
 

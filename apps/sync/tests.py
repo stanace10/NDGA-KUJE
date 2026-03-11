@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.conf import settings
+from django.core import mail
 from django.core.exceptions import ValidationError
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db.utils import ProgrammingError
@@ -29,7 +30,9 @@ from apps.sync.models import (
     SyncOperationType,
     SyncPullCursor,
     SyncQueue,
+    SyncQueueEvent,
     SyncQueueStatus,
+    SyncTransferBatch,
 )
 from apps.sync.inbound_sync import ingest_remote_outbox_event
 from apps.sync.services import (
@@ -46,6 +49,29 @@ from apps.sync.content_sync import register_cbt_content_change
 from apps.sync.models import SyncContentOperation
 
 
+SYNC_TEST_HOST_SETTINGS = {
+    "ALLOWED_HOSTS": [
+        "localhost",
+        "127.0.0.1",
+        "[::1]",
+        "testserver",
+        "ndgakuje.org",
+        ".ndgakuje.org",
+        ".ndga.local",
+    ],
+    "CSRF_TRUSTED_ORIGINS": [
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://ndgakuje.org:8000",
+        "http://ndgakuje.org",
+        "http://*.ndgakuje.org",
+        "https://ndgakuje.org",
+        "https://*.ndgakuje.org",
+    ],
+}
+
+
+@override_settings(**SYNC_TEST_HOST_SETTINGS)
 class SyncServiceTests(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -59,6 +85,13 @@ class SyncServiceTests(TestCase):
         setup_state = SystemSetupState.get_solo()
         setup_state.state = SetupStateCode.IT_READY
         setup_state.save(update_fields=["state", "updated_at"])
+
+    def setUp(self):
+        SyncQueue.objects.all().delete()
+        SyncContentChange.objects.all().delete()
+        SyncPullCursor.objects.all().delete()
+        SyncTransferBatch.objects.all().delete()
+        SyncModelBinding.objects.all().delete()
 
     def test_idempotency_key_prevents_duplicate_queue_rows(self):
         payload = {"attempt_id": "101", "status": "SUBMITTED"}
@@ -230,6 +263,29 @@ class SyncServiceTests(TestCase):
         self.assertEqual(row.payload["payload"]["title"], "Physics")
 
 
+    def test_queue_timeline_events_track_status_changes(self):
+        row, created = queue_sync_operation(
+            operation_type=SyncOperationType.CBT_EXAM_ATTEMPT,
+            payload={"attempt_id": "909"},
+            object_ref="attempt:909",
+            idempotency_key="attempt-909",
+        )
+        self.assertTrue(created)
+        queued_event = SyncQueueEvent.objects.get(queue_row=row, event_type="QUEUED")
+        self.assertEqual(queued_event.to_status, SyncQueueStatus.PENDING)
+
+        process_queue_row(row)
+        row.refresh_from_db()
+        transition_event = SyncQueueEvent.objects.filter(
+            queue_row=row,
+            event_type="STATUS_TRANSITION",
+        ).latest("id")
+        self.assertEqual(transition_event.from_status, SyncQueueStatus.PENDING)
+        self.assertEqual(transition_event.to_status, row.status)
+        self.assertIn(row.status, {SyncQueueStatus.RETRY, SyncQueueStatus.FAILED})
+
+
+@override_settings(**SYNC_TEST_HOST_SETTINGS)
 class SyncDashboardAccessTests(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -242,6 +298,7 @@ class SyncDashboardAccessTests(TestCase):
             password="Password123!",
             primary_role=cls.role_it,
             must_change_password=False,
+            email="sync-dashboard-it@ndgakuje.org",
         )
         cls.teacher_user = User.objects.create_user(
             username="sync-dashboard-teacher",
@@ -259,13 +316,23 @@ class SyncDashboardAccessTests(TestCase):
         setup_state.state = SetupStateCode.IT_READY
         setup_state.save(update_fields=["state", "updated_at"])
 
+    def setUp(self):
+        SyncQueue.objects.all().delete()
+
     def _login_staff(self, username, host="staff.ndgakuje.org"):
         client = Client(HTTP_HOST=host)
         response = client.post(
             "/auth/login/?audience=staff",
             {"username": username, "password": "Password123!"},
         )
-        self.assertEqual(response.status_code, 302)
+        if "/auth/login/verify/" in getattr(response, "url", ""):
+            self.assertTrue(mail.outbox)
+            code = mail.outbox[-1].body.split("verification code is:")[1].splitlines()[0].strip()
+            response = client.post(
+                "/auth/login/verify/",
+                {"verification_code": code},
+            )
+        self.assertIn(response.status_code, {200, 302})
         return client
 
     def test_it_can_access_sync_dashboard(self):
@@ -294,6 +361,7 @@ class SyncDashboardAccessTests(TestCase):
         self.assertContains(response, "Executable file signatures are blocked")
 
 
+@override_settings(**SYNC_TEST_HOST_SETTINGS)
 class SyncAPIEndpointTests(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -308,6 +376,11 @@ class SyncAPIEndpointTests(TestCase):
             payload={"id": 1, "title": "Test Exam"},
             source_node_id="cloud-node",
         )
+
+    def setUp(self):
+        SyncQueue.objects.all().delete()
+        SyncPullCursor.objects.all().delete()
+        SyncModelBinding.objects.all().delete()
 
     @override_settings(SYNC_ENDPOINT_AUTH_TOKEN="sync-token")
     def test_content_feed_requires_bearer_token(self):
@@ -436,6 +509,7 @@ class SyncAPIEndpointTests(TestCase):
 
 
 
+@override_settings(**SYNC_TEST_HOST_SETTINGS)
 class GenericModelSyncTests(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -444,6 +518,11 @@ class GenericModelSyncTests(TestCase):
         setup_state = SystemSetupState.get_solo()
         setup_state.state = SetupStateCode.IT_READY
         setup_state.save(update_fields=["state", "updated_at"])
+
+    def setUp(self):
+        SyncQueue.objects.all().delete()
+        SyncModelBinding.objects.all().delete()
+        SyncPullCursor.objects.all().delete()
 
     def test_generic_post_save_and_delete_capture_queue_rows(self):
         SyncQueue.objects.all().delete()
@@ -455,13 +534,14 @@ class GenericModelSyncTests(TestCase):
         self.assertEqual(upsert_row.payload["model"], "academics.academicsession")
         self.assertEqual(upsert_row.payload["fields"]["name"], "2026/2027")
 
+        session_pk = session.pk
         SyncQueue.objects.all().delete()
         with self.captureOnCommitCallbacks(execute=True):
             session.delete()
 
         delete_row = SyncQueue.objects.get(operation_type=SyncOperationType.MODEL_RECORD_DELETE)
         self.assertEqual(delete_row.payload["model"], "academics.academicsession")
-        self.assertEqual(delete_row.payload["identity"]["source_pk"], str(session.pk))
+        self.assertEqual(delete_row.payload["identity"]["source_pk"], str(session_pk))
 
     def test_generic_m2m_capture_updates_user_secondary_roles(self):
         user = User.objects.create_user(

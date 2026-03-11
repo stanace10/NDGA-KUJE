@@ -841,6 +841,26 @@ class DefaultPortalAccountBootstrapTests(TestCase):
 
 
 
+@override_settings(
+    ALLOWED_HOSTS=[
+        "localhost",
+        "127.0.0.1",
+        "[::1]",
+        "testserver",
+        "ndgakuje.org",
+        ".ndgakuje.org",
+        ".ndga.local",
+    ],
+    CSRF_TRUSTED_ORIGINS=[
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://ndgakuje.org:8000",
+        "http://ndgakuje.org",
+        "http://*.ndgakuje.org",
+        "https://ndgakuje.org",
+        "https://*.ndgakuje.org",
+    ],
+)
 class StageNineteenSecurityTests(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -923,3 +943,36 @@ class StageNineteenSecurityTests(TestCase):
         )
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, "/auth/login/?audience=staff")
+
+
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_privileged_roles_require_email_two_factor_verification(self):
+        cache.clear()
+        self.it_user.email = "security-it@ndgakuje.org"
+        self.it_user.save(update_fields=["email"])
+
+        client = Client(HTTP_HOST="it.ndgakuje.org")
+        response = client.post(
+            "/auth/login/?audience=it",
+            {"username": "security-it", "password": "Password123!"},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("accounts:login-verify"))
+        self.assertNotIn("_auth_user_id", client.session)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("privileged-login verification code is:", mail.outbox[0].body)
+        code = mail.outbox[0].body.split("verification code is:")[1].splitlines()[0].strip()
+
+        verify_response = client.post(
+            reverse("accounts:login-verify"),
+            {"verification_code": code},
+        )
+        self.assertEqual(verify_response.status_code, 302)
+        self.assertEqual(verify_response.url, "http://it.ndgakuje.org/")
+        self.assertEqual(int(client.session["_auth_user_id"]), self.it_user.id)
+        self.assertTrue(
+            AuditEvent.objects.filter(
+                actor=self.it_user,
+                event_type="LOGIN_2FA_VERIFIED",
+            ).exists()
+        )

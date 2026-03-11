@@ -2,13 +2,48 @@ from dataclasses import dataclass
 
 from apps.accounts.constants import (
     PORTAL_ROLE_ACCESS,
+    ROLE_BURSAR,
     ROLE_DEAN,
     ROLE_FORM_TEACHER,
     ROLE_IT_MANAGER,
     ROLE_PRINCIPAL,
+    ROLE_STUDENT,
     ROLE_SUBJECT_TEACHER,
     ROLE_VP,
 )
+
+SCOPE_MANAGE_USERS = "manage_users"
+SCOPE_VIEW_AUDIT = "view_audit"
+SCOPE_MANAGE_SYNC = "manage_sync"
+SCOPE_MANAGE_ALL_CBT = "manage_all_cbt"
+SCOPE_UNLOCK_CBT = "unlock_cbt"
+SCOPE_MANAGE_ELECTIONS = "manage_elections"
+SCOPE_ISSUE_LOGIN_CODES = "issue_login_codes"
+PRIVILEGED_2FA_ROLES = {ROLE_IT_MANAGER, ROLE_BURSAR, ROLE_VP, ROLE_PRINCIPAL}
+
+ROLE_SCOPE_DEFAULTS = {
+    ROLE_IT_MANAGER: {
+        SCOPE_MANAGE_USERS,
+        SCOPE_VIEW_AUDIT,
+        SCOPE_MANAGE_SYNC,
+        SCOPE_MANAGE_ALL_CBT,
+        SCOPE_UNLOCK_CBT,
+        SCOPE_MANAGE_ELECTIONS,
+        SCOPE_ISSUE_LOGIN_CODES,
+    },
+    ROLE_PRINCIPAL: {
+        SCOPE_MANAGE_USERS,
+        SCOPE_VIEW_AUDIT,
+        SCOPE_MANAGE_SYNC,
+        SCOPE_MANAGE_ALL_CBT,
+        SCOPE_MANAGE_ELECTIONS,
+    },
+    ROLE_VP: {
+        SCOPE_MANAGE_USERS,
+        SCOPE_MANAGE_ALL_CBT,
+    },
+    ROLE_BURSAR: set(),
+}
 
 
 class WorkflowState:
@@ -55,6 +90,24 @@ def user_role_codes(user):
     return user.get_all_role_codes()
 
 
+def user_permission_scopes(user):
+    if not getattr(user, "is_authenticated", False):
+        return set()
+    role_scopes = set()
+    for role_code in user_role_codes(user):
+        role_scopes.update(ROLE_SCOPE_DEFAULTS.get(role_code, set()))
+    stored_scopes = set(getattr(user, "get_permission_scopes", lambda: [])())
+    return role_scopes | stored_scopes
+
+
+def has_scope(user, scope_code):
+    return scope_code in user_permission_scopes(user)
+
+
+def requires_two_factor(user):
+    return bool(user_role_codes(user) & PRIVILEGED_2FA_ROLES)
+
+
 def has_any_role(user, role_codes):
     return bool(user_role_codes(user) & set(role_codes))
 
@@ -95,4 +148,3 @@ def can_access_assigned_object(user, obj, policy=AssignmentAccessPolicy()):
     if owner_id is None:
         return False
     return owner_id == user.id
-

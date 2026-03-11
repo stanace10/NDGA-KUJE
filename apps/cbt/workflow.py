@@ -1,3 +1,6 @@
+import hashlib
+import json
+
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 
@@ -8,6 +11,138 @@ from apps.cbt.models import (
     ExamReviewAction,
     SimulationWrapper,
 )
+
+
+def _file_name(file_field):
+    if not file_field:
+        return ""
+    return getattr(file_field, "name", "") or ""
+
+
+def _activation_snapshot_payload(exam: Exam):
+    blueprint = getattr(exam, "blueprint", None)
+    exam_questions = exam.exam_questions.select_related("question").prefetch_related(
+        "question__options",
+        "question__correct_answer__correct_options",
+    ).order_by("sort_order")
+    exam_simulations = exam.exam_simulations.select_related("simulation_wrapper").order_by("sort_order")
+    return {
+        "exam": {
+            "id": exam.id,
+            "title": exam.title,
+            "description": exam.description,
+            "exam_type": exam.exam_type,
+            "status": exam.status,
+            "created_by_id": exam.created_by_id,
+            "assignment_id": exam.assignment_id,
+            "subject_id": exam.subject_id,
+            "academic_class_id": exam.academic_class_id,
+            "session_id": exam.session_id,
+            "term_id": exam.term_id,
+            "question_bank_id": exam.question_bank_id,
+            "dean_reviewed_by_id": exam.dean_reviewed_by_id,
+            "dean_reviewed_at": exam.dean_reviewed_at.isoformat() if exam.dean_reviewed_at else "",
+            "activated_by_id": exam.activated_by_id,
+            "activated_at": exam.activated_at.isoformat() if exam.activated_at else "",
+            "activation_comment": exam.activation_comment,
+            "schedule_start": exam.schedule_start.isoformat() if exam.schedule_start else "",
+            "schedule_end": exam.schedule_end.isoformat() if exam.schedule_end else "",
+            "is_time_based": bool(exam.is_time_based),
+            "open_now": bool(exam.open_now),
+            "is_free_test": bool(exam.is_free_test),
+        },
+        "blueprint": {
+            "duration_minutes": getattr(blueprint, "duration_minutes", None),
+            "max_attempts": getattr(blueprint, "max_attempts", None),
+            "shuffle_questions": bool(getattr(blueprint, "shuffle_questions", False)),
+            "shuffle_options": bool(getattr(blueprint, "shuffle_options", False)),
+            "instructions": getattr(blueprint, "instructions", ""),
+            "section_config": getattr(blueprint, "section_config", {}) or {},
+            "passing_score": str(getattr(blueprint, "passing_score", "0")),
+            "objective_writeback_target": getattr(blueprint, "objective_writeback_target", ""),
+            "theory_enabled": bool(getattr(blueprint, "theory_enabled", False)),
+            "theory_writeback_target": getattr(blueprint, "theory_writeback_target", ""),
+            "auto_show_result_on_submit": bool(getattr(blueprint, "auto_show_result_on_submit", False)),
+            "finalize_on_logout": bool(getattr(blueprint, "finalize_on_logout", False)),
+            "allow_retake": bool(getattr(blueprint, "allow_retake", False)),
+        },
+        "questions": [
+            {
+                "exam_question_id": row.id,
+                "sort_order": row.sort_order,
+                "marks": str(row.marks),
+                "question": {
+                    "id": row.question_id,
+                    "question_type": row.question.question_type,
+                    "stem": row.question.stem,
+                    "rich_stem": row.question.rich_stem,
+                    "topic": row.question.topic,
+                    "difficulty": row.question.difficulty,
+                    "marks": str(row.question.marks),
+                    "source_type": row.question.source_type,
+                    "source_reference": row.question.source_reference,
+                    "stimulus_image": _file_name(row.question.stimulus_image),
+                    "stimulus_video": _file_name(row.question.stimulus_video),
+                    "stimulus_caption": row.question.stimulus_caption,
+                    "shared_stimulus_key": row.question.shared_stimulus_key,
+                    "options": [
+                        {
+                            "id": option.id,
+                            "label": option.label,
+                            "option_text": option.option_text,
+                            "sort_order": option.sort_order,
+                        }
+                        for option in row.question.options.order_by("sort_order", "id")
+                    ],
+                    "correct_answers": (
+                        [
+                            {
+                                "id": row.question.correct_answer.id,
+                                "note": row.question.correct_answer.note,
+                                "is_finalized": bool(row.question.correct_answer.is_finalized),
+                                "correct_option_ids": list(
+                                    row.question.correct_answer.correct_options.order_by("sort_order", "id").values_list("id", flat=True)
+                                ),
+                            }
+                        ]
+                        if getattr(row.question, "correct_answer", None)
+                        else []
+                    ),
+                },
+            }
+            for row in exam_questions
+        ],
+        "simulations": [
+            {
+                "exam_simulation_id": row.id,
+                "sort_order": row.sort_order,
+                "writeback_target": row.writeback_target,
+                "max_score_override": str(row.max_score_override) if row.max_score_override is not None else "",
+                "is_required": bool(row.is_required),
+                "wrapper": {
+                    "id": row.simulation_wrapper_id,
+                    "tool_name": row.simulation_wrapper.tool_name,
+                    "tool_type": row.simulation_wrapper.tool_type,
+                    "source_provider": row.simulation_wrapper.source_provider,
+                    "source_reference_url": row.simulation_wrapper.source_reference_url,
+                    "tool_category": row.simulation_wrapper.tool_category,
+                    "description": row.simulation_wrapper.description,
+                    "online_url": row.simulation_wrapper.online_url,
+                    "offline_asset_path": row.simulation_wrapper.offline_asset_path,
+                    "score_mode": row.simulation_wrapper.score_mode,
+                    "max_score": str(row.simulation_wrapper.max_score),
+                    "scoring_callback_type": row.simulation_wrapper.scoring_callback_type,
+                    "evidence_required": bool(row.simulation_wrapper.evidence_required),
+                },
+            }
+            for row in exam_simulations
+        ],
+    }
+
+
+def _activation_snapshot_hash(snapshot):
+    payload = json.dumps(snapshot, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def _transition_exam(*, exam: Exam, to_status, actor, action, comment=""):
@@ -135,6 +270,10 @@ def it_activate_exam(
     exam.activated_at = timezone.now()
     exam.activation_comment = (comment or "").strip()
     exam.status = CBTExamStatus.ACTIVE
+    if exam.activation_snapshot_hash:
+        raise ValidationError("Exam activation snapshot already exists for this exam.")
+    exam.activation_snapshot = _activation_snapshot_payload(exam)
+    exam.activation_snapshot_hash = _activation_snapshot_hash(exam.activation_snapshot)
     exam.full_clean()
     exam.save(
         update_fields=[
@@ -146,6 +285,8 @@ def it_activate_exam(
             "activated_at",
             "activation_comment",
             "status",
+            "activation_snapshot",
+            "activation_snapshot_hash",
             "updated_at",
         ]
     )
