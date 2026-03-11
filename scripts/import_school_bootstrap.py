@@ -51,6 +51,28 @@ STUDENT_ROW_RE = re.compile(r"^\s*(\d+)\s*(?:\u2014|-)\s*(.*?)\s*(?:\u2014|-)\s*
 CLASS_LEVEL_RE = re.compile(r"(JS|SS)([123](?:,[123])*)")
 JUNIOR_SELECTIVE_LANGUAGE_NAMES = {"HAUSA LANGUAGE", "IGBO LANGUAGE", "YORUBA LANGUAGE"}
 JS1_COMPULSORY_LANGUAGE_NAMES = {"HAUSA LANGUAGE"}
+SENIOR_DEFAULT_ENROLLMENT_LABELS = {
+    "SS1": {
+        "English Language",
+        "Mathematics",
+        "Digital Technology",
+        "Citizenship and Heritage Studies",
+        "Garment Making Theory",
+        "Garment Making Practical",
+        "Livestock",
+    },
+    "SS2": {
+        "English Language",
+        "Mathematics",
+        "Civic Education",
+    },
+    "SS3": {
+        "English Language",
+        "Mathematics",
+        "Civic Education",
+    },
+}
+
 JUNIOR_CLASS_OFFERING_LABELS = {
     "JS1": {
         "Mathematics",
@@ -408,33 +430,9 @@ def ensure_subjects_and_mappings(teacher_rows, base_classes):
                 row.save(update_fields=["is_active", "updated_at"])
     return subjects
 
-def enroll_junior_subjects(user, session, academic_class):
-    base_class = academic_class.base_class or academic_class
-    if base_class.code not in {"JS1", "JS2", "JS3"}:
-        return 0
-    class_subject_rows = list(
-        ClassSubject.objects.filter(academic_class=base_class, is_active=True).select_related("subject")
-    )
-    if base_class.code == "JS1":
-        disallowed_language_names = JUNIOR_SELECTIVE_LANGUAGE_NAMES - JS1_COMPULSORY_LANGUAGE_NAMES
-    else:
-        disallowed_language_names = set(JUNIOR_SELECTIVE_LANGUAGE_NAMES)
-    allowed_subject_ids = {
-        row.subject_id
-        for row in class_subject_rows
-        if row.subject.name.upper() not in disallowed_language_names
-    }
-    disallowed_subject_ids = {
-        row.subject_id
-        for row in class_subject_rows
-        if row.subject.name.upper() in disallowed_language_names
-    }
-    if disallowed_subject_ids:
-        StudentSubjectEnrollment.objects.filter(
-            student=user,
-            session=session,
-            subject_id__in=disallowed_subject_ids,
-        ).delete()
+def _sync_student_subject_enrollment(user, session, allowed_subject_ids):
+    allowed_subject_ids = set(allowed_subject_ids)
+    StudentSubjectEnrollment.objects.filter(student=user, session=session).exclude(subject_id__in=allowed_subject_ids).delete()
     created_total = 0
     for subject_id in sorted(allowed_subject_ids):
         _, created = StudentSubjectEnrollment.objects.get_or_create(
@@ -446,6 +444,33 @@ def enroll_junior_subjects(user, session, academic_class):
         if created:
             created_total += 1
     return created_total
+
+
+def enroll_default_subjects(user, session, academic_class):
+    base_class = academic_class.base_class or academic_class
+    class_subject_rows = list(
+        ClassSubject.objects.filter(academic_class=base_class, is_active=True).select_related("subject")
+    )
+    if base_class.code in {"JS1", "JS2", "JS3"}:
+        if base_class.code == "JS1":
+            disallowed_language_names = JUNIOR_SELECTIVE_LANGUAGE_NAMES - JS1_COMPULSORY_LANGUAGE_NAMES
+        else:
+            disallowed_language_names = set(JUNIOR_SELECTIVE_LANGUAGE_NAMES)
+        allowed_subject_ids = {
+            row.subject_id
+            for row in class_subject_rows
+            if row.subject.name.upper() not in disallowed_language_names
+        }
+        return _sync_student_subject_enrollment(user, session, allowed_subject_ids)
+    if base_class.code in SENIOR_DEFAULT_ENROLLMENT_LABELS:
+        allowed_labels = {label.upper() for label in SENIOR_DEFAULT_ENROLLMENT_LABELS[base_class.code]}
+        allowed_subject_ids = {
+            row.subject_id
+            for row in class_subject_rows
+            if row.subject.name.upper() in allowed_labels
+        }
+        return _sync_student_subject_enrollment(user, session, allowed_subject_ids)
+    return 0
 
 
 @transaction.atomic
@@ -542,7 +567,7 @@ def run_import(source_dir, session_name, term_name, credentials_output):
             session=session,
             defaults={"academic_class": academic_class, "is_active": True},
         )
-        enroll_junior_subjects(user, session, academic_class)
+        enroll_default_subjects(user, session, academic_class)
         student_credentials.append(
             {
                 "name": collapse(f"{user.last_name} {user.first_name} {user.student_profile.middle_name}"),
