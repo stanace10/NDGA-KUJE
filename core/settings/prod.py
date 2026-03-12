@@ -15,6 +15,8 @@ ALLOWED_HOSTS = env.list(
         f".{NDGA_BASE_DOMAIN}",
     ],
 )
+if NDGA_LOCAL_SIMPLE_HOST_MODE and "*" not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS = ["*"]
 CSRF_TRUSTED_ORIGINS = env.list(
     "DJANGO_CSRF_TRUSTED_ORIGINS",
     default=[

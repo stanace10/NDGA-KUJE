@@ -1,4 +1,6 @@
-from apps.accounts.permissions import SCOPE_ISSUE_LOGIN_CODES, has_scope
+from django.urls import reverse
+
+from apps.accounts.permissions import SCOPE_ISSUE_LOGIN_CODES, has_portal_access, has_scope
 from apps.accounts.constants import ROLE_HOME_PORTAL
 from apps.tenancy.utils import build_portal_url
 
@@ -10,6 +12,16 @@ def get_primary_role_code(user):
 
 
 def resolve_role_home_url(user, request):
+    preferred_portal = ""
+    if hasattr(request, "session"):
+        preferred_portal = (request.session.get("last_authenticated_portal") or "").strip().lower()
+    special_portal_paths = {
+        "cbt": reverse("cbt:home"),
+        "election": reverse("elections:home"),
+    }
+    if preferred_portal in special_portal_paths and has_portal_access(user, preferred_portal):
+        return build_portal_url(request, preferred_portal, special_portal_paths[preferred_portal])
+
     role_code = get_primary_role_code(user)
     portal_key = ROLE_HOME_PORTAL.get(role_code, "staff")
     return build_portal_url(request, portal_key, "/")

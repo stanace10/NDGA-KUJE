@@ -1,3 +1,4 @@
+import ipaddress
 from urllib.parse import urlencode
 
 from django.conf import settings
@@ -21,13 +22,14 @@ _LOCAL_SIMPLE_PATH_PORTAL_HINTS = (
     ("/audit/", "it"),
     ("/setup/", "it"),
     ("/auth/it/", "it"),
-    ("/cbt/it/", "it"),
     ("/cbt/exams/", "cbt"),
     ("/cbt/attempts/", "cbt"),
-    ("/cbt/authoring/", "staff"),
-    ("/cbt/dean/", "staff"),
-    ("/cbt/marking/", "staff"),
-    ("/cbt/simulator/", "staff"),
+    ("/cbt/it/", "it"),
+    ("/cbt/authoring/", "cbt"),
+    ("/cbt/dean/", "cbt"),
+    ("/cbt/marking/", "cbt"),
+    ("/cbt/simulator/", "cbt"),
+    ("/cbt/", "cbt"),
     ("/elections/it/", "it"),
     ("/elections/vote/", "election"),
     ("/elections/analytics/", "election"),
@@ -57,7 +59,13 @@ def normalize_host(host):
 
 def _is_local_like_host(host):
     normalized = normalize_host(host)
-    return normalized in _LOCAL_HOSTS or normalized.endswith(".local")
+    if normalized in _LOCAL_HOSTS or normalized.endswith(".local"):
+        return True
+    try:
+        parsed = ipaddress.ip_address(normalized.strip("[]"))
+    except ValueError:
+        return False
+    return parsed.is_private or parsed.is_loopback or parsed.is_link_local
 
 
 def _local_simple_host_mode_enabled(request):

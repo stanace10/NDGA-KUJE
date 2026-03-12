@@ -2659,6 +2659,7 @@ def student_exam_authorization_reason(*, student, exam, now=None):
 
 def student_available_exams(student):
     now = timezone.now()
+    recent_closed_cutoff = now - timezone.timedelta(hours=24)
     close_expired_exams(now=now)
     exams = (
         Exam.objects.select_related(
@@ -2678,6 +2679,13 @@ def student_available_exams(student):
 
         attempt_qs = ExamAttempt.objects.filter(exam=exam, student=student)
         latest_attempt = attempt_qs.order_by("-updated_at").first()
+        if exam.status == CBTExamStatus.CLOSED:
+            if latest_attempt is None:
+                continue
+            closed_anchor = exam.schedule_end or exam.updated_at
+            latest_seen_at = getattr(latest_attempt, "updated_at", None) or getattr(latest_attempt, "submitted_at", None)
+            if closed_anchor and closed_anchor < recent_closed_cutoff and latest_seen_at and latest_seen_at < recent_closed_cutoff:
+                continue
         blueprint = getattr(exam, "blueprint", None) or ensure_default_blueprint(exam)
         is_done = bool(
             latest_attempt and latest_attempt.status in {CBTAttemptStatus.SUBMITTED, CBTAttemptStatus.FINALIZED}

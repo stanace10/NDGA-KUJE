@@ -20,7 +20,7 @@ from apps.academics.models import (
     Term,
 )
 from apps.attendance.models import SchoolCalendar
-from apps.setup_wizard.models import SetupStateCode, SystemSetupState
+from apps.setup_wizard.models import RuntimeFeatureFlags, SetupStateCode, SystemSetupState
 
 
 class SetupWizardFlowTests(TestCase):
@@ -299,6 +299,38 @@ class SetupWizardFlowTests(TestCase):
         )
         ss3_student.student_profile.refresh_from_db()
         self.assertTrue(ss3_student.student_profile.is_graduated)
+
+    @override_settings(
+        FEATURE_FLAGS={
+            "CBT_ENABLED": True,
+            "ELECTION_ENABLED": True,
+            "OFFLINE_MODE_ENABLED": True,
+            "LOCKDOWN_ENABLED": True,
+        }
+    )
+    def test_runtime_feature_flags_sync_to_env_when_singleton_is_untouched(self):
+        flags = RuntimeFeatureFlags.get_solo()
+        flags.cbt_enabled = False
+        flags.election_enabled = False
+        flags.offline_mode_enabled = False
+        flags.lockdown_enabled = False
+        flags.last_updated_by = None
+        flags.save(
+            update_fields=[
+                "cbt_enabled",
+                "election_enabled",
+                "offline_mode_enabled",
+                "lockdown_enabled",
+                "last_updated_by",
+                "updated_at",
+            ]
+        )
+        resolved = RuntimeFeatureFlags.get_solo()
+        self.assertEqual(resolved.id, flags.id)
+        self.assertTrue(resolved.cbt_enabled)
+        self.assertTrue(resolved.election_enabled)
+        self.assertTrue(resolved.offline_mode_enabled)
+        self.assertTrue(resolved.lockdown_enabled)
 
     def test_grade_scale_step_accepts_custom_ranges(self):
         client = Client(HTTP_HOST="it.ndgakuje.org")

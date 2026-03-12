@@ -1,4 +1,4 @@
-{% extends "layouts/base.html" %}
+ï»¿{% extends "layouts/base.html" %}
 
 {% block title %}Result Upload Statistics{% endblock %}
 
@@ -88,15 +88,15 @@
           <div class="mt-4 grid gap-4 md:grid-cols-3">
             <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <h3 class="text-sm font-semibold text-slate-900">Dean Review</h3>
-              <div class="mt-2 space-y-2 text-sm text-slate-700">{% for row in stats.dean_pending_rows %}<p>{{ row.class_name }} · {{ row.subject_name }} · {{ row.teacher_name }}</p>{% empty %}<p>-</p>{% endfor %}</div>
+              <div class="mt-2 space-y-2 text-sm text-slate-700">{% for row in stats.dean_pending_rows %}<p>{{ row.class_name }} | {{ row.subject_name }} | {{ row.teacher_name }}</p>{% empty %}<p>-</p>{% endfor %}</div>
             </div>
             <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <h3 class="text-sm font-semibold text-slate-900">Form Compilation</h3>
-              <div class="mt-2 space-y-2 text-sm text-slate-700">{% for row in stats.form_pending_rows %}<p>{{ row.class_name }} · {{ row.status }}</p>{% empty %}<p>-</p>{% endfor %}</div>
+              <div class="mt-2 space-y-2 text-sm text-slate-700">{% for row in stats.form_pending_rows %}<p>{{ row.class_name }} | {{ row.status }}</p>{% empty %}<p>-</p>{% endfor %}</div>
             </div>
             <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <h3 class="text-sm font-semibold text-slate-900">VP Publish</h3>
-              <div class="mt-2 space-y-2 text-sm text-slate-700">{% for row in stats.vp_pending_rows %}<p>{{ row.class_name }} · {{ row.status }}</p>{% empty %}<p>-</p>{% endfor %}</div>
+              <div class="mt-2 space-y-2 text-sm text-slate-700">{% for row in stats.vp_pending_rows %}<p>{{ row.class_name }} | {{ row.status }}</p>{% empty %}<p>-</p>{% endfor %}</div>
             </div>
           </div>
         </article>

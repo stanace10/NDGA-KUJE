@@ -31,7 +31,7 @@ from apps.accounts.constants import (
     ROLE_VP,
 )
 from apps.accounts.permissions import has_any_role
-from apps.academics.models import AcademicSession, Subject, Term
+from apps.academics.models import AcademicSession, StudentClassEnrollment, Subject, Term
 from apps.audit.models import AuditCategory, AuditEvent, AuditStatus
 from apps.audit.services import log_cbt_config_edit, log_event
 from apps.cbt.forms import (
@@ -124,6 +124,7 @@ from apps.cbt.workflow import (
     dean_reject_exam,
     it_activate_exam,
     it_close_exam,
+    it_revoke_exam,
     submit_exam_to_it_manager,
     submit_simulation_to_dean,
     submit_exam_to_dean,
@@ -156,7 +157,12 @@ logger = logging.getLogger(__name__)
 
 def _exam_is_editable_for_actor(*, actor, exam):
     if can_manage_all_cbt(actor):
-        return True
+        return exam.status in {
+            CBTExamStatus.DRAFT,
+            CBTExamStatus.PENDING_DEAN,
+            CBTExamStatus.PENDING_IT,
+            CBTExamStatus.APPROVED,
+        }
     return exam.status == CBTExamStatus.DRAFT
 
 
@@ -512,7 +518,7 @@ class CBTHomeRedirectView(LoginRequiredMixin, RedirectView):
         if user.has_role(ROLE_IT_MANAGER):
             return reverse("cbt:it-activation-list")
         if user.has_role(ROLE_DEAN):
-            return reverse("results:dean-result-review-list")
+            return reverse("cbt:dean-review-list")
         return reverse("cbt:authoring-home")
 
 
@@ -1432,6 +1438,7 @@ class CBTExamDetailView(CBTAuthoringAccessMixin, TemplateView):
             or section_config.get("flow_type") == ExamCreateForm.FLOW_SIMULATION
         )
         context["exam"] = self.exam
+        context["exam_blueprint"] = blueprint
         context["show_simulation_section"] = show_simulation_section
         context["exam_questions"] = (
             self.exam.exam_questions.select_related("question")
@@ -2074,6 +2081,7 @@ class CBTDeanReviewDetailView(CBTDeanAccessMixin, TemplateView):
             or section_config.get("flow_type") == ExamCreateForm.FLOW_SIMULATION
         )
         context["exam"] = self.exam
+        context["exam_blueprint"] = blueprint
         context["decision_form"] = kwargs.get("decision_form") or DeanExamDecisionForm()
         context["show_simulation_section"] = show_simulation_section
         context["exam_questions"] = (
@@ -2242,12 +2250,17 @@ class CBTITActivationDetailView(CBTITAccessMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        total_attempt_count = self.exam.attempts.count()
         context["exam"] = self.exam
+        context["exam_blueprint"] = getattr(self.exam, "blueprint", None)
         context["can_activate"] = self.exam.status == CBTExamStatus.APPROVED or (
             self.exam.is_free_test and self.exam.status == CBTExamStatus.PENDING_IT
         )
+        context["can_revoke"] = self.exam.status == CBTExamStatus.ACTIVE and total_attempt_count == 0
+        context["total_attempt_count"] = total_attempt_count
         context["activation_form"] = kwargs.get("activation_form") or ITExamActivationForm(exam=self.exam)
         context["close_form"] = kwargs.get("close_form") or ITExamCloseForm()
+        context["revoke_form"] = kwargs.get("revoke_form") or ITExamCloseForm(prefix="revoke")
         context["exam_questions"] = self.exam.exam_questions.select_related("question").order_by("sort_order")
         context["exam_simulations"] = self.exam.exam_simulations.select_related(
             "simulation_wrapper"
@@ -2317,6 +2330,30 @@ class CBTITActivationDetailView(CBTITAccessMixin, TemplateView):
             messages.success(request, "Exam closed.")
             return redirect("cbt:it-activation-detail", exam_id=self.exam.id)
 
+        if action == "revoke":
+            revoke_form = ITExamCloseForm(request.POST, prefix="revoke")
+            if not revoke_form.is_valid():
+                return self.render_to_response(self.get_context_data(revoke_form=revoke_form))
+            try:
+                it_revoke_exam(
+                    exam=self.exam,
+                    actor=request.user,
+                    comment=revoke_form.cleaned_data.get("comment", ""),
+                )
+            except ValidationError as exc:
+                messages.error(request, "; ".join(exc.messages))
+                return redirect("cbt:it-activation-detail", exam_id=self.exam.id)
+            log_event(
+                category=AuditCategory.CBT,
+                event_type="IT_REVOKE_EXAM",
+                status=AuditStatus.SUCCESS,
+                actor=request.user,
+                request=request,
+                metadata={"exam_id": str(self.exam.id)},
+            )
+            messages.success(request, "Exam revoked from the CBT board and moved back to the approved queue.")
+            return redirect("cbt:it-activation-detail", exam_id=self.exam.id)
+
         if action == "pause_timer":
             try:
                 pause_exam_timer(
@@ -2371,6 +2408,8 @@ class CBTStudentExamListView(CBTStudentAccessMixin, TemplateView):
         exam_type = self._filter_value("exam_type")
         schedule_status = self._filter_value("status")
         recent_status = self._filter_value("recent_status")
+        student = self.request.user
+        student_profile = getattr(student, "student_profile", None)
 
         all_exam_rows = student_available_exams(self.request.user)
         exam_rows = list(all_exam_rows)
@@ -2409,6 +2448,37 @@ class CBTStudentExamListView(CBTStudentAccessMixin, TemplateView):
         for attempt in recent_attempts[:20]:
             subject_options[attempt.exam.subject_id] = attempt.exam.subject
 
+        setup_state = get_setup_state()
+        enrollment_qs = StudentClassEnrollment.objects.select_related("academic_class", "session").filter(
+            student=student,
+            is_active=True,
+        )
+        if getattr(setup_state, "current_session_id", None):
+            current_enrollment = enrollment_qs.filter(session=setup_state.current_session).first()
+        else:
+            current_enrollment = None
+        if current_enrollment is None:
+            current_enrollment = enrollment_qs.order_by("-updated_at").first()
+
+        student_photo_url = ""
+        if student_profile and getattr(student_profile, "profile_photo", None):
+            try:
+                student_photo_url = student_profile.profile_photo.url
+            except Exception:
+                student_photo_url = ""
+        student_display_name = (student.display_name or "").strip() or student.get_full_name() or student.username
+        student_number = getattr(student_profile, "student_number", "") or student.username
+        if current_enrollment:
+            student_class_code = (
+                current_enrollment.academic_class.display_name
+                or current_enrollment.academic_class.code
+            )
+        else:
+            student_class_code = "Not Assigned"
+        mini_bio_parts = [student_number, student_class_code]
+        if student_profile and student_profile.admission_date:
+            mini_bio_parts.append(f"Admitted {student_profile.admission_date:%d %b %Y}")
+
         context.update({
             "exam_rows": exam_rows,
             "recent_attempts": list(recent_attempts[:12]),
@@ -2420,6 +2490,11 @@ class CBTStudentExamListView(CBTStudentAccessMixin, TemplateView):
             "recent_window_hours": self.RECENT_WINDOW_HOURS,
             "exam_type_options": CBTExamType.choices,
             "attempt_status_options": CBTAttemptStatus.choices,
+            "student_display_name": student_display_name,
+            "student_number": student_number,
+            "student_class_code": student_class_code,
+            "student_photo_url": student_photo_url,
+            "student_mini_bio": " | ".join(part for part in mini_bio_parts if part),
         })
         return context
 

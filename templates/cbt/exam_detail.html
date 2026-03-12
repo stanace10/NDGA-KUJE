@@ -24,6 +24,12 @@
         <div class="mt-6 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
           This page is read-only because the exam is already in workflow.
         </div>
+        {% if exam_blueprint and exam_blueprint.instructions %}
+          <div class="mt-4 rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-slate-700">
+            <p class="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-800">Instructions</p>
+            <div class="mt-2 leading-relaxed">{{ exam_blueprint.instructions|linebreaksbr }}</div>
+          </div>
+        {% endif %}
         <h2 class="mt-6 text-lg font-semibold text-ndga-navy">Question Set</h2>
         <div class="mt-2 overflow-x-auto rounded-2xl border border-slate-200">
           <table class="min-w-full divide-y divide-slate-200 text-sm">
@@ -43,7 +49,7 @@
                   <td class="px-3 py-2 text-slate-700">{{ row.question.get_question_type_display }}</td>
                   <td class="px-3 py-2 text-slate-700">{{ row.marks }}</td>
                   <td class="px-3 py-2 text-slate-700">
-                    <p class="font-medium text-slate-800">{{ row.question.stem }}</p>
+                    <div class="font-medium text-slate-800">{% if row.question.rich_stem %}{{ row.question.rich_stem|safe }}{% else %}{{ row.question.stem }}{% endif %}</div>
                     {% if row.question.options.all %}
                       <p class="mt-1 text-xs text-slate-600">
                         {% for option in row.question.options.all %}

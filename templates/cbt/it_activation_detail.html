@@ -20,6 +20,12 @@
         <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
           Timed CBTs close automatically once the end time passes. Use timer pause only for hall-wide interruptions such as power outage.
         </div>
+        {% if exam_blueprint and exam_blueprint.instructions %}
+          <div class="mt-4 rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-slate-700">
+            <p class="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-800">Current Instructions</p>
+            <div class="mt-2 leading-relaxed">{{ exam_blueprint.instructions|linebreaksbr }}</div>
+          </div>
+        {% endif %}
 
         <div class="mt-4 flex flex-wrap gap-3">
           <a href="{{ builder_url }}" class="ndga-btn ndga-btn-primary">Edit Questions</a>
@@ -84,6 +90,27 @@
           {% endfor %}
           <button type="submit" class="ndga-btn ndga-btn-secondary" {% if exam.status != "ACTIVE" %}disabled{% endif %}>Close Exam</button>
         </form>
+
+        <h2 class="mt-6 text-lg font-semibold text-ndga-navy">Revoke From CBT Board</h2>
+        <div class="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+          {% if can_revoke %}
+            <p>Use revoke only before any student starts the paper. The exam moves back to the approved queue and disappears from the student CBT board until you publish it again.</p>
+          {% else %}
+            <p>Revoke is unavailable once any student has started. Total attempts recorded: {{ total_attempt_count }}. Use Close to stop an active paper instead.</p>
+          {% endif %}
+        </div>
+        <form method="post" class="mt-3 space-y-3">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="revoke">
+          {% for field in revoke_form %}
+            <div>
+              <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ field.id_for_label }}">{{ field.label }}</label>
+              {{ field }}
+              {% if field.errors %}<p class="mt-1 text-xs text-rose-700">{{ field.errors|striptags }}</p>{% endif %}
+            </div>
+          {% endfor %}
+          <button type="submit" class="ndga-btn ndga-btn-secondary" {% if not can_revoke %}disabled{% endif %}>Revoke Exam</button>
+        </form>
       </article>
 
       <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -113,7 +140,9 @@
               {% for row in exam_questions %}
                 <tr>
                   <td class="px-3 py-2 font-semibold text-slate-800">{{ row.sort_order }}</td>
-                  <td class="px-3 py-2 text-slate-700">{{ row.question.stem|truncatechars:130 }}</td>
+                  <td class="px-3 py-2 text-slate-700">
+                    <div class="max-w-2xl truncate">{% if row.question.rich_stem %}{{ row.question.rich_stem|safe|striptags|truncatechars:130 }}{% else %}{{ row.question.stem|truncatechars:130 }}{% endif %}</div>
+                  </td>
                 </tr>
               {% empty %}
                 <tr><td colspan="2" class="px-3 py-4 text-slate-500">No attached questions.</td></tr>

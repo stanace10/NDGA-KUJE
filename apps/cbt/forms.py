@@ -1083,7 +1083,12 @@ class DeanSimulationDecisionForm(forms.Form):
 
 
 class ITExamActivationForm(forms.Form):
-    open_now = forms.BooleanField(required=False, initial=False, label="Open immediately")
+    open_now = forms.BooleanField(
+        required=False,
+        initial=False,
+        label="Open now",
+        help_text="Students can see scheduled exams immediately, but they can only start at the schedule time unless this is enabled.",
+    )
     is_time_based = forms.BooleanField(required=False, initial=True, label="Use schedule window")
     schedule_start = forms.DateTimeField(
         required=False,

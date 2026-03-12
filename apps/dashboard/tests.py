@@ -118,10 +118,10 @@ class StudentDashboardAttendanceTests(TestCase):
         response = client.get("/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Welcome back")
-        self.assertContains(response, "Next Actions")
         self.assertContains(response, "Quick Access")
         self.assertContains(response, "Attendance")
         self.assertContains(response, "Attendance Metrics")
+        self.assertNotContains(response, "Practice CBT")
         self.assertNotContains(response, "CBT Entry")
         self.assertNotContains(response, "Election Entry")
         self.assertNotContains(response, "CBT:")
@@ -136,7 +136,6 @@ class StudentDashboardAttendanceTests(TestCase):
         self.assertEqual(login.status_code, 302)
         response = client.get("/")
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Next Actions")
         self.assertContains(response, "Quick Access")
         self.assertContains(response, "Profile")
         self.assertContains(response, "CBT Entry")
@@ -467,7 +466,7 @@ class DashboardIntelligenceTests(TestCase):
         response = client.get("/portal/student/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Academic Analytics")
-        self.assertContains(response, "Practice CBT")
+        self.assertNotContains(response, "Practice CBT")
 
     def test_staff_portal_renders_teacher_performance_dashboard(self):
         client = Client(HTTP_HOST="staff.ndgakuje.org")

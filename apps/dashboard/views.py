@@ -609,12 +609,6 @@ def _student_dashboard_payload(request, user):
             "badge": "Fees",
         },
         {
-            "label": "Practice CBT",
-            "description": "Open scheduled and practice CBT papers for your class and subjects.",
-            "url": reverse("cbt:student-exam-list"),
-            "badge": "CBT",
-        },
-        {
             "label": "Learning Hub",
             "description": "Open assignments, study materials, past questions, and AI tutor help.",
             "url": reverse("dashboard:student-learning-hub"),
@@ -2028,6 +2022,9 @@ class PrincipalElectionLiveView(PortalPageView):
 class CBTPortalView(PortalPageView):
     portal_name = "CBT Portal"
     portal_description = "Computer-based testing environment."
+
+    def get(self, request, *args, **kwargs):
+        return redirect("cbt:home")
 
 
 class ElectionPortalView(PortalPageView):

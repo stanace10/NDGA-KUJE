@@ -14,6 +14,7 @@ import django
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", os.getenv("DJANGO_SETTINGS_MODULE", "core.settings.local"))
 django.setup()
 
+from django.conf import settings
 from django.core.management import call_command
 from django.db import transaction
 from django.utils import timezone
@@ -41,7 +42,7 @@ from apps.academics.models import (
     Term,
     TermName,
 )
-from apps.setup_wizard.models import SetupStateCode, SystemSetupState
+from apps.setup_wizard.models import RuntimeFeatureFlags, SetupStateCode, SystemSetupState
 
 LEVELS = ("JS1", "JS2", "JS3", "SS1", "SS2", "SS3")
 ARMS = ("BLUE", "GOLD")
@@ -355,6 +356,22 @@ def ensure_setup(session_name, term_name):
     state.current_term = term
     state.last_updated_by = actor
     state.save(update_fields=["state", "current_session", "current_term", "last_updated_by", "updated_at"])
+    runtime_flags = RuntimeFeatureFlags.get_solo()
+    runtime_flags.cbt_enabled = bool(settings.FEATURE_FLAGS.get("CBT_ENABLED", False))
+    runtime_flags.election_enabled = bool(settings.FEATURE_FLAGS.get("ELECTION_ENABLED", False))
+    runtime_flags.offline_mode_enabled = bool(settings.FEATURE_FLAGS.get("OFFLINE_MODE_ENABLED", True))
+    runtime_flags.lockdown_enabled = bool(settings.FEATURE_FLAGS.get("LOCKDOWN_ENABLED", True))
+    runtime_flags.last_updated_by = actor
+    runtime_flags.save(
+        update_fields=[
+            "cbt_enabled",
+            "election_enabled",
+            "offline_mode_enabled",
+            "lockdown_enabled",
+            "last_updated_by",
+            "updated_at",
+        ]
+    )
     call_command("ensure_default_portal_accounts")
     return actor, session, term
 

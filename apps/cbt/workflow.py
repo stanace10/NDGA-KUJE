@@ -313,6 +313,51 @@ def it_close_exam(*, exam: Exam, actor, comment=""):
     )
 
 
+def it_revoke_exam(*, exam: Exam, actor, comment=""):
+    if exam.status != CBTExamStatus.ACTIVE:
+        raise ValidationError("Only active exams can be revoked.")
+    if exam.attempts.exists():
+        raise ValidationError("Revoke is available only before any student starts the exam. Use Close instead.")
+
+    from_status = exam.status
+    exam.status = CBTExamStatus.PENDING_IT if exam.is_free_test else CBTExamStatus.APPROVED
+    exam.open_now = False
+    exam.timer_is_paused = False
+    exam.timer_paused_at = None
+    exam.timer_paused_by = None
+    exam.timer_pause_reason = ""
+    exam.activated_by = None
+    exam.activated_at = None
+    exam.activation_comment = ""
+    exam.activation_snapshot = {}
+    exam.activation_snapshot_hash = ""
+    exam.save(
+        update_fields=[
+            "status",
+            "open_now",
+            "timer_is_paused",
+            "timer_paused_at",
+            "timer_paused_by",
+            "timer_pause_reason",
+            "activated_by",
+            "activated_at",
+            "activation_comment",
+            "activation_snapshot",
+            "activation_snapshot_hash",
+            "updated_at",
+        ]
+    )
+    ExamReviewAction.objects.create(
+        exam=exam,
+        actor=actor,
+        from_status=from_status,
+        to_status=exam.status,
+        action="IT_REVOKE",
+        comment=comment or "",
+    )
+    return exam
+
+
 def submit_simulation_to_dean(*, wrapper: SimulationWrapper, actor, comment=""):
     if wrapper.status not in {
         CBTSimulationWrapperStatus.DRAFT,

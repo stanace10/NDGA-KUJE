@@ -214,7 +214,7 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
         )
         items.append(
             _nav_item(
-                label="CBT Activation",
+                label="CBT Setup",
                 url="/cbt/it/activation/",
                 request_path=request_path,
                 matches=("/cbt/it/",),
@@ -827,7 +827,6 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
         return items
 
     if portal_key == "cbt":
-        items.append(_nav_item(label="Dashboard", url="/", request_path=request_path, matches=("/", "/portal/cbt/$")))
         if ROLE_STUDENT in role_codes:
             items.append(
                 _nav_item(

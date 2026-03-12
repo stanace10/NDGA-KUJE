@@ -2,7 +2,9 @@ import argparse
 import os
 import re
 import sys
+from dataclasses import dataclass
 from datetime import datetime
+from html import escape
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -147,6 +149,83 @@ SAFE_TEXT_REPLACEMENTS = {
     ord("\u00a0"): " ",
 }
 
+ANSWER_LINE_RE = re.compile(
+    r"^\s*(?:answer|ans)\s*[:\-]?\s*([A-Da-d])(?:\b|[\).\:-])",
+    re.IGNORECASE,
+)
+OPTION_LINE_RE = re.compile(r"^\s*([A-Da-d])[\)\.\:-]\s*(.+)$")
+OPTION_ONLY_RE = re.compile(r"^\s*(.+)$")
+SINGLE_ANSWER_KEY_RE = re.compile(r"^\s*([A-Da-d])\s*$")
+SECTION_RE = re.compile(r"^\s*SECTION\s+([A-Z0-9]+)", re.IGNORECASE)
+THEORY_HEADER_RE = re.compile(
+    r"^\s*(?:SECTION\s+[A-Z0-9]+\s*[:\-]?\s*THEORY|THEORY(?:\s+QUESTIONS?)?)\b",
+    re.IGNORECASE,
+)
+OBJECTIVE_HEADER_RE = re.compile(
+    r"^\s*(?:OBJECTIVE(?:S|\s+QUESTIONS?)?|COMPREHENSION\s+QUESTIONS)\b",
+    re.IGNORECASE,
+)
+INSTRUCTION_RE = re.compile(
+    r"^\s*(?:INSTRUCTION|INSTRUCTIONS|ANSWER ALL THE QUESTIONS|READ THE PASSAGE|READ THE TEXTE|OBJECTIVES?)\b",
+    re.IGNORECASE,
+)
+PASSAGE_RE = re.compile(r"^\s*(?:TEXTE|PASSAGE)\b", re.IGNORECASE)
+THEORY_NUMBER_RE = re.compile(r"^\s*\d+[A-Za-z]?[\.\)]")
+INLINE_OPTION_MARKER_RE = re.compile(r"(?i)\b([A-D])\s*[\)\.\:-]\s*")
+
+
+@dataclass
+class RichPart:
+    text: str
+    bold: bool = False
+    italic: bool = False
+    underline: bool = False
+
+    def render(self, value=None):
+        html = escape(str(self.text if value is None else value))
+        html = html.replace("\n", "<br>")
+        if self.bold:
+            html = f"<strong>{html}</strong>"
+        if self.italic:
+            html = f"<em>{html}</em>"
+        if self.underline:
+            html = f"<u>{html}</u>"
+        return html
+
+
+@dataclass
+class ParagraphRow:
+    text: str
+    parts: list[RichPart]
+
+    @property
+    def html(self):
+        return "".join(part.render() for part in self.parts)
+
+    def slice_html(self, start=0, end=None):
+        if end is None:
+            end = len(self.text)
+        if start < 0:
+            start = 0
+        if end < start:
+            return ""
+        cursor = 0
+        chunks = []
+        for part in self.parts:
+            part_text = part.text
+            next_cursor = cursor + len(part_text)
+            if next_cursor <= start:
+                cursor = next_cursor
+                continue
+            if cursor >= end:
+                break
+            local_start = max(start - cursor, 0)
+            local_end = min(end - cursor, len(part_text))
+            if local_end > local_start:
+                chunks.append(part.render(part_text[local_start:local_end]))
+            cursor = next_cursor
+        return "".join(chunks).strip()
+
 
 def collapse(value):
     return " ".join(str(value or "").split())
@@ -158,6 +237,316 @@ def normalize(value):
 
 def safe_text(value):
     return str(value or "").translate(SAFE_TEXT_REPLACEMENTS)
+
+
+def rich_text(value):
+    return escape(safe_text(value)).replace("\n", "<br>")
+
+
+def paragraph_rows_from_doc(doc):
+    rows = []
+    for paragraph in doc.paragraphs:
+        parts = []
+        for run in paragraph.runs:
+            if not run.text:
+                continue
+            parts.append(
+                RichPart(
+                    text=safe_text(run.text),
+                    bold=bool(run.bold),
+                    italic=bool(run.italic),
+                    underline=bool(run.underline),
+                )
+            )
+        if not parts:
+            text = safe_text(paragraph.text)
+            if text.strip():
+                parts.append(RichPart(text=text))
+        text = safe_text("".join(part.text for part in parts))
+        if text.strip():
+            rows.append(ParagraphRow(text=text, parts=parts))
+    return rows
+
+
+def _normalize_option_text(value):
+    return safe_text(collapse(value)).strip(" -")
+
+
+def _normalize_stem_text(value):
+    return safe_text(collapse(value)).strip()
+
+
+def _append_instruction(instructions, value):
+    cleaned = _normalize_stem_text(value)
+    if not cleaned:
+        return
+    if cleaned not in instructions:
+        instructions.append(cleaned)
+
+
+def _resolve_correct_label(options, answer_raw):
+    answer_text = _normalize_option_text(answer_raw)
+    if not answer_text:
+        return ""
+    match = re.match(r"^\s*([A-Da-d])(?:\b|[\).\:-])?", answer_text)
+    if match:
+        return match.group(1).upper()
+    normalized_answer = collapse(answer_text).lower()
+    for label, option_text in options.items():
+        candidate = collapse(option_text).lower()
+        if candidate and normalized_answer == candidate:
+            return label
+    for label, option_text in options.items():
+        candidate = collapse(option_text).lower()
+        if candidate and normalized_answer in candidate:
+            return label
+    return ""
+
+
+def _extract_inline_objective_row(paragraph):
+    value = safe_text(paragraph.text)
+    if not value.strip():
+        return None
+
+    answer_raw = ""
+    answer_match = re.search(
+        r"(?is)\b(?:answer|ans)\s*[:\-]?\s*(.+)$",
+        value,
+    )
+    if answer_match:
+        answer_raw = safe_text(answer_match.group(1))
+        value = value[: answer_match.start()].strip()
+
+    markers = list(INLINE_OPTION_MARKER_RE.finditer(value))
+    if len(markers) < 4:
+        return None
+
+    first_seen = {}
+    for marker in markers:
+        label = marker.group(1).upper()
+        if label not in first_seen:
+            first_seen[label] = marker
+    if not all(label in first_seen for label in ("A", "B", "C", "D")):
+        return None
+
+    ordered = [first_seen[label] for label in ("A", "B", "C", "D")]
+    if not (ordered[0].start() < ordered[1].start() < ordered[2].start() < ordered[3].start()):
+        return None
+
+    stem = _normalize_stem_text(value[: ordered[0].start()].strip(" :-"))
+    if not stem:
+        return None
+
+    options = {}
+    for index, marker in enumerate(ordered):
+        label = marker.group(1).upper()
+        start = marker.end()
+        end = ordered[index + 1].start() if index + 1 < len(ordered) else len(value)
+        option_text = _normalize_option_text(value[start:end])
+        if not option_text:
+            return None
+        options[label] = option_text
+
+    return {
+        "question_type": "OBJECTIVE",
+        "stem": stem,
+        "rich_stem": paragraph.slice_html(0, ordered[0].start()) or rich_text(stem),
+        "options": options,
+        "correct_label": _resolve_correct_label(options, answer_raw),
+    }
+
+
+def parse_structured_docx_rows(path):
+    doc = Document(path)
+    rows = paragraph_rows_from_doc(doc)
+    parsed_rows = []
+    instructions = []
+    current_section = ""
+    mode = "OBJECTIVE"
+    current = None
+    answer_key_mode = False
+    answer_key_values = []
+
+    def finalize_current():
+        nonlocal current
+        if not current:
+            return
+        stem = _normalize_stem_text(current.get("stem"))
+        rich_stem_value = (current.get("rich_stem") or "").strip() or rich_text(stem)
+        if current.get("question_type") == "OBJECTIVE":
+            options = current.get("options") or {}
+            if len(options) >= 4 and stem:
+                ordered = {label: _normalize_option_text(options.get(label, "")) for label in ("A", "B", "C", "D")}
+                parsed_rows.append(
+                    {
+                        "question_type": "OBJECTIVE",
+                        "stem": stem,
+                        "rich_stem": rich_stem_value,
+                        "options": ordered,
+                        "correct_label": (current.get("correct_label") or "").strip().upper(),
+                        "section_label": current.get("section_label") or current_section,
+                    }
+                )
+        elif stem:
+            note = "\n".join(_normalize_stem_text(value) for value in current.get("model_answer_lines") or [] if _normalize_stem_text(value))
+            parsed_rows.append(
+                {
+                    "question_type": "THEORY",
+                    "stem": stem,
+                    "rich_stem": rich_stem_value,
+                    "model_answer": safe_text(note),
+                    "section_label": current.get("section_label") or current_section,
+                }
+            )
+        current = None
+
+    for paragraph in rows:
+        line = _normalize_stem_text(paragraph.text)
+        if not line:
+            continue
+
+        if answer_key_mode:
+            answer_key_match = SINGLE_ANSWER_KEY_RE.match(line)
+            if answer_key_match:
+                answer_key_values.append(answer_key_match.group(1).upper())
+                continue
+            answer_key_mode = False
+
+        if line.upper() == "ANSWER":
+            finalize_current()
+            answer_key_mode = True
+            continue
+
+        section_match = SECTION_RE.match(line)
+        if section_match:
+            finalize_current()
+            current_section = safe_text(line)
+            if THEORY_HEADER_RE.match(line):
+                mode = "THEORY"
+            elif "SECTION" in line.upper():
+                mode = "OBJECTIVE"
+            _append_instruction(instructions, line)
+            continue
+
+        if THEORY_HEADER_RE.match(line):
+            finalize_current()
+            mode = "THEORY"
+            current_section = safe_text(line)
+            _append_instruction(instructions, line)
+            continue
+
+        if OBJECTIVE_HEADER_RE.match(line):
+            finalize_current()
+            mode = "OBJECTIVE"
+            current_section = safe_text(line)
+            _append_instruction(instructions, line)
+            continue
+
+        if "QUESTION" in line.upper() and len(line.split()) <= 4:
+            finalize_current()
+            mode = "OBJECTIVE"
+            current_section = safe_text(line)
+            _append_instruction(instructions, line)
+            continue
+
+        if INSTRUCTION_RE.match(line) or PASSAGE_RE.match(line):
+            finalize_current()
+            _append_instruction(instructions, line)
+            continue
+
+        if len(line) > 120 and not line.endswith("?") and current is None and not parsed_rows:
+            _append_instruction(instructions, line)
+            continue
+
+        answer_match = ANSWER_LINE_RE.match(line)
+        if answer_match:
+            if current and current.get("question_type") == "OBJECTIVE":
+                current["correct_label"] = answer_match.group(1).upper()
+                finalize_current()
+            else:
+                answer_key_values.append(answer_match.group(1).upper())
+            continue
+
+        if mode == "THEORY":
+            if current and THEORY_NUMBER_RE.match(line):
+                finalize_current()
+            if current is None:
+                current = {
+                    "question_type": "THEORY",
+                    "stem": line,
+                    "rich_stem": paragraph.html or rich_text(line),
+                    "model_answer_lines": [],
+                    "section_label": current_section,
+                }
+            else:
+                current["stem"] = f"{current['stem']}\n{line}".strip()
+                current["rich_stem"] = f"{current['rich_stem']}<br>{paragraph.html or rich_text(line)}".strip()
+            continue
+
+        inline_row = _extract_inline_objective_row(paragraph)
+        if inline_row is not None:
+            finalize_current()
+            inline_row["section_label"] = current_section
+            parsed_rows.append(inline_row)
+            continue
+
+        option_match = OPTION_LINE_RE.match(line)
+        if option_match and current and current.get("question_type") == "OBJECTIVE":
+            current["options"][option_match.group(1).upper()] = _normalize_option_text(option_match.group(2))
+            if len(current["options"]) >= 4 and current.get("correct_label"):
+                finalize_current()
+            continue
+
+        if current and current.get("question_type") == "OBJECTIVE" and len(current.get("options") or {}) < 4:
+            next_label = ("A", "B", "C", "D")[len(current["options"])]
+            current["options"][next_label] = _normalize_option_text(line)
+            continue
+
+        finalize_current()
+        current = {
+            "question_type": "OBJECTIVE",
+            "stem": line,
+            "rich_stem": paragraph.html or rich_text(line),
+            "options": {},
+            "correct_label": "",
+            "section_label": current_section,
+        }
+
+    finalize_current()
+
+    unanswered_rows = [
+        row for row in parsed_rows
+        if row.get("question_type") == "OBJECTIVE" and not row.get("correct_label")
+    ]
+    for row, correct_label in zip(unanswered_rows, answer_key_values):
+        row["correct_label"] = correct_label
+
+    return {
+        "parsed_rows": parsed_rows,
+        "instructions": instructions,
+        "parser_used": "docx_structural",
+    }
+
+
+def instruction_text_for_exam(*, instructions, flow_type):
+    rows = []
+    seen = set()
+    for entry in instructions or []:
+        cleaned = safe_text(collapse(entry))
+        if not cleaned:
+            continue
+        key = cleaned.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        rows.append(cleaned)
+    if flow_type in {"OBJECTIVE_THEORY", "THEORY_ONLY"}:
+        theory_note = "Write theory answers in the theory response format shown on the exam screen."
+        if theory_note.lower() not in seen:
+            rows.append(theory_note)
+    if not rows:
+        return "Answer all questions carefully."
+    return "\n".join(rows)
 
 
 def display_path(value):
@@ -289,6 +678,28 @@ def choose_parser_rows(path, subject_name):
     marker_count = _objective_marker_count(extracted_text)
     deterministic_quality = _parsed_rows_quality(parsed_rows)
     parser_used = "deterministic"
+    instructions = []
+
+    if str(path).lower().endswith(".docx"):
+        try:
+            structured = parse_structured_docx_rows(path)
+        except Exception:
+            structured = {}
+        structured_rows = list(structured.get("parsed_rows") or [])
+        structured_quality = _parsed_rows_quality(structured_rows)
+        if structured_rows and structured_quality >= deterministic_quality:
+            parsed_rows = structured_rows
+            objective_count = sum(
+                1 for row in parsed_rows if (row.get("question_type") or "").upper() == "OBJECTIVE"
+            )
+            theory_count = sum(
+                1 for row in parsed_rows if (row.get("question_type") or "").upper() != "OBJECTIVE"
+            )
+            parser_used = structured.get("parser_used") or "docx_structural"
+            instructions = list(structured.get("instructions") or [])
+            flagged_blocks = []
+        elif structured.get("instructions"):
+            instructions = list(structured.get("instructions") or [])
 
     suspicious = (
         not parsed_rows
@@ -317,6 +728,7 @@ def choose_parser_rows(path, subject_name):
         "parser_used": parser_used,
         "marker_count": marker_count,
         "flagged_block_count": len(flagged_blocks),
+        "instructions": instructions,
     }
 
 
@@ -383,6 +795,7 @@ def import_one(path, it_user, dean_user, term, slot_map, actual_date):
     parsed_rows = parser_info["parsed_rows"]
     if not parsed_rows:
         raise RuntimeError(f"No questions parsed from {path.name}.")
+    exam_instructions = list(parser_info.get("instructions") or [])
 
     flow_type = "OBJECTIVE_ONLY"
     if parser_info["objective_count"] > 0 and parser_info["theory_count"] > 0:
@@ -454,6 +867,7 @@ def import_one(path, it_user, dean_user, term, slot_map, actual_date):
             subject=assignment.subject,
             question_type=CBTQuestionType.OBJECTIVE if is_objective else CBTQuestionType.SHORT_ANSWER,
             stem=safe_text(row.get("stem") or f"Question {sort_order}"),
+            rich_stem=(row.get("rich_stem") or "").strip(),
             topic="Imported CA",
             difficulty=CBTQuestionDifficulty.MEDIUM,
             marks=1,
@@ -491,7 +905,10 @@ def import_one(path, it_user, dean_user, term, slot_map, actual_date):
     blueprint.max_attempts = 1
     blueprint.shuffle_questions = True
     blueprint.shuffle_options = True
-    blueprint.instructions = "Answer the objective section first, then proceed to theory."
+    blueprint.instructions = instruction_text_for_exam(
+        instructions=exam_instructions,
+        flow_type=flow_type,
+    )
     blueprint.section_config = {
         "flow_type": flow_type,
         "objective_count": created_objective,
@@ -543,6 +960,7 @@ def import_one(path, it_user, dean_user, term, slot_map, actual_date):
         "question_count": created_objective + created_theory,
         "objective_count": created_objective,
         "theory_count": created_theory,
+        "instruction_count": len(exam_instructions),
         "flagged_block_count": parser_info["flagged_block_count"],
         "objective_marker_count": parser_info["marker_count"],
         "schedule_slot": slot_label,

@@ -13,6 +13,7 @@ from apps.tenancy.utils import build_portal_url, current_portal_key
         "localhost",
         "127.0.0.1",
         "[::1]",
+        "172.20.10.3",
         "testserver",
         "ndgakuje.org",
         ".ndgakuje.org",
@@ -83,7 +84,7 @@ class StageTwoHostRoutingTests(TestCase):
     def test_localhost_staff_cbt_page_keeps_portal_shell(self):
         request = RequestFactory().get("/cbt/authoring/", HTTP_HOST="localhost:8000")
         request.user = self.teacher_user
-        self.assertEqual(current_portal_key(request), "staff")
+        self.assertEqual(current_portal_key(request), "cbt")
 
     def test_localhost_student_cbt_runtime_uses_cbt_portal(self):
         request = RequestFactory().get("/cbt/exams/available/", HTTP_HOST="localhost:8000")
@@ -94,6 +95,16 @@ class StageTwoHostRoutingTests(TestCase):
         request = RequestFactory().get("/elections/", HTTP_HOST="localhost:8000")
         request.user = self.teacher_user
         self.assertEqual(current_portal_key(request), "election")
+
+    def test_private_ip_student_cbt_runtime_uses_cbt_portal(self):
+        request = RequestFactory().get("/cbt/exams/available/", HTTP_HOST="172.20.10.3")
+        request.user = self.student
+        self.assertEqual(current_portal_key(request), "cbt")
+
+    def test_localhost_it_cbt_activation_uses_it_portal(self):
+        request = RequestFactory().get("/cbt/it/activation/", HTTP_HOST="localhost:8000")
+        request.user = self.it_user
+        self.assertEqual(current_portal_key(request), "it")
     def test_localhost_modal_login_urls_stay_on_localhost(self):
         client = Client(HTTP_HOST="localhost:8000")
         response = client.get("/")
@@ -132,6 +143,9 @@ class StageTwoHostRoutingTests(TestCase):
     def test_localhost_staff_cbt_response_keeps_sidebar_shell(self):
         client = Client(HTTP_HOST="localhost:8000")
         client.force_login(self.teacher_user)
+        session = client.session
+        session["fresh_auth_cbt"] = True
+        session.save()
         response = client.get("/cbt/authoring/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "portal-sidebar")
@@ -154,6 +168,14 @@ class StageTwoHostRoutingTests(TestCase):
         response = client.get("/elections/it/manage/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "portal-sidebar")
+
+    def test_localhost_it_cbt_activation_keeps_it_shell(self):
+        client = Client(HTTP_HOST="localhost:8000")
+        client.force_login(self.it_user)
+        response = client.get("/cbt/it/activation/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "IT Manager Portal")
+        self.assertContains(response, "CBT Setup")
     def test_staff_login_page_copy_is_staff_only(self):
         client = Client(HTTP_HOST="staff.ndgakuje.org")
         response = client.get("/auth/login/?audience=staff")
@@ -298,5 +320,5 @@ class StageTwoHostRoutingTests(TestCase):
         )
         self.assertEqual(login_cbt.status_code, 302)
         cbt_home = client.get("/", HTTP_HOST="cbt.ndgakuje.org")
-        self.assertEqual(cbt_home.status_code, 200)
-        self.assertContains(cbt_home, "CBT Portal")
+        self.assertEqual(cbt_home.status_code, 302)
+        self.assertEqual(cbt_home.url, "/cbt/")

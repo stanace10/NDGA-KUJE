@@ -8,8 +8,29 @@
       <p class="text-xs font-semibold uppercase tracking-[0.18em] text-ndga-navy/70">Exam Center</p>
       <h1 class="mt-2 text-3xl font-bold text-ndga-navy">CBT Schedule</h1>
       <p class="mt-2 text-sm text-slate-600">
-        Scheduled class exams stay on this board. Future papers appear as Not Yet, and completed papers move out of the recent panel after {{ recent_window_hours }} hours.
+        Scheduled class exams stay on this board immediately after ICT publishes them. Future papers appear as Not Yet, and completed papers move out of the recent panel after {{ recent_window_hours }} hours.
       </p>
+    </div>
+
+    <div class="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="flex flex-wrap items-center gap-4">
+        {% if student_photo_url %}
+          <img src="{{ student_photo_url }}" alt="{{ student_display_name }}" class="h-20 w-20 rounded-full border border-slate-200 object-cover">
+        {% else %}
+          <div class="grid h-20 w-20 place-items-center rounded-full border border-slate-200 bg-slate-50 text-2xl font-bold text-ndga-navy">
+            {{ student_display_name|slice:":1"|upper }}
+          </div>
+        {% endif %}
+        <div>
+          <p class="text-sm font-semibold text-slate-600">Candidate Profile</p>
+          <h2 class="mt-1 text-2xl font-bold text-slate-900">{{ student_display_name }}</h2>
+          <div class="mt-2 flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+            <span>Admission No: {{ student_number }}</span>
+            <span>Class: {{ student_class_code }}</span>
+          </div>
+          <p class="mt-2 text-sm text-slate-600">{{ student_mini_bio }}</p>
+        </div>
+      </div>
     </div>
 
     <div class="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">

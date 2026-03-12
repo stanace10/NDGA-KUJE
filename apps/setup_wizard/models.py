@@ -106,5 +106,15 @@ class RuntimeFeatureFlags(TimeStampedModel):
             "offline_mode_enabled": bool(settings.FEATURE_FLAGS.get("OFFLINE_MODE_ENABLED", True)),
             "lockdown_enabled": bool(settings.FEATURE_FLAGS.get("LOCKDOWN_ENABLED", True)),
         }
-        obj, _ = cls.objects.get_or_create(singleton_id=1, defaults=defaults)
+        obj, created = cls.objects.get_or_create(singleton_id=1, defaults=defaults)
+        if created or obj.last_updated_by_id is not None:
+            return obj
+
+        updated_fields = []
+        for field_name, value in defaults.items():
+            if getattr(obj, field_name) != value:
+                setattr(obj, field_name, value)
+                updated_fields.append(field_name)
+        if updated_fields:
+            obj.save(update_fields=[*updated_fields, "updated_at"])
         return obj
