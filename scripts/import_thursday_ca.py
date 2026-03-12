@@ -159,6 +159,7 @@ THEORY_SUBPART_RE = re.compile(r"^\s*([A-Za-z])\.\s*(.+)$")
 TYPE_META_RE = re.compile(r"^\s*TYPE\s*:\s*(.+)$", re.IGNORECASE)
 CLASS_META_RE = re.compile(r"^\s*CLASS\s*:\s*(.+)$", re.IGNORECASE)
 SUBJECT_META_RE = re.compile(r"^\s*SUBJECT\s*:\s*(.+)$", re.IGNORECASE)
+OVERRIDE_UNDERLINE_TAG_RE = re.compile(r"(?is)<u>(.*?)</u>")
 
 
 @dataclass
@@ -230,6 +231,39 @@ def rich_text(value):
     return escape(safe_text(value)).replace("\n", "<br>")
 
 
+def override_plain_text(value):
+    text = OVERRIDE_UNDERLINE_TAG_RE.sub(lambda match: safe_text(match.group(1)), safe_text(value))
+    return safe_text(text)
+
+
+def override_rich_text(value):
+    source = safe_text(value)
+    parts = []
+    last_index = 0
+    for match in OVERRIDE_UNDERLINE_TAG_RE.finditer(source):
+        parts.append(escape(source[last_index:match.start()]))
+        parts.append(f"<u>{escape(safe_text(match.group(1)))}</u>")
+        last_index = match.end()
+    parts.append(escape(source[last_index:]))
+    return "".join(parts).replace("\n", "<br>")
+
+
+def prefixed_override_question(*, stem, section_label="", prompt_lines=None):
+    clean_section = safe_text(collapse(section_label))
+    clean_prompts = [safe_text(collapse(line)) for line in (prompt_lines or []) if collapse(line)]
+    plain_stem = override_plain_text(stem)
+    rich_stem = override_rich_text(stem)
+    prefix_lines = []
+    if clean_section:
+        prefix_lines.append(clean_section)
+    prefix_lines.extend(clean_prompts)
+    if not prefix_lines:
+        return plain_stem, rich_stem
+    plain = "\n".join(prefix_lines + [plain_stem])
+    rich_prefix = "<br>".join(escape(line) for line in prefix_lines)
+    return plain, f"{rich_prefix}<br>{rich_stem}"
+
+
 def override_text_path_for_doc(path):
     candidate = Path(path).with_suffix(".txt")
     if candidate.exists():
@@ -243,9 +277,12 @@ def parse_override_text_rows(path):
     instructions = []
     mode = ""
     current = None
+    current_section_label = ""
+    current_objective_prompt_lines = []
+    theory_group_by_section = False
 
     def _rich_join(lines):
-        return "<br>".join(escape(safe_text(line)) for line in lines if collapse(line))
+        return "<br>".join(override_rich_text(line) for line in lines if collapse(line))
 
     def _finalize():
         nonlocal current
@@ -254,18 +291,23 @@ def parse_override_text_rows(path):
         if current["question_type"] == "OBJECTIVE":
             options = current.get("options") or {}
             if current.get("stem") and all(label in options for label in ("A", "B", "C", "D")):
+                plain_stem, rich_stem = prefixed_override_question(
+                    stem=current["stem"],
+                    section_label=current.get("section_label") or "",
+                    prompt_lines=current.get("prompt_lines") or [],
+                )
                 parsed_rows.append(
                     {
                         "question_type": "OBJECTIVE",
-                        "stem": safe_text(current["stem"]),
-                        "rich_stem": rich_text(current["stem"]),
+                        "stem": plain_stem,
+                        "rich_stem": rich_stem,
                         "options": {label: safe_text(options[label]) for label in ("A", "B", "C", "D")},
                         "correct_label": (current.get("correct_label") or "").upper(),
                         "section_label": current.get("section_label") or "",
                     }
                 )
         else:
-            lines = [safe_text(line) for line in current.get("lines") or [] if collapse(line)]
+            lines = [override_plain_text(line) for line in current.get("lines") or [] if collapse(line)]
             if lines:
                 parsed_rows.append(
                     {
@@ -290,27 +332,70 @@ def parse_override_text_rows(path):
         if type_match:
             _finalize()
             mode = type_match.group(1).strip().upper()
+            current_section_label = ""
+            current_objective_prompt_lines = []
+            theory_group_by_section = False
             continue
 
         upper_line = safe_text(line).upper()
         if upper_line == "OBJECTIVE":
             _finalize()
             mode = "OBJECTIVE"
+            current_section_label = ""
+            current_objective_prompt_lines = []
+            theory_group_by_section = False
             continue
         if upper_line == "THEORY":
             _finalize()
             mode = "THEORY"
+            current_section_label = ""
+            current_objective_prompt_lines = []
+            theory_group_by_section = False
             continue
 
-        if INSTRUCTION_RE.match(line):
+        section_match = SECTION_RE.match(line)
+        if section_match:
             _finalize()
+            current_section_label = safe_text(collapse(line))
+            current_objective_prompt_lines = []
             _append_instruction(instructions, line)
+            if mode == "THEORY":
+                theory_group_by_section = True
+                current = {
+                    "question_type": "THEORY",
+                    "lines": [current_section_label],
+                    "section_label": current_section_label,
+                    "question_number": "",
+                }
             continue
 
-        if SECTION_RE.match(line) or THEORY_HEADER_RE.match(line):
+        if THEORY_HEADER_RE.match(line):
             _finalize()
             mode = "THEORY"
             _append_instruction(instructions, line)
+            current_section_label = safe_text(collapse(line)) if SECTION_RE.match(line) else current_section_label
+            current_objective_prompt_lines = []
+            theory_group_by_section = theory_group_by_section or bool(SECTION_RE.match(line))
+            continue
+
+        if INSTRUCTION_RE.match(line):
+            _append_instruction(instructions, line)
+            if mode == "OBJECTIVE" and (current_section_label or current_objective_prompt_lines or current is None):
+                _finalize()
+                current_objective_prompt_lines = [safe_text(collapse(line))]
+                continue
+            if mode == "THEORY" and theory_group_by_section:
+                if current is None:
+                    current = {
+                        "question_type": "THEORY",
+                        "lines": [safe_text(collapse(line))],
+                        "section_label": current_section_label,
+                        "question_number": "",
+                    }
+                else:
+                    current["lines"].append(safe_text(collapse(line)))
+                continue
+            _finalize()
             continue
 
         if mode == "OBJECTIVE":
@@ -322,7 +407,8 @@ def parse_override_text_rows(path):
                     "stem": question_match.group(2).strip(),
                     "options": {},
                     "correct_label": "",
-                    "section_label": "",
+                    "section_label": current_section_label,
+                    "prompt_lines": list(current_objective_prompt_lines),
                 }
                 continue
             option_match = LETTERED_LINE_RE.match(line)
@@ -336,9 +422,23 @@ def parse_override_text_rows(path):
                 continue
             if current and current.get("question_type") == "OBJECTIVE":
                 current["stem"] = f"{current['stem']} {line}".strip()
+            else:
+                _append_instruction(instructions, line)
+                current_objective_prompt_lines = [safe_text(collapse(line))]
             continue
 
         if mode == "THEORY":
+            if theory_group_by_section:
+                if current is None:
+                    current = {
+                        "question_type": "THEORY",
+                        "lines": [line],
+                        "section_label": current_section_label,
+                        "question_number": "",
+                    }
+                else:
+                    current["lines"].append(line)
+                continue
             if current is None and line.lower().startswith("answer "):
                 _append_instruction(instructions, line)
                 continue
