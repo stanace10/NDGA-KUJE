@@ -129,6 +129,15 @@ SAFE_TEXT_REPLACEMENTS = {
     ord("\u00a0"): " ",
 }
 
+CALCULATOR_ENABLED_SUBJECTS = {
+    "MATHEMATICS",
+    "FURTHERMATHEMATICS",
+    "PHYSICS",
+    "CHEMISTRY",
+    "ACCOUNTING",
+    "COMMERCE",
+}
+
 ANSWER_LINE_RE = re.compile(
     r"^\s*(?:answer|ans)\s*[:\-]?\s*([A-Da-d])(?:\b|[\).\:-])",
     re.IGNORECASE,
@@ -1173,7 +1182,7 @@ def import_one(path, it_user, dean_user, term, slot_map, actual_date):
         "manual_score_split": flow_type == "OBJECTIVE_THEORY",
         "objective_target_max": "10.00" if flow_type in {"OBJECTIVE_ONLY", "OBJECTIVE_THEORY"} else "0.00",
         "theory_target_max": "10.00" if flow_type in {"THEORY_ONLY", "OBJECTIVE_THEORY"} else "0.00",
-        "calculator_mode": "SCIENTIFIC" if normalize(assignment.subject.name) in {"MATHEMATICS", "PHYSICS", "CHEMISTRY", "FURTHERMATHEMATICS"} else "NONE",
+        "calculator_mode": "SCIENTIFIC" if normalize(assignment.subject.name) in CALCULATOR_ENABLED_SUBJECTS else "NONE",
     }
     if flow_type == "OBJECTIVE_ONLY":
         blueprint.objective_writeback_target = CBTWritebackTarget.CA2
