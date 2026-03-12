@@ -116,26 +116,6 @@ CLASS_SPECIFIC_ALIASES = {
 }
 
 SAFE_TEXT_REPLACEMENTS = {
-    ord("\u2080"): "0",
-    ord("\u2081"): "1",
-    ord("\u2082"): "2",
-    ord("\u2083"): "3",
-    ord("\u2084"): "4",
-    ord("\u2085"): "5",
-    ord("\u2086"): "6",
-    ord("\u2087"): "7",
-    ord("\u2088"): "8",
-    ord("\u2089"): "9",
-    ord("\u2070"): "0",
-    ord("\u00b9"): "1",
-    ord("\u00b2"): "2",
-    ord("\u00b3"): "3",
-    ord("\u2074"): "4",
-    ord("\u2075"): "5",
-    ord("\u2076"): "6",
-    ord("\u2077"): "7",
-    ord("\u2078"): "8",
-    ord("\u2079"): "9",
     ord("\u03c0"): "pi",
     ord("\u2212"): "-",
     ord("\u2010"): "-",
@@ -172,6 +152,13 @@ INSTRUCTION_RE = re.compile(
 PASSAGE_RE = re.compile(r"^\s*(?:TEXTE|PASSAGE)\b", re.IGNORECASE)
 THEORY_NUMBER_RE = re.compile(r"^\s*\d+[A-Za-z]?[\.\)]")
 INLINE_OPTION_MARKER_RE = re.compile(r"(?i)\b([A-D])\s*[\)\.\:-]\s*")
+NUMBERED_LINE_RE = re.compile(r"^\s*(\d+)\.\s*(.+)$")
+THEORY_NUMBERED_LINE_RE = re.compile(r"^\s*(\d+)([A-Za-z]?)\.\s*(.+)$")
+LETTERED_LINE_RE = re.compile(r"^\s*([A-Da-d])\.\s*(.+)$")
+THEORY_SUBPART_RE = re.compile(r"^\s*([A-Za-z])\.\s*(.+)$")
+TYPE_META_RE = re.compile(r"^\s*TYPE\s*:\s*(.+)$", re.IGNORECASE)
+CLASS_META_RE = re.compile(r"^\s*CLASS\s*:\s*(.+)$", re.IGNORECASE)
+SUBJECT_META_RE = re.compile(r"^\s*SUBJECT\s*:\s*(.+)$", re.IGNORECASE)
 
 
 @dataclass
@@ -241,6 +228,153 @@ def safe_text(value):
 
 def rich_text(value):
     return escape(safe_text(value)).replace("\n", "<br>")
+
+
+def override_text_path_for_doc(path):
+    candidate = Path(path).with_suffix(".txt")
+    if candidate.exists():
+        return candidate
+    return None
+
+
+def parse_override_text_rows(path):
+    override_text = path.read_text(encoding="utf-8")
+    parsed_rows = []
+    instructions = []
+    mode = ""
+    current = None
+
+    def _rich_join(lines):
+        return "<br>".join(escape(safe_text(line)) for line in lines if collapse(line))
+
+    def _finalize():
+        nonlocal current
+        if not current:
+            return
+        if current["question_type"] == "OBJECTIVE":
+            options = current.get("options") or {}
+            if current.get("stem") and all(label in options for label in ("A", "B", "C", "D")):
+                parsed_rows.append(
+                    {
+                        "question_type": "OBJECTIVE",
+                        "stem": safe_text(current["stem"]),
+                        "rich_stem": rich_text(current["stem"]),
+                        "options": {label: safe_text(options[label]) for label in ("A", "B", "C", "D")},
+                        "correct_label": (current.get("correct_label") or "").upper(),
+                        "section_label": current.get("section_label") or "",
+                    }
+                )
+        else:
+            lines = [safe_text(line) for line in current.get("lines") or [] if collapse(line)]
+            if lines:
+                parsed_rows.append(
+                    {
+                        "question_type": "THEORY",
+                        "stem": "\n".join(lines),
+                        "rich_stem": _rich_join(lines),
+                        "model_answer": "",
+                        "section_label": current.get("section_label") or "",
+                    }
+                )
+        current = None
+
+    for raw_line in override_text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+
+        if CLASS_META_RE.match(line) or SUBJECT_META_RE.match(line):
+            continue
+
+        type_match = TYPE_META_RE.match(line)
+        if type_match:
+            _finalize()
+            mode = type_match.group(1).strip().upper()
+            continue
+
+        upper_line = safe_text(line).upper()
+        if upper_line == "OBJECTIVE":
+            _finalize()
+            mode = "OBJECTIVE"
+            continue
+        if upper_line == "THEORY":
+            _finalize()
+            mode = "THEORY"
+            continue
+
+        if INSTRUCTION_RE.match(line):
+            _finalize()
+            _append_instruction(instructions, line)
+            continue
+
+        if SECTION_RE.match(line) or THEORY_HEADER_RE.match(line):
+            _finalize()
+            mode = "THEORY"
+            _append_instruction(instructions, line)
+            continue
+
+        if mode == "OBJECTIVE":
+            question_match = NUMBERED_LINE_RE.match(line)
+            if question_match:
+                _finalize()
+                current = {
+                    "question_type": "OBJECTIVE",
+                    "stem": question_match.group(2).strip(),
+                    "options": {},
+                    "correct_label": "",
+                    "section_label": "",
+                }
+                continue
+            option_match = LETTERED_LINE_RE.match(line)
+            if option_match and current and current.get("question_type") == "OBJECTIVE":
+                current["options"][option_match.group(1).upper()] = option_match.group(2).strip()
+                continue
+            answer_match = ANSWER_LINE_RE.match(line)
+            if answer_match and current and current.get("question_type") == "OBJECTIVE":
+                current["correct_label"] = answer_match.group(1).upper()
+                _finalize()
+                continue
+            if current and current.get("question_type") == "OBJECTIVE":
+                current["stem"] = f"{current['stem']} {line}".strip()
+            continue
+
+        if mode == "THEORY":
+            if current is None and line.lower().startswith("answer "):
+                _append_instruction(instructions, line)
+                continue
+            question_match = THEORY_NUMBERED_LINE_RE.match(line)
+            if question_match:
+                numbering = question_match.group(1)
+                suffix = question_match.group(2).upper()
+                if current and current.get("question_number") == numbering:
+                    prefix = f"{suffix}. " if suffix else f"{numbering}. "
+                    current["lines"].append(f"{prefix}{question_match.group(3).strip()}")
+                    continue
+                _finalize()
+                prefix = f"{numbering}{suffix}. " if suffix else f"{numbering}. "
+                current = {
+                    "question_type": "THEORY",
+                    "lines": [f"{prefix}{question_match.group(3).strip()}"],
+                    "section_label": "",
+                    "question_number": numbering,
+                }
+                continue
+            if current is None:
+                current = {"question_type": "THEORY", "lines": [line], "section_label": "", "question_number": ""}
+                continue
+            subpart_match = THEORY_SUBPART_RE.match(line)
+            if subpart_match:
+                current["lines"].append(f"{subpart_match.group(1)}. {subpart_match.group(2).strip()}")
+                continue
+            current["lines"].append(line)
+
+    _finalize()
+    return {
+        "parsed_rows": parsed_rows,
+        "instructions": instructions,
+        "parser_used": "text_override",
+        "override_text": override_text,
+    }
 
 
 def paragraph_rows_from_doc(doc):
@@ -669,6 +803,26 @@ def resolve_subject_name(class_code, doc_text, file_name, assignments):
 
 
 def choose_parser_rows(path, subject_name):
+    override_path = override_text_path_for_doc(path)
+    if override_path is not None:
+        override_payload = parse_override_text_rows(override_path)
+        override_rows = list(override_payload.get("parsed_rows") or [])
+        if override_rows:
+            return {
+                "extracted_text": safe_text(override_payload.get("override_text") or ""),
+                "parsed_rows": override_rows,
+                "objective_count": sum(
+                    1 for row in override_rows if (row.get("question_type") or "").upper() == "OBJECTIVE"
+                ),
+                "theory_count": sum(
+                    1 for row in override_rows if (row.get("question_type") or "").upper() != "OBJECTIVE"
+                ),
+                "parser_used": override_payload.get("parser_used") or "text_override",
+                "marker_count": 0,
+                "flagged_block_count": 0,
+                "instructions": list(override_payload.get("instructions") or []),
+            }
+
     extracted_text = safe_text(extract_text_from_document(str(path)))
     payload = parse_question_document(extracted_text)
     parsed_rows = list(payload.get("parsed_questions") or [])
