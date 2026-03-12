@@ -1,4 +1,7 @@
+from io import StringIO
+
 from django.core.exceptions import ValidationError
+from django.core.management import call_command
 from django.test import Client, TestCase
 
 from apps.accounts.constants import (
@@ -15,6 +18,8 @@ from apps.academics.models import (
     Campus,
     ClassSubject,
     FormTeacherAssignment,
+    StudentClassEnrollment,
+    StudentSubjectEnrollment,
     Subject,
     TeacherSubjectAssignment,
     Term,
@@ -330,3 +335,131 @@ class CampusManagementTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertTrue(Campus.objects.filter(id=campus.id).exists())
+
+
+class EnrollAllMappedSubjectsCommandTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.role_student = Role.objects.get(code=ROLE_STUDENT)
+        cls.session = AcademicSession.objects.create(name="2025/2026")
+
+        cls.ss1 = AcademicClass.objects.create(code="SS1", display_name="SS1")
+        cls.ss1_a = AcademicClass.objects.create(
+            code="SS1A",
+            display_name="SS1 A",
+            base_class=cls.ss1,
+            arm_name="A",
+        )
+        cls.ss2 = AcademicClass.objects.create(code="SS2", display_name="SS2")
+        cls.ss2_b = AcademicClass.objects.create(
+            code="SS2B",
+            display_name="SS2 B",
+            base_class=cls.ss2,
+            arm_name="B",
+        )
+        cls.js1 = AcademicClass.objects.create(code="JS1", display_name="JS1")
+
+        cls.english = Subject.objects.create(name="English Language CMD", code="ENGCMD")
+        cls.physics = Subject.objects.create(name="Physics CMD", code="PHYCMD")
+        cls.maths = Subject.objects.create(name="Mathematics CMD", code="MTHCMD")
+        cls.accounting = Subject.objects.create(name="Accounting CMD", code="ACCCMD")
+        cls.basic_science = Subject.objects.create(name="Basic Science CMD", code="BSCCMD")
+
+        ClassSubject.objects.create(academic_class=cls.ss1, subject=cls.english, is_active=True)
+        ClassSubject.objects.create(academic_class=cls.ss1, subject=cls.physics, is_active=True)
+        ClassSubject.objects.create(academic_class=cls.ss1, subject=cls.maths, is_active=True)
+        ClassSubject.objects.create(academic_class=cls.ss2, subject=cls.english, is_active=True)
+        ClassSubject.objects.create(academic_class=cls.ss2, subject=cls.accounting, is_active=True)
+        ClassSubject.objects.create(academic_class=cls.js1, subject=cls.basic_science, is_active=True)
+
+        cls.ss1_student = User.objects.create_user(
+            username="ss1-student-cmd",
+            password="Password123!",
+            primary_role=cls.role_student,
+            must_change_password=False,
+        )
+        cls.ss2_student = User.objects.create_user(
+            username="ss2-student-cmd",
+            password="Password123!",
+            primary_role=cls.role_student,
+            must_change_password=False,
+        )
+        cls.js1_student = User.objects.create_user(
+            username="js1-student-cmd",
+            password="Password123!",
+            primary_role=cls.role_student,
+            must_change_password=False,
+        )
+
+        StudentClassEnrollment.objects.create(
+            student=cls.ss1_student,
+            academic_class=cls.ss1_a,
+            session=cls.session,
+            is_active=True,
+        )
+        StudentClassEnrollment.objects.create(
+            student=cls.ss2_student,
+            academic_class=cls.ss2_b,
+            session=cls.session,
+            is_active=True,
+        )
+        StudentClassEnrollment.objects.create(
+            student=cls.js1_student,
+            academic_class=cls.js1,
+            session=cls.session,
+            is_active=True,
+        )
+
+        StudentSubjectEnrollment.objects.create(
+            student=cls.ss1_student,
+            subject=cls.english,
+            session=cls.session,
+            is_active=True,
+        )
+        StudentSubjectEnrollment.objects.create(
+            student=cls.ss1_student,
+            subject=cls.physics,
+            session=cls.session,
+            is_active=False,
+        )
+
+    def test_command_enrolls_students_into_all_mapped_subjects_for_selected_levels(self):
+        stdout = StringIO()
+
+        call_command(
+            "enroll_all_mapped_subjects",
+            "--session",
+            self.session.name,
+            "--levels",
+            "SS1",
+            "SS2",
+            stdout=stdout,
+        )
+
+        ss1_subject_ids = set(
+            StudentSubjectEnrollment.objects.filter(
+                student=self.ss1_student,
+                session=self.session,
+                is_active=True,
+            ).values_list("subject_id", flat=True)
+        )
+        ss2_subject_ids = set(
+            StudentSubjectEnrollment.objects.filter(
+                student=self.ss2_student,
+                session=self.session,
+                is_active=True,
+            ).values_list("subject_id", flat=True)
+        )
+        js1_subject_ids = set(
+            StudentSubjectEnrollment.objects.filter(
+                student=self.js1_student,
+                session=self.session,
+                is_active=True,
+            ).values_list("subject_id", flat=True)
+        )
+
+        self.assertEqual(ss1_subject_ids, {self.english.id, self.physics.id, self.maths.id})
+        self.assertEqual(ss2_subject_ids, {self.english.id, self.accounting.id})
+        self.assertEqual(js1_subject_ids, set())
+        self.assertIn("Created=3", stdout.getvalue())
+        self.assertIn("reactivated=1", stdout.getvalue())
