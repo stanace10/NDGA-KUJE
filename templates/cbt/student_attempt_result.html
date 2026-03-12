@@ -1,4 +1,5 @@
 {% extends "layouts/base.html" %}
+{% load cbt_text %}
 
 {% block title %}Attempt Result{% endblock %}
 {% block body_class %}min-h-screen bg-slate-950{% endblock %}
@@ -74,7 +75,7 @@
               {% for row in objective_rows %}
                 <tr>
                   <td class="px-3 py-2 font-semibold text-slate-100">{{ row.exam_question.sort_order }}</td>
-                  <td class="px-3 py-2 text-slate-700">{{ row.exam_question.question.stem|truncatechars:120 }}</td>
+                  <td class="px-3 py-2 text-slate-700">{% if row.exam_question.question.rich_stem %}{{ row.exam_question.question.rich_stem|safe|cbt_notation|truncatechars_html:120 }}{% else %}{{ row.exam_question.question.stem|cbt_notation|truncatechars_html:120 }}{% endif %}</td>
                   <td class="px-3 py-2 text-slate-700">
                     {{ row.auto_score }} / {{ row.exam_question.marks }}
                     {% if row.is_correct is not None %}

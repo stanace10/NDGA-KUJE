@@ -1,4 +1,5 @@
 {% extends "layouts/base.html" %}
+{% load cbt_text %}
 
 {% block title %}Exam Detail{% endblock %}
 
@@ -49,11 +50,11 @@
                   <td class="px-3 py-2 text-slate-700">{{ row.question.get_question_type_display }}</td>
                   <td class="px-3 py-2 text-slate-700">{{ row.marks }}</td>
                   <td class="px-3 py-2 text-slate-700">
-                    <div class="font-medium text-slate-800">{% if row.question.rich_stem %}{{ row.question.rich_stem|safe }}{% else %}{{ row.question.stem }}{% endif %}</div>
+                    <div class="font-medium text-slate-800">{% if row.question.rich_stem %}{{ row.question.rich_stem|safe|cbt_notation }}{% else %}{{ row.question.stem|cbt_notation }}{% endif %}</div>
                     {% if row.question.options.all %}
                       <p class="mt-1 text-xs text-slate-600">
                         {% for option in row.question.options.all %}
-                          {{ option.label }}. {{ option.option_text }}{% if not forloop.last %} | {% endif %}
+                          {{ option.label }}. {{ option.option_text|cbt_notation }}{% if not forloop.last %} | {% endif %}
                         {% endfor %}
                       </p>
                     {% endif %}

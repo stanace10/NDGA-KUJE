@@ -5,6 +5,7 @@ import zipfile
 from django.conf import settings
 from django.core import mail
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.template import Context, Template
 from django.test import Client, TestCase, override_settings
 from django.utils import timezone
 
@@ -1873,3 +1874,57 @@ class StageFourteenOfflineSyncTests(StageElevenCBTRunnerTests):
                 for row in rows
             )
         )
+
+
+@override_settings(**CBT_TEST_HOST_SETTINGS)
+class CBTNotationRenderingTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        StageElevenCBTRunnerTests.setUpTestData.__func__(cls)
+
+    def login_client(self, *, host, username, audience):
+        return StageElevenCBTRunnerTests.login_client(
+            self,
+            host=host,
+            username=username,
+            audience=audience,
+        )
+
+    def _create_exam(self, *, theory_enabled=False, objective_target=CBTWritebackTarget.OBJECTIVE):
+        return StageElevenCBTRunnerTests._create_exam(
+            self,
+            theory_enabled=theory_enabled,
+            objective_target=objective_target,
+        )
+
+    def _start_attempt(self, exam):
+        student_client = self.login_client(
+            host="cbt.ndgakuje.org",
+            username=self.student_user.username,
+            audience="cbt",
+        )
+        start_response = student_client.post(f"/cbt/exams/{exam.id}/start/")
+        self.assertEqual(start_response.status_code, 302)
+        attempt = ExamAttempt.objects.get(exam=exam, student=self.student_user)
+        return student_client, attempt
+
+    def test_template_filter_preserves_html_and_formats_base_digits(self):
+        rendered = Template(
+            "{% load cbt_text %}{{ value|safe|cbt_notation }}"
+        ).render(Context({"value": "Base <strong>1111\u2082</strong> and x\u00b2"}))
+        self.assertIn("<strong>1111<sub>2</sub></strong>", rendered)
+        self.assertIn("x<sup>2</sup>", rendered)
+
+    def test_attempt_run_renders_number_bases_as_subscripts(self):
+        exam, objective_question, _ = self._create_exam(theory_enabled=False)
+        objective_question.stem = "Add: 1111\u2082 + 101\u2082"
+        objective_question.save(update_fields=["stem", "updated_at"])
+        objective_question.options.filter(label="A").update(option_text="11111\u2082")
+        objective_question.options.filter(label="B").update(option_text="10100\u2082")
+
+        student_client, attempt = self._start_attempt(exam)
+        response = student_client.get(f"/cbt/attempts/{attempt.id}/run/")
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode("utf-8")
+        self.assertIn("1111<sub>2</sub> + 101<sub>2</sub>", content)
+        self.assertIn("10100<sub>2</sub>", content)

@@ -1,4 +1,5 @@
 {% extends "layouts/base.html" %}
+{% load cbt_text %}
 
 {% block title %}Theory Marking Detail{% endblock %}
 
@@ -20,7 +21,7 @@
         {% for answer in theory_answers %}
           <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Question {{ answer.exam_question.sort_order }} | Max {{ answer.exam_question.marks }}</p>
-            <p class="mt-2 text-sm font-semibold text-slate-900">{{ answer.exam_question.question.stem }}</p>
+            <p class="mt-2 text-sm font-semibold text-slate-900">{% if answer.exam_question.question.rich_stem %}{{ answer.exam_question.question.rich_stem|safe|cbt_notation }}{% else %}{{ answer.exam_question.question.stem|cbt_notation }}{% endif %}</p>
             {% if answer.response_text %}
               <div class="mt-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700">{{ answer.response_text|linebreaksbr }}</div>
             {% endif %}
