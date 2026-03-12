@@ -46,8 +46,8 @@
             <ul class="mt-2 space-y-2">
               <li>Stay in fullscreen throughout the exam.</li>
               <li>Tab switch, ESC, copy, paste, or repeated exit attempts trigger warnings.</li>
-              <li>Students finish objective first, then click <span class="font-semibold text-white">Begin Theory</span>.</li>
-              <li>Keyboard shortcuts: <span class="font-semibold text-white">A-D / 1-4</span> answers, <span class="font-semibold text-white">Left / Right</span> move.</li>
+              <li>Students finish objective first, then click <span class="font-semibold text-white">Finish Objective</span>.</li>
+              <li>Use the on-screen controls only. Physical keyboard input is disabled during the attempt.</li>
             </ul>
           </div>
           <div class="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-slate-200">
@@ -123,7 +123,7 @@
             {% if has_question_flow %}
               <div id="questionDeck" class="space-y-3">
                 {% for panel in question_panels %}
-                  <form method="post" class="attempt-question-panel rounded-3xl border border-slate-700 bg-slate-900 p-3 sm:p-4 {% if not panel.is_active %}hidden{% endif %}" data-index="{{ panel.index }}">
+                  <form method="post" class="attempt-question-panel rounded-3xl border border-slate-700 bg-slate-900 p-3 sm:p-4 {% if not panel.is_active %}hidden{% endif %}" data-index="{{ panel.index }}" data-question-type="{{ panel.question.question_type }}" data-theory-page="{% if panel.is_theory_page %}1{% else %}0{% endif %}">
                     {% csrf_token %}
                     <input type="hidden" name="q" value="{{ panel.index }}" class="question-index-input">
                     <input type="hidden" name="action" value="save_stay" class="attempt-action-input">
@@ -156,10 +156,10 @@
                       {% endif %}
                     </div>
 
-                    {% if panel.is_theory_page and theory_response_mode == "PAPER" %}
+                    {% if panel.is_theory_page %}
                       <div class="mt-3 rounded-2xl border border-amber-400/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-                        <p class="font-semibold">Theory Section (Paper Response)</p>
-                        <p class="mt-1">Write your answer on your answer booklet, then continue and submit this CBT.</p>
+                        <p class="font-semibold">Theory Section (Display Only)</p>
+                        <p class="mt-1">Objective is finished. Read the theory question on screen, answer on paper, then continue and submit this CBT.</p>
                       </div>
                     {% elif panel.question.question_type == "OBJECTIVE" %}
                       <div class="mt-3 grid gap-2">
@@ -199,7 +199,7 @@
                     <button type="button" id="prevBtn" class="ndga-btn ndga-btn-secondary !px-3 !py-1.5 !text-xs" {% if active_index <= 1 %}disabled{% endif %}>Prev</button>
                     <button type="button" id="nextBtn" class="ndga-btn ndga-btn-secondary !px-3 !py-1.5 !text-xs" {% if active_index >= question_count %}disabled{% endif %}>Next</button>
                     <button type="button" id="reviewBtn" class="ndga-btn ndga-btn-secondary !px-3 !py-1.5 !text-xs">Review</button>
-                    <button type="button" id="moveTheoryBtn" class="ndga-btn !bg-indigo-600 !px-3 !py-1.5 !text-xs !text-white hover:!bg-indigo-700 {% if not is_last_objective_page or theory_count <= 0 or theory_stage_unlocked %}hidden{% endif %}">Begin Theory</button>
+                    <button type="button" id="moveTheoryBtn" class="ndga-btn !bg-indigo-600 !px-3 !py-1.5 !text-xs !text-white hover:!bg-indigo-700 {% if not is_last_objective_page or theory_count <= 0 or theory_stage_unlocked %}hidden{% endif %}">Finish Objective</button>
                   </div>
                   <button type="button" id="submitBtn" class="ndga-btn !bg-emerald-600 !px-3 !py-1.5 !text-xs !text-white hover:!bg-emerald-700">Submit</button>
                 </div>
@@ -230,6 +230,25 @@
                       class="js-nav-item flex h-8 items-center justify-center rounded-lg border text-[11px] font-semibold {% if item.is_active %}border-cyan-400 bg-cyan-500/20 text-cyan-100{% elif item.answered %}border-emerald-500/70 bg-emerald-500/15 text-emerald-200{% else %}border-slate-600 bg-slate-800 text-slate-300{% endif %}"
                     >{{ item.index }}</a>
                   {% endfor %}
+                </div>
+              </article>
+              <article id="answerPadCard" class="rounded-3xl border border-slate-700 bg-slate-900 p-3">
+                <div class="flex items-center justify-between gap-2">
+                  <h3 class="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200">On-Screen Answer Pad</h3>
+                  <span class="rounded-full border border-cyan-500/40 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-semibold text-cyan-100">Keyboard Disabled</span>
+                </div>
+                <p class="mt-2 text-[11px] text-slate-300">Use only the on-screen controls for answering and movement during the exam.</p>
+                <div class="mt-3 grid grid-cols-2 gap-2">
+                  <button type="button" data-answer-pad="A" class="answer-pad-btn rounded-2xl border border-slate-600 bg-slate-800 px-3 py-3 text-sm font-semibold text-slate-100 hover:border-cyan-400/60">A</button>
+                  <button type="button" data-answer-pad="B" class="answer-pad-btn rounded-2xl border border-slate-600 bg-slate-800 px-3 py-3 text-sm font-semibold text-slate-100 hover:border-cyan-400/60">B</button>
+                  <button type="button" data-answer-pad="C" class="answer-pad-btn rounded-2xl border border-slate-600 bg-slate-800 px-3 py-3 text-sm font-semibold text-slate-100 hover:border-cyan-400/60">C</button>
+                  <button type="button" data-answer-pad="D" class="answer-pad-btn rounded-2xl border border-slate-600 bg-slate-800 px-3 py-3 text-sm font-semibold text-slate-100 hover:border-cyan-400/60">D</button>
+                </div>
+                <div class="mt-3 grid grid-cols-2 gap-2">
+                  <button type="button" id="padPrevBtn" class="rounded-2xl border border-slate-600 bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-100 hover:border-cyan-400/60">Prev</button>
+                  <button type="button" id="padNextBtn" class="rounded-2xl border border-slate-600 bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-100 hover:border-cyan-400/60">Next</button>
+                  <button type="button" id="padTheoryBtn" class="rounded-2xl border border-indigo-500/40 bg-indigo-500/10 px-3 py-2 text-xs font-semibold text-indigo-100 hover:border-indigo-400/60">Finish Objective</button>
+                  <button type="button" id="padSubmitBtn" class="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-100 hover:border-emerald-400/60">Submit</button>
                 </div>
               </article>
               {% if calculator_enabled %}
@@ -338,7 +357,7 @@
     </div>
 
     <div id="reviewModal" class="fixed inset-0 z-[85] hidden"><div class="absolute inset-0 bg-slate-950/60"></div><div class="relative mx-auto mt-16 w-[94%] max-w-2xl rounded-3xl border border-slate-700 bg-slate-900 p-5 text-slate-100 shadow-2xl"><h2 class="text-lg font-semibold text-white">Attempt Review</h2><p class="mt-1 text-sm text-slate-300">Jump to any question before final submission.</p><div class="mt-4 grid grid-cols-4 gap-2 sm:grid-cols-6">{% for item in navigator %}<a href="?q={{ item.index }}" data-jump-index="{{ item.index }}" class="js-nav-item flex h-9 items-center justify-center rounded-xl border text-xs font-semibold {% if item.answered %}border-emerald-500/70 bg-emerald-500/15 text-emerald-200{% else %}border-slate-600 bg-slate-800 text-slate-300{% endif %}">{{ item.index }}</a>{% endfor %}</div><div class="mt-5 flex justify-end gap-2"><button type="button" id="closeReviewBtn" class="ndga-btn ndga-btn-secondary">Close</button></div></div></div>
-    <div id="theoryConfirmModal" class="fixed inset-0 z-[86] hidden"><div class="absolute inset-0 bg-slate-950/65"></div><div class="relative mx-auto mt-28 w-[92%] max-w-md rounded-3xl border border-slate-700 bg-slate-900 p-5 text-slate-100 shadow-2xl"><h2 class="text-lg font-semibold text-white">Begin Theory?</h2><p class="mt-2 text-sm text-slate-300">Are you done with objective questions? If yes, begin the theory section. The same timer continues running.</p><div class="mt-5 flex justify-end gap-2"><button type="button" id="cancelTheoryMoveBtn" class="ndga-btn ndga-btn-secondary">No</button><button type="button" id="confirmTheoryMoveBtn" class="ndga-btn !bg-indigo-600 !text-white hover:!bg-indigo-700">Begin Theory</button></div></div></div>
+    <div id="theoryConfirmModal" class="fixed inset-0 z-[86] hidden"><div class="absolute inset-0 bg-slate-950/65"></div><div class="relative mx-auto mt-28 w-[92%] max-w-md rounded-3xl border border-slate-700 bg-slate-900 p-5 text-slate-100 shadow-2xl"><h2 class="text-lg font-semibold text-white">Finish Objective?</h2><p class="mt-2 text-sm text-slate-300">This ends the objective stage and opens the separate theory page. Theory questions will display on screen only and must be answered on paper. The same timer continues running.</p><div class="mt-5 flex justify-end gap-2"><button type="button" id="cancelTheoryMoveBtn" class="ndga-btn ndga-btn-secondary">No</button><button type="button" id="confirmTheoryMoveBtn" class="ndga-btn !bg-indigo-600 !text-white hover:!bg-indigo-700">Enter Theory Page</button></div></div></div>
     <div id="submitModal" class="fixed inset-0 z-[87] hidden"><div class="absolute inset-0 bg-slate-950/65"></div><div class="relative mx-auto mt-28 w-[92%] max-w-md rounded-3xl border border-slate-700 bg-slate-900 p-5 text-slate-100 shadow-2xl"><h2 class="text-lg font-semibold text-white">Submit Attempt?</h2><p class="mt-2 text-sm text-slate-300">Once submitted, this attempt is final except IT Manager override policy.</p><div class="mt-5 flex justify-end gap-2"><button type="button" id="cancelSubmitBtn" class="ndga-btn ndga-btn-secondary">Cancel</button><button type="button" id="confirmSubmitBtn" class="ndga-btn !bg-emerald-600 !text-white hover:!bg-emerald-700">Submit Now</button></div></div></div>
     <p id="autosaveNote" class="mt-2 text-center text-xs font-semibold text-slate-300"></p>
   </section>
@@ -388,6 +407,12 @@
       const submitBtn = document.getElementById("submitBtn");
       const submitModal = document.getElementById("submitModal");
       const moveTheoryBtn = document.getElementById("moveTheoryBtn");
+      const answerPadCard = document.getElementById("answerPadCard");
+      const answerPadButtons = Array.from(document.querySelectorAll("[data-answer-pad]"));
+      const padPrevBtn = document.getElementById("padPrevBtn");
+      const padNextBtn = document.getElementById("padNextBtn");
+      const padTheoryBtn = document.getElementById("padTheoryBtn");
+      const padSubmitBtn = document.getElementById("padSubmitBtn");
       const theoryModal = document.getElementById("theoryConfirmModal");
       const cancelTheoryMoveBtn = document.getElementById("cancelTheoryMoveBtn");
       const confirmTheoryMoveBtn = document.getElementById("confirmTheoryMoveBtn");
@@ -513,10 +538,64 @@
 
       function updateControlState() {
         if (prevBtn) prevBtn.disabled = activeIndex <= 1;
-        if (nextBtn) nextBtn.disabled = activeIndex >= questionCount;
+        if (nextBtn) {
+          const disableNext =
+            activeIndex >= questionCount ||
+            (objectiveCount > 0 && theoryCount > 0 && !theoryUnlocked && activeIndex >= objectiveCount);
+          nextBtn.disabled = disableNext;
+        }
         if (moveTheoryBtn) {
           const showMoveTheory = objectiveCount > 0 && theoryCount > 0 && !theoryUnlocked && activeIndex === objectiveCount;
           moveTheoryBtn.classList.toggle("hidden", !showMoveTheory);
+        }
+      }
+
+      function setAnswerPadButtonState(button, selected) {
+        if (!button) return;
+        button.classList.toggle("border-cyan-400/70", selected);
+        button.classList.toggle("bg-cyan-500/20", selected);
+        button.classList.toggle("text-cyan-100", selected);
+        button.classList.toggle("border-slate-600", !selected);
+        button.classList.toggle("bg-slate-800", !selected);
+        button.classList.toggle("text-slate-100", !selected);
+      }
+
+      function syncAnswerPad() {
+        if (!answerPadCard) return;
+        const panel = getActivePanel();
+        const questionType = panel ? String(panel.dataset.questionType || "").toUpperCase() : "";
+        const objectivePanel = questionType === "OBJECTIVE" || questionType === "MULTI_SELECT";
+        answerPadButtons.forEach(function (button) {
+          const label = button.getAttribute("data-answer-pad");
+          const input = objectivePanel && panel
+            ? panel.querySelector("input[name='selected_options'][data-option-label='" + label + "']")
+            : null;
+          const visible = !!input;
+          button.classList.toggle("hidden", !visible);
+          button.disabled = !visible;
+          button.classList.toggle("opacity-50", !visible);
+          setAnswerPadButtonState(button, !!(input && input.checked));
+        });
+        if (padPrevBtn) {
+          const disablePrev = activeIndex <= 1;
+          padPrevBtn.disabled = disablePrev;
+          padPrevBtn.classList.toggle("opacity-50", disablePrev);
+        }
+        if (padNextBtn) {
+          const disableNext =
+            activeIndex >= questionCount ||
+            (objectiveCount > 0 && theoryCount > 0 && !theoryUnlocked && activeIndex >= objectiveCount);
+          padNextBtn.disabled = disableNext;
+          padNextBtn.classList.toggle("opacity-50", disableNext);
+        }
+        if (padTheoryBtn) {
+          const showMoveTheory = objectiveCount > 0 && theoryCount > 0 && !theoryUnlocked && activeIndex === objectiveCount;
+          padTheoryBtn.classList.toggle("hidden", !showMoveTheory);
+          padTheoryBtn.disabled = !showMoveTheory;
+          padTheoryBtn.classList.toggle("opacity-50", !showMoveTheory);
+        }
+        if (padSubmitBtn) {
+          padSubmitBtn.disabled = !hasQuestionFlow;
         }
       }
 
@@ -529,6 +608,8 @@
         });
         updateNavHighlights();
         updateControlState();
+        updatePhaseUi();
+        syncAnswerPad();
       }
 
       function buildFormData(action, extraData) {
@@ -910,6 +991,18 @@
         });
       }
 
+      if (padPrevBtn) {
+        padPrevBtn.addEventListener("click", function () {
+          handleQuestionAction("save_prev");
+        });
+      }
+
+      if (padNextBtn) {
+        padNextBtn.addEventListener("click", function () {
+          handleQuestionAction("save_next");
+        });
+      }
+
       if (reviewBtn && reviewModal) {
         reviewBtn.addEventListener("click", function () {
           reviewModal.classList.remove("hidden");
@@ -924,6 +1017,12 @@
 
       if (moveTheoryBtn && theoryModal) {
         moveTheoryBtn.addEventListener("click", function () {
+          theoryModal.classList.remove("hidden");
+        });
+      }
+
+      if (padTheoryBtn && theoryModal) {
+        padTheoryBtn.addEventListener("click", function () {
           theoryModal.classList.remove("hidden");
         });
       }
@@ -943,6 +1042,12 @@
 
       if (submitBtn && submitModal) {
         submitBtn.addEventListener("click", function () {
+          submitModal.classList.remove("hidden");
+        });
+      }
+
+      if (padSubmitBtn && submitModal) {
+        padSubmitBtn.addEventListener("click", function () {
           submitModal.classList.remove("hidden");
         });
       }
@@ -969,6 +1074,7 @@
         const responseTextNode = panel.querySelector("textarea[name='response_text']");
         optionInputs.forEach(function (input) {
           input.addEventListener("change", function () {
+            syncAnswerPad();
             autosaveCurrentQuestion();
           });
         });
@@ -986,6 +1092,25 @@
             autosaveCurrentQuestion();
           });
         }
+      });
+
+      answerPadButtons.forEach(function (button) {
+        button.addEventListener("click", function () {
+          if (!started || violationSent || isSubmitting) return;
+          const panel = getActivePanel();
+          if (!panel) return;
+          const optionLabel = button.getAttribute("data-answer-pad");
+          const input = panel.querySelector("input[name='selected_options'][data-option-label='" + optionLabel + "']");
+          if (!input) return;
+          if (input.type === "checkbox") {
+            input.checked = !input.checked;
+          } else {
+            input.checked = true;
+          }
+          input.dispatchEvent(new Event("change", { bubbles: true }));
+          markPanelAnswered(activeIndex, isPanelAnswered(panel));
+          syncAnswerPad();
+        });
       });
 
       document.querySelectorAll("[data-jump-index]").forEach((node) => {
@@ -1037,45 +1162,23 @@
         }
       });
 
-      document.addEventListener("keydown", function (event) {
+      function blockHardwareKeyboard(event) {
         if (!started || violationSent || isSubmitting) return;
-        if (lockOn && event.key === "Escape") {
-          event.preventDefault();
-          event.stopPropagation();
-          issueWarning("FULLSCREEN_EXIT", { source: "escape_key" }, { label: "Escape key is blocked" });
-          return;
-        }
         const activeNode = document.activeElement;
         const tag = (activeNode && activeNode.tagName ? activeNode.tagName : "").toUpperCase();
-        if (tag === "TEXTAREA" || (tag === "INPUT" && activeNode.id !== "calcDisplay")) {
-          return;
-        }
-        const key = (event.key || "").toLowerCase();
-        const optionMap = { a: "A", b: "B", c: "C", d: "D", 1: "A", 2: "B", 3: "C", 4: "D" };
-        if (optionMap[key]) {
-          const panel = getActivePanel();
-          const input = panel ? panel.querySelector("input[name='selected_options'][data-option-label='" + optionMap[key] + "']") : null;
-          if (input) {
-            if (input.type === "checkbox") {
-              input.checked = !input.checked;
-            } else {
-              input.checked = true;
-            }
-            input.dispatchEvent(new Event("change", { bubbles: true }));
-            markPanelAnswered(activeIndex, true);
-            event.preventDefault();
+        if (tag === "INPUT" || tag === "TEXTAREA") {
+          try {
+            activeNode.blur();
+          } catch (_error) {
+            return null;
           }
-          return;
         }
-        if (event.key === "ArrowRight") {
-          event.preventDefault();
-          handleQuestionAction("save_next");
-          return;
-        }
-        if (event.key === "ArrowLeft") {
-          event.preventDefault();
-          handleQuestionAction("save_prev");
-        }
+        event.preventDefault();
+        event.stopPropagation();
+      }
+
+      ["keydown", "keypress", "keyup"].forEach(function (eventName) {
+        document.addEventListener(eventName, blockHardwareKeyboard, true);
       });
 
       window.addEventListener("beforeunload", function (event) {
@@ -1221,6 +1324,7 @@
       paintTimer();
       updateWarningUi();
       updatePhaseUi();
+      syncAnswerPad();
       setTimerPausedState(timerPaused, "{{ timer_pause_reason|escapejs }}");
     })();
   </script>

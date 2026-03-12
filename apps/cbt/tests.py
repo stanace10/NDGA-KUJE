@@ -969,6 +969,25 @@ class StageElevenCBTRunnerTests(TestCase):
             )
         )
 
+    def test_theory_runner_keeps_theory_display_only_with_on_screen_controls(self):
+        exam, _, _ = self._create_exam(theory_enabled=True)
+        student_client = self.login_client(
+            host="cbt.ndgakuje.org",
+            username=self.student_user.username,
+            audience="cbt",
+        )
+        start_response = student_client.post(f"/cbt/exams/{exam.id}/start/")
+        self.assertEqual(start_response.status_code, 302)
+        attempt = ExamAttempt.objects.get(exam=exam, student=self.student_user)
+
+        run_response = student_client.get(f"/cbt/attempts/{attempt.id}/run/")
+        self.assertEqual(run_response.status_code, 200)
+        html = run_response.content.decode()
+        self.assertIn("Finish Objective", html)
+        self.assertIn("Keyboard Disabled", html)
+        self.assertIn("Theory questions will display on screen only and must be answered on paper.", html)
+        self.assertNotIn('name="response_text"', html)
+
     def test_student_exam_board_shows_only_today_rows_and_marks_done_after_auto_close(self):
         now = timezone.now()
 
