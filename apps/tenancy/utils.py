@@ -97,9 +97,17 @@ def _local_simple_portal_key_from_request(request):
     if audience in settings.PORTAL_SUBDOMAINS:
         return audience
     path_portal = _local_simple_portal_key_from_path(getattr(request, "path", "/"))
+    user = getattr(request, "user", None)
+    user_portal = _local_simple_portal_key_from_user(user)
+    request_path = getattr(request, "path", "/") or "/"
+    if (
+        user_portal == "it"
+        and path_portal == "cbt"
+        and request_path.startswith("/cbt/authoring/")
+    ):
+        return "it"
     if path_portal != "landing":
         return path_portal
-    user_portal = _local_simple_portal_key_from_user(getattr(request, "user", None))
     if user_portal != "landing":
         return user_portal
     return "landing"

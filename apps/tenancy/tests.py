@@ -86,6 +86,11 @@ class StageTwoHostRoutingTests(TestCase):
         request.user = self.teacher_user
         self.assertEqual(current_portal_key(request), "cbt")
 
+    def test_localhost_it_cbt_authoring_routes_stay_in_it_portal(self):
+        request = RequestFactory().get("/cbt/authoring/", HTTP_HOST="localhost:8000")
+        request.user = self.it_user
+        self.assertEqual(current_portal_key(request), "it")
+
     def test_localhost_student_cbt_runtime_uses_cbt_portal(self):
         request = RequestFactory().get("/cbt/exams/available/", HTTP_HOST="localhost:8000")
         request.user = self.student
@@ -176,6 +181,13 @@ class StageTwoHostRoutingTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "IT Manager Portal")
         self.assertContains(response, "CBT Setup")
+
+    def test_localhost_it_cbt_authoring_no_fresh_login_redirect(self):
+        client = Client(HTTP_HOST="localhost:8000")
+        client.force_login(self.it_user)
+        response = client.get("/cbt/authoring/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "IT Manager Portal")
     def test_staff_login_page_copy_is_staff_only(self):
         client = Client(HTTP_HOST="staff.ndgakuje.org")
         response = client.get("/auth/login/?audience=staff")
