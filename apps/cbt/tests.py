@@ -41,7 +41,7 @@ from apps.cbt.models import (
     SimulationAttemptRecord,
     SimulationWrapper,
 )
-from apps.cbt.services import parse_objective_questions, student_available_exams
+from apps.cbt.services import _ordered_exam_question_rows, parse_objective_questions, student_available_exams
 from apps.audit.models import AuditCategory, AuditEvent
 from apps.results.models import StudentSubjectScore
 from apps.sync.models import SyncOperationType, SyncQueue
@@ -919,6 +919,55 @@ class StageElevenCBTRunnerTests(TestCase):
         self.assertEqual(str(attempt.theory_score), "20.00")
         score.refresh_from_db()
         self.assertEqual(str(score.theory), "20.00")
+
+    def test_shuffle_keeps_theory_after_objective_questions(self):
+        exam, _, theory_question = self._create_exam(theory_enabled=True)
+        extra_objective = Question.objects.create(
+            question_bank=exam.question_bank,
+            created_by=self.teacher_user,
+            subject=self.subject,
+            question_type=CBTQuestionType.OBJECTIVE,
+            stem="Atomic number of neon?",
+            topic="Atoms",
+            difficulty="EASY",
+            marks=5,
+        )
+        extra_option = Option.objects.create(
+            question=extra_objective,
+            label="A",
+            option_text="10",
+            sort_order=1,
+        )
+        Option.objects.create(
+            question=extra_objective,
+            label="B",
+            option_text="20",
+            sort_order=2,
+        )
+        from apps.cbt.models import CorrectAnswer
+
+        answer = CorrectAnswer.objects.create(question=extra_objective, is_finalized=True)
+        answer.correct_options.set([extra_option])
+        exam.exam_questions.filter(question=theory_question).update(sort_order=3)
+        ExamQuestion.objects.create(
+            exam=exam,
+            question=extra_objective,
+            sort_order=2,
+            marks=5,
+        )
+        blueprint = exam.blueprint
+        blueprint.shuffle_questions = True
+        blueprint.save(update_fields=["shuffle_questions", "updated_at"])
+
+        ordered_rows = _ordered_exam_question_rows(exam, shuffle_questions=True)
+        question_types = [row.question.question_type for row in ordered_rows]
+        self.assertEqual(question_types[-1], CBTQuestionType.SHORT_ANSWER)
+        self.assertTrue(
+            all(
+                question_type in {CBTQuestionType.OBJECTIVE, CBTQuestionType.MULTI_SELECT}
+                for question_type in question_types[:-1]
+            )
+        )
 
     def test_student_exam_board_shows_only_today_rows_and_marks_done_after_auto_close(self):
         now = timezone.now()

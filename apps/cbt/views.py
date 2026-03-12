@@ -2680,14 +2680,12 @@ class CBTStudentAttemptRunView(CBTStudentAccessMixin, TemplateView):
             .strip()
             .upper()
         )
-        flagged = request.POST.get("is_flagged") == "1"
         if question.question_type in {CBTQuestionType.OBJECTIVE, CBTQuestionType.MULTI_SELECT}:
             selected_option_ids = request.POST.getlist("selected_options")
             save_attempt_answer(
                 attempt=self.attempt,
                 exam_question_id=answer.exam_question_id,
                 selected_option_ids=selected_option_ids,
-                is_flagged=flagged,
             )
             return
         response_text = request.POST.get("response_text", "")
@@ -2707,7 +2705,6 @@ class CBTStudentAttemptRunView(CBTStudentAccessMixin, TemplateView):
             exam_question_id=answer.exam_question_id,
             response_text=response_text,
             response_payload=response_payload,
-            is_flagged=flagged,
         )
 
     def get_context_data(self, **kwargs):

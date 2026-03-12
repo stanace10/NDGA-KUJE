@@ -32,7 +32,7 @@
   >
     {{ navigator|json_script:"cbt-navigator-seed" }}
 
-    <div id="cbtGate" class="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/90 p-4">
+    <div id="cbtGate" class="{% if not lockdown_enabled %}hidden {% endif %}fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/90 p-4">
       <div class="w-full max-w-2xl rounded-3xl border border-slate-700 bg-slate-900 p-6 text-white shadow-2xl">
         <p class="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">CBT Exam Mode</p>
         <h1 class="mt-2 text-2xl font-bold">{{ exam.title }}</h1>
@@ -70,7 +70,7 @@
       </div>
     </div>
 
-    <div id="cbtRunWrap" class="hidden">
+    <div id="cbtRunWrap" class="{% if lockdown_enabled %}hidden{% endif %}">
       <article class="rounded-3xl border border-slate-700/70 bg-slate-900/95 p-3 text-slate-100 shadow-2xl sm:p-4">
         <div class="flex flex-wrap items-start justify-between gap-3 border-b border-slate-700 pb-3">
           <div class="flex items-start gap-3">
@@ -96,11 +96,11 @@
                 {{ request.user.first_name|default:request.user.username|slice:":2" }}
               </div>
             {% endif %}
-            <span id="lockBadge" class="inline-flex items-center gap-2 rounded-full border border-slate-600 bg-slate-800 px-2.5 py-1 text-[11px] font-semibold text-slate-200">
+            <span id="lockBadge" class="{% if not lockdown_enabled %}hidden {% endif %}inline-flex items-center gap-2 rounded-full border border-slate-600 bg-slate-800 px-2.5 py-1 text-[11px] font-semibold text-slate-200">
               <span class="inline-block h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
               Secure Lock
             </span>
-            <span id="warningBadge" class="inline-flex items-center gap-2 rounded-full border border-amber-500/50 bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-100">
+            <span id="warningBadge" class="{% if not lockdown_enabled %}hidden {% endif %}inline-flex items-center gap-2 rounded-full border border-amber-500/50 bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-100">
               Warnings
               <span id="warningCount">0 / 2</span>
             </span>
@@ -127,14 +127,10 @@
                     {% csrf_token %}
                     <input type="hidden" name="q" value="{{ panel.index }}" class="question-index-input">
                     <input type="hidden" name="action" value="save_stay" class="attempt-action-input">
-                    <input type="hidden" name="is_flagged" value="{% if panel.answer and panel.answer.is_flagged %}1{% else %}0{% endif %}" class="flagged-input">
                     <input type="hidden" name="response_payload" value="">
 
                     <div class="flex flex-wrap items-center justify-between gap-2">
                       <p class="text-sm font-semibold text-cyan-200">Question {{ panel.index }}</p>
-                      <button type="button" class="flag-toggle-btn rounded-xl border border-amber-400/60 bg-amber-500/15 px-2.5 py-1 text-[11px] font-semibold text-amber-200">
-                        {% if panel.answer and panel.answer.is_flagged %}Unflag{% else %}Flag{% endif %}
-                      </button>
                     </div>
 
                     <div class="mt-3 rounded-2xl border border-slate-700 bg-slate-800/60 p-3.5">
@@ -231,7 +227,7 @@
                     <a
                       href="?q={{ item.index }}"
                       data-jump-index="{{ item.index }}"
-                      class="js-nav-item flex h-8 items-center justify-center rounded-lg border text-[11px] font-semibold {% if item.is_active %}border-cyan-400 bg-cyan-500/20 text-cyan-100{% elif item.answered %}border-emerald-500/70 bg-emerald-500/15 text-emerald-200{% elif item.flagged %}border-amber-500/70 bg-amber-500/15 text-amber-200{% else %}border-slate-600 bg-slate-800 text-slate-300{% endif %}"
+                      class="js-nav-item flex h-8 items-center justify-center rounded-lg border text-[11px] font-semibold {% if item.is_active %}border-cyan-400 bg-cyan-500/20 text-cyan-100{% elif item.answered %}border-emerald-500/70 bg-emerald-500/15 text-emerald-200{% else %}border-slate-600 bg-slate-800 text-slate-300{% endif %}"
                     >{{ item.index }}</a>
                   {% endfor %}
                 </div>
@@ -323,15 +319,17 @@
                     LIVE CCTV
                   </span>
                 </div>
-                <p id="warningHelpText" class="mt-2 text-[11px] text-slate-300">Warnings 0 / 2. The second security warning submits the attempt automatically.</p>
-                <div class="mt-3 rounded-2xl border border-slate-700 bg-slate-950/70 p-3 text-[11px] text-slate-200">
-                  <p class="font-semibold uppercase tracking-[0.14em] text-slate-400">Strict Actions</p>
-                  <ul class="mt-2 space-y-2">
-                    <li>Stay in fullscreen until final submission.</li>
-                    <li>Tab switch, ESC, copy, paste, and idle breaches are logged live.</li>
-                    <li>Theory starts only after objective is completed and confirmed.</li>
-                  </ul>
-                </div>
+                <p id="warningHelpText" class="mt-2 text-[11px] text-slate-300">{% if lockdown_enabled %}Warnings 0 / 2. The second security warning submits the attempt automatically.{% else %}Live invigilation only. Use Next, Prev, and Submit while the timer runs.{% endif %}</p>
+                {% if lockdown_enabled %}
+                  <div class="mt-3 rounded-2xl border border-slate-700 bg-slate-950/70 p-3 text-[11px] text-slate-200">
+                    <p class="font-semibold uppercase tracking-[0.14em] text-slate-400">Strict Actions</p>
+                    <ul class="mt-2 space-y-2">
+                      <li>Stay in fullscreen until final submission.</li>
+                      <li>Tab switch, ESC, copy, paste, and idle breaches are logged live.</li>
+                      <li>Theory starts only after objective is completed and confirmed.</li>
+                    </ul>
+                  </div>
+                {% endif %}
               </article>
             {% endif %}
           </aside>
@@ -339,15 +337,13 @@
       </article>
     </div>
 
-    <div id="reviewModal" class="fixed inset-0 z-[85] hidden"><div class="absolute inset-0 bg-slate-950/60"></div><div class="relative mx-auto mt-16 w-[94%] max-w-2xl rounded-3xl border border-slate-700 bg-slate-900 p-5 text-slate-100 shadow-2xl"><h2 class="text-lg font-semibold text-white">Attempt Review</h2><p class="mt-1 text-sm text-slate-300">Jump to unanswered/flagged questions before final submission.</p><div class="mt-4 grid grid-cols-4 gap-2 sm:grid-cols-6">{% for item in navigator %}<a href="?q={{ item.index }}" data-jump-index="{{ item.index }}" class="js-nav-item flex h-9 items-center justify-center rounded-xl border text-xs font-semibold {% if item.answered %}border-emerald-500/70 bg-emerald-500/15 text-emerald-200{% elif item.flagged %}border-amber-500/70 bg-amber-500/15 text-amber-200{% else %}border-slate-600 bg-slate-800 text-slate-300{% endif %}">{{ item.index }}</a>{% endfor %}</div><div class="mt-5 flex justify-end gap-2"><button type="button" id="closeReviewBtn" class="ndga-btn ndga-btn-secondary">Close</button></div></div></div>
+    <div id="reviewModal" class="fixed inset-0 z-[85] hidden"><div class="absolute inset-0 bg-slate-950/60"></div><div class="relative mx-auto mt-16 w-[94%] max-w-2xl rounded-3xl border border-slate-700 bg-slate-900 p-5 text-slate-100 shadow-2xl"><h2 class="text-lg font-semibold text-white">Attempt Review</h2><p class="mt-1 text-sm text-slate-300">Jump to any question before final submission.</p><div class="mt-4 grid grid-cols-4 gap-2 sm:grid-cols-6">{% for item in navigator %}<a href="?q={{ item.index }}" data-jump-index="{{ item.index }}" class="js-nav-item flex h-9 items-center justify-center rounded-xl border text-xs font-semibold {% if item.answered %}border-emerald-500/70 bg-emerald-500/15 text-emerald-200{% else %}border-slate-600 bg-slate-800 text-slate-300{% endif %}">{{ item.index }}</a>{% endfor %}</div><div class="mt-5 flex justify-end gap-2"><button type="button" id="closeReviewBtn" class="ndga-btn ndga-btn-secondary">Close</button></div></div></div>
     <div id="theoryConfirmModal" class="fixed inset-0 z-[86] hidden"><div class="absolute inset-0 bg-slate-950/65"></div><div class="relative mx-auto mt-28 w-[92%] max-w-md rounded-3xl border border-slate-700 bg-slate-900 p-5 text-slate-100 shadow-2xl"><h2 class="text-lg font-semibold text-white">Begin Theory?</h2><p class="mt-2 text-sm text-slate-300">Are you done with objective questions? If yes, begin the theory section. The same timer continues running.</p><div class="mt-5 flex justify-end gap-2"><button type="button" id="cancelTheoryMoveBtn" class="ndga-btn ndga-btn-secondary">No</button><button type="button" id="confirmTheoryMoveBtn" class="ndga-btn !bg-indigo-600 !text-white hover:!bg-indigo-700">Begin Theory</button></div></div></div>
     <div id="submitModal" class="fixed inset-0 z-[87] hidden"><div class="absolute inset-0 bg-slate-950/65"></div><div class="relative mx-auto mt-28 w-[92%] max-w-md rounded-3xl border border-slate-700 bg-slate-900 p-5 text-slate-100 shadow-2xl"><h2 class="text-lg font-semibold text-white">Submit Attempt?</h2><p class="mt-2 text-sm text-slate-300">Once submitted, this attempt is final except IT Manager override policy.</p><div class="mt-5 flex justify-end gap-2"><button type="button" id="cancelSubmitBtn" class="ndga-btn ndga-btn-secondary">Cancel</button><button type="button" id="confirmSubmitBtn" class="ndga-btn !bg-emerald-600 !text-white hover:!bg-emerald-700">Submit Now</button></div></div></div>
     <p id="autosaveNote" class="mt-2 text-center text-xs font-semibold text-slate-300"></p>
   </section>
 
-  <script type="module">
-    import { renderMathInElement } from "{% static 'vendor/mathlive/mathlive.mjs' %}";
-
+  <script>
     (function () {
       const root = document.getElementById("cbtAttemptApp");
       if (!root) return;
@@ -398,7 +394,8 @@
       const cancelSubmitBtn = document.getElementById("cancelSubmitBtn");
       const confirmSubmitBtn = document.getElementById("confirmSubmitBtn");
       const practicalSubmitForm = document.getElementById("simulationSubmitForm");
-      const fallbackCsrfToken = document.querySelector("input[name='csrfmiddlewaretoken']")?.value || "";
+      const fallbackCsrfNode = document.querySelector("input[name='csrfmiddlewaretoken']");
+      const fallbackCsrfToken = fallbackCsrfNode ? fallbackCsrfNode.value || "" : "";
 
       const attemptKey = root.dataset.attemptId || "0";
       const tokenKey = "ndga_cbt_tab_token_" + attemptKey;
@@ -441,16 +438,48 @@
         autosaveNote.className = "mt-2 text-center text-xs font-semibold " + (ok ? "text-emerald-200" : "text-rose-300");
       }
 
+      function xhrRequest(url, method, headers, body) {
+        return new Promise(function (resolve, reject) {
+          const request = new XMLHttpRequest();
+          request.open(method, url, true);
+          Object.keys(headers || {}).forEach(function (key) {
+            request.setRequestHeader(key, headers[key]);
+          });
+          request.onreadystatechange = function () {
+            if (request.readyState !== 4) return;
+            resolve({
+              ok: request.status >= 200 && request.status < 300,
+              status: request.status,
+              text: function () {
+                return Promise.resolve(request.responseText || "");
+              },
+              json: function () {
+                try {
+                  return Promise.resolve(JSON.parse(request.responseText || "{}"));
+                } catch (_error) {
+                  return Promise.resolve({});
+                }
+              },
+            });
+          };
+          request.onerror = function () {
+            reject(new Error("request_failed"));
+          };
+          request.send(body);
+        });
+      }
+
       function postJson(url, payload, csrfToken) {
-        return fetch(url, {
-          method: "POST",
-          headers: {
+        return xhrRequest(
+          url,
+          "POST",
+          {
             "X-Requested-With": "XMLHttpRequest",
             "X-CSRFToken": csrfToken || "",
             "Content-Type": "application/json",
           },
-          body: JSON.stringify(payload || {}),
-        });
+          JSON.stringify(payload || {})
+        );
       }
 
       function clampIndex(index) {
@@ -468,7 +497,9 @@
       }
 
       function getCsrfToken(formNode) {
-        return formNode?.querySelector("input[name='csrfmiddlewaretoken']")?.value || fallbackCsrfToken;
+        if (!formNode) return fallbackCsrfToken;
+        const csrfNode = formNode.querySelector("input[name='csrfmiddlewaretoken']");
+        return (csrfNode ? csrfNode.value || "" : "") || fallbackCsrfToken;
       }
 
       function updateNavHighlights() {
@@ -514,6 +545,31 @@
         return payload;
       }
 
+      function syncSubmitFallback(action, extraData) {
+        const panel = getActivePanel();
+        const payload = buildFormData(action, extraData);
+        if (!panel || !payload) return false;
+        panel.querySelectorAll(".fallback-extra-input").forEach(function (node) {
+          node.remove();
+        });
+        if (extraData) {
+          Object.keys(extraData).forEach(function (key) {
+            const input = document.createElement("input");
+            input.type = "hidden";
+            input.name = key;
+            input.value = String(extraData[key]);
+            input.className = "fallback-extra-input";
+            panel.appendChild(input);
+          });
+        }
+        const actionNode = panel.querySelector(".attempt-action-input");
+        if (actionNode) {
+          actionNode.value = action;
+        }
+        panel.submit();
+        return true;
+      }
+
       async function ajaxAction(action, extraData) {
         const panel = getActivePanel();
         const payload = buildFormData(action, extraData);
@@ -522,20 +578,24 @@
         }
         const csrfToken = getCsrfToken(panel);
         try {
-          const response = await fetch(window.location.pathname + "?q=" + activeIndex, {
-            method: "POST",
-            headers: {
+          const response = await xhrRequest(
+            window.location.pathname + "?q=" + activeIndex,
+            "POST",
+            {
               "X-Requested-With": "XMLHttpRequest",
               "X-CSRFToken": csrfToken,
             },
-            body: payload,
-          });
+            payload
+          );
           const data = await response.json().catch(() => ({}));
           if (!response.ok && !data.ok) {
             return { ok: false, error: data.error || "Request failed." };
           }
           return data;
         } catch (_error) {
+          if (syncSubmitFallback(action, extraData)) {
+            return { ok: true, fallback: true };
+          }
           return { ok: false, error: "Network error while saving." };
         }
       }
@@ -544,7 +604,8 @@
         if (!panel) return false;
         const checkedOptions = panel.querySelectorAll("input[name='selected_options']:checked");
         if (checkedOptions.length > 0) return true;
-        const textValue = (panel.querySelector("textarea[name='response_text']")?.value || "").trim();
+        const responseTextNode = panel.querySelector("textarea[name='response_text']");
+        const textValue = ((responseTextNode ? responseTextNode.value : "") || "").trim();
         return textValue.length > 0;
       }
 
@@ -564,6 +625,9 @@
         const currentPanel = getActivePanel();
         const currentAnswered = isPanelAnswered(currentPanel);
         const response = await ajaxAction(action, extraData);
+        if (response.fallback) {
+          return;
+        }
         if (!response.ok) {
           setAutoMessage(response.error || "Unable to save.", false);
           return;
@@ -659,6 +723,12 @@
       }
 
       function updateWarningUi(reasonLabel) {
+        if (!lockOn) {
+          if (warningHelpText) {
+            warningHelpText.textContent = "Live invigilation only. Use Next, Prev, and Submit while the timer runs.";
+          }
+          return;
+        }
         if (warningCountNode) {
           warningCountNode.textContent = warningCount + " / " + warningLimit;
         }
@@ -703,6 +773,7 @@
       }
 
       async function issueWarning(eventType, details, options) {
+        if (!lockOn) return;
         if (!started || suppressViolation || violationSent || isSubmitting) return;
         if (warningBusy) return;
         warningBusy = true;
@@ -779,7 +850,7 @@
         if (gate) gate.classList.add("hidden");
         if (runWrap) runWrap.classList.remove("hidden");
         setInvigilatorState("live", "LIVE CCTV");
-        setGateStatus("Exam running in strict mode.", false);
+        setGateStatus(lockOn ? "Exam running in strict mode." : "Exam is live. Use the timer and CCTV monitor only.", false);
         updateWarningUi();
         setTimerPausedState(timerPaused, "{{ timer_pause_reason|escapejs }}");
         showQuestion(activeIndex);
@@ -821,6 +892,10 @@
 
       if (beginBtn) {
         beginBtn.addEventListener("click", beginRun);
+      }
+
+      if (!lockOn && !started) {
+        startRunUi();
       }
 
       if (prevBtn) {
@@ -890,14 +965,27 @@
         panel.addEventListener("submit", function (event) {
           event.preventDefault();
         });
-        const flagBtn = panel.querySelector(".flag-toggle-btn");
-        const flaggedInput = panel.querySelector(".flagged-input");
-        if (!flagBtn || !flaggedInput) return;
-        flagBtn.addEventListener("click", function () {
-          flaggedInput.value = flaggedInput.value === "1" ? "0" : "1";
-          flagBtn.textContent = flaggedInput.value === "1" ? "Unflag" : "Flag";
-          autosaveCurrentQuestion();
+        const optionInputs = Array.from(panel.querySelectorAll("input[name='selected_options']"));
+        const responseTextNode = panel.querySelector("textarea[name='response_text']");
+        optionInputs.forEach(function (input) {
+          input.addEventListener("change", function () {
+            autosaveCurrentQuestion();
+          });
         });
+        if (responseTextNode) {
+          let theorySaveDelay = 0;
+          responseTextNode.addEventListener("input", function () {
+            if (theorySaveDelay) {
+              window.clearTimeout(theorySaveDelay);
+            }
+            theorySaveDelay = window.setTimeout(function () {
+              autosaveCurrentQuestion();
+            }, 900);
+          });
+          responseTextNode.addEventListener("blur", function () {
+            autosaveCurrentQuestion();
+          });
+        }
       });
 
       document.querySelectorAll("[data-jump-index]").forEach((node) => {
@@ -1129,15 +1217,6 @@
       window.setInterval(heartbeat, Math.min(hbSeconds, 5) * 1000);
       window.setInterval(autosaveCurrentQuestion, 16000);
 
-      renderMathInElement(document.getElementById("cbtAttemptApp"), {
-        renderAccessibleContent: "off",
-        TeX: {
-          delimiters: {
-            inline: [["\\(", "\\)"], ["$", "$"], ["$$", "$$"]],
-            display: [["\\[", "\\]"], ["$$", "$$"]],
-          },
-        },
-      });
       showQuestion(activeIndex);
       paintTimer();
       updateWarningUi();

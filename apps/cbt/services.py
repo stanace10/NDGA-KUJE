@@ -2744,9 +2744,20 @@ def _ordered_exam_question_rows(exam, *, shuffle_questions=False):
         .prefetch_related("question__options")
         .order_by("sort_order")
     )
-    if shuffle_questions and len(question_rows) > 1:
-        random.shuffle(question_rows)
-    return question_rows
+    if not question_rows:
+        return []
+
+    objective_rows = []
+    theory_rows = []
+    for row in question_rows:
+        if row.question.question_type in {CBTQuestionType.OBJECTIVE, CBTQuestionType.MULTI_SELECT}:
+            objective_rows.append(row)
+        else:
+            theory_rows.append(row)
+
+    if shuffle_questions and len(objective_rows) > 1:
+        random.shuffle(objective_rows)
+    return objective_rows + theory_rows
 
 
 def ordered_exam_simulation_rows(exam):
