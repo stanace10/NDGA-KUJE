@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import base64
 import json
 import hashlib
+import mimetypes
 import os
 import re
 from dataclasses import dataclass
@@ -602,6 +604,72 @@ def _extract_docx_text(path):
     return direct_text or xml_order_text
 
 
+def _openai_vision_text_response(*, prompt_text, data_url):
+    api_key = str(
+        getattr(settings, "OPENAI_API_KEY", "")
+        or os.getenv("OPENAI_API_KEY", "")
+    ).strip()
+    model = str(
+        getattr(settings, "OPENAI_CBT_VISION_MODEL", "")
+        or os.getenv("OPENAI_CBT_VISION_MODEL", "")
+        or getattr(settings, "OPENAI_CBT_MODEL", "gpt-4.1-mini")
+        or os.getenv("OPENAI_CBT_MODEL", "gpt-4.1-mini")
+    ).strip()
+    if not api_key or not model or not data_url:
+        return ""
+    try:
+        from openai import OpenAI
+    except Exception:
+        return ""
+
+    client = OpenAI(api_key=api_key, max_retries=0)
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            temperature=0,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You extract visible exam text from a teacher upload. "
+                        "Return only the readable text in normal reading order. "
+                        "Do not summarize, explain, or add answers."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt_text},
+                        {"type": "image_url", "image_url": {"url": data_url}},
+                    ],
+                },
+            ],
+        )
+    except Exception:
+        return ""
+    return str(response.choices[0].message.content or "").strip()
+
+
+def _image_path_to_data_url(path):
+    mime_type = mimetypes.guess_type(str(path))[0] or "image/png"
+    encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+    return f"data:{mime_type};base64,{encoded}"
+
+
+def _extract_text_from_image_with_ai(path):
+    try:
+        data_url = _image_path_to_data_url(path)
+    except Exception:
+        return ""
+    return _openai_vision_text_response(
+        prompt_text=(
+            "Extract every visible question, option, heading, and note from this teacher upload. "
+            "Preserve numbering and line breaks where possible."
+        ),
+        data_url=data_url,
+    )
+
+
 def extract_text_from_document(path_or_file):
     path = Path(str(path_or_file))
     extension = path.suffix.lower()
@@ -752,16 +820,23 @@ def extract_text_from_document(path_or_file):
             pass
         return raw.decode("latin-1", errors="ignore")
     if extension in {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp"}:
+        text = ""
         try:
             import pytesseract
             from PIL import Image
 
             image = Image.open(path)
-            return pytesseract.image_to_string(image) or ""
-        except Exception as exc:
-            raise ValidationError(
-                "Image OCR not available. Install pytesseract + pillow and configure tesseract binary."
-            ) from exc
+            text = pytesseract.image_to_string(image) or ""
+        except Exception:
+            text = ""
+        if str(text or "").strip():
+            return text
+        ai_text = _extract_text_from_image_with_ai(path)
+        if str(ai_text or "").strip():
+            return ai_text
+        raise ValidationError(
+            "Could not read text from image. Upload a clearer image, use a text-based PDF/DOCX, or paste the text."
+        )
     raise ValidationError(
         "Unsupported file type. Upload PDF, DOC, DOCX, TXT, or image file (PNG/JPG/JPEG/BMP/TIFF/WEBP)."
     )
@@ -1606,7 +1681,14 @@ def generate_ai_question_blocks(*, subject_name, topic, question_count, lesson_n
     return rows
 
 
-def _default_section_totals(*, exam_type, flow_type):
+def _uses_ss3_mock_exam_totals(assignment):
+    class_code = (
+        getattr(getattr(assignment, "academic_class", None), "code", "") or ""
+    ).strip().upper()
+    return class_code.startswith("SS3")
+
+
+def _default_section_totals(*, exam_type, flow_type, assignment=None):
     if exam_type == CBTExamType.FREE_TEST:
         return Decimal("100.00"), Decimal("0.00")
     if exam_type in {CBTExamType.CA, CBTExamType.PRACTICAL}:
@@ -1616,11 +1698,17 @@ def _default_section_totals(*, exam_type, flow_type):
             return Decimal("0.00"), Decimal("10.00")
         return Decimal("10.00"), Decimal("0.00")
     if exam_type == CBTExamType.EXAM:
+        if _uses_ss3_mock_exam_totals(assignment):
+            if flow_type == "OBJECTIVE_THEORY":
+                return Decimal("40.00"), Decimal("60.00")
+            if flow_type == "THEORY_ONLY":
+                return Decimal("0.00"), Decimal("60.00")
+            return Decimal("40.00"), Decimal("0.00")
         if flow_type == "OBJECTIVE_THEORY":
-            return Decimal("40.00"), Decimal("20.00")
+            return Decimal("20.00"), Decimal("40.00")
         if flow_type == "THEORY_ONLY":
-            return Decimal("0.00"), Decimal("20.00")
-        return Decimal("40.00"), Decimal("0.00")
+            return Decimal("0.00"), Decimal("40.00")
+        return Decimal("20.00"), Decimal("0.00")
     return Decimal("10.00"), Decimal("0.00")
 
 
@@ -2024,6 +2112,7 @@ def build_exam_with_ai_draft(
     objective_total, theory_total = _default_section_totals(
         exam_type=exam_type,
         flow_type=flow_type,
+        assignment=assignment,
     )
     blueprint = ensure_default_blueprint(exam)
     if exam_type == CBTExamType.FREE_TEST:
@@ -2041,18 +2130,18 @@ def build_exam_with_ai_draft(
             effective_ca_target = CBTWritebackTarget.CA2
         if flow_type == "THEORY_ONLY":
             objective_target = CBTWritebackTarget.NONE
-            theory_target = CBTWritebackTarget.CA3 if effective_ca_target == CBTWritebackTarget.CA2 else effective_ca_target
+            theory_target = CBTWritebackTarget.NONE
         elif effective_ca_target == CBTWritebackTarget.CA2 and flow_type == "OBJECTIVE_THEORY":
             objective_target = CBTWritebackTarget.CA2
-            theory_target = CBTWritebackTarget.CA3
+            theory_target = CBTWritebackTarget.NONE
             objective_total = Decimal("10.00")
             theory_total = Decimal("10.00")
         else:
             objective_target = CBTWritebackTarget.CA2 if effective_ca_target == CBTWritebackTarget.CA2 else effective_ca_target
-            theory_target = effective_ca_target
+            theory_target = CBTWritebackTarget.NONE
     else:
         objective_target = CBTWritebackTarget.OBJECTIVE
-        theory_target = CBTWritebackTarget.THEORY if flow_type == "OBJECTIVE_THEORY" else CBTWritebackTarget.NONE
+        theory_target = CBTWritebackTarget.NONE
         effective_ca_target = ""
     blueprint.section_config = {
         "flow_type": flow_type,
@@ -2061,7 +2150,7 @@ def build_exam_with_ai_draft(
         "theory_response_mode": "PAPER",
         "ca_target": effective_ca_target,
         "is_free_test": exam_type == CBTExamType.FREE_TEST,
-        "manual_score_split": exam_type in {CBTExamType.CA, CBTExamType.PRACTICAL} and flow_type == "OBJECTIVE_THEORY",
+        "manual_score_split": exam_type in {CBTExamType.CA, CBTExamType.PRACTICAL, CBTExamType.EXAM} and flow_type == "OBJECTIVE_THEORY",
         "objective_target_max": str(objective_total),
         "theory_target_max": str(theory_total),
     }
@@ -2084,6 +2173,48 @@ def build_exam_with_ai_draft(
     )
 
     return exam, (created_objective_count + created_theory_count)
+
+
+def _upload_fallback_objective_count(*, exam_type, flow_type, assignment):
+    objective_total, _ = _default_section_totals(
+        exam_type=exam_type,
+        flow_type=flow_type,
+        assignment=assignment,
+    )
+    if flow_type == "THEORY_ONLY":
+        return 0
+    return max(1, min(int(objective_total or 0), 40))
+
+
+def _draft_theory_rows_from_note(*, note_text, question_count):
+    target_count = max(int(question_count or 0), 0)
+    if target_count <= 0:
+        return []
+    lesson_points = _extract_lesson_note_points(note_text, limit=max(target_count * 3, 12))
+    generated = []
+    seen = set()
+    for point in lesson_points:
+        cleaned = re.sub(r"\s+", " ", str(point or "")).strip(" .:-")
+        if not cleaned:
+            continue
+        key = cleaned.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        if cleaned.endswith("?"):
+            stem = cleaned
+        else:
+            stem = f"Explain {cleaned.lower()}."
+        generated.append(
+            {
+                "question_type": "THEORY",
+                "stem": stem,
+                "model_answer": "",
+            }
+        )
+        if len(generated) >= target_count:
+            break
+    return generated
 
 
 @transaction.atomic
@@ -2135,6 +2266,9 @@ def build_exam_from_uploaded_document(
     ensure_default_blueprint(exam)
 
     try:
+        flow_type = (flow_type or "OBJECTIVE_THEORY").strip() or "OBJECTIVE_THEORY"
+        if exam_type == CBTExamType.FREE_TEST:
+            flow_type = "OBJECTIVE_ONLY"
         extracted_text = extract_text_from_document(import_row.source_file.path)
         parse_payload = parse_question_document(extracted_text)
         normalized_text = parse_payload.get("normalized_text") or ""
@@ -2186,14 +2320,48 @@ def build_exam_from_uploaded_document(
             ):
                 parsed_questions = linewise_rows
                 parser_used = "linewise_last_resort"
+        if not parsed_questions and normalized_text.strip():
+            fallback_objective_count = _upload_fallback_objective_count(
+                exam_type=exam_type,
+                flow_type=flow_type,
+                assignment=assignment,
+            )
+            drafted_objectives = []
+            if fallback_objective_count > 0:
+                drafted_objectives = _generate_ai_question_blocks_with_openai(
+                    subject_name=assignment.subject.name,
+                    topic=title,
+                    question_count=fallback_objective_count,
+                    lesson_note_text=normalized_text,
+                )
+                if drafted_objectives:
+                    parser_used = "ai_note_rebuild"
+                else:
+                    drafted_objectives = generate_ai_question_blocks(
+                        subject_name=assignment.subject.name,
+                        topic=title,
+                        question_count=fallback_objective_count,
+                        lesson_note_text=normalized_text,
+                    )
+                    if drafted_objectives:
+                        parser_used = "deterministic_note_rebuild"
+            parsed_questions = [
+                {
+                    "question_type": "OBJECTIVE",
+                    "stem": row.get("stem") or "",
+                    "options": row.get("options") or {},
+                    "correct_label": row.get("correct_label") or "",
+                }
+                for row in drafted_objectives
+            ]
+            if flow_type == "OBJECTIVE_THEORY":
+                theory_rows = _draft_theory_rows_from_note(note_text=normalized_text, question_count=3)
+                if theory_rows:
+                    parsed_questions.extend(theory_rows)
         if not parsed_questions:
             raise ValidationError(
                 "No valid questions detected. Ensure your document uses numbered questions and A-D options, then retry."
             )
-
-        flow_type = (flow_type or "OBJECTIVE_THEORY").strip() or "OBJECTIVE_THEORY"
-        if exam_type == CBTExamType.FREE_TEST:
-            flow_type = "OBJECTIVE_ONLY"
 
         created_count = 0
         objective_count = 0
@@ -2328,6 +2496,7 @@ def build_exam_from_uploaded_document(
         objective_total, theory_total = _default_section_totals(
             exam_type=exam_type,
             flow_type=flow_type,
+            assignment=assignment,
         )
         if exam_type == CBTExamType.FREE_TEST:
             objective_target = CBTWritebackTarget.NONE
@@ -2344,18 +2513,18 @@ def build_exam_from_uploaded_document(
                 effective_ca_target = CBTWritebackTarget.CA2
             if flow_type == "THEORY_ONLY":
                 objective_target = CBTWritebackTarget.NONE
-                theory_target = CBTWritebackTarget.CA3 if effective_ca_target == CBTWritebackTarget.CA2 else effective_ca_target
+                theory_target = CBTWritebackTarget.NONE
             elif effective_ca_target == CBTWritebackTarget.CA2 and flow_type == "OBJECTIVE_THEORY":
                 objective_target = CBTWritebackTarget.CA2
-                theory_target = CBTWritebackTarget.CA3
+                theory_target = CBTWritebackTarget.NONE
                 objective_total = Decimal("10.00")
                 theory_total = Decimal("10.00")
             else:
                 objective_target = CBTWritebackTarget.CA2 if effective_ca_target == CBTWritebackTarget.CA2 else effective_ca_target
-                theory_target = effective_ca_target
+                theory_target = CBTWritebackTarget.NONE
         else:
             objective_target = CBTWritebackTarget.OBJECTIVE
-            theory_target = CBTWritebackTarget.THEORY if flow_type == "OBJECTIVE_THEORY" else CBTWritebackTarget.NONE
+            theory_target = CBTWritebackTarget.NONE
             effective_ca_target = ""
         blueprint.section_config = {
             "flow_type": flow_type,
@@ -2364,7 +2533,7 @@ def build_exam_from_uploaded_document(
             "theory_response_mode": "PAPER",
             "ca_target": effective_ca_target,
             "is_free_test": exam_type == CBTExamType.FREE_TEST,
-            "manual_score_split": exam_type in {CBTExamType.CA, CBTExamType.PRACTICAL} and flow_type == "OBJECTIVE_THEORY",
+            "manual_score_split": exam_type in {CBTExamType.CA, CBTExamType.PRACTICAL, CBTExamType.EXAM} and flow_type == "OBJECTIVE_THEORY",
             "objective_target_max": str(objective_total),
             "theory_target_max": str(theory_total),
         }
@@ -2492,9 +2661,9 @@ def _target_max(target):
     }:
         return Decimal("10.00")
     if target == CBTWritebackTarget.OBJECTIVE:
-        return Decimal("40.00")
-    if target == CBTWritebackTarget.THEORY:
         return Decimal("20.00")
+    if target == CBTWritebackTarget.THEORY:
+        return Decimal("40.00")
     return None
 
 
@@ -3039,8 +3208,11 @@ def _apply_writeback(*, attempt, target, score_value, component_key):
     section_config = getattr(blueprint, "section_config", {}) if blueprint else {}
     if not isinstance(section_config, dict):
         section_config = {}
-    manual_split = bool(section_config.get("manual_score_split"))
-    if manual_split:
+    split_with_manual_theory = bool(
+        getattr(blueprint, "theory_enabled", False)
+        and target in {CBTWritebackTarget.CA1, CBTWritebackTarget.CA4}
+    )
+    if blueprint is not None and target != CBTWritebackTarget.NONE:
         merged_policies = merge_policy_from_blueprint(sheet.cbt_component_policies, blueprint)
         normalized_policies = normalize_result_cbt_policies(sheet.cbt_component_policies)
         if merged_policies != normalized_policies:
@@ -3049,14 +3221,13 @@ def _apply_writeback(*, attempt, target, score_value, component_key):
     previous = _to_decimal(getattr(score, field))
     normalized = _to_decimal(score_value)
 
-    if manual_split and target in {CBTWritebackTarget.CA1, CBTWritebackTarget.CA4} and component_key == "objective":
+    if split_with_manual_theory and component_key == "objective":
         objective_key = f"{field}_objective"
         theory_key = f"{field}_theory"
         score.set_breakdown_value(objective_key, normalized)
         current_theory = score.breakdown_value(theory_key)
         total_value = (normalized + current_theory).quantize(DECIMAL_2)
         setattr(score, field, total_value)
-        score.lock_components(field)
         score.save()
         return {
             "sheet_id": str(sheet.id),
@@ -3069,7 +3240,7 @@ def _apply_writeback(*, attempt, target, score_value, component_key):
             "split_manual_theory": True,
         }
 
-    if manual_split and target == CBTWritebackTarget.CA2 and component_key == "objective":
+    if target == CBTWritebackTarget.CA2 and component_key == "objective":
         score.set_breakdown_value("ca2_objective", normalized)
     elif target == CBTWritebackTarget.OBJECTIVE and component_key == "objective":
         score.set_breakdown_value("objective_auto", normalized)

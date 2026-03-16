@@ -88,7 +88,7 @@
               <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ form.ca_target.id_for_label }}">{{ form.ca_target.label }}</label>
               {{ form.ca_target }}
               {% if form.ca_target.errors %}<p class="mt-1 text-xs text-rose-700">{{ form.ca_target.errors|striptags }}</p>{% endif %}
-              <p id="caTargetHint" class="mt-1 text-xs text-slate-500">CA2 / CA3 is joint: Objective writes to CA2, Theory writes to CA3.</p>
+              <p id="caTargetHint" class="mt-1 text-xs text-slate-500">CA2 / CA3 is joint: CBT writes objective to CA2, while the teacher enters theory into CA3.</p>
             </div>
             <div id="objectiveCountField">
               <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ form.objective_question_count.id_for_label }}">{{ form.objective_question_count.label }}</label>
@@ -105,9 +105,11 @@
               {{ form.theory_response_mode }}
               {% if form.theory_response_mode.errors %}<p class="mt-1 text-xs text-rose-700">{{ form.theory_response_mode.errors|striptags }}</p>{% endif %}
             </div>
-            <label id="manualSplitField" class="sm:col-span-2 inline-flex items-center gap-2 text-sm font-medium text-slate-700">
-              {{ form.manual_score_split }} {{ form.manual_score_split.label }}
-            </label>
+            <div id="manualSplitField" class="sm:col-span-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+              {{ form.manual_score_split.as_hidden }}
+              CBT marks objective only. Theory stays for teacher input after the exam.
+              <span class="mt-1 block text-xs text-slate-500">CA1 and CA4 default to 5 objective + 5 theory, CA2 / CA3 defaults to 10 objective + 10 theory, and exam defaults to 20 objective + 40 theory.</span>
+            </div>
             <div id="objectiveTargetField">
               <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ form.objective_target_max.id_for_label }}">{{ form.objective_target_max.label }}</label>
               {{ form.objective_target_max }}
@@ -208,8 +210,8 @@
           mode = "SCRATCH";
           isScratch = true;
         }
-        if (isSimulationFlow && manualSplitInput) {
-          manualSplitInput.checked = false;
+        if (manualSplitInput) {
+          manualSplitInput.checked = !isSimulationFlow && !isFreeTest && hasTheory;
         }
         setVisible(authoringModeField, !isSimulationFlow);
         setVisible(structureBlock, !isUploadOrAi);
@@ -231,14 +233,14 @@
             }
           }
         }
-        setVisible(manualSplitField, isScratch && !isSimulationFlow && !isFreeTest);
-        var showManualTargets = isScratch && !isSimulationFlow && !isFreeTest && manualSplitInput && manualSplitInput.checked;
+        setVisible(manualSplitField, isScratch && !isSimulationFlow && !isFreeTest && hasTheory);
+        var showManualTargets = isScratch && !isSimulationFlow && !isFreeTest && hasTheory;
         setVisible(objectiveTargetField, showManualTargets && hasObjective);
         setVisible(theoryTargetField, showManualTargets && hasTheory);
         if (caTargetHint) {
           caTargetHint.textContent = isSimulationFlow
             ? "Simulation writeback target can be CA1, CA2, CA3, or CA4."
-            : "CA2 / CA3 is joint: Objective writes to CA2, Theory writes to CA3.";
+            : "CA2 / CA3 is joint: CBT writes objective to CA2, while the teacher enters theory into CA3.";
         }
 
         var calculatorModeNode = document.getElementById("{{ form.calculator_mode.id_for_label }}");
@@ -281,7 +283,6 @@
       if (examType) examType.addEventListener("change", refresh);
       if (authoringMode) authoringMode.addEventListener("change", refresh);
       if (flowType) flowType.addEventListener("change", refresh);
-      if (manualSplitInput) manualSplitInput.addEventListener("change", refresh);
       var calculatorModeNode = document.getElementById("{{ form.calculator_mode.id_for_label }}");
       if (calculatorModeNode) calculatorModeNode.addEventListener("change", refresh);
       refresh();

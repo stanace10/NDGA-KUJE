@@ -12,8 +12,8 @@ from apps.academics.models import GradeScale
 CA_MAX = Decimal("10")
 TOTAL_CA_MAX = Decimal("40")
 OBJECTIVE_MAX = Decimal("40")
-THEORY_MAX = Decimal("20")
-TOTAL_EXAM_MAX = Decimal("60")
+THEORY_MAX = Decimal("60")
+TOTAL_EXAM_MAX = Decimal("100")
 GRAND_TOTAL_MAX = Decimal("100")
 ZERO = Decimal("0")
 
@@ -65,7 +65,7 @@ def _collect_violations(*, ca1, ca2, ca3, ca4, objective, theory):
     if theory < ZERO:
         violations["theory"] = "Theory score cannot be negative."
     if theory > THEORY_MAX:
-        violations["theory"] = "Theory score cannot exceed 20."
+        violations["theory"] = "Theory score cannot exceed 60."
 
     total_ca = ca1 + ca2 + ca3 + ca4
     total_exam = objective + theory
@@ -74,7 +74,7 @@ def _collect_violations(*, ca1, ca2, ca3, ca4, objective, theory):
     if total_ca > TOTAL_CA_MAX:
         violations["total_ca"] = "Total CA cannot exceed 40."
     if total_exam > TOTAL_EXAM_MAX:
-        violations["total_exam"] = "Total exam cannot exceed 60."
+        violations["total_exam"] = "Total exam cannot exceed 100."
     if grand_total > GRAND_TOTAL_MAX:
         violations["grand_total"] = "Grand total cannot exceed 100."
 

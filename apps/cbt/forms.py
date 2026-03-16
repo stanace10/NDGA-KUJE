@@ -59,6 +59,13 @@ def _as_decimal(value, fallback=Decimal("0.00")):
         return fallback
 
 
+def _uses_ss3_mock_exam_totals(assignment):
+    class_code = (
+        getattr(getattr(assignment, "academic_class", None), "code", "") or ""
+    ).strip().upper()
+    return class_code.startswith("SS3")
+
+
 class QuestionBankCreateForm(forms.ModelForm):
     assignment = forms.ModelChoiceField(
         queryset=TeacherSubjectAssignment.objects.none(),
@@ -324,7 +331,7 @@ class ExamCreateForm(forms.Form):
         _style_fields(self)
 
     @staticmethod
-    def _default_section_totals(*, exam_type, flow_type):
+    def _default_section_totals(*, exam_type, flow_type, assignment=None):
         if exam_type == CBTExamType.FREE_TEST:
             return Decimal("100.00"), Decimal("0.00")
         if exam_type in {CBTExamType.CA, CBTExamType.PRACTICAL}:
@@ -332,9 +339,17 @@ class ExamCreateForm(forms.Form):
                 return Decimal("5.00"), Decimal("5.00")
             return Decimal("10.00"), Decimal("0.00")
         if exam_type == CBTExamType.EXAM:
+            if _uses_ss3_mock_exam_totals(assignment):
+                if flow_type == ExamCreateForm.FLOW_OBJECTIVE_THEORY:
+                    return Decimal("40.00"), Decimal("60.00")
+                if flow_type == ExamCreateForm.FLOW_THEORY_ONLY:
+                    return Decimal("0.00"), Decimal("60.00")
+                return Decimal("40.00"), Decimal("0.00")
             if flow_type == ExamCreateForm.FLOW_OBJECTIVE_THEORY:
-                return Decimal("40.00"), Decimal("20.00")
-            return Decimal("40.00"), Decimal("0.00")
+                return Decimal("20.00"), Decimal("40.00")
+            if flow_type == ExamCreateForm.FLOW_THEORY_ONLY:
+                return Decimal("0.00"), Decimal("40.00")
+            return Decimal("20.00"), Decimal("0.00")
         return Decimal("10.00"), Decimal("0.00")
 
     @staticmethod
@@ -433,6 +448,11 @@ class ExamCreateForm(forms.Form):
             cleaned["flow_type"] = self.FLOW_OBJECTIVE_THEORY
             flow_type = self.FLOW_OBJECTIVE_THEORY
 
+        cleaned["manual_score_split"] = bool(
+            flow_type == self.FLOW_OBJECTIVE_THEORY
+            and exam_type in {CBTExamType.CA, CBTExamType.PRACTICAL, CBTExamType.EXAM}
+        )
+
         if authoring_mode in {self.AUTHORING_MODE_UPLOAD, self.AUTHORING_MODE_AI}:
             objective_count = 0
             theory_count = 0
@@ -513,7 +533,11 @@ class ExamCreateForm(forms.Form):
         elif exam_type != CBTExamType.FREE_TEST:
             cleaned["theory_response_mode"] = self.THEORY_RESPONSE_MODE_PAPER
 
-        defaults = self._default_section_totals(exam_type=exam_type, flow_type=flow_type)
+        defaults = self._default_section_totals(
+            exam_type=exam_type,
+            flow_type=flow_type,
+            assignment=assignment,
+        )
         manual = bool(cleaned.get("manual_score_split"))
         if manual:
             objective_total = _as_decimal(cleaned.get("objective_target_max"), Decimal("0.00"))
@@ -529,8 +553,13 @@ class ExamCreateForm(forms.Form):
             )
             if exam_type in {CBTExamType.CA, CBTExamType.PRACTICAL} and (objective_total + theory_total) > ca_limit:
                 raise forms.ValidationError(f"Total CA target cannot exceed {ca_limit}.")
-            if exam_type == CBTExamType.EXAM and (objective_total + theory_total) > Decimal("60.00"):
-                raise forms.ValidationError("Total exam target cannot exceed 60.")
+            exam_limit = (
+                Decimal("100.00")
+                if _uses_ss3_mock_exam_totals(assignment)
+                else Decimal("60.00")
+            )
+            if exam_type == CBTExamType.EXAM and (objective_total + theory_total) > exam_limit:
+                raise forms.ValidationError(f"Total exam target cannot exceed {exam_limit}.")
             if exam_type == CBTExamType.FREE_TEST and (objective_total + theory_total) > Decimal("100.00"):
                 raise forms.ValidationError("Free Test total cannot exceed 100.")
         else:
@@ -584,7 +613,7 @@ class ExamCreateForm(forms.Form):
             if flow_type == self.FLOW_SIMULATION:
                 objective_target = CBTWritebackTarget.NONE
                 theory_target = CBTWritebackTarget.NONE
-            elif bool(self.cleaned_data.get("manual_score_split")):
+            elif flow_type == self.FLOW_OBJECTIVE_THEORY:
                 if effective_target in {CBTWritebackTarget.CA2, CBTWritebackTarget.CA3}:
                     objective_target = CBTWritebackTarget.CA2
                 else:
@@ -598,7 +627,7 @@ class ExamCreateForm(forms.Form):
                 theory_target = effective_target
         elif self.cleaned_data["exam_type"] == CBTExamType.EXAM:
             objective_target = CBTWritebackTarget.OBJECTIVE
-            theory_target = CBTWritebackTarget.NONE if bool(self.cleaned_data.get("manual_score_split")) else CBTWritebackTarget.THEORY
+            theory_target = CBTWritebackTarget.NONE
         elif self.cleaned_data["exam_type"] == CBTExamType.FREE_TEST:
             objective_target = CBTWritebackTarget.NONE
             theory_target = CBTWritebackTarget.NONE
@@ -745,11 +774,11 @@ class ExamUploadImportForm(forms.Form):
             lambda row: f"{row.academic_class.code} - {row.subject.name} ({row.session.name} / {row.term.get_name_display()})"
         )
         self.fields["source_file"].help_text = (
-            "Best results: upload clean TXT or DOCX. PDF and clear image files also work. "
+            "Best results: upload clean TXT, DOCX, or text-based PDF. Notes and handouts can also be used to draft questions. "
             "Legacy DOC is unreliable."
         )
         self.fields["pasted_text"].help_text = (
-            "Use numbered questions with A-D options, one question block after another."
+            "Paste clean numbered questions, or paste lesson notes and the system will draft from them."
         )
         _style_fields(self)
 

@@ -7,7 +7,7 @@ DEFAULT_RESULT_CBT_POLICIES = {
     "ca1": {"enabled": False, "objective_max": "5.00", "theory_max": "5.00"},
     "ca23": {"enabled": False, "objective_max": "10.00", "theory_max": "10.00"},
     "ca4": {"enabled": False, "objective_max": "5.00", "theory_max": "5.00"},
-    "exam": {"enabled": False, "objective_max": "40.00", "theory_max": "20.00"},
+    "exam": {"enabled": False, "objective_max": "20.00", "theory_max": "40.00"},
 }
 
 
@@ -56,19 +56,19 @@ def merge_policy_from_blueprint(policies, blueprint):
     if blueprint is None:
         return merged
     section_config = getattr(blueprint, "section_config", {}) or {}
-    if not bool(section_config.get("manual_score_split")):
-        return merged
     flow_type = (section_config.get("flow_type") or "").strip()
     if flow_type == "SIMULATION":
         return merged
-    ca_target = (section_config.get("ca_target") or "").strip()
-    if ca_target == "CA1":
+    objective_target = (getattr(blueprint, "objective_writeback_target", "") or "").strip()
+    if not objective_target or objective_target == "NONE":
+        return merged
+    if objective_target == "CA1":
         key = "ca1"
-    elif ca_target == "CA2":
+    elif objective_target in {"CA2", "CA3"}:
         key = "ca23"
-    elif ca_target == "CA4":
+    elif objective_target == "CA4":
         key = "ca4"
-    elif getattr(blueprint.exam, "exam_type", "") == "EXAM":
+    elif objective_target == "OBJECTIVE":
         key = "exam"
     else:
         key = ""

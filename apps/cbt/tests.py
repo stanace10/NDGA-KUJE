@@ -1,6 +1,8 @@
+import base64
 import json
 import io
 import zipfile
+from unittest.mock import patch
 
 from django.conf import settings
 from django.core import mail
@@ -69,6 +71,67 @@ CBT_TEST_HOST_SETTINGS = {
         "https://*.ndgakuje.org",
     ],
 }
+
+
+def _build_text_pdf_bytes(lines):
+    def _escape(value):
+        return (
+            str(value or "")
+            .replace("\\", "\\\\")
+            .replace("(", "\\(")
+            .replace(")", "\\)")
+        )
+
+    content_rows = ["BT", "/F1 12 Tf", "72 720 Td", "16 TL"]
+    for line in lines:
+        content_rows.append(f"({_escape(line)}) Tj")
+        content_rows.append("T*")
+    content_rows.append("ET")
+    content = "\n".join(content_rows).encode("latin-1")
+
+    objects = [
+        b"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
+        b"2 0 obj\n<< /Type /Pages /Count 1 /Kids [3 0 R] >>\nendobj\n",
+        b"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>\nendobj\n",
+        b"4 0 obj\n<< /Length "
+        + str(len(content)).encode("ascii")
+        + b" >>\nstream\n"
+        + content
+        + b"\nendstream\nendobj\n",
+        b"5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n",
+    ]
+
+    pdf = bytearray(b"%PDF-1.4\n")
+    offsets = [0]
+    for obj in objects:
+        offsets.append(len(pdf))
+        pdf.extend(obj)
+    xref_offset = len(pdf)
+    pdf.extend(f"xref\n0 {len(offsets)}\n".encode("ascii"))
+    pdf.extend(b"0000000000 65535 f \n")
+    for offset in offsets[1:]:
+        pdf.extend(f"{offset:010d} 00000 n \n".encode("ascii"))
+    pdf.extend(
+        (
+            "trailer\n"
+            f"<< /Size {len(offsets)} /Root 1 0 R >>\n"
+            "startxref\n"
+            f"{xref_offset}\n"
+            "%%EOF\n"
+        ).encode("ascii")
+    )
+    return bytes(pdf)
+
+
+def _build_docx_bytes(lines):
+    from docx import Document
+
+    buffer = io.BytesIO()
+    document = Document()
+    for line in lines:
+        document.add_paragraph(str(line))
+    document.save(buffer)
+    return buffer.getvalue()
 
 
 @override_settings(**CBT_TEST_HOST_SETTINGS)
@@ -437,6 +500,127 @@ class StageTenCBTWorkflowTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         exam = Exam.objects.get(title="Imported From Paste")
+        self.assertEqual(exam.status, CBTExamStatus.DRAFT)
+        self.assertGreater(ExamQuestion.objects.filter(exam=exam).count(), 0)
+
+    def test_upload_notes_fallback_generates_draft_exam(self):
+        teacher_client = self.login_client(host="staff.ndgakuje.org", username=self.teacher_user.username)
+        note_content = (
+            "Digital technology covers data, devices, and safe use of computer systems.\n"
+            "Students should understand input devices, output devices, and storage devices.\n"
+            "Teachers should discuss cyber safety, responsible internet use, and digital citizenship.\n"
+            "Explain the meaning of system unit and list common hardware components.\n"
+        ).encode("utf-8")
+        upload = SimpleUploadedFile("digital_technology_notes.txt", note_content, content_type="text/plain")
+        response = teacher_client.post(
+            "/cbt/authoring/upload/",
+            {
+                "assignment": str(self.assignment.id),
+                "title": "Imported Notes Draft",
+                "exam_type": "EXAM",
+                "flow_type": "OBJECTIVE_THEORY",
+                "source_file": upload,
+            },
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        exam = Exam.objects.get(title="Imported Notes Draft")
+        blueprint = ExamBlueprint.objects.get(exam=exam)
+        self.assertEqual(exam.status, CBTExamStatus.DRAFT)
+        self.assertEqual(blueprint.objective_writeback_target, CBTWritebackTarget.OBJECTIVE)
+        self.assertEqual(blueprint.theory_writeback_target, CBTWritebackTarget.NONE)
+        self.assertEqual(blueprint.section_config.get("objective_target_max"), "20.00")
+        self.assertEqual(blueprint.section_config.get("theory_target_max"), "40.00")
+        self.assertGreater(ExamQuestion.objects.filter(exam=exam).count(), 0)
+        import_row = ExamDocumentImport.objects.get(exam=exam)
+        self.assertEqual(import_row.extraction_status, CBTDocumentStatus.SUCCESS)
+
+    def test_docx_upload_generates_draft_exam(self):
+        teacher_client = self.login_client(host="staff.ndgakuje.org", username=self.teacher_user.username)
+        upload = SimpleUploadedFile(
+            "english_questions.docx",
+            _build_docx_bytes(
+                [
+                    "1. What is a noun?",
+                    "A. A naming word",
+                    "B. An action word",
+                    "C. A joining word",
+                    "D. A describing word",
+                    "Answer: A",
+                ]
+            ),
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+        response = teacher_client.post(
+            "/cbt/authoring/upload/",
+            {
+                "assignment": str(self.assignment.id),
+                "title": "Imported DOCX Draft",
+                "exam_type": "CA",
+                "source_file": upload,
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        exam = Exam.objects.get(title="Imported DOCX Draft")
+        self.assertEqual(exam.status, CBTExamStatus.DRAFT)
+        self.assertGreater(ExamQuestion.objects.filter(exam=exam).count(), 0)
+
+    def test_pdf_upload_generates_draft_exam(self):
+        teacher_client = self.login_client(host="staff.ndgakuje.org", username=self.teacher_user.username)
+        upload = SimpleUploadedFile(
+            "mathematics_questions.pdf",
+            _build_text_pdf_bytes(
+                [
+                    "1. What is 5 + 5?",
+                    "A. 8",
+                    "B. 9",
+                    "C. 10",
+                    "D. 11",
+                    "Answer: C",
+                ]
+            ),
+            content_type="application/pdf",
+        )
+        response = teacher_client.post(
+            "/cbt/authoring/upload/",
+            {
+                "assignment": str(self.assignment.id),
+                "title": "Imported PDF Draft",
+                "exam_type": "CA",
+                "source_file": upload,
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        exam = Exam.objects.get(title="Imported PDF Draft")
+        self.assertEqual(exam.status, CBTExamStatus.DRAFT)
+        self.assertGreater(ExamQuestion.objects.filter(exam=exam).count(), 0)
+
+    @patch("apps.cbt.services._extract_text_from_image_with_ai")
+    def test_image_upload_uses_ai_fallback_when_local_ocr_is_unavailable(self, mocked_image_extract):
+        teacher_client = self.login_client(host="staff.ndgakuje.org", username=self.teacher_user.username)
+        mocked_image_extract.return_value = (
+            "1. Which device shows output?\n"
+            "A. Monitor\n"
+            "B. Keyboard\n"
+            "C. Mouse\n"
+            "D. Scanner\n"
+            "Answer: A\n"
+        )
+        tiny_png = base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7+3nQAAAAASUVORK5CYII="
+        )
+        upload = SimpleUploadedFile("science_questions.png", tiny_png, content_type="image/png")
+        response = teacher_client.post(
+            "/cbt/authoring/upload/",
+            {
+                "assignment": str(self.assignment.id),
+                "title": "Imported Image Draft",
+                "exam_type": "CA",
+                "source_file": upload,
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        exam = Exam.objects.get(title="Imported Image Draft")
         self.assertEqual(exam.status, CBTExamStatus.DRAFT)
         self.assertGreater(ExamQuestion.objects.filter(exam=exam).count(), 0)
 
@@ -1377,7 +1561,7 @@ class StageElevenCBTRunnerTests(TestCase):
         self.assertEqual(attempt.status, CBTAttemptStatus.IN_PROGRESS)
         self.assertIsNone(attempt.submitted_at)
 
-    def test_ca_split_combines_objective_and_theory_into_same_ca_target(self):
+    def test_ca_split_keeps_objective_writeback_but_leaves_theory_for_teacher_results_entry(self):
         exam, objective_question, theory_question = self._create_exam(
             theory_enabled=True,
             objective_target=CBTWritebackTarget.CA1,
@@ -1385,7 +1569,7 @@ class StageElevenCBTRunnerTests(TestCase):
         exam.exam_type = "CA"
         exam.save(update_fields=["exam_type", "updated_at"])
         blueprint = ExamBlueprint.objects.get(exam=exam)
-        blueprint.theory_writeback_target = CBTWritebackTarget.CA1
+        blueprint.theory_writeback_target = CBTWritebackTarget.NONE
         blueprint.section_config = {
             "flow_type": "OBJECTIVE_THEORY",
             "objective_count": 1,
@@ -1443,7 +1627,11 @@ class StageElevenCBTRunnerTests(TestCase):
         self.assertEqual(str(attempt.theory_score), "5.00")
 
         score = StudentSubjectScore.objects.get(student=self.student_user)
-        self.assertEqual(str(score.ca1), "10.00")
+        self.assertEqual(str(score.ca1), "5.00")
+        self.assertEqual(
+            (attempt.writeback_metadata or {}).get("theory_writeback", {}).get("skipped"),
+            True,
+        )
 
 
 @override_settings(

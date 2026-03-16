@@ -224,6 +224,14 @@
       padding: 0.85rem 1rem;
       text-align: center;
     }
+
+    .cbt-tools-disclosure summary {
+      list-style: none;
+    }
+
+    .cbt-tools-disclosure summary::-webkit-details-marker {
+      display: none;
+    }
   </style>
   <section class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
     <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -275,7 +283,12 @@
           <div>
             <label class="mb-1 block text-sm font-semibold text-slate-700" for="stemEditor">Question Text</label>
             {% if can_edit %}
-              <div class="mb-3 rounded-3xl border border-slate-200 bg-slate-50 p-4">
+              <details class="cbt-tools-disclosure mb-3 rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                <summary class="flex flex-wrap items-center justify-between gap-2 text-sm font-semibold text-ndga-navy">
+                  <span>Toolbar & Advanced Tools</span>
+                  <span class="text-xs font-medium text-slate-500">Open only when you need maths, tables, symbols, media, or drawing.</span>
+                </summary>
+                <div class="mt-4">
                 <div class="cbt-editor-toolbar flex flex-wrap gap-2">
                   <button type="button" data-editor-command="bold">Bold</button>
                   <button type="button" data-editor-command="italic">Italic</button>
@@ -306,7 +319,7 @@
                   <button type="button" data-open-draw-modal="1">Draw / Pencil</button>
                 </div>
 
-                                <div id="equationsPanel" data-tool-panel="equationsPanel" class="cbt-editor-panel cbt-editor-panel-open mt-3 rounded-2xl border border-slate-200 bg-white p-4">
+                <div id="equationsPanel" data-tool-panel="equationsPanel" class="cbt-editor-panel mt-3 rounded-2xl border border-slate-200 bg-white p-4">
                   <div class="grid gap-4 xl:grid-cols-[1.35fr_0.85fr]">
                     <div class="cbt-equation-workbench rounded-2xl border border-slate-200 p-4">
                       <div class="flex flex-wrap items-start justify-between gap-3">
@@ -454,9 +467,10 @@
                 </div>
 
                 <p class="mt-3 text-xs text-slate-500">
-                  Teachers can type directly, format like a document editor, insert equations and symbols, create tables, add diagram shapes, and sketch with the draw tool. Toolbar inserts also work on whichever option field is focused last.
+                  The main builder stays simple by default. Open this toolbox only when you need formatting, maths, symbols, tables, media, or drawing.
                 </p>
-              </div>
+                </div>
+              </details>
             {% endif %}
             {% if can_edit %}
               <div id="stemEditor" class="cbt-editor-surface" contenteditable="true" spellcheck="true" aria-label="Question editor"></div>
@@ -468,7 +482,12 @@
             {% endif %}
           </div>
 
-          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <details class="cbt-tools-disclosure rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <summary class="flex cursor-pointer items-center justify-between gap-2 text-sm font-semibold text-slate-800">
+              <span>Question Stimulus Media</span>
+              <span class="text-xs font-medium text-slate-500">Optional image or video</span>
+            </summary>
+            <div class="mt-4">
             <h3 class="text-sm font-semibold text-slate-800">Question Stimulus Media</h3>
             <p class="mt-1 text-xs text-slate-500">Upload image/video for this question. Use apply span to reuse same stimulus for Question 1-5 style sets.</p>
             <div class="mt-3 grid gap-3 sm:grid-cols-2">
@@ -501,10 +520,16 @@
                 <input id="apply_media_span" name="apply_media_span" type="number" min="1" max="30" value="1" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" {% if not can_edit %}disabled{% endif %}>
               </div>
             </div>
-          </div>
+            </div>
+          </details>
 
           {% if current_bundle.section == "OBJECTIVE" %}
-            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <details class="cbt-tools-disclosure rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <summary class="flex cursor-pointer items-center justify-between gap-2 text-sm font-semibold text-slate-800">
+                <span>Focused Field Inserts</span>
+                <span class="text-xs font-medium text-slate-500">Optional quick symbols for options</span>
+              </summary>
+              <div class="mt-4">
               <p class="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Focused Field Inserts</p>
               <div class="flex flex-wrap gap-2 cbt-editor-toolbar">
                 <button type="button" data-insert-text="&pi;">&pi;</button>
@@ -520,7 +545,8 @@
                 <button type="button" data-open-panel="equationsPanel">Equation Workbench</button>
                 <button type="button" id="focusedFieldEquationBtn">Equation To Field</button>
               </div>
-            </div>
+              </div>
+            </details>
 
             <div class="w-full max-w-sm">
               <label class="mb-1 block text-sm font-semibold text-slate-700" for="objective_mode">Objective Mode</label>
@@ -1365,7 +1391,7 @@
         }
       }
 
-      togglePanel("equationsPanel");
+      togglePanel("");
       syncEditorToTextarea();
     })();
   </script>
