@@ -73,6 +73,27 @@
         <div class="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
           Restoring a backup can replace current records and files. Confirm active session backup before any restore operation.
         </div>
+        <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-600">
+          <p class="font-semibold text-slate-800">Safe LAN Disaster-Recovery Bundle</p>
+          <p class="mt-2">
+            Use the PowerShell bundle scripts when you want the LAN PostgreSQL dump, media archive, and runtime snapshot
+            written to a safe host folder. The script auto-prefers OneDrive when available, so the backup survives a laptop format.
+          </p>
+          <div class="mt-3 space-y-3">
+            <div>
+              <p class="font-semibold text-slate-800">Create Safe Bundle</p>
+              <code class="mt-1 block overflow-x-auto rounded-xl bg-slate-900 px-3 py-2 text-[11px] text-slate-100">{{ safe_bundle_backup_command }}</code>
+            </div>
+            <div>
+              <p class="font-semibold text-slate-800">Install Daily Backup Task</p>
+              <code class="mt-1 block overflow-x-auto rounded-xl bg-slate-900 px-3 py-2 text-[11px] text-slate-100">{{ safe_bundle_schedule_command }}</code>
+            </div>
+            <div>
+              <p class="font-semibold text-slate-800">Restore Safe Bundle</p>
+              <code class="mt-1 block overflow-x-auto rounded-xl bg-slate-900 px-3 py-2 text-[11px] text-slate-100">{{ safe_bundle_restore_command }}</code>
+            </div>
+          </div>
+        </div>
       </article>
     </div>
   </section>

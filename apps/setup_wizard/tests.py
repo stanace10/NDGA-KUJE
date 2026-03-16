@@ -420,6 +420,7 @@ class BackupCenterTests(TestCase):
         response = client.get("/setup/backup/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Backup Now")
+        self.assertContains(response, "backup_lan_recovery_bundle.ps1")
 
     def test_backup_download_contains_db_and_media_manifest(self):
         client = Client(HTTP_HOST="it.ndgakuje.org")

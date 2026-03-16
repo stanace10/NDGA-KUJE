@@ -33,6 +33,38 @@ What it does:
 - measures total drill time
 - does not flush or restore the live database
 
+## Safe LAN backups
+
+For laptop wipe, Docker loss, or local-disk failure, create a host-side LAN recovery bundle:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\backup_lan_recovery_bundle.ps1
+```
+
+What it stores:
+- PostgreSQL custom-format dump from the running `db` container
+- media archive from the running `web` container
+- NDGA app backup ZIP as a secondary fallback
+- ops runtime snapshot and school-count snapshot
+- manifest with SHA-256 hashes
+
+Default storage behavior:
+- prefers `OneDrive\NDGA Backups\lan-node` when OneDrive is available
+- falls back to `backups\lan-node` inside the repo if OneDrive is unavailable
+- keeps the newest 14 bundle folders unless you override `-KeepBundles`
+
+Install a daily backup task:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\install_lan_backup_task.ps1
+```
+
+Restore a saved LAN recovery bundle:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\restore_lan_recovery_bundle.ps1 -BundlePath "C:\Users\<you>\OneDrive\NDGA Backups\lan-node\YYYYMMDD_HHMMSS"
+```
+
 ## Disaster playbooks
 
 ### 1. Cloud node degraded but LAN still active
@@ -58,6 +90,7 @@ Windows:
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\ops_runtime_snapshot.ps1
 powershell -ExecutionPolicy Bypass -File .\scripts\restore_drill.ps1 -KeepArchive
+powershell -ExecutionPolicy Bypass -File .\scripts\backup_lan_recovery_bundle.ps1
 ```
 
 Linux:

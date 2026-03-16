@@ -1019,15 +1019,19 @@ class StageElevenCBTRunnerTests(TestCase):
         yesterday_exam, _, _ = self._create_exam(theory_enabled=False)
         yesterday_exam.status = CBTExamStatus.CLOSED
         yesterday_exam.open_now = False
-        yesterday_exam.schedule_start = now - timezone.timedelta(days=1, hours=3)
-        yesterday_exam.schedule_end = now - timezone.timedelta(days=1, hours=1)
+        yesterday_exam.schedule_start = now - timezone.timedelta(days=2, hours=3)
+        yesterday_exam.schedule_end = now - timezone.timedelta(days=2, hours=1)
         yesterday_exam.save(update_fields=["status", "open_now", "schedule_start", "schedule_end", "updated_at"])
-        ExamAttempt.objects.create(
+        yesterday_attempt = ExamAttempt.objects.create(
             exam=yesterday_exam,
             student=self.student_user,
             status=CBTAttemptStatus.SUBMITTED,
             attempt_number=1,
-            submitted_at=now - timezone.timedelta(days=1, minutes=30),
+            submitted_at=now - timezone.timedelta(days=2, minutes=30),
+        )
+        ExamAttempt.objects.filter(pk=yesterday_attempt.pk).update(
+            created_at=now - timezone.timedelta(days=2, minutes=30),
+            updated_at=now - timezone.timedelta(days=2, minutes=30),
         )
 
         rows = student_available_exams(self.student_user)
@@ -1212,6 +1216,48 @@ class StageElevenCBTRunnerTests(TestCase):
         response = student_client.post(f"/cbt/exams/{exam.id}/start/")
         self.assertEqual(response.status_code, 302)
         self.assertFalse(ExamAttempt.objects.filter(exam=exam, student=self.student_user).exists())
+
+    @override_settings(
+        FEATURE_FLAGS={
+            **settings.FEATURE_FLAGS,
+            "CBT_ENABLED": True,
+            "LOCKDOWN_ENABLED": False,
+        }
+    )
+    def test_deadline_change_closes_open_attempt_via_heartbeat_without_lockdown(self):
+        exam, _, _ = self._create_exam(theory_enabled=False)
+        now = timezone.now()
+        exam.open_now = False
+        exam.schedule_start = now - timezone.timedelta(minutes=5)
+        exam.schedule_end = now + timezone.timedelta(minutes=20)
+        exam.save(update_fields=["open_now", "schedule_start", "schedule_end", "updated_at"])
+
+        student_client = self.login_client(
+            host="cbt.ndgakuje.org",
+            username=self.student_user.username,
+            audience="cbt",
+        )
+        start_response = student_client.post(f"/cbt/exams/{exam.id}/start/")
+        self.assertEqual(start_response.status_code, 302)
+        attempt = ExamAttempt.objects.get(exam=exam, student=self.student_user)
+
+        exam.schedule_end = timezone.now() - timezone.timedelta(seconds=1)
+        exam.save(update_fields=["schedule_end", "updated_at"])
+
+        response = student_client.post(
+            f"/cbt/attempts/{attempt.id}/heartbeat/",
+            data=json.dumps({"tab_token": "runtime-tab"}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload.get("attempt_closed"))
+        self.assertEqual(payload.get("remaining_seconds"), 0)
+        self.assertIn(f"/cbt/attempts/{attempt.id}/result/", payload.get("redirect_url", ""))
+
+        attempt.refresh_from_db()
+        self.assertEqual(attempt.status, CBTAttemptStatus.SUBMITTED)
+        self.assertIsNotNone(attempt.submitted_at)
 
     def test_logout_keeps_open_cbt_attempt_running(self):
         exam, objective_question, _ = self._create_exam(theory_enabled=False)

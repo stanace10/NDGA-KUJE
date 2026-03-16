@@ -381,6 +381,48 @@ def _find_instance_by_lookup(model, lookup_payload):
     return model.objects.filter(**resolved).first()
 
 
+def _materialize_instance_from_lookup(model_label, lookup_payload):
+    if model_label != "results.resultsheet":
+        return None
+    if not isinstance(lookup_payload, dict) or not lookup_payload:
+        return None
+
+    academic_class = _resolve_identity(
+        "academics.academicclass",
+        lookup_payload.get("academic_class"),
+        allow_missing=True,
+    )
+    subject = _resolve_identity(
+        "academics.subject",
+        lookup_payload.get("subject"),
+        allow_missing=True,
+    )
+    session = _resolve_identity(
+        "academics.academicsession",
+        lookup_payload.get("session"),
+        allow_missing=True,
+    )
+    term = _resolve_identity(
+        "academics.term",
+        lookup_payload.get("term"),
+        allow_missing=True,
+    )
+    if not all([academic_class, subject, session, term]):
+        return None
+    if getattr(term, "session_id", None) != getattr(session, "id", None):
+        return None
+
+    model = apps.get_model(model_label)
+    with suppress_model_sync_capture():
+        instance, _ = model.objects.get_or_create(
+            academic_class=academic_class,
+            subject=subject,
+            session=session,
+            term=term,
+        )
+    return instance
+
+
 def _resolve_identity(model_label, identity_payload, *, allow_missing=False):
     if not isinstance(identity_payload, dict):
         if allow_missing:
@@ -402,6 +444,8 @@ def _resolve_identity(model_label, identity_payload, *, allow_missing=False):
 
     lookup_payload = identity_payload.get("lookup") or {}
     instance = _find_instance_by_lookup(model, lookup_payload)
+    if instance is None:
+        instance = _materialize_instance_from_lookup(model_label, lookup_payload)
     if instance is not None:
         if source_node_id and source_pk:
             _ensure_binding(

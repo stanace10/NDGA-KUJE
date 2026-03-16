@@ -3841,14 +3841,22 @@ def lockdown_enabled():
 
 @transaction.atomic
 def register_lockdown_heartbeat(*, attempt, tab_token, request, client_state=None):
-    if not lockdown_enabled():
-        return {"ok": True, "lockdown_enabled": False, "remaining_seconds": attempt_remaining_seconds(attempt)}
     if attempt.is_locked:
         return {"locked": True}
     if attempt.status != CBTAttemptStatus.IN_PROGRESS:
         return {"ok": True, "attempt_closed": True, "remaining_seconds": attempt_remaining_seconds(attempt)}
     if attempt_timer_is_paused(attempt):
-        return {"ok": True, "paused": True, "remaining_seconds": attempt_remaining_seconds(attempt), "pause_reason": attempt.exam.timer_pause_reason}
+        return {
+            "ok": True,
+            "paused": True,
+            "remaining_seconds": attempt_remaining_seconds(attempt),
+            "pause_reason": attempt.exam.timer_pause_reason,
+        }
+    if timezone.now() >= attempt_deadline(attempt):
+        submit_attempt(attempt=attempt, request=request)
+        return {"ok": True, "attempt_closed": True, "remaining_seconds": 0}
+    if not lockdown_enabled():
+        return {"ok": True, "lockdown_enabled": False, "remaining_seconds": attempt_remaining_seconds(attempt)}
 
     token = (tab_token or "").strip()[:120]
     if not token:

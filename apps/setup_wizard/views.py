@@ -510,6 +510,16 @@ class BackupCenterView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         context["example_restore_command"] = (
             ".venv\\Scripts\\python.exe manage.py restore_ndga backups\\ndga_backup_YYYYMMDD_HHMMSS.zip"
         )
+        context["safe_bundle_backup_command"] = (
+            "powershell -ExecutionPolicy Bypass -File .\\scripts\\backup_lan_recovery_bundle.ps1"
+        )
+        context["safe_bundle_restore_command"] = (
+            "powershell -ExecutionPolicy Bypass -File .\\scripts\\restore_lan_recovery_bundle.ps1 "
+            "-BundlePath \"C:\\Users\\<you>\\OneDrive\\NDGA Backups\\lan-node\\YYYYMMDD_HHMMSS\""
+        )
+        context["safe_bundle_schedule_command"] = (
+            "powershell -ExecutionPolicy Bypass -File .\\scripts\\install_lan_backup_task.ps1"
+        )
         return context
 
     def _summary_rows(self):

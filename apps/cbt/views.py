@@ -2826,6 +2826,13 @@ class CBTStudentAttemptRunView(CBTStudentAccessMixin, TemplateView):
     def post(self, request, *args, **kwargs):
         action = request.POST.get("action", "")
         is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
+        if self.attempt.status == CBTAttemptStatus.IN_PROGRESS and timezone.now() >= attempt_deadline(self.attempt):
+            submit_attempt(attempt=self.attempt, request=request)
+            result_url = reverse("cbt:student-attempt-result", args=[self.attempt.id])
+            if is_ajax:
+                return JsonResponse({"ok": True, "submitted": True, "redirect_url": result_url})
+            messages.info(request, "Exam time expired. Attempt submitted automatically.")
+            return redirect("cbt:student-attempt-result", attempt_id=self.attempt.id)
         index = self._active_index()
         answer = self._answer_for_index(index)
         objective_count, theory_count = self._section_split_counts()
@@ -3420,8 +3427,6 @@ class CBTAttemptHeartbeatView(CBTStudentAccessMixin, View):
             pk=kwargs["attempt_id"],
             student=request.user,
         )
-        if not settings.FEATURE_FLAGS.get("LOCKDOWN_ENABLED", False):
-            return JsonResponse({"ok": True, "lockdown_enabled": False})
         try:
             payload = json.loads(request.body.decode("utf-8") or "{}")
         except Exception:
@@ -3441,6 +3446,14 @@ class CBTAttemptHeartbeatView(CBTStudentAccessMixin, View):
                 {
                     "locked": True,
                     "redirect_url": reverse("cbt:student-attempt-locked", args=[attempt.id]),
+                }
+            )
+        if result.get("attempt_closed"):
+            return JsonResponse(
+                {
+                    "ok": True,
+                    **result,
+                    "redirect_url": reverse("cbt:student-attempt-result", args=[attempt.id]),
                 }
             )
         return JsonResponse({"ok": True, **result})
