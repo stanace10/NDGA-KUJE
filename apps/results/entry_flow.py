@@ -64,18 +64,25 @@ def _existing_locked_or_value(score, breakdown_key, field_name):
 
 def row_component_state(score, policies):
     ca1_objective = _existing_locked_or_value(score, "ca1_objective", "ca1")
+    ca1_theory = _existing_split_theory(score, "ca1")
     ca4_objective = _existing_locked_or_value(score, "ca4_objective", "ca4")
+    ca4_theory = _existing_split_theory(score, "ca4")
     ca2_objective = _existing_locked_or_value(score, "ca2_objective", "ca2")
     objective_auto = _existing_locked_or_value(score, "objective_auto", "objective")
+    exam_theory = decimal_value(score.theory if score else ZERO)
     return {
         "ca1": {
             "enabled": bool(policies["ca1"]["enabled"]),
             "objective": decimal_text(ca1_objective),
-            "theory": decimal_text(_existing_split_theory(score, "ca1")),
+            "theory": decimal_text(ca1_theory),
             "total": decimal_text(score.ca1 if score else ZERO),
             "objective_max": policies["ca1"]["objective_max"],
             "theory_max": policies["ca1"]["theory_max"],
-            "locked": ca1_objective > ZERO or bool(score and score.is_component_locked("ca1")),
+            "locked": (
+                ca1_objective > ZERO
+                or ca1_theory > ZERO
+                or bool(score and score.is_component_locked("ca1"))
+            ),
         },
         "ca23": {
             "enabled": bool(policies["ca23"]["enabled"]),
@@ -83,24 +90,35 @@ def row_component_state(score, policies):
             "theory": decimal_text(score.ca3 if score else ZERO),
             "objective_max": policies["ca23"]["objective_max"],
             "theory_max": policies["ca23"]["theory_max"],
-            "locked": (ca2_objective > ZERO) or bool(score and score.is_component_locked("ca2")),
+            "locked": (
+                (ca2_objective > ZERO)
+                or bool(score and (score.is_component_locked("ca2") or score.is_component_locked("ca3")))
+            ),
         },
         "ca4": {
             "enabled": bool(policies["ca4"]["enabled"]),
             "objective": decimal_text(ca4_objective),
-            "theory": decimal_text(_existing_split_theory(score, "ca4")),
+            "theory": decimal_text(ca4_theory),
             "total": decimal_text(score.ca4 if score else ZERO),
             "objective_max": policies["ca4"]["objective_max"],
             "theory_max": policies["ca4"]["theory_max"],
-            "locked": ca4_objective > ZERO or bool(score and score.is_component_locked("ca4")),
+            "locked": (
+                ca4_objective > ZERO
+                or ca4_theory > ZERO
+                or bool(score and score.is_component_locked("ca4"))
+            ),
         },
         "exam": {
             "enabled": bool(policies["exam"]["enabled"]),
             "objective": decimal_text(objective_auto),
-            "theory": decimal_text(score.theory if score else ZERO),
+            "theory": decimal_text(exam_theory),
             "objective_max": policies["exam"]["objective_max"],
             "theory_max": policies["exam"]["theory_max"],
-            "locked": (objective_auto > ZERO) or bool(score and score.is_component_locked("objective")),
+            "locked": (
+                (objective_auto > ZERO)
+                or (exam_theory > ZERO)
+                or bool(score and (score.is_component_locked("objective") or score.is_component_locked("theory")))
+            ),
         },
     }
 
@@ -182,7 +200,7 @@ def build_posted_score_bundle(*, current_score, post, student_id, policies, acto
 
     if policies["ca1"]["enabled"]:
         objective_score = _existing_locked_or_value(current_score, "ca1_objective", "ca1")
-        theory_score = decimal_value(post.get(f"ca1_theory_{student_id}"), _existing_split_theory(current_score, "ca1"))
+        theory_score = _existing_split_theory(current_score, "ca1")
         _validate_split_scores(policy_key="ca1", objective_score=objective_score, theory_score=theory_score, policies=policies)
         posted_scores["ca1"] = (objective_score + theory_score).quantize(DECIMAL_2)
         breakdown_updates["ca1_objective"] = objective_score
@@ -192,7 +210,7 @@ def build_posted_score_bundle(*, current_score, post, student_id, policies, acto
 
     if policies["ca23"]["enabled"]:
         objective_score = _existing_locked_or_value(current_score, "ca2_objective", "ca2")
-        theory_score = decimal_value(post.get(f"ca3_{student_id}"), current_score.ca3 if current_score else ZERO)
+        theory_score = decimal_value(current_score.ca3 if current_score else ZERO)
         _validate_split_scores(policy_key="ca23", objective_score=objective_score, theory_score=theory_score, policies=policies)
         posted_scores["ca2"] = objective_score
         posted_scores["ca3"] = theory_score
@@ -206,7 +224,7 @@ def build_posted_score_bundle(*, current_score, post, student_id, policies, acto
 
     if policies["ca4"]["enabled"]:
         objective_score = _existing_locked_or_value(current_score, "ca4_objective", "ca4")
-        theory_score = decimal_value(post.get(f"ca4_theory_{student_id}"), _existing_split_theory(current_score, "ca4"))
+        theory_score = _existing_split_theory(current_score, "ca4")
         _validate_split_scores(policy_key="ca4", objective_score=objective_score, theory_score=theory_score, policies=policies)
         posted_scores["ca4"] = (objective_score + theory_score).quantize(DECIMAL_2)
         breakdown_updates["ca4_objective"] = objective_score
@@ -216,12 +234,11 @@ def build_posted_score_bundle(*, current_score, post, student_id, policies, acto
 
     if policies["exam"]["enabled"]:
         objective_score = _existing_locked_or_value(current_score, "objective_auto", "objective")
-        theory_score = decimal_value(post.get(f"theory_{student_id}"), current_score.theory if current_score else ZERO)
+        theory_score = decimal_value(current_score.theory if current_score else ZERO)
         _validate_split_scores(policy_key="exam", objective_score=objective_score, theory_score=theory_score, policies=policies)
         posted_scores["objective"] = objective_score
         posted_scores["theory"] = theory_score
         breakdown_updates["objective_auto"] = objective_score
-        breakdown_updates["theory_manual"] = theory_score
     else:
         if "objective" in locked_fields and current_score is not None:
             posted_scores["objective"] = decimal_value(current_score.objective)

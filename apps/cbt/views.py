@@ -425,10 +425,29 @@ def _resequence_exam_rows(exam):
         .order_by("sort_order", "id")
     )
     ordered_rows = objective_rows + theory_rows
-    for index, row in enumerate(ordered_rows, start=1):
-        if row.sort_order != index:
-            row.sort_order = index
-            row.save(update_fields=["sort_order", "updated_at"])
+    changed_rows = [
+        (index, row)
+        for index, row in enumerate(ordered_rows, start=1)
+        if row.sort_order != index
+    ]
+    if not changed_rows:
+        return
+
+    # Use temporary sort orders first so the unique (exam_id, sort_order)
+    # constraint cannot fail while rows are being re-arranged in-place.
+    temp_base = len(ordered_rows) + 1000
+    now = timezone.now()
+    for temp_index, (_, row) in enumerate(changed_rows, start=1):
+        ExamQuestion.objects.filter(pk=row.pk).update(
+            sort_order=temp_base + temp_index,
+            updated_at=now,
+        )
+    for index, row in changed_rows:
+        ExamQuestion.objects.filter(pk=row.pk).update(
+            sort_order=index,
+            updated_at=now,
+        )
+        row.sort_order = index
 
 
 def _ensure_builder_rows(exam):
@@ -1580,6 +1599,18 @@ class CBTExamSubmitToDeanView(CBTAuthoringAccessMixin, RedirectView):
 class CBTUploadImportView(CBTAuthoringAccessMixin, TemplateView):
     template_name = "cbt/upload_import.html"
 
+    @staticmethod
+    def _exam_type_for_form(form):
+        if form.is_bound:
+            return (form.data.get("exam_type") or "").strip()
+        return str(form.initial.get("exam_type") or "").strip()
+
+    def _show_ca_target_field(self, form):
+        return self._exam_type_for_form(form) in {
+            CBTExamType.CA,
+            CBTExamType.PRACTICAL,
+        }
+
     def _resolved_prefill_assignment(self):
         assignment_id = (self.request.GET.get("assignment_id") or "").strip()
         if not assignment_id.isdigit():
@@ -1634,9 +1665,11 @@ class CBTUploadImportView(CBTAuthoringAccessMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         setup_prefill = self._initial()
         assignment_obj = self._resolved_prefill_assignment()
-        context["form"] = kwargs.get("form") or self._form()
+        form = kwargs.get("form") or self._form()
+        context["form"] = form
         context["setup_prefill"] = setup_prefill
         context["prefill_assignment"] = assignment_obj
+        context["show_ca_target_field"] = self._show_ca_target_field(form)
         context["imports"] = ExamDocumentImport.objects.filter(
             uploaded_by=self.request.user
         ).select_related("exam").order_by("-created_at")[:20]

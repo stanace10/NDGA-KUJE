@@ -10,6 +10,10 @@
         <p class="mt-2 text-sm text-slate-600">
           Upload your question document, auto-extract, auto-detect question blocks/options, and generate a draft exam for teacher review.
         </p>
+        <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+          Best upload formats: `TXT` from Notepad, clean `DOCX`, text-based `PDF`, or clear question images. For the highest success rate,
+          keep each question in a simple numbered block with options `A` to `D`.
+        </div>
         {% if prefill_assignment and setup_prefill.title and setup_prefill.exam_type %}
           <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
             <p><span class="font-semibold">Class & Subject:</span> {{ prefill_assignment.academic_class.code }} - {{ prefill_assignment.subject.name }}</p>
@@ -23,7 +27,7 @@
             {% if setup_prefill.assignment %}<input type="hidden" name="assignment" value="{{ setup_prefill.assignment }}">{% endif %}
             {% if setup_prefill.title %}<input type="hidden" name="title" value="{{ setup_prefill.title }}">{% endif %}
             {% if setup_prefill.exam_type %}<input type="hidden" name="exam_type" value="{{ setup_prefill.exam_type }}">{% endif %}
-            {% if setup_prefill.ca_target %}<input type="hidden" name="ca_target" value="{{ setup_prefill.ca_target }}">{% endif %}
+            {% if show_ca_target_field and setup_prefill.ca_target %}<input type="hidden" name="ca_target" value="{{ setup_prefill.ca_target }}">{% endif %}
           {% else %}
             <div>
               <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ form.assignment.id_for_label }}">{{ form.assignment.label }}</label>
@@ -57,10 +61,10 @@
               {{ form.flow_type }}
               {% if form.flow_type.errors %}<p class="mt-1 text-xs text-rose-700">{{ form.flow_type.errors|striptags }}</p>{% endif %}
             </div>
-            <div>
+            <div id="caTargetField"{% if not show_ca_target_field %} style="display: none;"{% endif %}>
               <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ form.ca_target.id_for_label }}">{{ form.ca_target.label }}</label>
               {{ form.ca_target }}
-              <p class="mt-1 text-xs text-slate-500">For CA, choose CA1, CA2/CA3 joint, or CA4.</p>
+              <p class="mt-1 text-xs text-slate-500" id="caTargetHint">For CA, choose CA1, CA2/CA3 joint, or CA4.</p>
               {% if form.ca_target.errors %}<p class="mt-1 text-xs text-rose-700">{{ form.ca_target.errors|striptags }}</p>{% endif %}
             </div>
           </div>
@@ -131,4 +135,29 @@
       </article>
     </div>
   </section>
+{% endblock %}
+
+{% block extra_scripts %}
+  <script>
+    (function () {
+      var examTypeField = document.getElementById("{{ form.exam_type.id_for_label }}");
+      var caTargetField = document.getElementById("caTargetField");
+      var caTargetInput = document.getElementById("{{ form.ca_target.id_for_label }}");
+
+      function refreshCaTargetField() {
+        if (!caTargetField) return;
+        var examType = examTypeField ? ((examTypeField.value || "").trim()) : "{{ form.initial.exam_type|default:'' }}";
+        var show = examType === "CA" || examType === "PRACTICAL";
+        caTargetField.style.display = show ? "" : "none";
+        if (!show && caTargetInput) {
+          caTargetInput.value = "";
+        }
+      }
+
+      if (examTypeField) {
+        examTypeField.addEventListener("change", refreshCaTargetField);
+      }
+      refreshCaTargetField();
+    })();
+  </script>
 {% endblock %}

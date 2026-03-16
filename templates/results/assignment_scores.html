@@ -22,10 +22,10 @@
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 class="text-sm font-semibold uppercase tracking-[0.14em] text-slate-500">CBT Integration Policy</h2>
-              <p class="mt-1 text-sm text-slate-600">Turn CBT on only for the components you want auto-written. Once CBT objective scores land for a component, it can no longer be turned off.</p>
+              <p class="mt-1 text-sm text-slate-600">Turn CBT on only for the components you want auto-written. Once CBT-managed scores land for a component, it can no longer be turned off.</p>
             </div>
             <div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
-              Objective scores written by CBT stay locked from teacher editing.
+              CBT-written objective and theory scores stay locked from teacher editing.
             </div>
           </div>
           <div class="mt-4 grid gap-3 lg:grid-cols-4">
@@ -135,8 +135,8 @@
                           <input type="number" step="0.01" class="w-24 rounded-lg border border-slate-200 bg-slate-100 px-2 py-1.5 text-sm font-semibold text-slate-600" value="{{ cbt.ca1.objective }}" data-score-input data-field="ca1-objective" readonly disabled>
                         </div>
                         <div>
-                          <p class="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Theory</p>
-                          <input type="number" step="0.01" min="0" max="10" data-score-input data-field="ca1-theory" class="w-24 rounded-lg border border-slate-300 px-2 py-1.5 text-sm" name="ca1_theory_{{ enrollment.student_id }}" value="{{ cbt.ca1.theory }}" {% if not can_edit %}readonly{% endif %}>
+                          <p class="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Theory From CBT</p>
+                          <input type="number" step="0.01" min="0" max="10" data-score-input data-field="ca1-theory" class="w-24 rounded-lg border border-slate-200 bg-slate-100 px-2 py-1.5 text-sm font-semibold text-slate-600" name="ca1_theory_{{ enrollment.student_id }}" value="{{ cbt.ca1.theory }}" readonly disabled>
                         </div>
                       </div>
                     </td>
@@ -147,8 +147,8 @@
                     </td>
 
                     <td class="px-3 py-2 align-top">
-                      <p class="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 {% if not cbt.ca23.enabled %}hidden{% endif %}" data-policy-label="ca23">Theory</p>
-                      <input type="number" step="0.01" min="0" max="10" data-score-input data-field="ca3" class="w-24 rounded-lg border border-slate-300 px-2 py-1.5 text-sm {% if 'ca3' in row.locked_fields %}cursor-not-allowed bg-slate-100 text-slate-500{% endif %}" name="ca3_{{ enrollment.student_id }}" value="{% if score %}{{ score.ca3 }}{% else %}0{% endif %}" {% if not can_edit or 'ca3' in row.locked_fields %}readonly disabled{% endif %}>
+                      <p class="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 {% if not cbt.ca23.enabled %}hidden{% endif %}" data-policy-label="ca23">Theory From CBT</p>
+                      <input type="number" step="0.01" min="0" max="10" data-score-input data-field="ca3" class="w-24 rounded-lg border px-2 py-1.5 text-sm {% if cbt.ca23.enabled or 'ca3' in row.locked_fields %}border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed{% else %}border-slate-300{% endif %}" name="ca3_{{ enrollment.student_id }}" value="{% if score %}{{ score.ca3 }}{% else %}0{% endif %}" {% if not can_edit or cbt.ca23.enabled or 'ca3' in row.locked_fields %}readonly disabled{% endif %}>
                     </td>
 
                     <td class="px-3 py-2 align-top">
@@ -161,8 +161,8 @@
                           <input type="number" step="0.01" class="w-24 rounded-lg border border-slate-200 bg-slate-100 px-2 py-1.5 text-sm font-semibold text-slate-600" value="{{ cbt.ca4.objective }}" data-score-input data-field="ca4-objective" readonly disabled>
                         </div>
                         <div>
-                          <p class="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Theory</p>
-                          <input type="number" step="0.01" min="0" max="10" data-score-input data-field="ca4-theory" class="w-24 rounded-lg border border-slate-300 px-2 py-1.5 text-sm" name="ca4_theory_{{ enrollment.student_id }}" value="{{ cbt.ca4.theory }}" {% if not can_edit %}readonly{% endif %}>
+                          <p class="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Theory From CBT</p>
+                          <input type="number" step="0.01" min="0" max="10" data-score-input data-field="ca4-theory" class="w-24 rounded-lg border border-slate-200 bg-slate-100 px-2 py-1.5 text-sm font-semibold text-slate-600" name="ca4_theory_{{ enrollment.student_id }}" value="{{ cbt.ca4.theory }}" readonly disabled>
                         </div>
                       </div>
                     </td>
@@ -173,8 +173,8 @@
                     </td>
 
                     <td class="px-3 py-2 align-top">
-                      <p class="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 {% if not cbt.exam.enabled %}hidden{% endif %}" data-policy-label="exam">Theory</p>
-                      <input type="number" step="0.01" min="0" max="20" data-score-input data-field="theory" class="w-24 rounded-lg border border-slate-300 px-2 py-1.5 text-sm {% if 'theory' in row.locked_fields %}cursor-not-allowed bg-slate-100 text-slate-500{% endif %}" name="theory_{{ enrollment.student_id }}" value="{% if score %}{{ score.theory }}{% else %}0{% endif %}" {% if not can_edit or 'theory' in row.locked_fields %}readonly disabled{% endif %}>
+                      <p class="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 {% if not cbt.exam.enabled %}hidden{% endif %}" data-policy-label="exam">Theory From CBT</p>
+                      <input type="number" step="0.01" min="0" max="20" data-score-input data-field="theory" class="w-24 rounded-lg border px-2 py-1.5 text-sm {% if cbt.exam.enabled or 'theory' in row.locked_fields %}border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed{% else %}border-slate-300{% endif %}" name="theory_{{ enrollment.student_id }}" value="{% if score %}{{ score.theory }}{% else %}0{% endif %}" {% if not can_edit or cbt.exam.enabled or 'theory' in row.locked_fields %}readonly disabled{% endif %}>
                     </td>
 
                     <td class="px-3 py-2 font-semibold text-slate-700" data-ca-total>{% if score %}{{ score.total_ca }}{% else %}0.00{% endif %}</td>

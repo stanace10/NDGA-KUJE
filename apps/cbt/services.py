@@ -15,7 +15,7 @@ from copy import deepcopy
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.db import transaction
+from django.db import connection, transaction
 from django.db.models import F, Max, Q
 from django.utils.text import slugify
 from django.utils import timezone
@@ -100,6 +100,37 @@ INLINE_QUESTION_PREFIX_GLUE_PATTERN = re.compile(
     r"([^\s])((?:question|q)\s*\d+\s*[\)\.\:-]\s*)",
     re.IGNORECASE,
 )
+
+
+def _repair_postgres_pk_sequence(model):
+    if connection.vendor != "postgresql":
+        return
+    table_name = model._meta.db_table
+    max_pk = model.objects.order_by("-pk").values_list("pk", flat=True).first() or 0
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT pg_get_serial_sequence(%s, 'id')", [table_name])
+        row = cursor.fetchone()
+        sequence_name = row[0] if row else ""
+        if not sequence_name:
+            return
+        next_seed = max(max_pk, 1)
+        cursor.execute(
+            "SELECT setval(%s, %s, %s)",
+            [sequence_name, next_seed, bool(max_pk)],
+        )
+
+
+def _repair_cbt_create_sequences():
+    for model in (
+        ExamDocumentImport,
+        QuestionBank,
+        Exam,
+        Question,
+        Option,
+        ExamQuestion,
+        CorrectAnswer,
+    ):
+        _repair_postgres_pk_sequence(model)
 INLINE_OPTION_MARKER_PATTERN = re.compile(r"(?i)\b([A-D])\s*[\)\.\:-]\s*")
 HEADER_NOISE_PATTERN = re.compile(
     r"^\s*(?:topic|subject|section|instruction|instructions|time|duration|class|name|date)\b",
@@ -1811,6 +1842,7 @@ def build_exam_with_ai_draft(
     lesson_note_text="",
     lesson_note_file=None,
 ):
+    _repair_cbt_create_sequences()
     note_from_file = _extract_text_from_uploaded_file(lesson_note_file)
     combined_note = "\n".join(
         part.strip()
@@ -2065,6 +2097,7 @@ def build_exam_from_uploaded_document(
     ca_target="",
     source_file,
 ):
+    _repair_cbt_create_sequences()
     import_row = ExamDocumentImport.objects.create(
         uploaded_by=actor,
         assignment=assignment,
@@ -3023,6 +3056,7 @@ def _apply_writeback(*, attempt, target, score_value, component_key):
         current_theory = score.breakdown_value(theory_key)
         total_value = (normalized + current_theory).quantize(DECIMAL_2)
         setattr(score, field, total_value)
+        score.lock_components(field)
         score.save()
         return {
             "sheet_id": str(sheet.id),

@@ -42,6 +42,7 @@ from apps.cbt.models import (
     SimulationWrapper,
 )
 from apps.cbt.services import _ordered_exam_question_rows, parse_objective_questions, student_available_exams
+from apps.cbt.views import _resequence_exam_rows
 from apps.audit.models import AuditCategory, AuditEvent
 from apps.results.models import StudentSubjectScore
 from apps.sync.models import SyncOperationType, SyncQueue
@@ -412,6 +413,67 @@ class StageTenCBTWorkflowTests(TestCase):
         import_row = ExamDocumentImport.objects.get(exam=exam)
         self.assertEqual(import_row.extraction_status, CBTDocumentStatus.SUCCESS)
 
+    def test_pasted_text_generates_draft_exam_without_server_error(self):
+        teacher_client = self.login_client(host="staff.ndgakuje.org", username=self.teacher_user.username)
+        pasted_text = (
+            "1. What is 2 + 2?\n"
+            "A. 2\n"
+            "B. 4\n"
+            "C. 6\n"
+            "D. 8\n"
+            "Answer: B\n\n"
+            "2. Explain addition.\n"
+        )
+        response = teacher_client.post(
+            "/cbt/authoring/upload/",
+            {
+                "assignment": str(self.assignment.id),
+                "title": "Imported From Paste",
+                "exam_type": "EXAM",
+                "flow_type": "OBJECTIVE_THEORY",
+                "pasted_text": pasted_text,
+            },
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        exam = Exam.objects.get(title="Imported From Paste")
+        self.assertEqual(exam.status, CBTExamStatus.DRAFT)
+        self.assertGreater(ExamQuestion.objects.filter(exam=exam).count(), 0)
+
+    def test_upload_document_redirect_opens_draft_builder_without_error(self):
+        teacher_client = self.login_client(host="staff.ndgakuje.org", username=self.teacher_user.username)
+        file_content = (
+            "1. What is 2 + 2?\n"
+            "A. 2\n"
+            "B. 4\n"
+            "C. 6\n"
+            "D. 8\n"
+            "Answer: B\n\n"
+            "2. Explain addition.\n"
+        ).encode("utf-8")
+        upload = SimpleUploadedFile("upload_probe.txt", file_content, content_type="text/plain")
+        response = teacher_client.post(
+            "/cbt/authoring/upload/",
+            {
+                "assignment": str(self.assignment.id),
+                "title": "Imported Builder Probe",
+                "exam_type": "EXAM",
+                "flow_type": "OBJECTIVE_THEORY",
+                "source_file": upload,
+            },
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_upload_page_hides_ca_target_for_exam_prefill(self):
+        teacher_client = self.login_client(host="staff.ndgakuje.org", username=self.teacher_user.username)
+        response = teacher_client.get(
+            f"/cbt/authoring/upload/?assignment_id={self.assignment.id}&title=Upload+Exam&exam_type=EXAM"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="caTargetField" style="display: none;"', html=False)
+        self.assertContains(response, "Best upload formats")
+
     def test_teacher_can_delete_own_draft_exam(self):
         exam, _, _ = self._create_minimal_exam()
         teacher_client = self.login_client(host="staff.ndgakuje.org", username=self.teacher_user.username)
@@ -499,6 +561,38 @@ class StageTenCBTWorkflowTests(TestCase):
         )
         parsed = parse_objective_questions(pasted_text)
         self.assertEqual(parsed, [])
+
+    def test_resequence_exam_rows_reorders_without_unique_sort_collision(self):
+        exam, question_bank, objective_question = self._create_minimal_exam()
+        theory_question = Question.objects.create(
+            question_bank=question_bank,
+            created_by=self.teacher_user,
+            subject=self.subject,
+            question_type=CBTQuestionType.SHORT_ANSWER,
+            stem="Explain inertia.",
+            topic="Mechanics",
+            difficulty="MEDIUM",
+            marks=1,
+        )
+        from apps.cbt.models import CorrectAnswer
+
+        CorrectAnswer.objects.create(question=theory_question, is_finalized=False)
+        objective_row = ExamQuestion.objects.get(exam=exam, question=objective_question)
+        objective_row.sort_order = 2
+        objective_row.save(update_fields=["sort_order", "updated_at"])
+        theory_row = ExamQuestion.objects.create(
+            exam=exam,
+            question=theory_question,
+            sort_order=1,
+            marks=1,
+        )
+
+        _resequence_exam_rows(exam)
+
+        objective_row.refresh_from_db()
+        theory_row.refresh_from_db()
+        self.assertEqual(objective_row.sort_order, 1)
+        self.assertEqual(theory_row.sort_order, 2)
 
     def test_ai_draft_create_redirects_to_builder(self):
         teacher_client = self.login_client(host="staff.ndgakuje.org", username=self.teacher_user.username)

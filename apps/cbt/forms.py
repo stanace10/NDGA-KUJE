@@ -744,6 +744,13 @@ class ExamUploadImportForm(forms.Form):
         self.fields["assignment"].label_from_instance = (
             lambda row: f"{row.academic_class.code} - {row.subject.name} ({row.session.name} / {row.term.get_name_display()})"
         )
+        self.fields["source_file"].help_text = (
+            "Best results: upload clean TXT or DOCX. PDF and clear image files also work. "
+            "Legacy DOC is unreliable."
+        )
+        self.fields["pasted_text"].help_text = (
+            "Use numbered questions with A-D options, one question block after another."
+        )
         _style_fields(self)
 
     def clean_title(self):
