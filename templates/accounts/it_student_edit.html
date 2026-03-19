@@ -108,9 +108,22 @@
         mobileStatusNode.className = "mt-2 text-xs font-semibold " + (isError ? "text-rose-700" : "text-slate-600");
       }
 
+      function openUploadFallback(message) {
+        if (uploadField) {
+          uploadField.setAttribute("accept", "image/*");
+          uploadField.setAttribute("capture", "environment");
+          uploadField.click();
+        }
+        setStatus(message, true);
+      }
+
       async function startCamera() {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          setStatus("Camera not supported in this browser.", true);
+          openUploadFallback("Camera API is not supported here. Select or capture an image instead.");
+          return;
+        }
+        if (!window.isSecureContext) {
+          openUploadFallback("Direct webcam needs HTTPS or localhost. Select or capture an image instead.");
           return;
         }
         try {
@@ -210,6 +223,8 @@
 
       uploadField?.addEventListener("change", event => {
         hiddenField.value = "";
+        uploadField.setAttribute("accept", "image/*");
+        uploadField.setAttribute("capture", "environment");
         const file = event.target?.files?.[0];
         if (!file) return;
         const reader = new FileReader();

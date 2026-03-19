@@ -1240,7 +1240,7 @@ class ITStudentUpdateForm(forms.Form):
     gender = forms.ChoiceField(choices=[("", "Select"), *StudentProfile.Gender.choices], required=False)
     guardian_name = forms.CharField(max_length=150, required=False)
     guardian_phone = forms.CharField(max_length=30, required=False)
-    guardian_email = forms.EmailField(required=True, label="Parent/Guardian Email")
+    guardian_email = forms.EmailField(required=False, label="Parent/Guardian Email")
     address = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 3}))
     state_of_origin = forms.CharField(max_length=80, required=False)
     nationality = forms.CharField(max_length=80, required=False, initial="Nigerian")
