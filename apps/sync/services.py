@@ -424,8 +424,14 @@ def queue_vote_submission_sync(
 def ready_queue_queryset():
     now = timezone.now()
     priority_order = Case(
-        When(operation_type=SyncOperationType.CBT_CONTENT_CHANGE, then=Value(0)),
-        default=Value(1),
+        When(operation_type=SyncOperationType.MODEL_RECORD_UPSERT, then=Value(0)),
+        When(operation_type=SyncOperationType.MODEL_RECORD_DELETE, then=Value(1)),
+        When(operation_type=SyncOperationType.STUDENT_REGISTRATION_UPSERT, then=Value(2)),
+        When(operation_type=SyncOperationType.ELECTION_VOTE_SUBMISSION, then=Value(3)),
+        When(operation_type=SyncOperationType.CBT_CONTENT_CHANGE, then=Value(4)),
+        When(operation_type=SyncOperationType.CBT_EXAM_ATTEMPT, then=Value(5)),
+        When(operation_type=SyncOperationType.CBT_SIMULATION_ATTEMPT, then=Value(6)),
+        default=Value(7),
         output_field=IntegerField(),
     )
     return SyncQueue.objects.filter(
@@ -779,15 +785,23 @@ def process_queue_row(queue_row):
         queue_row.next_retry_at = None
         queue_row.last_error = outcome.get("error") or "Conflict detected."
     else:
-        queue_row.retry_count = int(queue_row.retry_count or 0) + 1
         queue_row.last_error = outcome.get("error") or "Sync failed."
-        if queue_row.retry_count > int(queue_row.max_retries or 0):
-            queue_row.status = SyncQueueStatus.FAILED
-            queue_row.next_retry_at = None
-        else:
+        dependency_retry = status_code == 503 and any(
+            marker in queue_row.last_error.lower()
+            for marker in ("dependency unavailable", "authority unavailable")
+        )
+        if dependency_retry:
             queue_row.status = SyncQueueStatus.RETRY
-            delay = compute_backoff_seconds(queue_row.retry_count)
-            queue_row.next_retry_at = timezone.now() + timedelta(seconds=delay)
+            queue_row.next_retry_at = timezone.now() + timedelta(seconds=5)
+        else:
+            queue_row.retry_count = int(queue_row.retry_count or 0) + 1
+            if queue_row.retry_count > int(queue_row.max_retries or 0):
+                queue_row.status = SyncQueueStatus.FAILED
+                queue_row.next_retry_at = None
+            else:
+                queue_row.status = SyncQueueStatus.RETRY
+                delay = compute_backoff_seconds(queue_row.retry_count)
+                queue_row.next_retry_at = timezone.now() + timedelta(seconds=delay)
 
     queue_row.save(
         update_fields=[

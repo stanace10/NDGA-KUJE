@@ -9,13 +9,52 @@
       <h1 class="mt-2 text-3xl font-bold text-ndga-navy">Edit Student: {{ target_user.username }}</h1>
       <form method="post" enctype="multipart/form-data" class="mt-5 space-y-3">
         {% csrf_token %}
+        {{ student_form.webcam_image_data }}
         {% for field in student_form %}
+          {% if field.name == "webcam_image_data" %}
+          {% elif field.name == "profile_photo" %}
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% if field.help_text %}<p class="mt-1 text-xs text-slate-500">{{ field.help_text }}</p>{% endif %}
+            {% if field.errors %}<p class="mt-1 text-xs text-rose-700">{{ field.errors|striptags }}</p>{% endif %}
+            <p class="mt-2 text-xs text-slate-500">Capture profile image directly. If camera is blocked on HTTP subdomain, use upload or phone capture.</p>
+            <p id="camera-status" class="mt-2 text-xs font-semibold text-slate-600">Camera idle.</p>
+            <div class="mt-3 grid gap-4 lg:grid-cols-2">
+              <div class="space-y-2">
+                <video id="camera-preview" class="h-52 w-full rounded-xl border border-slate-300 bg-slate-100 object-cover" autoplay playsinline muted></video>
+                <canvas id="camera-canvas" class="hidden"></canvas>
+              </div>
+              <div class="space-y-2">
+                <img id="captured-preview" class="h-52 w-full rounded-xl border border-slate-300 bg-slate-100 object-cover" alt="Captured preview" {% if target_user.student_profile.profile_photo %}src="{{ target_user.student_profile.profile_photo.url }}"{% endif %}>
+              </div>
+            </div>
+            <div class="mt-3 flex flex-wrap gap-2">
+              <button type="button" id="camera-start" class="ndga-btn ndga-btn-secondary">Start Camera</button>
+              <button type="button" id="camera-capture" class="ndga-btn ndga-btn-primary">Capture</button>
+              <button type="button" id="camera-clear" class="ndga-btn ndga-btn-secondary">Clear Capture</button>
+              <button type="button" id="mobile-capture-start" class="ndga-btn ndga-btn-secondary">Use Phone Camera</button>
+            </div>
+            <div id="mobile-capture-panel" class="mt-3 hidden rounded-xl border border-slate-300 bg-white p-3">
+              <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Phone Capture</p>
+              <a id="mobile-capture-link" href="#" target="_blank" rel="noopener" class="mt-2 block break-all text-xs font-semibold text-ndga-navy"></a>
+              <div class="mt-2 flex flex-wrap gap-2">
+                <button type="button" id="mobile-capture-copy" class="ndga-btn ndga-btn-secondary !px-3 !py-1.5 !text-xs">Copy Link</button>
+                <button type="button" id="mobile-capture-share" class="ndga-btn ndga-btn-secondary !px-3 !py-1.5 !text-xs">Share Link</button>
+                <span id="mobile-capture-expiry" class="text-xs font-semibold text-amber-700">Expires in --:--</span>
+              </div>
+              <img id="mobile-capture-qr" class="mt-3 hidden h-24 w-24 rounded-lg border border-slate-200 bg-white p-1" alt="Capture QR">
+              <p id="mobile-capture-status" class="mt-2 text-xs font-semibold text-slate-600">Waiting for phone upload.</p>
+            </div>
+          </div>
+          {% else %}
           <div>
             <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ field.id_for_label }}">{{ field.label }}</label>
             {{ field }}
             {% if field.help_text %}<p class="mt-1 text-xs text-slate-500">{{ field.help_text }}</p>{% endif %}
             {% if field.errors %}<p class="mt-1 text-xs text-rose-700">{{ field.errors|striptags }}</p>{% endif %}
           </div>
+          {% endif %}
         {% endfor %}
         {% if student_form.non_field_errors %}
           <p class="text-xs text-rose-700">{{ student_form.non_field_errors|striptags }}</p>
@@ -27,4 +66,173 @@
       </form>
     </div>
   </section>
+{% endblock %}
+
+{% block extra_js %}
+  {{ block.super }}
+  <script>
+    (() => {
+      const video = document.getElementById("camera-preview");
+      const canvas = document.getElementById("camera-canvas");
+      const capturedPreview = document.getElementById("captured-preview");
+      const hiddenField = document.getElementById("id_webcam_image_data");
+      const uploadField = document.getElementById("id_profile_photo");
+      const startBtn = document.getElementById("camera-start");
+      const captureBtn = document.getElementById("camera-capture");
+      const clearBtn = document.getElementById("camera-clear");
+      const statusNode = document.getElementById("camera-status");
+      const mobileStartBtn = document.getElementById("mobile-capture-start");
+      const mobilePanel = document.getElementById("mobile-capture-panel");
+      const mobileLink = document.getElementById("mobile-capture-link");
+      const mobileQr = document.getElementById("mobile-capture-qr");
+      const mobileStatusNode = document.getElementById("mobile-capture-status");
+      const mobileCopyBtn = document.getElementById("mobile-capture-copy");
+      const mobileShareBtn = document.getElementById("mobile-capture-share");
+      const mobileExpiryNode = document.getElementById("mobile-capture-expiry");
+      const mobileSessionUrl = "{% url 'accounts:it-mobile-capture-session' %}";
+      const mobileStatusUrl = "{% url 'accounts:it-mobile-capture-status' %}";
+      let stream = null;
+      let mobileToken = "";
+      let mobilePoll = null;
+      let mobileExpiresAt = 0;
+
+      function setStatus(message, isError = false) {
+        if (!statusNode) return;
+        statusNode.textContent = message;
+        statusNode.className = "mt-2 text-xs font-semibold " + (isError ? "text-rose-700" : "text-slate-600");
+      }
+
+      function setMobileStatus(message, isError = false) {
+        if (!mobileStatusNode) return;
+        mobileStatusNode.textContent = message;
+        mobileStatusNode.className = "mt-2 text-xs font-semibold " + (isError ? "text-rose-700" : "text-slate-600");
+      }
+
+      async function startCamera() {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          setStatus("Camera not supported in this browser.", true);
+          return;
+        }
+        try {
+          if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+          }
+          stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          video.srcObject = stream;
+          setStatus("Camera ready.");
+        } catch (error) {
+          setStatus(error?.message || "Unable to access camera.", true);
+        }
+      }
+
+      function captureFrame() {
+        if (!video || !canvas || !hiddenField || !video.videoWidth || !video.videoHeight) {
+          setStatus("No camera frame yet. Click Start Camera first.", true);
+          return;
+        }
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
+        hiddenField.value = dataUrl;
+        if (uploadField) {
+          uploadField.value = "";
+        }
+        capturedPreview.src = dataUrl;
+        setStatus("Image captured successfully.");
+      }
+
+      function clearCapture() {
+        if (hiddenField) hiddenField.value = "";
+        if (uploadField) uploadField.value = "";
+        if (capturedPreview) capturedPreview.removeAttribute("src");
+        setStatus("Capture cleared.");
+      }
+
+      async function pollMobileCapture() {
+        if (!mobileToken) return;
+        try {
+          const response = await fetch(`${mobileStatusUrl}?token=${encodeURIComponent(mobileToken)}`, { credentials: "same-origin" });
+          const data = await response.json();
+          if (data.ok && data.ready && data.data_url) {
+            hiddenField.value = data.data_url;
+            if (uploadField) uploadField.value = "";
+            capturedPreview.src = data.data_url;
+            setStatus("Phone capture received.");
+            setMobileStatus("Phone capture received.");
+            if (mobilePoll) {
+              clearInterval(mobilePoll);
+              mobilePoll = null;
+            }
+          }
+        } catch (error) {
+          setMobileStatus("Waiting for phone upload.", false);
+        }
+      }
+
+      function updateMobileExpiry() {
+        if (!mobileExpiryNode || !mobileExpiresAt) return;
+        const remaining = Math.max(0, Math.floor((mobileExpiresAt - Date.now()) / 1000));
+        const mins = String(Math.floor(remaining / 60)).padStart(2, "0");
+        const secs = String(remaining % 60).padStart(2, "0");
+        mobileExpiryNode.textContent = `Expires in ${mins}:${secs}`;
+      }
+
+      async function startMobileCapture() {
+        try {
+          const response = await fetch(mobileSessionUrl, {
+            method: "POST",
+            headers: { "X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]")?.value || "" },
+            credentials: "same-origin",
+          });
+          const data = await response.json();
+          if (!data.ok) throw new Error(data.error || "Could not create phone capture session.");
+          if (!data.token) throw new Error("No capture token returned.");
+          mobileToken = data.token;
+          mobileExpiresAt = Date.now() + ((data.expires_seconds || 0) * 1000);
+          mobilePanel.classList.remove("hidden");
+          mobileLink.href = data.capture_url || "#";
+          mobileLink.textContent = data.capture_url || "";
+          if (data.qr_data_url) {
+            mobileQr.src = data.qr_data_url;
+            mobileQr.classList.remove("hidden");
+          }
+          setMobileStatus("Session ready. Open the link on phone and upload photo.");
+          updateMobileExpiry();
+          if (mobilePoll) clearInterval(mobilePoll);
+          mobilePoll = setInterval(pollMobileCapture, 3000);
+          setInterval(updateMobileExpiry, 1000);
+        } catch (error) {
+          setMobileStatus(error?.message || "Could not start phone capture.", true);
+        }
+      }
+
+      uploadField?.addEventListener("change", event => {
+        hiddenField.value = "";
+        const file = event.target?.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          capturedPreview.src = reader.result || "";
+          setStatus("Selected image ready.");
+        };
+        reader.readAsDataURL(file);
+      });
+
+      mobileCopyBtn?.addEventListener("click", async () => {
+        try { await navigator.clipboard.writeText(mobileLink.href || ""); setMobileStatus("Link copied."); } catch (_) {}
+      });
+      mobileShareBtn?.addEventListener("click", async () => {
+        const url = mobileLink.href || "";
+        if (!url) return;
+        try { await navigator.share({ title: "NDGA Mobile Capture", text: "Open this link to capture photo.", url }); } catch (_) {}
+      });
+
+      startBtn?.addEventListener("click", startCamera);
+      captureBtn?.addEventListener("click", captureFrame);
+      clearBtn?.addEventListener("click", clearCapture);
+      mobileStartBtn?.addEventListener("click", startMobileCapture);
+    })();
+  </script>
 {% endblock %}

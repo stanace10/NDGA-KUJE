@@ -955,6 +955,7 @@ class ITStaffUpdateForm(forms.Form):
     employment_status = forms.ChoiceField(choices=StaffProfile.LifecycleState.choices, required=False)
     lifecycle_note = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 3}))
     profile_photo = forms.ImageField(required=False)
+    webcam_image_data = forms.CharField(required=False, widget=forms.HiddenInput())
     form_class_assignment = forms.ModelChoiceField(
         queryset=AcademicClass.objects.none(),
         required=False,
@@ -1110,6 +1111,9 @@ class ITStaffUpdateForm(forms.Form):
                 raise forms.ValidationError("Select teaching loads when 'also teaches' is enabled.")
         if primary_role.code in {ROLE_BURSAR, ROLE_VP, ROLE_PRINCIPAL} and teaching_loads:
             raise forms.ValidationError("Admin roles cannot have teaching loads.")
+        webcam_data = cleaned_data.get("webcam_image_data")
+        if webcam_data:
+            cleaned_data["decoded_webcam_image"] = _decode_data_url_image(webcam_data)
         return cleaned_data
 
     def clean_profile_photo(self):
@@ -1140,8 +1144,9 @@ class ITStaffUpdateForm(forms.Form):
         self.profile_instance.lifecycle_note = self.cleaned_data.get("lifecycle_note", "").strip()
         self.profile_instance.staff_id = next_staff_id
         new_photo = self.cleaned_data.get("profile_photo")
-        if new_photo:
-            self.profile_instance.profile_photo = new_photo
+        webcam_photo = self.cleaned_data.get("decoded_webcam_image")
+        if new_photo or webcam_photo:
+            self.profile_instance.profile_photo = new_photo or webcam_photo
         self.profile_instance.save()
 
         self.generated_password = ""
@@ -1244,6 +1249,7 @@ class ITStudentUpdateForm(forms.Form):
     medical_notes = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 3}))
     disciplinary_notes = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 3}))
     profile_photo = forms.ImageField(required=False)
+    webcam_image_data = forms.CharField(required=False, widget=forms.HiddenInput())
     current_class = forms.ModelChoiceField(queryset=AcademicClass.objects.none(), required=False)
     subject_category = forms.ChoiceField(
         choices=[("", "All Categories"), *SubjectCategory.choices],
@@ -1372,6 +1378,9 @@ class ITStudentUpdateForm(forms.Form):
                 raise forms.ValidationError(
                     "Invalid subject selection for class: " + ", ".join(invalid_subjects)
                 )
+        webcam_data = cleaned_data.get("webcam_image_data")
+        if webcam_data:
+            cleaned_data["decoded_webcam_image"] = _decode_data_url_image(webcam_data)
         return cleaned_data
 
     def clean_profile_photo(self):
@@ -1404,8 +1413,9 @@ class ITStudentUpdateForm(forms.Form):
         self.profile_instance.medical_notes = self.cleaned_data.get("medical_notes", "").strip()
         self.profile_instance.disciplinary_notes = self.cleaned_data.get("disciplinary_notes", "").strip()
         new_photo = self.cleaned_data.get("profile_photo")
-        if new_photo:
-            self.profile_instance.profile_photo = new_photo
+        webcam_photo = self.cleaned_data.get("decoded_webcam_image")
+        if new_photo or webcam_photo:
+            self.profile_instance.profile_photo = new_photo or webcam_photo
         self.profile_instance.save()
 
         self.generated_password = ""

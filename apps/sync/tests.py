@@ -214,7 +214,7 @@ class SyncServiceTests(TestCase):
             )
         self.assertIsNone(result)
 
-    def test_ready_queue_prioritizes_cbt_content_changes(self):
+    def test_ready_queue_prioritizes_dependency_rows_before_cbt_content(self):
         model_row, _ = queue_sync_operation(
             operation_type=SyncOperationType.MODEL_RECORD_UPSERT,
             payload={"model": "academics.academicsession", "identity": {"source_node_id": "lan", "source_pk": "1", "lookup": {"name": "2025/2026"}}},
@@ -230,7 +230,35 @@ class SyncServiceTests(TestCase):
 
         ordered_ids = list(ready_queue_queryset().values_list("id", flat=True)[:2])
 
-        self.assertEqual(ordered_ids, [content_row.id, model_row.id])
+        self.assertEqual(ordered_ids, [model_row.id, content_row.id])
+
+    def test_dependency_503_stays_in_retry_without_consuming_max_retries(self):
+        row, _ = queue_sync_operation(
+            operation_type=SyncOperationType.CBT_CONTENT_CHANGE,
+            payload={"id": 1},
+            object_ref="cbt-change:1",
+            idempotency_key="dependency-503-row",
+            max_retries=1,
+        )
+        row.retry_count = 1
+        row.save(update_fields=["retry_count", "updated_at"])
+
+        with patch("apps.sync.services._dispatch_to_cloud") as dispatch:
+            dispatch.return_value = {
+                "ok": False,
+                "deferred": False,
+                "status_code": 503,
+                "payload": {"ok": False, "detail": "Dependency unavailable. Retry later."},
+                "error": "Dependency unavailable. Retry later.",
+                "remote_reference": "",
+            }
+            result = process_queue_row(row)
+
+        row.refresh_from_db()
+        self.assertTrue(result["processed"])
+        self.assertEqual(row.status, SyncQueueStatus.RETRY)
+        self.assertEqual(row.retry_count, 1)
+        self.assertIsNotNone(row.next_retry_at)
 
     def test_queue_student_registration_sync_serializes_profile_and_enrollment(self):
         role_student = Role.objects.get(code=ROLE_STUDENT)
@@ -430,6 +458,41 @@ class SyncAPIEndpointTests(TestCase):
             HTTP_AUTHORIZATION="Bearer sync-token",
         )
         self.assertEqual(response.status_code, 400)
+
+    @override_settings(SYNC_ENDPOINT_AUTH_TOKEN="sync-token")
+    def test_sync_api_status_exposes_queue_and_ops_summary(self):
+        queue_sync_operation(
+            operation_type=SyncOperationType.MODEL_RECORD_UPSERT,
+            payload={"model": "academics.academicsession", "fields": {"name": "2026/2027"}},
+            object_ref="academics.academicsession:1",
+            idempotency_key="status-summary-row",
+        )
+        client = Client(HTTP_HOST="it.ndgakuje.org")
+        response = client.get(
+            "/sync/api/",
+            HTTP_AUTHORIZATION="Bearer sync-token",
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["status_counts"]["PENDING"], 1)
+        self.assertIn("ops_snapshot", payload)
+        self.assertIn("celery", payload["ops_snapshot"])
+        self.assertIn("cbt", payload["ops_snapshot"])
+
+    def test_ops_metrics_endpoint_exposes_prometheus_text(self):
+        queue_sync_operation(
+            operation_type=SyncOperationType.MODEL_RECORD_UPSERT,
+            payload={"model": "academics.academicsession", "fields": {"name": "2026/2027"}},
+            object_ref="academics.academicsession:2",
+            idempotency_key="metrics-row",
+        )
+        client = Client(HTTP_HOST="it.ndgakuje.org")
+        response = client.get("/ops/metrics/")
+        self.assertEqual(response.status_code, 200)
+        body = response.content.decode("utf-8")
+        self.assertIn("ndga_ready", body)
+        self.assertIn('ndga_sync_queue_items{status="pending"}', body)
 
     @override_settings(SYNC_ENDPOINT_AUTH_TOKEN="sync-token")
     def test_outbox_ingest_applies_student_registration_payload(self):
