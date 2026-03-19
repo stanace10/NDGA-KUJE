@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 import sys
 
+from celery.schedules import crontab
 import environ
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
@@ -24,9 +25,18 @@ env = environ.Env(
     PAYSTACK_SECRET_KEY=(str, ""),
     PAYSTACK_WEBHOOK_SECRET=(str, ""),
     PAYSTACK_API_BASE_URL=(str, "https://api.paystack.co"),
+    REMITTA_MERCHANT_ID=(str, ""),
+    REMITTA_SERVICE_TYPE_ID=(str, ""),
+    REMITTA_API_KEY=(str, ""),
+    REMITTA_CHECKOUT_URL=(str, "https://login.remita.net/remita/ecomm/finalize.reg"),
+    REMITTA_VERIFY_URL_TEMPLATE=(str, ""),
     MOBILE_CAPTURE_PUBLIC_BASE_URL=(str, ""),
     PAYMENT_GATEWAY_CALLBACK_URL=(str, ""),
     PAYMENT_GATEWAY_TIMEOUT_SECONDS=(int, 12),
+    WHATSAPP_PROVIDER=(str, "disabled"),
+    WHATSAPP_GRAPH_API_BASE_URL=(str, "https://graph.facebook.com/v23.0"),
+    WHATSAPP_ACCESS_TOKEN=(str, ""),
+    WHATSAPP_PHONE_NUMBER_ID=(str, ""),
     FINANCE_REMINDER_BEAT_INTERVAL_SECONDS=(int, 3600),
     FINANCE_REMINDER_DAYS_AHEAD=(int, 3),
     LOCKDOWN_HEARTBEAT_INTERVAL_SECONDS=(int, 8),
@@ -42,15 +52,27 @@ env = environ.Env(
     SYNC_CONNECTIVITY_CACHE_TTL_SECONDS=(int, 5),
     SYNC_NODE_ROLE=(str, "CLOUD"),
     SYNC_ENFORCE_ACTIVE_SESSION_AUTHORITY=(bool, True),
+    SYNC_MANUAL_MODE=(bool, False),
     SYNC_AUTO_ON_REQUEST=(bool, True),
     SYNC_AUTO_MIN_INTERVAL_SECONDS=(int, 5),
     SYNC_AUTO_BATCH_LIMIT=(int, 60),
+    SYNC_PROCESS_BEAT_ENABLED=(bool, True),
     SYNC_PROCESS_BEAT_INTERVAL_SECONDS=(int, 5),
     SYNC_PULL_ENABLED=(bool, True),
     SYNC_PULL_BATCH_LIMIT=(int, 200),
     SYNC_PULL_MAX_PAGES_PER_RUN=(int, 4),
     SYNC_PULL_TIMEOUT_SECONDS=(int, 5),
+    SYNC_PULL_BEAT_ENABLED=(bool, True),
     SYNC_PULL_BEAT_INTERVAL_SECONDS=(int, 5),
+    MONITOR_CELERY_QUEUE_NAMES=(str, "celery"),
+    BACKUP_PG_ENABLED=(bool, False),
+    BACKUP_PG_OUTPUT_DIR=(str, "backups/postgres"),
+    BACKUP_PG_S3_ENABLED=(bool, False),
+    BACKUP_PG_S3_BUCKET=(str, ""),
+    BACKUP_PG_S3_PREFIX=(str, "nightly"),
+    BACKUP_PG_KEEP_LOCAL_COUNT=(int, 14),
+    BACKUP_PG_BEAT_HOUR=(int, 2),
+    BACKUP_PG_BEAT_MINUTE=(int, 0),
     CHANNEL_LAYER_CAPACITY=(int, 1500),
     CHANNEL_LAYER_EXPIRY_SECONDS=(int, 60),
     CHANNEL_LAYER_GROUP_EXPIRY_SECONDS=(int, 86400),
@@ -391,11 +413,26 @@ PAYSTACK_PUBLIC_KEY = env("PAYSTACK_PUBLIC_KEY", default="")
 PAYSTACK_SECRET_KEY = env("PAYSTACK_SECRET_KEY", default="")
 PAYSTACK_WEBHOOK_SECRET = env("PAYSTACK_WEBHOOK_SECRET", default="")
 PAYSTACK_API_BASE_URL = env("PAYSTACK_API_BASE_URL", default="https://api.paystack.co")
+REMITTA_MERCHANT_ID = env("REMITTA_MERCHANT_ID", default="")
+REMITTA_SERVICE_TYPE_ID = env("REMITTA_SERVICE_TYPE_ID", default="")
+REMITTA_API_KEY = env("REMITTA_API_KEY", default="")
+REMITTA_CHECKOUT_URL = env(
+    "REMITTA_CHECKOUT_URL",
+    default="https://login.remita.net/remita/ecomm/finalize.reg",
+)
+REMITTA_VERIFY_URL_TEMPLATE = env("REMITTA_VERIFY_URL_TEMPLATE", default="")
 MOBILE_CAPTURE_PUBLIC_BASE_URL = (
     env("MOBILE_CAPTURE_PUBLIC_BASE_URL", default="").strip().rstrip("/")
 )
 PAYMENT_GATEWAY_CALLBACK_URL = env("PAYMENT_GATEWAY_CALLBACK_URL", default="")
 PAYMENT_GATEWAY_TIMEOUT_SECONDS = env.int("PAYMENT_GATEWAY_TIMEOUT_SECONDS", default=12)
+WHATSAPP_PROVIDER = env("WHATSAPP_PROVIDER", default="disabled")
+WHATSAPP_GRAPH_API_BASE_URL = env(
+    "WHATSAPP_GRAPH_API_BASE_URL",
+    default="https://graph.facebook.com/v23.0",
+)
+WHATSAPP_ACCESS_TOKEN = env("WHATSAPP_ACCESS_TOKEN", default="")
+WHATSAPP_PHONE_NUMBER_ID = env("WHATSAPP_PHONE_NUMBER_ID", default="")
 FINANCE_REMINDER_BEAT_INTERVAL_SECONDS = env.int("FINANCE_REMINDER_BEAT_INTERVAL_SECONDS", default=3600)
 FINANCE_REMINDER_DAYS_AHEAD = env.int("FINANCE_REMINDER_DAYS_AHEAD", default=3)
 LOCKDOWN_HEARTBEAT_INTERVAL_SECONDS = env.int(
@@ -429,41 +466,70 @@ SYNC_ENFORCE_ACTIVE_SESSION_AUTHORITY = env.bool(
     "SYNC_ENFORCE_ACTIVE_SESSION_AUTHORITY",
     default=True,
 )
+SYNC_MANUAL_MODE = env.bool("SYNC_MANUAL_MODE", default=False)
 SYNC_AUTO_ON_REQUEST = env.bool(
     "SYNC_AUTO_ON_REQUEST",
-    default=_local_sync_auto_on_request_default,
+    default=(False if SYNC_MANUAL_MODE else _local_sync_auto_on_request_default),
 )
 SYNC_AUTO_MIN_INTERVAL_SECONDS = env.int("SYNC_AUTO_MIN_INTERVAL_SECONDS", default=5)
 SYNC_AUTO_BATCH_LIMIT = env.int("SYNC_AUTO_BATCH_LIMIT", default=60)
+SYNC_PROCESS_BEAT_ENABLED = env.bool(
+    "SYNC_PROCESS_BEAT_ENABLED",
+    default=(not SYNC_MANUAL_MODE),
+)
 SYNC_PROCESS_BEAT_INTERVAL_SECONDS = env.int("SYNC_PROCESS_BEAT_INTERVAL_SECONDS", default=5)
 SYNC_PULL_ENABLED = env.bool("SYNC_PULL_ENABLED", default=True)
 SYNC_PULL_BATCH_LIMIT = env.int("SYNC_PULL_BATCH_LIMIT", default=200)
 SYNC_PULL_MAX_PAGES_PER_RUN = env.int("SYNC_PULL_MAX_PAGES_PER_RUN", default=4)
 SYNC_PULL_TIMEOUT_SECONDS = env.int("SYNC_PULL_TIMEOUT_SECONDS", default=5)
+SYNC_PULL_BEAT_ENABLED = env.bool(
+    "SYNC_PULL_BEAT_ENABLED",
+    default=(not SYNC_MANUAL_MODE),
+)
 SYNC_PULL_BEAT_INTERVAL_SECONDS = env.int("SYNC_PULL_BEAT_INTERVAL_SECONDS", default=5)
+MONITOR_CELERY_QUEUE_NAMES = [
+    item.strip()
+    for item in env("MONITOR_CELERY_QUEUE_NAMES", default="celery").split(",")
+    if item.strip()
+]
+BACKUP_PG_ENABLED = env.bool("BACKUP_PG_ENABLED", default=False)
+BACKUP_PG_OUTPUT_DIR = env("BACKUP_PG_OUTPUT_DIR", default="backups/postgres").strip() or "backups/postgres"
+BACKUP_PG_S3_ENABLED = env.bool("BACKUP_PG_S3_ENABLED", default=False)
+BACKUP_PG_S3_BUCKET = env("BACKUP_PG_S3_BUCKET", default="").strip()
+BACKUP_PG_S3_PREFIX = env("BACKUP_PG_S3_PREFIX", default="nightly").strip().strip("/")
+BACKUP_PG_KEEP_LOCAL_COUNT = max(env.int("BACKUP_PG_KEEP_LOCAL_COUNT", default=14), 1)
+BACKUP_PG_BEAT_HOUR = max(min(env.int("BACKUP_PG_BEAT_HOUR", default=2), 23), 0)
+BACKUP_PG_BEAT_MINUTE = max(min(env.int("BACKUP_PG_BEAT_MINUTE", default=0), 59), 0)
 
 CELERY_BEAT_SCHEDULE = {
-    "sync-process-queue-batch": {
-        "task": "sync.process_queue_batch",
-        "schedule": float(max(SYNC_PROCESS_BEAT_INTERVAL_SECONDS, 1)),
-        "args": (100,),
-    },
-    "sync-pull-remote-outbox": {
-        "task": "sync.pull_remote_outbox",
-        "schedule": float(max(SYNC_PULL_BEAT_INTERVAL_SECONDS, 1)),
-        "args": (SYNC_PULL_BATCH_LIMIT, SYNC_PULL_MAX_PAGES_PER_RUN),
-    },
-    "sync-pull-cbt-content": {
-        "task": "sync.pull_cbt_content",
-        "schedule": float(max(SYNC_PULL_BEAT_INTERVAL_SECONDS, 1)),
-        "args": (SYNC_PULL_BATCH_LIMIT, SYNC_PULL_MAX_PAGES_PER_RUN),
-    },
     "finance-send-scheduled-fee-reminders": {
         "task": "finance.send_scheduled_fee_reminders",
         "schedule": float(max(FINANCE_REMINDER_BEAT_INTERVAL_SECONDS, 300)),
         "args": (FINANCE_REMINDER_DAYS_AHEAD,),
     },
 }
+if SYNC_PROCESS_BEAT_ENABLED:
+    CELERY_BEAT_SCHEDULE["sync-process-queue-batch"] = {
+        "task": "sync.process_queue_batch",
+        "schedule": float(max(SYNC_PROCESS_BEAT_INTERVAL_SECONDS, 1)),
+        "args": (100,),
+    }
+if SYNC_PULL_BEAT_ENABLED:
+    CELERY_BEAT_SCHEDULE["sync-pull-remote-outbox"] = {
+        "task": "sync.pull_remote_outbox",
+        "schedule": float(max(SYNC_PULL_BEAT_INTERVAL_SECONDS, 1)),
+        "args": (SYNC_PULL_BATCH_LIMIT, SYNC_PULL_MAX_PAGES_PER_RUN),
+    }
+    CELERY_BEAT_SCHEDULE["sync-pull-cbt-content"] = {
+        "task": "sync.pull_cbt_content",
+        "schedule": float(max(SYNC_PULL_BEAT_INTERVAL_SECONDS, 1)),
+        "args": (SYNC_PULL_BATCH_LIMIT, SYNC_PULL_MAX_PAGES_PER_RUN),
+    }
+if BACKUP_PG_ENABLED:
+    CELERY_BEAT_SCHEDULE["setup-nightly-postgres-backup"] = {
+        "task": "setup.nightly_pg_backup",
+        "schedule": crontab(hour=BACKUP_PG_BEAT_HOUR, minute=BACKUP_PG_BEAT_MINUTE),
+    }
 RATE_LIMIT_ENABLED = env.bool("RATE_LIMIT_ENABLED", default=True)
 if "test" in sys.argv:
     RATE_LIMIT_ENABLED = False
