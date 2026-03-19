@@ -510,6 +510,149 @@ def _apply_timestamps(instance, *, created_at_raw="", updated_at_raw=""):
         instance.__class__.objects.filter(pk=instance.pk).update(**update_values)
 
 
+def _sync_direction_for_source(source_node_id):
+    normalized_source = (source_node_id or "").strip()
+    if not normalized_source or normalized_source == current_local_node_id():
+        return ""
+    if current_sync_node_role() == "CLOUD":
+        return "LAN_TO_CLOUD"
+    if current_sync_node_role() == "LAN":
+        return "CLOUD_TO_LAN"
+    return ""
+
+
+def _normalized_score_breakdown(raw):
+    if not isinstance(raw, dict):
+        return {}
+    normalized = {}
+    for key, value in raw.items():
+        name = str(key).strip()
+        if not name:
+            continue
+        try:
+            normalized[name] = str(Decimal(str(value)).quantize(Decimal("0.01")))
+        except Exception:
+            continue
+    return normalized
+
+
+def _score_decimal_text(value):
+    return str(Decimal(str(value or 0)).quantize(Decimal("0.01")))
+
+
+def _score_decimal_value(value):
+    return Decimal(_score_decimal_text(value))
+
+
+def _snapshot_student_subject_score(instance):
+    return {
+        "ca1": _score_decimal_text(instance.ca1),
+        "ca2": _score_decimal_text(instance.ca2),
+        "ca3": _score_decimal_text(instance.ca3),
+        "ca4": _score_decimal_text(instance.ca4),
+        "objective": _score_decimal_text(instance.objective),
+        "theory": _score_decimal_text(instance.theory),
+        "has_override": bool(instance.has_override),
+        "override_reason": instance.override_reason,
+        "override_by": instance.override_by,
+        "override_at": instance.override_at,
+        "locked": set(instance.normalized_locked_fields()),
+        "breakdown": instance.normalized_breakdown(),
+    }
+
+
+def _merge_score_breakdown(*, local_breakdown, incoming_breakdown, direction):
+    def pick(local_key, incoming_key):
+        if direction == "LAN_TO_CLOUD":
+            return incoming_breakdown.get(incoming_key, local_breakdown.get(local_key, "0.00"))
+        return local_breakdown.get(local_key, incoming_breakdown.get(incoming_key, "0.00"))
+
+    merged = {}
+    merged["ca1_objective"] = pick("ca1_objective", "ca1_objective")
+    merged["ca1_theory"] = (
+        local_breakdown.get("ca1_theory", incoming_breakdown.get("ca1_theory", "0.00"))
+        if direction == "LAN_TO_CLOUD"
+        else incoming_breakdown.get("ca1_theory", local_breakdown.get("ca1_theory", "0.00"))
+    )
+    merged["ca2_objective"] = pick("ca2_objective", "ca2_objective")
+    merged["ca3_theory"] = (
+        local_breakdown.get("ca3_theory", incoming_breakdown.get("ca3_theory", "0.00"))
+        if direction == "LAN_TO_CLOUD"
+        else incoming_breakdown.get("ca3_theory", local_breakdown.get("ca3_theory", "0.00"))
+    )
+    merged["ca4_objective"] = pick("ca4_objective", "ca4_objective")
+    merged["ca4_theory"] = (
+        local_breakdown.get("ca4_theory", incoming_breakdown.get("ca4_theory", "0.00"))
+        if direction == "LAN_TO_CLOUD"
+        else incoming_breakdown.get("ca4_theory", local_breakdown.get("ca4_theory", "0.00"))
+    )
+    merged["objective_auto"] = pick("objective_auto", "objective_auto")
+    return {key: value for key, value in merged.items() if value not in {"", None}}
+
+
+def _merge_result_score_after_apply(*, instance, previous_state, source_node_id):
+    direction = _sync_direction_for_source(source_node_id)
+    if not direction or previous_state is None:
+        return
+
+    incoming_breakdown = instance.normalized_breakdown()
+    merged_breakdown = _merge_score_breakdown(
+        local_breakdown=previous_state["breakdown"],
+        incoming_breakdown=incoming_breakdown,
+        direction=direction,
+    )
+
+    if direction == "LAN_TO_CLOUD":
+        instance.ca2 = _score_decimal_value(instance.ca2)
+        instance.objective = _score_decimal_value(instance.objective)
+        instance.ca3 = _score_decimal_value(previous_state["ca3"])
+        instance.theory = _score_decimal_value(previous_state["theory"])
+        instance.has_override = previous_state["has_override"]
+        instance.override_reason = previous_state["override_reason"]
+        instance.override_by = previous_state["override_by"]
+        instance.override_at = previous_state["override_at"]
+    else:
+        instance.ca2 = _score_decimal_value(previous_state["ca2"])
+        instance.objective = _score_decimal_value(previous_state["objective"])
+        instance.ca3 = _score_decimal_value(instance.ca3)
+        instance.theory = _score_decimal_value(instance.theory)
+
+    ca1_objective = _score_decimal_value(merged_breakdown.get("ca1_objective", "0.00"))
+    ca1_theory = _score_decimal_value(merged_breakdown.get("ca1_theory", "0.00"))
+    ca4_objective = _score_decimal_value(merged_breakdown.get("ca4_objective", "0.00"))
+    ca4_theory = _score_decimal_value(merged_breakdown.get("ca4_theory", "0.00"))
+    ca2_objective = _score_decimal_value(merged_breakdown.get("ca2_objective", instance.ca2))
+    objective_auto = _score_decimal_value(merged_breakdown.get("objective_auto", instance.objective))
+    ca3_theory = _score_decimal_value(merged_breakdown.get("ca3_theory", instance.ca3))
+
+    instance.ca1 = (ca1_objective + ca1_theory).quantize(Decimal("0.01"))
+    instance.ca2 = ca2_objective.quantize(Decimal("0.01"))
+    instance.ca3 = ca3_theory.quantize(Decimal("0.01"))
+    instance.ca4 = (ca4_objective + ca4_theory).quantize(Decimal("0.01"))
+    instance.objective = objective_auto.quantize(Decimal("0.01"))
+    instance.cbt_component_breakdown = merged_breakdown
+    instance.cbt_locked_fields = sorted(previous_state["locked"] | set(instance.normalized_locked_fields()))
+
+
+def _snapshot_result_sheet(instance):
+    return {
+        "status": instance.status,
+        "created_by": instance.created_by,
+        "cbt_component_policies": dict(instance.cbt_component_policies or {}),
+    }
+
+
+def _merge_result_sheet_after_apply(*, instance, previous_state, source_node_id):
+    direction = _sync_direction_for_source(source_node_id)
+    if not direction or previous_state is None:
+        return
+    if direction == "LAN_TO_CLOUD":
+        instance.status = previous_state["status"]
+        instance.created_by = previous_state["created_by"]
+    elif previous_state["cbt_component_policies"] and not instance.cbt_component_policies:
+        instance.cbt_component_policies = previous_state["cbt_component_policies"]
+
+
 def _local_open_election_for_payload(model_label, payload):
     from apps.elections.models import ElectionStatus
 
@@ -561,6 +704,13 @@ def apply_generic_model_payload(*, payload, operation_type):
                 instance.delete()
             return {"reference": f"{model_label}:{source_node_id}:{source_pk}", "deleted": True}
 
+        previous_score_state = None
+        previous_sheet_state = None
+        if instance is not None and model_label == "results.studentsubjectscore":
+            previous_score_state = _snapshot_student_subject_score(instance)
+        elif instance is not None and model_label == "results.resultsheet":
+            previous_sheet_state = _snapshot_result_sheet(instance)
+
         if instance is None:
             pk_field = model._meta.pk
             if isinstance(pk_field, models.UUIDField) and source_pk:
@@ -569,6 +719,18 @@ def apply_generic_model_payload(*, payload, operation_type):
                 instance = model()
 
         _apply_field_values(instance, payload.get("fields") or {})
+        if model_label == "results.studentsubjectscore":
+            _merge_result_score_after_apply(
+                instance=instance,
+                previous_state=previous_score_state,
+                source_node_id=source_node_id,
+            )
+        elif model_label == "results.resultsheet":
+            _merge_result_sheet_after_apply(
+                instance=instance,
+                previous_state=previous_sheet_state,
+                source_node_id=source_node_id,
+            )
         instance.save()
         if source_node_id and source_pk:
             _ensure_binding(
