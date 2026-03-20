@@ -27,7 +27,14 @@ import hashlib
 import secrets
 from urllib.parse import urlsplit
 
-from apps.accounts.constants import ROLE_BURSAR, ROLE_IT_MANAGER, ROLE_PRINCIPAL, ROLE_STUDENT, ROLE_VP
+from apps.accounts.constants import (
+    ROLE_BURSAR,
+    ROLE_HOME_PORTAL,
+    ROLE_IT_MANAGER,
+    ROLE_PRINCIPAL,
+    ROLE_STUDENT,
+    ROLE_VP,
+)
 from apps.accounts.forms import (
     ITCredentialResetForm,
     ITStaffRegistrationForm,
@@ -111,6 +118,18 @@ def _mobile_capture_public_url(request, *, portal_key: str, capture_path: str):
     if public_base:
         if not public_base.startswith(("http://", "https://")):
             public_base = f"https://{public_base}"
+        try:
+            configured_host = (urlsplit(public_base).hostname or "").strip().lower()
+        except Exception:
+            configured_host = ""
+        request_host = (request.get_host() or "").split(":")[0].strip().lower()
+        if configured_host in {"localhost", "127.0.0.1", "::1"} and request_host not in {
+            "localhost",
+            "127.0.0.1",
+            "::1",
+        }:
+            public_base = ""
+    if public_base:
         return f"{public_base.rstrip('/')}{capture_path}"
     return build_portal_url(request, portal_key, capture_path)
 
@@ -195,7 +214,17 @@ class LoginView(FormView):
     form_class = NDGALoginForm
 
     def get(self, request, *args, **kwargs):
-        if request.user.is_authenticated:
+        portal_hint = (request.GET.get("audience", "") or "").strip().lower()
+        fresh_requested = (request.GET.get("fresh", "") or "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+        allow_fresh_login_page = (
+            fresh_requested and portal_hint in settings.FRESH_LOGIN_REQUIRED_PORTALS
+        )
+        if request.user.is_authenticated and not allow_fresh_login_page:
             return _portal_redirect_response(
                 request,
                 resolve_role_home_url(request.user, request=request),
@@ -398,8 +427,18 @@ class PrivilegedLoginVerifyView(FormView):
 class LogoutView(RedirectView):
     permanent = False
 
+    def _default_login_audience(self):
+        if self.request.user.is_authenticated:
+            primary_role = getattr(self.request.user, "primary_role", None)
+            if primary_role is not None and ROLE_HOME_PORTAL.get(primary_role.code) != "student":
+                return "staff"
+        return "student"
+
     def _redirect_target(self):
-        portal_key = getattr(self.request, "portal_key", "") or self.request.session.get("last_authenticated_portal", "")
+        portal_key = (
+            self.request.session.get("last_authenticated_portal", "")
+            or getattr(self.request, "portal_key", "")
+        )
         portal_map = {
             "cbt": ("cbt", "cbt"),
             "election": ("election", "election"),
@@ -418,7 +457,9 @@ class LogoutView(RedirectView):
                 reverse("accounts:login"),
                 query={"audience": audience},
             )
-        return reverse("dashboard:landing")
+        return self.request.build_absolute_uri(
+            f"{reverse('accounts:login')}?audience={self._default_login_audience()}"
+        )
 
     def _perform_logout(self):
         if self.request.user.is_authenticated:
