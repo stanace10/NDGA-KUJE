@@ -65,6 +65,10 @@ def _mode_chips(*, feature_flags, sync_runtime_status, portal_key):
 
 def platform_context(request):
     portal_key = current_portal_key(request)
+    lan_runtime_restricted = bool(
+        getattr(settings, "LAN_RUNTIME_RESTRICT_PORTALS", False)
+        and (getattr(settings, "SYNC_NODE_ROLE", "CLOUD") or "CLOUD").strip().upper() == "LAN"
+    )
     runtime_feature_flags = get_runtime_feature_flags()
     portal_root_urls = {
         key: build_portal_url(request, key, "/")
@@ -158,6 +162,7 @@ def platform_context(request):
             sync_runtime_status=sync_runtime_status,
             portal_key=portal_key,
         ),
+        "lan_runtime_restricted": lan_runtime_restricted,
         "show_portal_shell": _show_portal_shell(request, portal_key),
         "portal_nav_items": portal_nav_items,
         "portal_nav_sections": _portal_nav_sections(portal_nav_items),

@@ -110,6 +110,25 @@
         }
       }
 
+      function approximateDataUrlBytes(dataUrl) {
+        const encoded = (dataUrl || "").split(",")[1] || "";
+        return Math.ceil((encoded.length * 3) / 4);
+      }
+
+      function captureDataUrlFromVideo(maxDimension = 1600, quality = 0.82) {
+        const width = video.videoWidth;
+        const height = video.videoHeight;
+        if (!width || !height) {
+          return "";
+        }
+        const scale = Math.min(1, maxDimension / Math.max(width, height));
+        canvas.width = Math.max(1, Math.round(width * scale));
+        canvas.height = Math.max(1, Math.round(height * scale));
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        return canvas.toDataURL("image/jpeg", quality);
+      }
+
       function setMobileStatus(text, isError) {
         if (!mobileStatusNode) {
           return;
@@ -154,11 +173,10 @@
           setStatus("No camera frame yet. Click Start Camera first.");
           return;
         }
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
+        let dataUrl = captureDataUrlFromVideo(1600, 0.82);
+        if (approximateDataUrlBytes(dataUrl) > 6 * 1024 * 1024) {
+          dataUrl = captureDataUrlFromVideo(1280, 0.72);
+        }
         hiddenField.value = dataUrl;
         capturedPreview.src = dataUrl;
         setStatus("Image captured successfully.");

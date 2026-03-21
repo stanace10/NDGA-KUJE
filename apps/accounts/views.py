@@ -5,7 +5,7 @@ from django.contrib.auth import login, logout, update_session_auth_hash
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.conf import settings
 from django.core.cache import cache
-from django.core.exceptions import ValidationError
+from django.core.exceptions import RequestDataTooBig, ValidationError
 from django.core import signing
 from django.core.mail import send_mail
 from django.core.paginator import Paginator
@@ -132,6 +132,14 @@ def _mobile_capture_public_url(request, *, portal_key: str, capture_path: str):
     if public_base:
         return f"{public_base.rstrip('/')}{capture_path}"
     return build_portal_url(request, portal_key, capture_path)
+
+
+def _friendly_upload_limit_message():
+    max_size_mb = settings.UPLOAD_SECURITY.get("MAX_IMAGE_MB", 8)
+    return (
+        f"Image upload failed because the file was too large for the request. "
+        f"Use an image under {max_size_mb}MB, or capture a smaller photo."
+    )
 
 
 def _same_host_url(left_url, right_url):
@@ -767,8 +775,10 @@ class MobileCaptureSubmitView(View):
             return HttpResponseBadRequest("Invalid capture link.")
         except signing.SignatureExpired:
             return HttpResponseBadRequest("Capture link has expired.")
-
-        upload = request.FILES.get("photo")
+        try:
+            upload = request.FILES.get("photo")
+        except RequestDataTooBig:
+            return HttpResponseBadRequest(_friendly_upload_limit_message())
         if not upload:
             return HttpResponseBadRequest("No photo uploaded.")
         try:
@@ -923,7 +933,11 @@ class ITStaffProvisioningView(ITProvisioningBaseView):
         return context
 
     def post(self, request, *args, **kwargs):
-        form = self._staff_form(request.POST, request.FILES)
+        try:
+            form = self._staff_form(request.POST, request.FILES)
+        except RequestDataTooBig:
+            messages.error(request, _friendly_upload_limit_message())
+            return self.render_to_response(self.get_context_data(staff_form=self._staff_form()))
         if not form.is_valid():
             return self.render_to_response(self.get_context_data(staff_form=form))
 
@@ -990,7 +1004,11 @@ class ITStudentProvisioningView(ITProvisioningBaseView):
         return context
 
     def post(self, request, *args, **kwargs):
-        form = self._student_form(request.POST, request.FILES)
+        try:
+            form = self._student_form(request.POST, request.FILES)
+        except RequestDataTooBig:
+            messages.error(request, _friendly_upload_limit_message())
+            return self.render_to_response(self.get_context_data(student_form=self._student_form()))
         if not form.is_valid():
             return self.render_to_response(self.get_context_data(student_form=form))
 
@@ -1246,7 +1264,11 @@ class ITStaffEditView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         return context
 
     def post(self, request, *args, **kwargs):
-        form = self._form(request.POST, request.FILES)
+        try:
+            form = self._form(request.POST, request.FILES)
+        except RequestDataTooBig:
+            messages.error(request, _friendly_upload_limit_message())
+            return self.render_to_response(self.get_context_data(staff_form=self._form()))
         if not form.is_valid():
             return self.render_to_response(self.get_context_data(staff_form=form))
         user = form.save()
@@ -1297,7 +1319,11 @@ class ITStudentEditView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         return context
 
     def post(self, request, *args, **kwargs):
-        form = self._form(request.POST, request.FILES)
+        try:
+            form = self._form(request.POST, request.FILES)
+        except RequestDataTooBig:
+            messages.error(request, _friendly_upload_limit_message())
+            return self.render_to_response(self.get_context_data(student_form=self._form()))
         if not form.is_valid():
             return self.render_to_response(self.get_context_data(student_form=form))
         user = form.save()

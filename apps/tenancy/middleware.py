@@ -30,6 +30,7 @@ class PortalAccessMiddleware:
         "/auth/logout/",
         "/auth/password/reset/",
         "/auth/mobile-capture/",
+        "/ops/",
         "/sync/api/",
         "/pdfs/verify/",
         "/elections/verify/",
@@ -38,6 +39,22 @@ class PortalAccessMiddleware:
         "/finance/gateway/webhook/",
         "/health/",
     )
+    LAN_ONLY_ALLOWED_PREFIXES = (
+        "/",
+        "/ops/",
+        "/health/",
+        "/sync/",
+        "/cbt/it/",
+        "/cbt/exams/",
+        "/cbt/attempts/",
+        "/elections/",
+        "/portal/it/",
+        "/portal/student/",
+        "/portal/staff/",
+        "/portal/principal/",
+        "/portal/vp/",
+        "/notifications/",
+    )
     ROLE_GUARDED_PATH_PREFIXES = {
         "/audit/events/": PORTAL_ROLE_ACCESS["audit"],
         "/auth/it/reset-credentials/": PORTAL_ROLE_ACCESS["it"],
@@ -45,21 +62,29 @@ class PortalAccessMiddleware:
         "/auth/it/staff/": PROVISIONING_ROLE_CODES,
         "/auth/it/student/": PROVISIONING_ROLE_CODES,
         "/auth/it/user/": PROVISIONING_ROLE_CODES,
-        "/setup/session-term/": {ROLE_IT_MANAGER, ROLE_BURSAR, ROLE_VP, ROLE_PRINCIPAL},
+        "/setup/session-term/": {ROLE_IT_MANAGER, ROLE_BURSAR, ROLE_PRINCIPAL},
         "/setup/": PORTAL_ROLE_ACCESS["it"],
         "/academics/it/": PORTAL_ROLE_ACCESS["it"],
-        "/attendance/calendar/": {ROLE_IT_MANAGER, ROLE_VP, ROLE_PRINCIPAL},
+        "/attendance/calendar/": {ROLE_IT_MANAGER, ROLE_PRINCIPAL},
         "/attendance/form/": {ROLE_FORM_TEACHER},
         "/results/grade-entry/": {
             ROLE_SUBJECT_TEACHER,
             ROLE_DEAN,
             ROLE_FORM_TEACHER,
             ROLE_IT_MANAGER,
-            ROLE_VP,
             ROLE_PRINCIPAL,
         },
         "/results/dean/": {ROLE_DEAN, ROLE_IT_MANAGER, ROLE_PRINCIPAL},
         "/results/form/": {ROLE_FORM_TEACHER, ROLE_IT_MANAGER, ROLE_PRINCIPAL},
+        "/results/report/": {
+            ROLE_DEAN,
+            ROLE_FORM_TEACHER,
+            ROLE_IT_MANAGER,
+            ROLE_VP,
+            ROLE_PRINCIPAL,
+            ROLE_BURSAR,
+        },
+        "/results/settings/": {ROLE_IT_MANAGER, ROLE_DEAN, ROLE_PRINCIPAL},
         "/results/vp/": {ROLE_VP, ROLE_IT_MANAGER, ROLE_PRINCIPAL},
         "/results/principal/": {ROLE_PRINCIPAL, ROLE_IT_MANAGER},
         "/results/timeline/": {
@@ -67,7 +92,6 @@ class PortalAccessMiddleware:
             ROLE_DEAN,
             ROLE_FORM_TEACHER,
             ROLE_IT_MANAGER,
-            ROLE_VP,
             ROLE_PRINCIPAL,
         },
         "/cbt/authoring/": {
@@ -87,16 +111,15 @@ class PortalAccessMiddleware:
             ROLE_FORM_TEACHER,
             ROLE_IT_MANAGER,
             ROLE_PRINCIPAL,
-            ROLE_VP,
         },
         "/sync/": {ROLE_IT_MANAGER, ROLE_PRINCIPAL},
         "/elections/it/manage/": {ROLE_IT_MANAGER},
         "/elections/vote/": PORTAL_ROLE_ACCESS["election"],
-        "/elections/analytics/": {ROLE_IT_MANAGER, ROLE_PRINCIPAL, ROLE_VP},
+        "/elections/analytics/": {ROLE_IT_MANAGER, ROLE_PRINCIPAL},
         "/elections/results/": {ROLE_IT_MANAGER, ROLE_PRINCIPAL},
         "/finance/bursar/": {ROLE_BURSAR},
         "/finance/summary/": {ROLE_VP, ROLE_PRINCIPAL},
-        "/finance/receipts/": {ROLE_BURSAR, ROLE_VP, ROLE_PRINCIPAL},
+        "/finance/receipts/": {ROLE_BURSAR, ROLE_PRINCIPAL},
         "/notifications/": {
             ROLE_STUDENT,
             ROLE_SUBJECT_TEACHER,
@@ -107,6 +130,8 @@ class PortalAccessMiddleware:
             ROLE_VP,
             ROLE_PRINCIPAL,
         },
+        "/portal/vp/election-live/": {ROLE_IT_MANAGER, ROLE_PRINCIPAL},
+        "/portal/vp/documents/": {ROLE_IT_MANAGER, ROLE_PRINCIPAL},
         "/pdfs/student/": PORTAL_ROLE_ACCESS["student"],
         "/pdfs/staff/": {
             ROLE_SUBJECT_TEACHER,
@@ -139,6 +164,10 @@ class PortalAccessMiddleware:
         if request.path.startswith(self.AUTH_BYPASS_PREFIXES):
             return self.get_response(request)
 
+        response = self._enforce_lan_runtime_restrictions(request)
+        if response is not None:
+            return response
+
         response = self._enforce_setup_lockdown(request)
         if response is not None:
             return response
@@ -169,6 +198,28 @@ class PortalAccessMiddleware:
                 break
 
         return self.get_response(request)
+
+    def _lan_restrictions_enabled(self):
+        return bool(
+            getattr(settings, "LAN_RUNTIME_RESTRICT_PORTALS", False)
+            and (getattr(settings, "SYNC_NODE_ROLE", "CLOUD") or "CLOUD").strip().upper() == "LAN"
+        )
+
+    def _enforce_lan_runtime_restrictions(self, request):
+        if not self._lan_restrictions_enabled():
+            return None
+        if request.path.startswith(self.PUBLIC_PATH_PREFIXES):
+            return None
+        if request.path == "/":
+            return None
+        if request.path.startswith(tuple(prefix for prefix in self.LAN_ONLY_ALLOWED_PREFIXES if prefix != "/")):
+            return None
+        context = {
+            "portal_key": request.portal_key,
+            "portal_label": "LAN Operations",
+            "cloud_label": "Cloud",
+        }
+        return render(request, "dashboard/lan_restricted.html", context=context, status=403)
 
     def _is_feature_disabled_portal(self, portal_key):
         if portal_key == "cbt":
@@ -229,7 +280,7 @@ class PortalAccessMiddleware:
 
     def _enforce_role_guard(self, *, request, allowed_roles, denied_reason):
         if not request.user.is_authenticated:
-            requires_fresh = request.portal_key in settings.FRESH_LOGIN_REQUIRED_PORTALS
+            requires_fresh = self._portal_requires_fresh_login(request)
             return redirect(self._login_url(request, fresh=requires_fresh))
 
         if not has_any_role(request.user, allowed_roles):
@@ -248,7 +299,7 @@ class PortalAccessMiddleware:
         return None
 
     def _enforce_fresh_login_for_sensitive_portals(self, request):
-        if request.portal_key not in settings.FRESH_LOGIN_REQUIRED_PORTALS:
+        if not self._portal_requires_fresh_login(request):
             return None
         session_key = f"fresh_auth_{request.portal_key}"
         if not request.session.get(session_key):
@@ -258,3 +309,18 @@ class PortalAccessMiddleware:
             )
             return redirect(self._login_url(request, fresh=True))
         return None
+
+    def _portal_requires_fresh_login(self, request):
+        if request.portal_key not in settings.FRESH_LOGIN_REQUIRED_PORTALS:
+            return False
+        if request.portal_key == "cbt":
+            exempt_prefixes = (
+                "/cbt/authoring/",
+                "/cbt/dean/",
+                "/cbt/marking/",
+                "/cbt/it/",
+                "/cbt/simulator/",
+            )
+            if request.path.startswith(exempt_prefixes):
+                return False
+        return True

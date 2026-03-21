@@ -2,7 +2,7 @@ from django.core import mail
 from django.test import Client, RequestFactory, TestCase, override_settings
 from django.utils import timezone
 
-from apps.accounts.constants import ROLE_IT_MANAGER, ROLE_STUDENT, ROLE_SUBJECT_TEACHER
+from apps.accounts.constants import ROLE_FORM_TEACHER, ROLE_IT_MANAGER, ROLE_STUDENT, ROLE_SUBJECT_TEACHER, ROLE_VP
 from apps.accounts.models import Role, User
 from apps.setup_wizard.models import SetupStateCode, SystemSetupState
 from apps.tenancy.utils import build_portal_url, current_portal_key
@@ -41,6 +41,8 @@ class StageTwoHostRoutingTests(TestCase):
         role, _ = Role.objects.get_or_create(code=ROLE_STUDENT, defaults={"name": "Student"})
         role_it, _ = Role.objects.get_or_create(code=ROLE_IT_MANAGER, defaults={"name": "IT Manager"})
         role_teacher, _ = Role.objects.get_or_create(code=ROLE_SUBJECT_TEACHER, defaults={"name": "Subject Teacher"})
+        role_vp, _ = Role.objects.get_or_create(code=ROLE_VP, defaults={"name": "Vice Principal"})
+        role_form_teacher, _ = Role.objects.get_or_create(code=ROLE_FORM_TEACHER, defaults={"name": "Form Teacher"})
         cls.student = User.objects.create_user(
             username="student_host",
             password="Password123!",
@@ -64,6 +66,13 @@ class StageTwoHostRoutingTests(TestCase):
             primary_role=role_teacher,
             must_change_password=False,
         )
+        cls.vp_user = User.objects.create_user(
+            username="vp_host",
+            password="Password123!",
+            primary_role=role_vp,
+            must_change_password=False,
+        )
+        cls.vp_user.secondary_roles.add(role_form_teacher)
 
     def test_landing_host_renders_landing_page(self):
         client = Client(HTTP_HOST="ndgakuje.org")
@@ -81,10 +90,10 @@ class StageTwoHostRoutingTests(TestCase):
         )
 
 
-    def test_localhost_staff_cbt_page_keeps_portal_shell(self):
+    def test_localhost_staff_cbt_page_uses_staff_portal(self):
         request = RequestFactory().get("/cbt/authoring/", HTTP_HOST="localhost:8000")
         request.user = self.teacher_user
-        self.assertEqual(current_portal_key(request), "cbt")
+        self.assertEqual(current_portal_key(request), "staff")
 
     def test_localhost_it_cbt_authoring_routes_stay_in_it_portal(self):
         request = RequestFactory().get("/cbt/authoring/", HTTP_HOST="localhost:8000")
@@ -110,6 +119,11 @@ class StageTwoHostRoutingTests(TestCase):
         request = RequestFactory().get("/cbt/it/activation/", HTTP_HOST="localhost:8000")
         request.user = self.it_user
         self.assertEqual(current_portal_key(request), "it")
+
+    def test_localhost_vp_primary_role_wins_over_form_teacher_secondary_role(self):
+        request = RequestFactory().get("/", HTTP_HOST="localhost:8000")
+        request.user = self.vp_user
+        self.assertEqual(current_portal_key(request), "vp")
     def test_localhost_modal_login_urls_stay_on_localhost(self):
         client = Client(HTTP_HOST="localhost:8000")
         response = client.get("/")
@@ -156,6 +170,34 @@ class StageTwoHostRoutingTests(TestCase):
         self.assertContains(response, "portal-sidebar")
         self.assertContains(response, "CBT Entry Center")
 
+    def test_localhost_staff_cbt_authoring_does_not_require_fresh_login(self):
+        client = Client(HTTP_HOST="localhost:8000")
+        client.force_login(self.teacher_user)
+
+        response = client.get("/cbt/authoring/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "portal-sidebar")
+        self.assertContains(response, "CBT Entry Center")
+
+    def test_localhost_staff_cbt_root_redirects_without_fresh_login(self):
+        client = Client(HTTP_HOST="localhost:8000")
+        client.force_login(self.teacher_user)
+
+        response = client.get("/cbt/")
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, "/cbt/authoring/")
+
+    def test_plain_localhost_staff_cbt_authoring_does_not_require_fresh_login(self):
+        client = Client(HTTP_HOST="localhost")
+        client.force_login(self.teacher_user)
+
+        response = client.get("/cbt/authoring/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "CBT Entry Center")
+
     def test_localhost_election_home_renders_without_redirect_loop(self):
         client = Client(HTTP_HOST="localhost:8000")
         client.force_login(self.teacher_user)
@@ -188,6 +230,40 @@ class StageTwoHostRoutingTests(TestCase):
         response = client.get("/cbt/authoring/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "IT Manager Portal")
+
+    @override_settings(
+        NDGA_LOCAL_SIMPLE_HOST_MODE=True,
+        SYNC_NODE_ROLE="LAN",
+        LAN_RUNTIME_RESTRICT_PORTALS=True,
+    )
+    def test_lan_runtime_blocks_admin_workflows_but_keeps_cbt_and_election(self):
+        client = Client(HTTP_HOST="localhost:8000")
+        client.force_login(self.it_user)
+
+        blocked = client.get("/auth/it/user-provisioning/students/directory/")
+        self.assertEqual(blocked.status_code, 403)
+        self.assertIn("reserved for CBT and election operations", blocked.content.decode())
+
+        allowed = client.get("/cbt/it/activation/")
+        self.assertEqual(allowed.status_code, 200)
+        self.assertContains(allowed, "CBT Setup")
+
+    @override_settings(
+        NDGA_LOCAL_SIMPLE_HOST_MODE=True,
+        SYNC_NODE_ROLE="LAN",
+        LAN_RUNTIME_RESTRICT_PORTALS=True,
+    )
+    def test_lan_runtime_hides_admin_navigation_items(self):
+        client = Client(HTTP_HOST="localhost:8000")
+        client.force_login(self.it_user)
+
+        response = client.get("/portal/it/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Student Management")
+        self.assertNotContains(response, "Staff Management")
+        self.assertContains(response, "CBT Setup")
+        self.assertContains(response, "Election Setup")
     def test_staff_login_page_copy_is_staff_only(self):
         client = Client(HTTP_HOST="staff.ndgakuje.org")
         response = client.get("/auth/login/?audience=staff")

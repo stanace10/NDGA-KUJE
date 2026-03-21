@@ -145,7 +145,7 @@ class StageOneAccessTests(TestCase):
         client.force_login(self.student)
         response = client.get(reverse("accounts:logout"))
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(response.url, reverse("dashboard:landing"))
+        self.assertEqual(response.url, "http://testserver/auth/login/?audience=student")
 
     def test_normal_user_password_change_limit_is_enforced(self):
         user = self.student
@@ -650,6 +650,107 @@ class StageOneAccessTests(TestCase):
         self.assertEqual(profile.staff_id, "NDGAK/SNB/020")
         self.assertTrue(staff_user.check_password("NDGAK/020"))
 
+    def test_student_edit_allows_blank_guardian_email(self):
+        session = AcademicSession.objects.create(name="2028/2029")
+        term = Term.objects.create(session=session, name="FIRST")
+        level_class = AcademicClass.objects.create(code="JS1X", display_name="JS1X")
+        arm_class = AcademicClass.objects.create(
+            code="JS1XBLUE",
+            display_name="JS1X BLUE",
+            base_class=level_class,
+            arm_name="BLUE",
+        )
+        subject = Subject.objects.create(name="English Language X", code="ENG-EDIT-X")
+        ClassSubject.objects.create(academic_class=level_class, subject=subject, is_active=True)
+        setup_state = SystemSetupState.get_solo()
+        setup_state.state = SetupStateCode.IT_READY
+        setup_state.current_session = session
+        setup_state.current_term = term
+        setup_state.save(update_fields=["state", "current_session", "current_term", "updated_at"])
+
+        student_user = User.objects.create_user(
+            username="blank-email-student@ndgakuje.org",
+            password="OldPassword123!",
+            primary_role=self.roles[ROLE_STUDENT],
+            first_name="Blank",
+            last_name="Email",
+            must_change_password=False,
+        )
+        StudentProfile.objects.create(
+            user=student_user,
+            student_number="NDGAK/25/600",
+            guardian_email="parent@example.com",
+        )
+        StudentClassEnrollment.objects.create(
+            student=student_user,
+            session=session,
+            academic_class=arm_class,
+            is_active=True,
+        )
+
+        client = Client(HTTP_HOST="it.ndgakuje.org")
+        client.force_login(self.it_manager)
+        response = client.post(
+            reverse("accounts:it-student-edit", args=[student_user.id]),
+            {
+                "first_name": "Blank",
+                "last_name": "Email",
+                "middle_name": "",
+                "student_number": "NDGAK/25/600",
+                "date_of_birth": "",
+                "admission_date": "",
+                "gender": "F",
+                "guardian_name": "",
+                "guardian_phone": "",
+                "guardian_email": "",
+                "address": "Kuje",
+                "state_of_origin": "FCT",
+                "nationality": "Nigerian",
+                "lifecycle_state": "ACTIVE",
+                "lifecycle_note": "",
+                "medical_notes": "",
+                "disciplinary_notes": "",
+                "current_class": str(arm_class.id),
+                "subject_category": "",
+                "offered_subjects": [str(subject.id)],
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        student_user.refresh_from_db()
+        profile = StudentProfile.objects.get(user=student_user)
+        self.assertEqual(student_user.email, "")
+        self.assertEqual(profile.guardian_email, "")
+
+    def test_it_student_detail_renders_without_current_enrollment(self):
+        session = AcademicSession.objects.create(name="2029/2030")
+        term = Term.objects.create(session=session, name="FIRST")
+        setup_state = SystemSetupState.get_solo()
+        setup_state.state = SetupStateCode.IT_READY
+        setup_state.current_session = session
+        setup_state.current_term = term
+        setup_state.save(update_fields=["state", "current_session", "current_term", "updated_at"])
+
+        student_user = User.objects.create_user(
+            username="detail-no-enrollment@ndgakuje.org",
+            password="Password123!",
+            primary_role=self.roles[ROLE_STUDENT],
+            first_name="No",
+            last_name="Enrollment",
+            must_change_password=False,
+        )
+        StudentProfile.objects.create(
+            user=student_user,
+            student_number="NDGAK/29/777",
+            guardian_email="guardian@example.com",
+        )
+
+        client = Client(HTTP_HOST="it.ndgakuje.org")
+        client.force_login(self.it_manager)
+        response = client.get(reverse("accounts:it-student-detail", args=[student_user.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "No photo yet")
+
     def test_student_number_edit_resets_password_to_new_serial(self):
         session = AcademicSession.objects.create(name="2028/2029")
         term = Term.objects.create(session=session, name="FIRST")
@@ -786,6 +887,53 @@ class StageOneAccessTests(TestCase):
         imported_staff_profile = StaffProfile.objects.get(user=imported_staff)
         self.assertEqual(imported_staff_profile.staff_id, "NDGAK/STAFF/001")
         self.assertTrue(imported_staff.check_password("NDGAK/001"))
+
+
+@override_settings(
+    ALLOWED_HOSTS=["localhost", "testserver", "ndgakuje.org", ".ndgakuje.org", ".ndga.local"],
+)
+class PortalLogoutRedirectTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        role, _ = Role.objects.get_or_create(code=ROLE_STUDENT, defaults={"name": "Student"})
+        cls.student = User.objects.create_user(
+            username="student-logout",
+            password="Password123!",
+            primary_role=role,
+            must_change_password=False,
+        )
+
+    def test_logout_defaults_to_student_entry(self):
+        client = Client()
+        client.force_login(self.student)
+
+        response = client.get(reverse("accounts:logout"))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, "http://testserver/auth/login/?audience=student")
+
+    @override_settings(NDGA_LOCAL_SIMPLE_HOST_MODE=True)
+    def test_logout_keeps_cbt_login_target_on_local_host(self):
+        client = Client(HTTP_HOST="localhost")
+        client.force_login(self.student)
+        session = client.session
+        session["last_authenticated_portal"] = "cbt"
+        session.save()
+
+        response = client.get(reverse("accounts:logout"))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, "http://localhost/auth/login/?audience=cbt")
+
+    @override_settings(NDGA_LOCAL_SIMPLE_HOST_MODE=True)
+    def test_authenticated_user_can_open_fresh_cbt_login_page(self):
+        client = Client(HTTP_HOST="localhost")
+        client.force_login(self.student)
+
+        response = client.get("/auth/login/?audience=cbt&fresh=1&next=/portal/cbt/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Entry Channel: cbt")
 
 
 class DefaultPortalAccountBootstrapTests(TestCase):

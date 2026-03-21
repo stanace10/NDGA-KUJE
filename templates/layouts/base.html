@@ -285,6 +285,16 @@
           </div>
         {% endif %}
 
+        {% if show_portal_shell and lan_runtime_restricted %}
+          <div class="mb-4">
+            <div class="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900 shadow-sm">
+              <span class="font-semibold">LAN mode:</span>
+              Use this LAN only for CBT and election operations.
+              Student and staff updates, manual score entry, payments, and general administration should be done on the cloud portal.
+            </div>
+          </div>
+        {% endif %}
+
         {% if messages %}
           <div class="{% if show_portal_shell %}mb-4 flex max-w-xl flex-col gap-2{% else %}fixed right-4 top-4 z-[70] flex max-w-sm flex-col gap-2{% endif %}">
             {% for message in messages %}

@@ -1173,6 +1173,341 @@ class GenericModelSyncTests(TestCase):
         self.assertEqual(score.theory, Decimal("31.50"))
 
     @override_settings(SYNC_NODE_ROLE="CLOUD", SYNC_LOCAL_NODE_ID="ndga-cloud-node")
+    def test_cloud_preserves_manual_ca_fields_when_lan_pushes_only_cbt_components(self):
+        from apps.results.models import ResultSheet, StudentSubjectScore
+
+        session = AcademicSession.objects.create(name="2025/2026")
+        term = Term.objects.create(session=session, name="SECOND")
+        academic_class = AcademicClass.objects.create(code="SS2B", display_name="SS2B")
+        subject = Subject.objects.create(name="Physics", code="PHY2")
+        student = User.objects.create_user(
+            username="result-merge-cloud-manual-student",
+            password="Password123!",
+            primary_role=self.role_student,
+            must_change_password=False,
+        )
+        result_sheet = ResultSheet.objects.create(
+            academic_class=academic_class,
+            subject=subject,
+            session=session,
+            term=term,
+        )
+        score = StudentSubjectScore.objects.create(
+            result_sheet=result_sheet,
+            student=student,
+            ca1=Decimal("7.50"),
+            ca2=Decimal("0.00"),
+            ca3=Decimal("8.00"),
+            ca4=Decimal("4.50"),
+            objective=Decimal("0.00"),
+            theory=Decimal("31.50"),
+        )
+
+        payload = {
+            "model": "results.studentsubjectscore",
+            "identity": {
+                "model": "results.studentsubjectscore",
+                "source_node_id": "ndga-lan-node",
+                "source_pk": "score-merge-2",
+                "lookup": {
+                    "student": {
+                        "model": "accounts.user",
+                        "source_node_id": "ndga-lan-node",
+                        "source_pk": "student-2",
+                        "lookup": {"username": student.username},
+                    },
+                    "result_sheet": {
+                        "model": "results.resultsheet",
+                        "source_node_id": "ndga-lan-node",
+                        "source_pk": "sheet-2",
+                        "lookup": {
+                            "academic_class": {
+                                "model": "academics.academicclass",
+                                "source_node_id": "ndga-lan-node",
+                                "source_pk": "class-2",
+                                "lookup": {"code": academic_class.code},
+                            },
+                            "subject": {
+                                "model": "academics.subject",
+                                "source_node_id": "ndga-lan-node",
+                                "source_pk": "subject-2",
+                                "lookup": {"code": subject.code},
+                            },
+                            "session": {
+                                "model": "academics.academicsession",
+                                "source_node_id": "ndga-lan-node",
+                                "source_pk": "session-2",
+                                "lookup": {"name": session.name},
+                            },
+                            "term": {
+                                "model": "academics.term",
+                                "source_node_id": "ndga-lan-node",
+                                "source_pk": "term-2",
+                                "lookup": {
+                                    "name": term.name,
+                                    "session": {
+                                        "model": "academics.academicsession",
+                                        "source_node_id": "ndga-lan-node",
+                                        "source_pk": "session-2",
+                                        "lookup": {"name": session.name},
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+            "fields": {
+                "result_sheet": {
+                    "model": "results.resultsheet",
+                    "source_node_id": "ndga-lan-node",
+                    "source_pk": "sheet-2",
+                    "lookup": {
+                        "academic_class": {
+                            "model": "academics.academicclass",
+                            "source_node_id": "ndga-lan-node",
+                            "source_pk": "class-2",
+                            "lookup": {"code": academic_class.code},
+                        },
+                        "subject": {
+                            "model": "academics.subject",
+                            "source_node_id": "ndga-lan-node",
+                            "source_pk": "subject-2",
+                            "lookup": {"code": subject.code},
+                        },
+                        "session": {
+                            "model": "academics.academicsession",
+                            "source_node_id": "ndga-lan-node",
+                            "source_pk": "session-2",
+                            "lookup": {"name": session.name},
+                        },
+                        "term": {
+                            "model": "academics.term",
+                            "source_node_id": "ndga-lan-node",
+                            "source_pk": "term-2",
+                            "lookup": {
+                                "name": term.name,
+                                "session": {
+                                    "model": "academics.academicsession",
+                                    "source_node_id": "ndga-lan-node",
+                                    "source_pk": "session-2",
+                                    "lookup": {"name": session.name},
+                                },
+                            },
+                        },
+                    },
+                },
+                "student": {
+                    "model": "accounts.user",
+                    "source_node_id": "ndga-lan-node",
+                    "source_pk": "student-2",
+                    "lookup": {"username": student.username},
+                },
+                "ca1": "0.00",
+                "ca2": "9.50",
+                "ca3": "0.00",
+                "ca4": "0.00",
+                "objective": "38.00",
+                "theory": "0.00",
+                "total_ca": "9.50",
+                "total_exam": "38.00",
+                "grand_total": "47.50",
+                "grade": "F",
+                "has_override": False,
+                "override_reason": "",
+                "cbt_locked_fields": ["ca2", "objective"],
+                "cbt_component_breakdown": {
+                    "ca2_objective": "9.50",
+                    "objective_auto": "38.00",
+                },
+                "override_by": None,
+                "override_at": None,
+            },
+            "m2m": {},
+            "created_at": "",
+            "updated_at": "",
+        }
+
+        apply_generic_model_payload(
+            payload=payload,
+            operation_type=SyncOperationType.MODEL_RECORD_UPSERT,
+        )
+
+        score.refresh_from_db()
+        self.assertEqual(score.ca1, Decimal("7.50"))
+        self.assertEqual(score.ca2, Decimal("9.50"))
+        self.assertEqual(score.ca3, Decimal("8.00"))
+        self.assertEqual(score.ca4, Decimal("4.50"))
+        self.assertEqual(score.objective, Decimal("38.00"))
+        self.assertEqual(score.theory, Decimal("31.50"))
+
+    @override_settings(SYNC_NODE_ROLE="LAN", SYNC_LOCAL_NODE_ID="ndga-lan-node")
+    def test_lan_accepts_cloud_manual_ca_fields_when_no_local_cbt_lock_exists(self):
+        from apps.results.models import ResultSheet, StudentSubjectScore
+
+        session = AcademicSession.objects.create(name="2025/2026")
+        term = Term.objects.create(session=session, name="SECOND")
+        academic_class = AcademicClass.objects.create(code="SS3B", display_name="SS3B")
+        subject = Subject.objects.create(name="Economics", code="ECO")
+        student = User.objects.create_user(
+            username="result-merge-lan-manual-student",
+            password="Password123!",
+            primary_role=self.role_student,
+            must_change_password=False,
+        )
+        result_sheet = ResultSheet.objects.create(
+            academic_class=academic_class,
+            subject=subject,
+            session=session,
+            term=term,
+        )
+        score = StudentSubjectScore.objects.create(
+            result_sheet=result_sheet,
+            student=student,
+            ca1=Decimal("0.00"),
+            ca2=Decimal("0.00"),
+            ca3=Decimal("0.00"),
+            ca4=Decimal("0.00"),
+            objective=Decimal("0.00"),
+            theory=Decimal("0.00"),
+        )
+
+        payload = {
+            "model": "results.studentsubjectscore",
+            "identity": {
+                "model": "results.studentsubjectscore",
+                "source_node_id": "ndga-cloud-node",
+                "source_pk": "score-cloud-2",
+                "lookup": {
+                    "student": {
+                        "model": "accounts.user",
+                        "source_node_id": "ndga-cloud-node",
+                        "source_pk": "student-2",
+                        "lookup": {"username": student.username},
+                    },
+                    "result_sheet": {
+                        "model": "results.resultsheet",
+                        "source_node_id": "ndga-cloud-node",
+                        "source_pk": "sheet-2",
+                        "lookup": {
+                            "academic_class": {
+                                "model": "academics.academicclass",
+                                "source_node_id": "ndga-cloud-node",
+                                "source_pk": "class-2",
+                                "lookup": {"code": academic_class.code},
+                            },
+                            "subject": {
+                                "model": "academics.subject",
+                                "source_node_id": "ndga-cloud-node",
+                                "source_pk": "subject-2",
+                                "lookup": {"code": subject.code},
+                            },
+                            "session": {
+                                "model": "academics.academicsession",
+                                "source_node_id": "ndga-cloud-node",
+                                "source_pk": "session-2",
+                                "lookup": {"name": session.name},
+                            },
+                            "term": {
+                                "model": "academics.term",
+                                "source_node_id": "ndga-cloud-node",
+                                "source_pk": "term-2",
+                                "lookup": {
+                                    "name": term.name,
+                                    "session": {
+                                        "model": "academics.academicsession",
+                                        "source_node_id": "ndga-cloud-node",
+                                        "source_pk": "session-2",
+                                        "lookup": {"name": session.name},
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+            "fields": {
+                "result_sheet": {
+                    "model": "results.resultsheet",
+                    "source_node_id": "ndga-cloud-node",
+                    "source_pk": "sheet-2",
+                    "lookup": {
+                        "academic_class": {
+                            "model": "academics.academicclass",
+                            "source_node_id": "ndga-cloud-node",
+                            "source_pk": "class-2",
+                            "lookup": {"code": academic_class.code},
+                        },
+                        "subject": {
+                            "model": "academics.subject",
+                            "source_node_id": "ndga-cloud-node",
+                            "source_pk": "subject-2",
+                            "lookup": {"code": subject.code},
+                        },
+                        "session": {
+                            "model": "academics.academicsession",
+                            "source_node_id": "ndga-cloud-node",
+                            "source_pk": "session-2",
+                            "lookup": {"name": session.name},
+                        },
+                        "term": {
+                            "model": "academics.term",
+                            "source_node_id": "ndga-cloud-node",
+                            "source_pk": "term-2",
+                            "lookup": {
+                                "name": term.name,
+                                "session": {
+                                    "model": "academics.academicsession",
+                                    "source_node_id": "ndga-cloud-node",
+                                    "source_pk": "session-2",
+                                    "lookup": {"name": session.name},
+                                },
+                            },
+                        },
+                    },
+                },
+                "student": {
+                    "model": "accounts.user",
+                    "source_node_id": "ndga-cloud-node",
+                    "source_pk": "student-2",
+                    "lookup": {"username": student.username},
+                },
+                "ca1": "6.50",
+                "ca2": "0.00",
+                "ca3": "8.00",
+                "ca4": "3.50",
+                "objective": "0.00",
+                "theory": "31.50",
+                "total_ca": "18.00",
+                "total_exam": "31.50",
+                "grand_total": "49.50",
+                "grade": "C",
+                "has_override": False,
+                "override_reason": "",
+                "cbt_locked_fields": [],
+                "cbt_component_breakdown": {"ca3_theory": "8.00"},
+                "override_by": None,
+                "override_at": None,
+            },
+            "m2m": {},
+            "created_at": "",
+            "updated_at": "",
+        }
+
+        apply_generic_model_payload(
+            payload=payload,
+            operation_type=SyncOperationType.MODEL_RECORD_UPSERT,
+        )
+
+        score.refresh_from_db()
+        self.assertEqual(score.ca1, Decimal("6.50"))
+        self.assertEqual(score.ca2, Decimal("0.00"))
+        self.assertEqual(score.ca3, Decimal("8.00"))
+        self.assertEqual(score.ca4, Decimal("3.50"))
+        self.assertEqual(score.objective, Decimal("0.00"))
+        self.assertEqual(score.theory, Decimal("31.50"))
+
+    @override_settings(SYNC_NODE_ROLE="CLOUD", SYNC_LOCAL_NODE_ID="ndga-cloud-node")
     def test_cloud_preserves_result_sheet_status_when_lan_pushes_cbt_policy(self):
         from apps.results.models import ResultSheet, ResultSheetStatus
 

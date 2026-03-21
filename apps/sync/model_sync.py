@@ -561,33 +561,47 @@ def _snapshot_student_subject_score(instance):
     }
 
 
-def _merge_score_breakdown(*, local_breakdown, incoming_breakdown, direction):
-    def pick(local_key, incoming_key):
-        if direction == "LAN_TO_CLOUD":
-            return incoming_breakdown.get(incoming_key, local_breakdown.get(local_key, "0.00"))
-        return local_breakdown.get(local_key, incoming_breakdown.get(incoming_key, "0.00"))
+CBT_BREAKDOWN_FIELD_MAP = {
+    "ca2_objective": "ca2",
+    "objective_auto": "objective",
+}
 
-    merged = {}
-    merged["ca1_objective"] = pick("ca1_objective", "ca1_objective")
-    merged["ca1_theory"] = (
-        local_breakdown.get("ca1_theory", incoming_breakdown.get("ca1_theory", "0.00"))
-        if direction == "LAN_TO_CLOUD"
-        else incoming_breakdown.get("ca1_theory", local_breakdown.get("ca1_theory", "0.00"))
-    )
-    merged["ca2_objective"] = pick("ca2_objective", "ca2_objective")
-    merged["ca3_theory"] = (
-        local_breakdown.get("ca3_theory", incoming_breakdown.get("ca3_theory", "0.00"))
-        if direction == "LAN_TO_CLOUD"
-        else incoming_breakdown.get("ca3_theory", local_breakdown.get("ca3_theory", "0.00"))
-    )
-    merged["ca4_objective"] = pick("ca4_objective", "ca4_objective")
-    merged["ca4_theory"] = (
-        local_breakdown.get("ca4_theory", incoming_breakdown.get("ca4_theory", "0.00"))
-        if direction == "LAN_TO_CLOUD"
-        else incoming_breakdown.get("ca4_theory", local_breakdown.get("ca4_theory", "0.00"))
-    )
-    merged["objective_auto"] = pick("objective_auto", "objective_auto")
-    return {key: value for key, value in merged.items() if value not in {"", None}}
+
+def _cbt_owned_components(*, locked_fields, breakdown):
+    owned = set(locked_fields or [])
+    for breakdown_key, component_field in CBT_BREAKDOWN_FIELD_MAP.items():
+        if breakdown_key in (breakdown or {}):
+            owned.add(component_field)
+    return owned
+
+
+def _merge_score_breakdown(
+    *,
+    local_breakdown,
+    incoming_breakdown,
+    direction,
+    local_locked,
+    incoming_locked,
+):
+    local_breakdown = dict(local_breakdown or {})
+    incoming_breakdown = dict(incoming_breakdown or {})
+    local_cbt_owned = _cbt_owned_components(locked_fields=local_locked, breakdown=local_breakdown)
+    incoming_cbt_owned = _cbt_owned_components(locked_fields=incoming_locked, breakdown=incoming_breakdown)
+
+    if direction == "LAN_TO_CLOUD":
+        merged = dict(local_breakdown)
+        if "ca2" in incoming_cbt_owned and "ca2_objective" in incoming_breakdown:
+            merged["ca2_objective"] = incoming_breakdown["ca2_objective"]
+        if "objective" in incoming_cbt_owned and "objective_auto" in incoming_breakdown:
+            merged["objective_auto"] = incoming_breakdown["objective_auto"]
+        return merged
+
+    merged = dict(incoming_breakdown)
+    if "ca2" in local_cbt_owned and "ca2_objective" in local_breakdown:
+        merged["ca2_objective"] = local_breakdown["ca2_objective"]
+    if "objective" in local_cbt_owned and "objective_auto" in local_breakdown:
+        merged["objective_auto"] = local_breakdown["objective_auto"]
+    return merged
 
 
 def _merge_result_score_after_apply(*, instance, previous_state, source_node_id):
@@ -595,43 +609,46 @@ def _merge_result_score_after_apply(*, instance, previous_state, source_node_id)
     if not direction or previous_state is None:
         return
 
+    incoming_locked = set(instance.normalized_locked_fields())
     incoming_breakdown = instance.normalized_breakdown()
+    previous_locked = previous_state["locked"]
     merged_breakdown = _merge_score_breakdown(
         local_breakdown=previous_state["breakdown"],
         incoming_breakdown=incoming_breakdown,
         direction=direction,
+        local_locked=previous_locked,
+        incoming_locked=incoming_locked,
+    )
+    previous_cbt_owned = _cbt_owned_components(
+        locked_fields=previous_locked,
+        breakdown=previous_state["breakdown"],
+    )
+    incoming_cbt_owned = _cbt_owned_components(
+        locked_fields=incoming_locked,
+        breakdown=incoming_breakdown,
     )
 
     if direction == "LAN_TO_CLOUD":
-        instance.ca2 = _score_decimal_value(instance.ca2)
-        instance.objective = _score_decimal_value(instance.objective)
+        instance.ca1 = _score_decimal_value(previous_state["ca1"])
+        if "ca2" not in incoming_cbt_owned:
+            instance.ca2 = _score_decimal_value(previous_state["ca2"])
         instance.ca3 = _score_decimal_value(previous_state["ca3"])
+        instance.ca4 = _score_decimal_value(previous_state["ca4"])
+        if "objective" not in incoming_cbt_owned:
+            instance.objective = _score_decimal_value(previous_state["objective"])
         instance.theory = _score_decimal_value(previous_state["theory"])
         instance.has_override = previous_state["has_override"]
         instance.override_reason = previous_state["override_reason"]
         instance.override_by = previous_state["override_by"]
         instance.override_at = previous_state["override_at"]
     else:
-        instance.ca2 = _score_decimal_value(previous_state["ca2"])
-        instance.objective = _score_decimal_value(previous_state["objective"])
-        instance.ca3 = _score_decimal_value(instance.ca3)
-        instance.theory = _score_decimal_value(instance.theory)
+        if "ca2" in previous_cbt_owned:
+            instance.ca2 = _score_decimal_value(previous_state["ca2"])
+        if "objective" in previous_cbt_owned:
+            instance.objective = _score_decimal_value(previous_state["objective"])
 
-    ca1_objective = _score_decimal_value(merged_breakdown.get("ca1_objective", "0.00"))
-    ca1_theory = _score_decimal_value(merged_breakdown.get("ca1_theory", "0.00"))
-    ca4_objective = _score_decimal_value(merged_breakdown.get("ca4_objective", "0.00"))
-    ca4_theory = _score_decimal_value(merged_breakdown.get("ca4_theory", "0.00"))
-    ca2_objective = _score_decimal_value(merged_breakdown.get("ca2_objective", instance.ca2))
-    objective_auto = _score_decimal_value(merged_breakdown.get("objective_auto", instance.objective))
-    ca3_theory = _score_decimal_value(merged_breakdown.get("ca3_theory", instance.ca3))
-
-    instance.ca1 = (ca1_objective + ca1_theory).quantize(Decimal("0.01"))
-    instance.ca2 = ca2_objective.quantize(Decimal("0.01"))
-    instance.ca3 = ca3_theory.quantize(Decimal("0.01"))
-    instance.ca4 = (ca4_objective + ca4_theory).quantize(Decimal("0.01"))
-    instance.objective = objective_auto.quantize(Decimal("0.01"))
     instance.cbt_component_breakdown = merged_breakdown
-    instance.cbt_locked_fields = sorted(previous_state["locked"] | set(instance.normalized_locked_fields()))
+    instance.cbt_locked_fields = sorted(previous_locked | incoming_locked)
 
 
 def _snapshot_result_sheet(instance):

@@ -64,6 +64,7 @@ env = environ.Env(
     SYNC_PULL_TIMEOUT_SECONDS=(int, 5),
     SYNC_PULL_BEAT_ENABLED=(bool, True),
     SYNC_PULL_BEAT_INTERVAL_SECONDS=(int, 5),
+    LAN_RUNTIME_RESTRICT_PORTALS=(bool, False),
     MONITOR_CELERY_QUEUE_NAMES=(str, "celery"),
     BACKUP_PG_ENABLED=(bool, False),
     BACKUP_PG_OUTPUT_DIR=(str, "backups/postgres"),
@@ -487,6 +488,12 @@ SYNC_PULL_BEAT_ENABLED = env.bool(
     default=(not SYNC_MANUAL_MODE),
 )
 SYNC_PULL_BEAT_INTERVAL_SECONDS = env.int("SYNC_PULL_BEAT_INTERVAL_SECONDS", default=5)
+LAN_RUNTIME_RESTRICT_PORTALS = env.bool(
+    "LAN_RUNTIME_RESTRICT_PORTALS",
+    default=False,
+)
+if "test" in sys.argv:
+    LAN_RUNTIME_RESTRICT_PORTALS = False
 MONITOR_CELERY_QUEUE_NAMES = [
     item.strip()
     for item in env("MONITOR_CELERY_QUEUE_NAMES", default="celery").split(",")
@@ -639,6 +646,12 @@ UPLOAD_SECURITY = {
     "MAX_JSON_MB": env.int("UPLOAD_MAX_JSON_MB", default=15),
     "MAX_SIM_BUNDLE_MB": env.int("UPLOAD_MAX_SIM_BUNDLE_MB", default=180),
 }
+_upload_request_limit_mb = max(
+    env.int("UPLOAD_MAX_REQUEST_MB", default=24),
+    UPLOAD_SECURITY["MAX_IMAGE_MB"] + 4,
+)
+DATA_UPLOAD_MAX_MEMORY_SIZE = _upload_request_limit_mb * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = DATA_UPLOAD_MAX_MEMORY_SIZE
 
 AUDIT_RETENTION_DAYS = env.int("AUDIT_RETENTION_DAYS", default=2555)
 
