@@ -44,6 +44,7 @@ class PortalAccessMiddleware:
         "/ops/",
         "/health/",
         "/sync/",
+        "/cbt/",
         "/cbt/it/",
         "/cbt/exams/",
         "/cbt/attempts/",
@@ -211,6 +212,8 @@ class PortalAccessMiddleware:
         if request.path.startswith(self.PUBLIC_PATH_PREFIXES):
             return None
         if request.path == "/":
+            return None
+        if request.path in {"/cbt", "/elections"}:
             return None
         if request.path.startswith(tuple(prefix for prefix in self.LAN_ONLY_ALLOWED_PREFIXES if prefix != "/")):
             return None

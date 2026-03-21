@@ -8,6 +8,7 @@ PRIMARY_COMPOSE_FILE="${NDGA_COMPOSE_FILE:-$PROJECT_DIR/docker-compose.cloud.yml
 OVERRIDE_COMPOSE_FILE="${NDGA_COMPOSE_OVERRIDE_FILE:-$PROJECT_DIR/docker-compose.cloud.override.yml}"
 ENV_FILE="${NDGA_ENV_FILE:-$PROJECT_DIR/.env.cloud}"
 WEB_SERVICE="${NDGA_WEB_SERVICE:-web}"
+NGINX_SERVICE="${NDGA_NGINX_SERVICE:-nginx}"
 COMPOSE_FILES=("$PRIMARY_COMPOSE_FILE")
 
 if [ -f "$OVERRIDE_COMPOSE_FILE" ]; then
@@ -77,11 +78,41 @@ compose exec -T "$WEB_SERVICE" python manage.py collectstatic --noinput
 log "Restarting application services"
 compose restart web celery_worker celery_beat
 
+if compose ps --services 2>/dev/null | grep -qx "$NGINX_SERVICE"; then
+  log "Restarting reverse proxy service"
+  compose restart "$NGINX_SERVICE"
+fi
+
 log "Current compose status"
 compose ps
 
+log "Waiting for local reverse proxy health"
+proxy_ready=0
+for attempt in $(seq 1 24); do
+  if curl -fsSI http://127.0.0.1:8080/ops/healthz/ >/dev/null 2>&1; then
+    proxy_ready=1
+    break
+  fi
+  sleep 5
+done
+if [ "$proxy_ready" -ne 1 ]; then
+  log "Local reverse proxy did not become ready in time"
+  exit 1
+fi
+
 log "Checking public health endpoint"
-curl -fsSI https://ndgakuje.org/ops/healthz/
+public_ready=0
+for attempt in $(seq 1 24); do
+  if curl -fsSI https://ndgakuje.org/ops/healthz/ >/dev/null 2>&1; then
+    public_ready=1
+    break
+  fi
+  sleep 5
+done
+if [ "$public_ready" -ne 1 ]; then
+  log "Public health endpoint did not become ready in time"
+  exit 1
+fi
 
 log "Deployment finished"
 
