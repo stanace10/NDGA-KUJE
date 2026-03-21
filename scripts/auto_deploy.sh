@@ -89,7 +89,10 @@ compose ps
 log "Waiting for local reverse proxy health"
 proxy_ready=0
 for attempt in $(seq 1 24); do
-  if curl -fsSI http://127.0.0.1:8080/ops/healthz/ >/dev/null 2>&1; then
+  if curl -fsSI \
+    -H 'Host: ndgakuje.org' \
+    -H 'X-Forwarded-Proto: https' \
+    http://127.0.0.1:8080/ops/healthz/ >/dev/null 2>&1; then
     proxy_ready=1
     break
   fi
