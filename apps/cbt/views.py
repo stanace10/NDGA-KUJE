@@ -2,7 +2,7 @@ import json
 import logging
 import random
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from urllib.parse import urlencode
 
@@ -130,6 +130,7 @@ from apps.cbt.workflow import (
     submit_exam_to_dean,
 )
 from apps.notifications.services import notify_cbt_schedule_published
+from apps.results.models import ResultSheet, StudentSubjectScore
 from apps.setup_wizard.services import get_setup_state
 
 CBT_AUTHORING_ROLES = {
@@ -2175,6 +2176,47 @@ def _parse_schedule_day(raw_value):
         return None
 
 
+def _parse_schedule_scope(raw_value):
+    raw_value = (raw_value or "").strip().lower()
+    if raw_value in {"weekly", "monthly"}:
+        return raw_value
+    return "daily"
+
+
+def _schedule_period_bounds(anchor_day, scope):
+    anchor_day = anchor_day or timezone.localdate()
+    if scope == "monthly":
+        period_start = anchor_day.replace(day=1)
+        if period_start.month == 12:
+            next_month = period_start.replace(year=period_start.year + 1, month=1, day=1)
+        else:
+            next_month = period_start.replace(month=period_start.month + 1, day=1)
+        period_end = next_month - timedelta(days=1)
+        return period_start, period_end
+    if scope == "weekly":
+        period_start = anchor_day - timedelta(days=anchor_day.weekday())
+        period_end = period_start + timedelta(days=6)
+        return period_start, period_end
+    return anchor_day, anchor_day
+
+
+def _exam_occurs_within_period(exam, period_start, period_end):
+    current_day = period_start
+    while current_day <= period_end:
+        if exam_occurs_on_day(exam, current_day):
+            return True
+        current_day += timedelta(days=1)
+    return False
+
+
+def _schedule_period_label(period_start, period_end, scope):
+    if scope == "monthly":
+        return period_start.strftime("%B %Y")
+    if scope == "weekly":
+        return f"{period_start.strftime('%d %b %Y')} - {period_end.strftime('%d %b %Y')}"
+    return period_start.strftime("%d %b %Y")
+
+
 
 def _apply_it_exam_filters(exams, *, class_id="", subject_id="", teacher_id=""):
     filtered = exams
@@ -2211,7 +2253,9 @@ class CBTITActivationListView(CBTITAccessMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        selected_day = _parse_schedule_day(self.request.GET.get("day"))
+        selected_day = _parse_schedule_day(self.request.GET.get("day")) or timezone.localdate()
+        selected_scope = _parse_schedule_scope(self.request.GET.get("scope"))
+        period_start, period_end = _schedule_period_bounds(selected_day, selected_scope)
         selected_class_id = (self.request.GET.get("class_id") or "").strip()
         selected_subject_id = (self.request.GET.get("subject_id") or "").strip()
         selected_teacher_id = (self.request.GET.get("teacher_id") or "").strip()
@@ -2235,26 +2279,48 @@ class CBTITActivationListView(CBTITAccessMixin, TemplateView):
             subject_id=selected_subject_id,
             teacher_id=selected_teacher_id,
         )
+        if period_start is not None and period_end is not None:
+            filtered_exams = [
+                exam
+                for exam in filtered_exams
+                if _exam_occurs_within_period(exam, period_start, period_end)
+            ]
 
         context["approved_exams"] = sorted(
-            [exam for exam in filtered_exams if exam.status in {CBTExamStatus.APPROVED, CBTExamStatus.PENDING_IT}],
-            key=lambda exam: exam.updated_at,
-            reverse=True,
+            [
+                exam
+                for exam in filtered_exams
+                if exam.status in {CBTExamStatus.APPROVED, CBTExamStatus.PENDING_IT}
+            ],
+            key=_exam_schedule_sort_key,
         )
         context["active_exams"] = sorted(
-            [exam for exam in filtered_exams if exam.status == CBTExamStatus.ACTIVE and exam_occurs_on_day(exam, selected_day)],
+            [
+                exam
+                for exam in filtered_exams
+                if exam.status == CBTExamStatus.ACTIVE
+            ],
             key=_exam_schedule_sort_key,
         )
         context["closed_exams"] = sorted(
-            [exam for exam in filtered_exams if exam.status == CBTExamStatus.CLOSED and exam_occurs_on_day(exam, selected_day)],
+            [
+                exam
+                for exam in filtered_exams
+                if exam.status == CBTExamStatus.CLOSED
+            ],
             key=_exam_schedule_sort_key,
             reverse=True,
-        )[:50]
+        )
         context["class_options"] = _unique_exam_options(exams, "academic_class")
         context["subject_options"] = _unique_exam_options(exams, "subject")
         context["teacher_options"] = _unique_exam_options(exams, "created_by")
         context["selected_day"] = selected_day
         context["selected_day_value"] = selected_day.isoformat() if selected_day else ""
+        context["selected_scope"] = selected_scope
+        context["selected_scope_label"] = selected_scope.capitalize()
+        context["period_start"] = period_start
+        context["period_end"] = period_end
+        context["period_label"] = _schedule_period_label(period_start, period_end, selected_scope)
         context["selected_class_id"] = selected_class_id
         context["selected_subject_id"] = selected_subject_id
         context["selected_teacher_id"] = selected_teacher_id
@@ -2284,6 +2350,38 @@ class CBTITActivationDetailView(CBTITAccessMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         total_attempt_count = self.exam.attempts.count()
+        result_sheet = ResultSheet.objects.filter(
+            academic_class=self.exam.academic_class,
+            subject=self.exam.subject,
+            session=self.exam.session,
+            term=self.exam.term,
+        ).first()
+        attempts = list(
+            self.exam.attempts.select_related("student")
+            .order_by("-updated_at", "-id")[:200]
+        )
+        score_rows_by_student = {}
+        if result_sheet is not None and attempts:
+            score_rows_by_student = {
+                row.student_id: row
+                for row in StudentSubjectScore.objects.filter(
+                    result_sheet=result_sheet,
+                    student_id__in=[attempt.student_id for attempt in attempts],
+                ).select_related("student")
+            }
+        attempt_rows = []
+        for attempt in attempts:
+            metadata = attempt.writeback_metadata if isinstance(attempt.writeback_metadata, dict) else {}
+            objective_writeback = metadata.get("objective_writeback") or {}
+            theory_writeback = metadata.get("theory_writeback") or {}
+            attempt_rows.append(
+                {
+                    "attempt": attempt,
+                    "score_row": score_rows_by_student.get(attempt.student_id),
+                    "objective_writeback": objective_writeback if isinstance(objective_writeback, dict) else {},
+                    "theory_writeback": theory_writeback if isinstance(theory_writeback, dict) else {},
+                }
+            )
         context["exam"] = self.exam
         context["exam_blueprint"] = getattr(self.exam, "blueprint", None)
         context["can_activate"] = self.exam.status == CBTExamStatus.APPROVED or (
@@ -2302,6 +2400,8 @@ class CBTITActivationDetailView(CBTITAccessMixin, TemplateView):
         context["timer_is_paused"] = bool(self.exam.timer_is_paused)
         context["timer_pause_reason"] = self.exam.timer_pause_reason
         context["active_attempt_count"] = self.exam.attempts.filter(status=CBTAttemptStatus.IN_PROGRESS).count()
+        context["result_sheet"] = result_sheet
+        context["attempt_rows"] = attempt_rows
         context["builder_url"] = reverse("cbt:exam-builder", kwargs={"exam_id": self.exam.id})
         context["detail_url"] = reverse("cbt:exam-detail", kwargs={"exam_id": self.exam.id})
         return context
@@ -2437,6 +2537,7 @@ class CBTStudentExamListView(CBTStudentAccessMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        selected_day = _parse_schedule_day(self.request.GET.get("day")) or timezone.localdate()
         subject_id = self._filter_value("subject_id")
         exam_type = self._filter_value("exam_type")
         schedule_status = self._filter_value("status")
@@ -2444,7 +2545,7 @@ class CBTStudentExamListView(CBTStudentAccessMixin, TemplateView):
         student = self.request.user
         student_profile = getattr(student, "student_profile", None)
 
-        all_exam_rows = student_available_exams(self.request.user)
+        all_exam_rows = student_available_exams(self.request.user, target_day=selected_day)
         exam_rows = list(all_exam_rows)
         if subject_id.isdigit():
             exam_rows = [row for row in exam_rows if row["exam"].subject_id == int(subject_id)]
@@ -2463,17 +2564,23 @@ class CBTStudentExamListView(CBTStudentAccessMixin, TemplateView):
                 exam_rows = [row for row in exam_rows if row["status_label"] in allowed]
 
         recent_since = timezone.now() - timezone.timedelta(hours=self.RECENT_WINDOW_HOURS)
-        recent_attempts = (
-            ExamAttempt.objects.select_related("exam", "exam__subject", "exam__academic_class")
-            .filter(student=self.request.user, updated_at__gte=recent_since)
+        recent_attempts_qs = (
+            ExamAttempt.objects.select_related("exam", "exam__subject", "exam__academic_class", "exam__blueprint")
+            .filter(student=self.request.user)
             .order_by("-updated_at")
         )
+        if selected_day is not None:
+            recent_attempts = [
+                attempt for attempt in recent_attempts_qs if exam_occurs_on_day(attempt.exam, selected_day)
+            ]
+        else:
+            recent_attempts = list(recent_attempts_qs.filter(updated_at__gte=recent_since))
         if subject_id.isdigit():
-            recent_attempts = recent_attempts.filter(exam__subject_id=int(subject_id))
+            recent_attempts = [attempt for attempt in recent_attempts if attempt.exam.subject_id == int(subject_id)]
         if exam_type:
-            recent_attempts = recent_attempts.filter(exam__exam_type=exam_type)
+            recent_attempts = [attempt for attempt in recent_attempts if attempt.exam.exam_type == exam_type]
         if recent_status:
-            recent_attempts = recent_attempts.filter(status=recent_status)
+            recent_attempts = [attempt for attempt in recent_attempts if attempt.status == recent_status]
 
         subject_options = {}
         for row in all_exam_rows:
@@ -2520,6 +2627,8 @@ class CBTStudentExamListView(CBTStudentAccessMixin, TemplateView):
             "selected_exam_type": exam_type,
             "selected_status": schedule_status,
             "selected_recent_status": recent_status,
+            "selected_day": selected_day,
+            "selected_day_value": selected_day.isoformat() if selected_day else "",
             "recent_window_hours": self.RECENT_WINDOW_HOURS,
             "exam_type_options": CBTExamType.choices,
             "attempt_status_options": CBTAttemptStatus.choices,

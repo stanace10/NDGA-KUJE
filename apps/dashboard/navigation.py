@@ -121,6 +121,40 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                 matches=("/", "/portal/it/$"),
             )
         )
+        if lan_runtime_restricted:
+            items.append(
+                _nav_item(
+                    label="CBT Setup",
+                    url="/cbt/it/activation/",
+                    request_path=request_path,
+                    matches=("/cbt/it/",),
+                )
+            )
+            items.append(
+                _nav_item(
+                    label="Election Setup",
+                    url="/elections/it/manage/",
+                    request_path=request_path,
+                    matches=("/elections/it/manage/", "/elections/"),
+                )
+            )
+            items.append(
+                _nav_item(
+                    label="Sync Queue",
+                    url="/sync/dashboard/",
+                    request_path=request_path,
+                    matches=("/sync/",),
+                )
+            )
+            items.append(
+                _nav_item(
+                    label="Logout",
+                    url="/auth/logout/",
+                    request_path=request_path,
+                    matches=("/auth/logout/",),
+                )
+            )
+            return items
         if not lan_runtime_restricted:
             items.append(
                 _nav_item(

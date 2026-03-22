@@ -16,7 +16,6 @@ from django.utils import timezone
 from django.views import View
 from django.views.generic import TemplateView
 
-from core.ops import collect_ops_runtime_snapshot
 
 from apps.accounts.constants import (
     ROLE_BURSAR,
@@ -81,6 +80,21 @@ from apps.dashboard.navigation import build_portal_navigation
 def _current_window():
     setup_state = get_setup_state()
     return setup_state.current_session, setup_state.current_term
+
+
+def _active_class_levels_qs():
+    return AcademicClass.objects.filter(is_active=True, base_class__isnull=True)
+
+
+def _active_class_list_qs():
+    return AcademicClass.objects.filter(is_active=True, base_class__isnull=False)
+
+
+def _class_list_total():
+    class_list_total = _active_class_list_qs().count()
+    if class_list_total:
+        return class_list_total
+    return _active_class_levels_qs().count()
 
 
 def _visible_notification_queryset(user):
@@ -228,8 +242,8 @@ def _portal_focus_notes(*, portal_key: str, role_codes: set[str]):
         ]
     if portal_key == "vp":
         return [
-            "Dashboard shows full student/staff data for school-wide oversight.",
-            "Use Media for messaging/newsletters and Results Approval for publishing.",
+            "Dashboard focuses on staff/student management, media broadcasts, and result publishing.",
+            "Form teacher duties remain limited to assigned classes through the staff portal.",
         ]
     if portal_key == "principal":
         return [
@@ -408,50 +422,38 @@ def _build_portal_priority_actions(
     return rows[:6]
 
 
-def _build_ops_command_rows():
-    return [
-        {
-            "label": "Runtime Snapshot",
-            "command": "python manage.py ops_runtime_snapshot",
-            "description": "Inspect database, cache, disk pressure, sync backlog, and audit chain health before live operations.",
-        },
-        {
-            "label": "Restore Drill",
-            "command": "python manage.py run_restore_drill --output-dir backups/drills --keep-archive",
-            "description": "Create a fresh backup archive, validate it, and measure the drill without touching the live database.",
-        },
-        {
-            "label": "Audit Chain Verify",
-            "command": "python manage.py verify_audit_chain",
-            "description": "Validate the tamper-evident audit chain for privileged and governance-critical events.",
-        },
-        {
-            "label": "HTTP Ready Check",
-            "command": "curl http://127.0.0.1:8000/ops/readyz/",
-            "description": "Confirm the node is ready before opening exam or result workflows to users.",
-        },
-    ]
-
-
 def _student_dashboard_payload(request, user):
     current_session, current_term = _current_window()
     student_profile = getattr(user, "student_profile", None)
     attendance_snapshot = get_current_student_attendance_snapshot(user)
 
+    enrollment_qs = (
+        StudentClassEnrollment.objects.select_related("academic_class", "session")
+        .filter(student=user, is_active=True)
+        .order_by("-updated_at", "-id")
+    )
     current_enrollment = None
     if current_session:
-        current_enrollment = (
-            StudentClassEnrollment.objects.select_related("academic_class")
-            .filter(student=user, session=current_session, is_active=True)
-            .first()
-        )
+        current_enrollment = enrollment_qs.filter(session=current_session).first()
+    if current_enrollment is None:
+        current_enrollment = enrollment_qs.first()
+
+    subject_session = current_session
+    if subject_session is None and current_enrollment is not None:
+        subject_session = current_enrollment.session
+    elif (
+        current_enrollment is not None
+        and current_session is not None
+        and current_enrollment.session_id != current_session.id
+    ):
+        subject_session = current_enrollment.session
 
     offered_subjects = []
-    if current_session:
+    if subject_session:
         offered_subjects = list(
             StudentSubjectEnrollment.objects.filter(
                 student=user,
-                session=current_session,
+                session=subject_session,
                 is_active=True,
             )
             .select_related("subject")
@@ -682,6 +684,7 @@ def _student_dashboard_payload(request, user):
 def _staff_dashboard_payload(user):
     current_session, current_term = _current_window()
     role_codes = user.get_all_role_codes()
+    visible_class_total = _class_list_total()
 
     assignment_qs = TeacherSubjectAssignment.objects.filter(teacher=user, is_active=True)
     if current_session:
@@ -905,12 +908,24 @@ def _staff_dashboard_payload(user):
         current_session=current_session,
         current_term=current_term,
     )
+    leadership_snapshot = None
+    if ROLE_DEAN in role_codes:
+        leadership_snapshot = {
+            "classes_total": visible_class_total,
+            "class_levels_total": _active_class_levels_qs().count(),
+            "students_total": User.objects.filter(primary_role__code=ROLE_STUDENT, is_active=True).count(),
+            "staff_total": User.objects.filter(staff_profile__isnull=False, is_active=True).exclude(
+                username=settings.ANONYMOUS_USER_NAME
+            ).count(),
+            "results_pending": dean_result_pending,
+        }
 
     return {
         "current_session": current_session,
         "current_term": current_term,
         "role_panels": role_panels,
         "teacher_analytics": teacher_analytics,
+        "leadership_snapshot": leadership_snapshot,
     }
 
 
@@ -1109,7 +1124,9 @@ def _campus_summary_rows(*, current_session, current_term):
     rows = []
     campus_qs = Campus.objects.filter(is_active=True).order_by("code")
     for campus in campus_qs:
-        class_qs = AcademicClass.objects.filter(campus=campus, is_active=True)
+        class_qs = AcademicClass.objects.filter(campus=campus, is_active=True, base_class__isnull=False)
+        if not class_qs.exists():
+            class_qs = AcademicClass.objects.filter(campus=campus, is_active=True, base_class__isnull=True)
         class_ids = list(class_qs.values_list("id", flat=True))
         enrollment_qs = StudentClassEnrollment.objects.filter(is_active=True, academic_class_id__in=class_ids)
         if current_session:
@@ -1731,11 +1748,12 @@ class ITPortalView(PortalPageView):
         runtime_flags = get_runtime_feature_flags()
         school_profile = SchoolProfile.load()
         current_session, _current_term = _current_window()
+        visible_class_total = _class_list_total()
         context["it_metrics"] = {
             "campuses_total": Campus.objects.filter(is_active=True).count(),
-            "classes_total": AcademicClass.objects.filter(is_active=True).count(),
-            "main_levels_total": AcademicClass.objects.filter(is_active=True, base_class__isnull=True).count(),
-            "arm_classes_total": AcademicClass.objects.filter(is_active=True, base_class__isnull=False).count(),
+            "classes_total": visible_class_total,
+            "main_levels_total": _active_class_levels_qs().count(),
+            "arm_classes_total": _active_class_list_qs().count(),
             "subjects_total": Subject.objects.filter(is_active=True).count(),
             "students_total": User.objects.filter(primary_role__code="STUDENT").count(),
             "staff_total": User.objects.filter(staff_profile__isnull=False).exclude(
@@ -1746,8 +1764,6 @@ class ITPortalView(PortalPageView):
         }
         context["it_enrollment_snapshot"] = _it_enrollment_snapshot(current_session=current_session)
         context["runtime_flags"] = runtime_flags
-        context["ops_runtime_snapshot"] = collect_ops_runtime_snapshot()
-        context["ops_command_rows"] = _build_ops_command_rows()
         context["portal_priority_actions"] = _build_portal_priority_actions(
             portal_key=context["portal_key"],
             portal_action_items=context.get("portal_action_items", []),
@@ -1766,19 +1782,21 @@ class BursarPortalView(PortalPageView):
 class VPPortalView(PortalPageView):
     template_name = "dashboard/leadership_dashboard.html"
     portal_name = "Vice Principal Portal"
-    portal_description = "School overview and quick links to dedicated biodata, approvals, media, and election pages."
+    portal_description = "School oversight for staff and student management, media broadcasts, and final result publishing."
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context.update(_leadership_dashboard_payload(self.request))
         context["show_finance_summary"] = False
+        context["show_election_summary"] = False
         context["finance_metrics"] = None
         context["students_page_url"] = reverse("dashboard:vp-students-biodata")
         context["staff_page_url"] = reverse("dashboard:vp-staff-biodata")
-        context["election_page_url"] = reverse("dashboard:vp-election-live")
+        context["election_page_url"] = ""
         context["results_approval_url"] = reverse("results:approval-class-list")
         context["staff_management_url"] = reverse("accounts:it-staff-directory")
         context["student_management_url"] = reverse("accounts:it-student-directory")
+        context["media_center_url"] = reverse("notifications:media-center")
         return context
 
 
@@ -1792,6 +1810,7 @@ class PrincipalPortalView(PortalPageView):
         context.update(_leadership_dashboard_payload(self.request))
         current_session, current_term = _current_window()
         context["show_finance_summary"] = bool(current_session)
+        context["show_election_summary"] = True
         if current_session:
             from apps.finance.services import finance_summary_metrics
 
@@ -1808,6 +1827,7 @@ class PrincipalPortalView(PortalPageView):
         context["staff_management_url"] = reverse("accounts:it-staff-directory")
         context["student_management_url"] = reverse("accounts:it-student-directory")
         context["finance_summary_url"] = reverse("finance:summary")
+        context["media_center_url"] = reverse("notifications:media-center")
         return context
 
 
@@ -1975,6 +1995,10 @@ class VPElectionLiveView(PortalPageView):
     template_name = "dashboard/leadership_elections.html"
     portal_name = "Vice Principal Portal"
     portal_description = "Election live snapshot page."
+
+    def dispatch(self, request, *args, **kwargs):
+        messages.error(request, "Election live monitoring is not part of the VP workflow.")
+        return redirect("dashboard:vp-portal")
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)

@@ -25,17 +25,25 @@
     <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
       <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h2 class="text-lg font-semibold text-ndga-navy">Daily CBT Filters</h2>
+          <h2 class="text-lg font-semibold text-ndga-navy">CBT Filters</h2>
           <p class="mt-1 text-sm text-slate-600">
-            Focus the schedule by day, class, subject, or teacher. Closed papers stay in history only.
+            Focus the schedule by day, week, or month, then narrow it by class, subject, or teacher. Closed papers stay in history only.
           </p>
         </div>
-        {% if selected_day %}<p class="text-sm font-semibold text-slate-500">Viewing: {{ selected_day|date:"d M Y" }}</p>{% else %}<p class="text-sm font-semibold text-slate-500">Viewing: All scheduled days</p>{% endif %}
+        <p class="text-sm font-semibold text-slate-500">Viewing {{ selected_scope_label }}: {{ period_label }}</p>
       </div>
-      <form method="get" class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+      <form method="get" class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
         <div>
-          <label class="mb-1 block text-sm font-semibold text-slate-700" for="filter-day">Exam Day</label>
+          <label class="mb-1 block text-sm font-semibold text-slate-700" for="filter-day">Anchor Day</label>
           <input id="filter-day" type="date" name="day" value="{{ selected_day_value }}" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:border-ndga-navy/60 focus:ring-4 focus:ring-ndga-navy/10">
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-semibold text-slate-700" for="filter-scope">View</label>
+          <select id="filter-scope" name="scope" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:border-ndga-navy/60 focus:ring-4 focus:ring-ndga-navy/10">
+            <option value="daily" {% if selected_scope == "daily" %}selected{% endif %}>Daily</option>
+            <option value="weekly" {% if selected_scope == "weekly" %}selected{% endif %}>Weekly</option>
+            <option value="monthly" {% if selected_scope == "monthly" %}selected{% endif %}>Monthly</option>
+          </select>
         </div>
         <div>
           <label class="mb-1 block text-sm font-semibold text-slate-700" for="filter-class">Class</label>
@@ -75,7 +83,7 @@
       <div class="flex items-center justify-between gap-3">
         <div>
           <h2 class="text-lg font-semibold text-ndga-navy">Approved Queue</h2>
-          <p class="mt-1 text-sm text-slate-600">Only approved exams appear here for IT scheduling, editing, activation, or revocation.</p>
+          <p class="mt-1 text-sm text-slate-600">Approved and pending-IT papers appear here for scheduling, editing, activation, or revocation.</p>
         </div>
         <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">{{ approved_exams|length }} ready</span>
       </div>
@@ -115,8 +123,8 @@
     <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
       <div class="flex items-center justify-between gap-3">
         <div>
-          {% if selected_day %}<h2 class="text-lg font-semibold text-ndga-navy">Scheduled For {{ selected_day|date:"d M Y" }}</h2>{% else %}<h2 class="text-lg font-semibold text-ndga-navy">Scheduled Exams</h2>{% endif %}
-          <p class="mt-1 text-sm text-slate-600">{% if selected_day %}Only exams scheduled for the selected day remain visible here.{% else %}All scheduled active exams remain visible here until they are closed.{% endif %}</p>
+          <h2 class="text-lg font-semibold text-ndga-navy">Scheduled For {{ period_label }}</h2>
+          <p class="mt-1 text-sm text-slate-600">Active exams scheduled within the selected {{ selected_scope }} period remain visible here.</p>
         </div>
         <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">{{ active_exams|length }} active</span>
       </div>
@@ -154,7 +162,7 @@
                 <td class="px-3 py-2"><a href="{% url 'cbt:it-activation-detail' exam.id %}" class="font-semibold text-ndga-navy">Manage / Edit</a></td>
               </tr>
             {% empty %}
-              <tr><td colspan="5" class="px-3 py-4 text-slate-500">No active exams are scheduled for this day.</td></tr>
+              <tr><td colspan="5" class="px-3 py-4 text-slate-500">No active exams are scheduled within this selected period.</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -164,7 +172,7 @@
     <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
       <div class="flex items-center justify-between gap-3">
         <div>
-          {% if selected_day %}<h2 class="text-lg font-semibold text-ndga-navy">Closed History For {{ selected_day|date:"d M Y" }}</h2>{% else %}<h2 class="text-lg font-semibold text-ndga-navy">Closed History</h2>{% endif %}
+          <h2 class="text-lg font-semibold text-ndga-navy">Closed History For {{ period_label }}</h2>
           <p class="mt-1 text-sm text-slate-600">Closed CBTs stay read-only here. They cannot be published again after the window ends.</p>
         </div>
         <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">{{ closed_exams|length }} closed</span>
@@ -203,7 +211,7 @@
                 <td class="px-3 py-2"><a href="{% url 'cbt:it-activation-detail' exam.id %}" class="font-semibold text-ndga-navy">View</a></td>
               </tr>
             {% empty %}
-              <tr><td colspan="5" class="px-3 py-4 text-slate-500">No closed exams found for the selected day.</td></tr>
+              <tr><td colspan="5" class="px-3 py-4 text-slate-500">No closed exams found for the selected period.</td></tr>
             {% endfor %}
           </tbody>
         </table>
