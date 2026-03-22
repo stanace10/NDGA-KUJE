@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from dataclasses import dataclass
 
 from django.utils import timezone
 
 from apps.audit.services import log_event
 from apps.audit.models import AuditCategory, AuditStatus
 from apps.notifications.email_adapters import EmailSendResult, get_email_provider
+from apps.notifications.whatsapp_adapters import WhatsAppSendResult, get_whatsapp_provider
 from apps.notifications.models import Notification, NotificationCategory
 from apps.tenancy.utils import build_portal_url
 
@@ -21,6 +23,41 @@ def _normalized_emails(emails):
         seen.add(value)
         clean.append(value)
     return clean
+
+
+def normalize_whatsapp_phone(raw_phone):
+    digits = "".join(ch for ch in str(raw_phone or "") if ch.isdigit())
+    if not digits:
+        return ""
+    if digits.startswith("234"):
+        return digits
+    if digits.startswith("0") and len(digits) == 11:
+        return f"234{digits[1:]}"
+    if len(digits) == 10:
+        return f"234{digits}"
+    return digits
+
+
+def _normalized_phones(phones):
+    seen = set()
+    clean = []
+    for phone in phones:
+        value = normalize_whatsapp_phone(phone)
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        clean.append(value)
+    return clean
+
+
+@dataclass
+class WhatsAppBulkDispatchResult:
+    success: bool
+    provider: str
+    sent_count: int = 0
+    failed_count: int = 0
+    detail: str = ""
+    results: list[WhatsAppSendResult] | None = None
 
 
 def create_notification(
@@ -114,6 +151,75 @@ def send_email_event(
         },
     )
     return result
+
+
+def send_whatsapp_event(
+    *,
+    to_numbers,
+    body_text,
+    actor=None,
+    request=None,
+    metadata=None,
+    preview_url=True,
+):
+    provider = get_whatsapp_provider()
+    numbers = _normalized_phones(to_numbers)
+    if not numbers:
+        return WhatsAppBulkDispatchResult(
+            success=False,
+            provider=getattr(provider, "provider_name", "unknown"),
+            detail="No WhatsApp numbers available.",
+            results=[],
+        )
+
+    results = []
+    sent_count = 0
+    failed_count = 0
+    for number in numbers:
+        try:
+            result = provider.send(
+                to_number=number,
+                body_text=body_text,
+                preview_url=preview_url,
+            )
+        except Exception as exc:  # noqa: BLE001
+            result = WhatsAppSendResult(
+                success=False,
+                provider=getattr(provider, "provider_name", "unknown"),
+                detail=f"{type(exc).__name__}: {exc}",
+            )
+        results.append(result)
+        if result.success:
+            sent_count += 1
+        else:
+            failed_count += 1
+
+    dispatch_result = WhatsAppBulkDispatchResult(
+        success=sent_count > 0 and failed_count == 0,
+        provider=getattr(provider, "provider_name", "unknown"),
+        sent_count=sent_count,
+        failed_count=failed_count,
+        detail=f"sent={sent_count} failed={failed_count}",
+        results=results,
+    )
+    log_event(
+        category=AuditCategory.SYSTEM,
+        event_type="WHATSAPP_EVENT",
+        status=AuditStatus.SUCCESS if sent_count > 0 else AuditStatus.FAILURE,
+        actor=actor,
+        request=request,
+        message=f"WhatsApp dispatch via {dispatch_result.provider}.",
+        metadata={
+            "provider": dispatch_result.provider,
+            "detail": dispatch_result.detail,
+            "to_count": len(numbers),
+            "to_numbers": numbers,
+            "sent_count": sent_count,
+            "failed_count": failed_count,
+            **(metadata or {}),
+        },
+    )
+    return dispatch_result
 
 
 def notify_results_published(*, compilation, actor, request=None):
