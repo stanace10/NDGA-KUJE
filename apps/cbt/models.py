@@ -1,3 +1,5 @@
+import unicodedata
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -114,6 +116,39 @@ class CBTSimulationAttemptStatus(models.TextChoices):
     RUBRIC_PENDING = "RUBRIC_PENDING", "Rubric Pending"
     RUBRIC_SCORED = "RUBRIC_SCORED", "Rubric Scored"
     IMPORTED = "IMPORTED", "Imported"
+
+
+def _normalize_cbt_text(value):
+    if value in (None, ""):
+        return value
+    text = unicodedata.normalize("NFC", str(value))
+    replacements = {
+        "Ã¢â‚¬â„¢": "’",
+        "Ã¢â‚¬Å“": "“",
+        "Ã¢â‚¬\x9d": "”",
+        "Ã¢â‚¬â€œ": "–",
+        "Ã¢â‚¬â€": "—",
+        "â€™": "’",
+        "â€œ": "“",
+        "â€\x9d": "”",
+        "â€“": "–",
+        "â€”": "—",
+        "Ã‚Â°": "°",
+        "Â°": "°",
+        "Â²": "²",
+        "Â½": "½",
+        "Â¼": "¼",
+        "Â¾": "¾",
+        "Ã—": "×",
+        "\ufffd": "",
+    }
+    for bad, good in replacements.items():
+        text = text.replace(bad, good)
+    return text
+
+
+def _has_broken_placeholder(value):
+    return bool(value and "??" in value)
 
 
 class QuestionBank(TimeStampedModel):
@@ -240,10 +275,22 @@ class Question(TimeStampedModel):
         ordering = ("-updated_at",)
 
     def clean(self):
+        self.stem = _normalize_cbt_text(self.stem)
+        self.rich_stem = _normalize_cbt_text(self.rich_stem)
         if self.question_bank_id and self.question_bank.subject_id != self.subject_id:
             raise ValidationError("Question subject must match question bank subject.")
         if self.marks <= 0:
             raise ValidationError("Question marks must be greater than zero.")
+        if _has_broken_placeholder(self.stem):
+            raise ValidationError({"stem": "Question text contains broken placeholder '??'. Enter the correct symbol or text."})
+        if _has_broken_placeholder(self.rich_stem):
+            raise ValidationError({"rich_stem": "Question text contains broken placeholder '??'. Enter the correct symbol or text."})
+
+    def save(self, *args, **kwargs):
+        self.stem = _normalize_cbt_text(self.stem)
+        self.rich_stem = _normalize_cbt_text(self.rich_stem)
+        self.full_clean()
+        return super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.subject.code}: {self.stem[:64]}"
@@ -255,6 +302,7 @@ class Option(TimeStampedModel):
         B = "B", "B"
         C = "C", "C"
         D = "D", "D"
+        E = "E", "E"
 
     question = models.ForeignKey(
         Question,
@@ -276,6 +324,16 @@ class Option(TimeStampedModel):
 
     def __str__(self):
         return f"{self.question_id}-{self.label}"
+
+    def clean(self):
+        self.option_text = _normalize_cbt_text(self.option_text)
+        if _has_broken_placeholder(self.option_text):
+            raise ValidationError({"option_text": "Option text contains broken placeholder '??'. Enter the correct symbol or text."})
+
+    def save(self, *args, **kwargs):
+        self.option_text = _normalize_cbt_text(self.option_text)
+        self.full_clean()
+        return super().save(*args, **kwargs)
 
 
 class CorrectAnswer(TimeStampedModel):

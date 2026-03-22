@@ -125,7 +125,11 @@ class QuestionAuthoringForm(forms.Form):
     option_b = forms.CharField(max_length=400, required=False, label="Option B")
     option_c = forms.CharField(max_length=400, required=False, label="Option C")
     option_d = forms.CharField(max_length=400, required=False, label="Option D")
-    correct_label = forms.ChoiceField(choices=[("A", "A"), ("B", "B"), ("C", "C"), ("D", "D")], required=False)
+    option_e = forms.CharField(max_length=400, required=False, label="Option E")
+    correct_label = forms.ChoiceField(
+        choices=[("A", "A"), ("B", "B"), ("C", "C"), ("D", "D"), ("E", "E")],
+        required=False,
+    )
 
     def __init__(self, *args, **kwargs):
         self.actor = kwargs.pop("actor", None)
@@ -148,6 +152,7 @@ class QuestionAuthoringForm(forms.Form):
             self.initial["option_b"] = option_map.get("B", "")
             self.initial["option_c"] = option_map.get("C", "")
             self.initial["option_d"] = option_map.get("D", "")
+            self.initial["option_e"] = option_map.get("E", "")
             answer = getattr(self.question, "correct_answer", None)
             if answer:
                 selected = answer.correct_options.order_by("sort_order", "label").first()
@@ -172,6 +177,7 @@ class QuestionAuthoringForm(forms.Form):
                 "B": (cleaned.get("option_b") or "").strip(),
                 "C": (cleaned.get("option_c") or "").strip(),
                 "D": (cleaned.get("option_d") or "").strip(),
+                "E": (cleaned.get("option_e") or "").strip(),
             }
             provided = [label for label, text in options.items() if text]
             if len(provided) < 2:
@@ -203,7 +209,7 @@ class QuestionAuthoringForm(forms.Form):
 
         if question.question_type == CBTQuestionType.OBJECTIVE:
             payload = self.cleaned_data.get("_option_payload", {})
-            for label, sort_order in (("A", 1), ("B", 2), ("C", 3), ("D", 4)):
+            for label, sort_order in (("A", 1), ("B", 2), ("C", 3), ("D", 4), ("E", 5)):
                 text = payload.get(label, "")
                 if text:
                     Option.objects.update_or_create(
@@ -276,7 +282,9 @@ class ExamCreateForm(forms.Form):
     )
     flow_type = forms.ChoiceField(
         choices=[
+            (FLOW_OBJECTIVE_ONLY, "Objective Only"),
             (FLOW_OBJECTIVE_THEORY, "Objective + Theory"),
+            (FLOW_THEORY_ONLY, "Theory Only"),
             (FLOW_SIMULATION, "Simulation"),
         ],
         initial=FLOW_OBJECTIVE_THEORY,
@@ -438,8 +446,13 @@ class ExamCreateForm(forms.Form):
             objective_count = 0
             theory_count = 0
         elif exam_type == CBTExamType.EXAM:
-            cleaned["flow_type"] = self.FLOW_OBJECTIVE_THEORY
-            flow_type = self.FLOW_OBJECTIVE_THEORY
+            if flow_type not in {
+                self.FLOW_OBJECTIVE_ONLY,
+                self.FLOW_OBJECTIVE_THEORY,
+                self.FLOW_THEORY_ONLY,
+            }:
+                cleaned["flow_type"] = self.FLOW_OBJECTIVE_THEORY
+                flow_type = self.FLOW_OBJECTIVE_THEORY
         elif exam_type in {CBTExamType.CA, CBTExamType.PRACTICAL}:
             if flow_type not in {self.FLOW_OBJECTIVE_THEORY, self.FLOW_SIMULATION}:
                 cleaned["flow_type"] = self.FLOW_OBJECTIVE_THEORY
@@ -540,8 +553,10 @@ class ExamCreateForm(forms.Form):
         )
         manual = bool(cleaned.get("manual_score_split"))
         if manual:
-            objective_total = _as_decimal(cleaned.get("objective_target_max"), Decimal("0.00"))
-            theory_total = _as_decimal(cleaned.get("theory_target_max"), Decimal("0.00"))
+            raw_objective_total = cleaned.get("objective_target_max")
+            raw_theory_total = cleaned.get("theory_target_max")
+            objective_total = _as_decimal(raw_objective_total, defaults[0] if has_objective else Decimal("0.00"))
+            theory_total = _as_decimal(raw_theory_total, defaults[1] if has_theory else Decimal("0.00"))
             if has_objective and objective_total <= 0:
                 self.add_error("objective_target_max", "Objective target max must be greater than zero.")
             if has_theory and theory_total <= 0:
@@ -626,8 +641,12 @@ class ExamCreateForm(forms.Form):
                 objective_target = effective_target
                 theory_target = effective_target
         elif self.cleaned_data["exam_type"] == CBTExamType.EXAM:
-            objective_target = CBTWritebackTarget.OBJECTIVE
-            theory_target = CBTWritebackTarget.NONE
+            if flow_type == self.FLOW_THEORY_ONLY:
+                objective_target = CBTWritebackTarget.NONE
+                theory_target = CBTWritebackTarget.NONE
+            else:
+                objective_target = CBTWritebackTarget.OBJECTIVE
+                theory_target = CBTWritebackTarget.NONE
         elif self.cleaned_data["exam_type"] == CBTExamType.FREE_TEST:
             objective_target = CBTWritebackTarget.NONE
             theory_target = CBTWritebackTarget.NONE
@@ -774,11 +793,11 @@ class ExamUploadImportForm(forms.Form):
             lambda row: f"{row.academic_class.code} - {row.subject.name} ({row.session.name} / {row.term.get_name_display()})"
         )
         self.fields["source_file"].help_text = (
-            "Best results: upload clean TXT, DOCX, or text-based PDF. Notes and handouts can also be used to draft questions. "
-            "Legacy DOC is unreliable."
+            "Best results: upload clean TXT, DOCX, or text-based PDF. "
+            "Use the separate AI Draft page for lesson notes. Legacy DOC is not accepted here."
         )
         self.fields["pasted_text"].help_text = (
-            "Paste clean numbered questions, or paste lesson notes and the system will draft from them."
+            "Paste clean numbered questions with A-D options."
         )
         _style_fields(self)
 
@@ -797,7 +816,6 @@ class ExamUploadImportForm(forms.Form):
         pasted_text = cleaned.get("pasted_text") or ""
         allowed_file_types = (
             ".pdf",
-            ".doc",
             ".docx",
             ".txt",
             ".png",
@@ -846,7 +864,7 @@ class ExamUploadImportForm(forms.Form):
         if source_file and not (source_file.name or "").lower().endswith(allowed_file_types):
             self.add_error(
                 "source_file",
-                "Upload PDF, DOC, DOCX, TXT, or question image (PNG/JPG/JPEG/BMP/TIFF/WEBP).",
+                "Upload PDF, DOCX, TXT, or question image (PNG/JPG/JPEG/BMP/TIFF/WEBP).",
             )
         return cleaned
 
@@ -914,7 +932,6 @@ class AIExamDraftForm(forms.Form):
         note_file = cleaned.get("lesson_note_file")
         allowed_file_types = (
             ".pdf",
-            ".doc",
             ".docx",
             ".txt",
             ".png",
@@ -928,7 +945,7 @@ class AIExamDraftForm(forms.Form):
         if note_file and not (note_file.name or "").lower().endswith(allowed_file_types):
             self.add_error(
                 "lesson_note_file",
-                "Upload PDF, DOC, DOCX, TXT, or image file.",
+                "Upload PDF, DOCX, TXT, or image file.",
             )
         exam_type = cleaned.get("exam_type")
         flow_type = (cleaned.get("flow_type") or ExamCreateForm.FLOW_OBJECTIVE_THEORY).strip()

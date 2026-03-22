@@ -929,6 +929,7 @@ class CBTExamBuilderView(CBTAuthoringAccessMixin, TemplateView):
             "option_b": option_map.get("B", ""),
             "option_c": option_map.get("C", ""),
             "option_d": option_map.get("D", ""),
+            "option_e": option_map.get("E", ""),
             "correct_label": correct_label or "A",
             "correct_labels": correct_labels or ([correct_label] if correct_label else ["A"]),
             "objective_mode": objective_mode,
@@ -990,11 +991,12 @@ class CBTExamBuilderView(CBTAuthoringAccessMixin, TemplateView):
                 "B": (payload.get("option_b") or "").strip(),
                 "C": (payload.get("option_c") or "").strip(),
                 "D": (payload.get("option_d") or "").strip(),
+                "E": (payload.get("option_e") or "").strip(),
             }
             provided_labels = [label for label, text in option_map.items() if text]
             if len(provided_labels) < 2:
                 raise ValidationError("Provide at least two options for objective question.")
-            sort_map = {"A": 1, "B": 2, "C": 3, "D": 4}
+            sort_map = {"A": 1, "B": 2, "C": 3, "D": 4, "E": 5}
             for label, text in option_map.items():
                 if text:
                     Option.objects.update_or_create(
@@ -1110,6 +1112,7 @@ class CBTExamBuilderView(CBTAuthoringAccessMixin, TemplateView):
                 "option_b": posted.get("option_b", objective_defaults.get("option_b", "")),
                 "option_c": posted.get("option_c", objective_defaults.get("option_c", "")),
                 "option_d": posted.get("option_d", objective_defaults.get("option_d", "")),
+                "option_e": posted.get("option_e", objective_defaults.get("option_e", "")),
                 "correct_label": posted.get("correct_label", objective_defaults.get("correct_label", "A")),
                 "correct_labels": posted.getlist("correct_labels") if hasattr(posted, "getlist") else objective_defaults.get("correct_labels", ["A"]),
                 "objective_mode": posted.get("objective_mode", objective_defaults.get("objective_mode", CBTQuestionType.OBJECTIVE)),
