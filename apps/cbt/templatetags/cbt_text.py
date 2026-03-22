@@ -42,6 +42,16 @@ _SUPERSCRIPT_MAP = {
     "\u207e": ")",
     "\u207f": "n",
 }
+_MIXED_FRACTION_RE = re.compile(r"(?<![\w>])(\d+)\s+(\d+)\/(\d+)(?![\w<])")
+_FRACTION_RE = re.compile(
+    r"(?<![\w>])"
+    r"([A-Za-z0-9]+(?:\^[+-]?\d+)?)"
+    r"\/"
+    r"([A-Za-z0-9]+(?:\^[+-]?\d+)?)"
+    r"(?![\w<])"
+)
+_EXPONENT_RE = re.compile(r"(\([^)]+\)|[A-Za-z0-9]+)\^([+-]?\d+)")
+_DEGREES_RE = re.compile(r"(?<=\d|\))\s*degrees?\b", re.IGNORECASE)
 
 
 def _flush_mapped_run(parts, run, tag_name):
@@ -51,7 +61,49 @@ def _flush_mapped_run(parts, run, tag_name):
     run.clear()
 
 
+def _format_fraction_token(token):
+    return _EXPONENT_RE.sub(lambda match: f"{match.group(1)}<sup>{match.group(2)}</sup>", token)
+
+
+def _replace_mixed_fractions(value):
+    return _MIXED_FRACTION_RE.sub(
+        lambda match: (
+            f"{match.group(1)} "
+            f"<sup>{_format_fraction_token(match.group(2))}</sup>&frasl;<sub>{_format_fraction_token(match.group(3))}</sub>"
+        ),
+        value,
+    )
+
+
+def _replace_fractions(value):
+    return _FRACTION_RE.sub(
+        lambda match: (
+            f"<sup>{_format_fraction_token(match.group(1))}</sup>"
+            f"&frasl;"
+            f"<sub>{_format_fraction_token(match.group(2))}</sub>"
+        ),
+        value,
+    )
+
+
+def _replace_exponents(value):
+    return _EXPONENT_RE.sub(lambda match: f"{match.group(1)}<sup>{match.group(2)}</sup>", value)
+
+
+def _replace_degrees(value):
+    return _DEGREES_RE.sub("&deg;", value)
+
+
+def _format_plain_notation(value):
+    value = _replace_mixed_fractions(value)
+    value = _replace_fractions(value)
+    value = _replace_exponents(value)
+    value = _replace_degrees(value)
+    return value
+
+
 def _format_notation_segment(value):
+    value = _format_plain_notation(value)
     parts = []
     subscript_run = []
     superscript_run = []
