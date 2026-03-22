@@ -1,8 +1,10 @@
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
+from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
+from django.conf import settings
 from django.core.files import File
 from django.db import transaction
 from django.utils import timezone
@@ -317,6 +319,25 @@ def _exam_assets_root():
     return Path.cwd() / "EXAM"
 
 
+def _use_uploaded_stimulus():
+    return str(getattr(settings, "MEDIA_STORAGE_BACKEND", "")).strip().lower() == "filesystem"
+
+
+def _build_rich_stem(stem, *, image_name=None, caption=""):
+    if not image_name:
+        return ""
+    image_url = f"/static/exam/{quote(image_name)}"
+    caption_html = f"<figcaption>{caption}</figcaption>" if caption else ""
+    return (
+        f"<p>{stem}</p>"
+        f"<figure class=\"cbt-inline-figure\">"
+        f"<img src=\"{image_url}\" alt=\"Question diagram\" "
+        f"style=\"max-width:100%;height:auto;border:1px solid #cbd5e1;border-radius:12px;padding:8px;background:#fff;\">"
+        f"{caption_html}"
+        f"</figure>"
+    )
+
+
 def _attach_image(question, image_name, caption="", shared_key=""):
     image_path = _exam_assets_root() / image_name
     if not image_path.exists():
@@ -423,19 +444,28 @@ def main():
     bank.questions.all().delete()
 
     sort_order = 1
+    use_uploaded_stimulus = _use_uploaded_stimulus()
 
     for index, item in enumerate(OBJECTIVES, start=1):
+        rich_stem = ""
+        if item.get("image") and not use_uploaded_stimulus:
+            rich_stem = _build_rich_stem(
+                item["stem"],
+                image_name=item.get("image"),
+                caption=item.get("caption", ""),
+            )
         question = Question.objects.create(
             question_bank=bank,
             created_by=teacher,
             subject=subject,
             question_type=CBTQuestionType.OBJECTIVE,
             stem=item["stem"],
+            rich_stem=rich_stem,
             marks=Decimal("1.00"),
             source_reference=f"JS2-MTH-20260323-OBJ-{index:02d}",
             is_active=True,
         )
-        if "image" in item:
+        if "image" in item and use_uploaded_stimulus:
             _attach_image(
                 question,
                 item["image"],
@@ -463,17 +493,25 @@ def main():
         sort_order += 1
 
     for index, item in enumerate(THEORY, start=1):
+        rich_stem = ""
+        if item.get("image") and not use_uploaded_stimulus:
+            rich_stem = _build_rich_stem(
+                item["stem"],
+                image_name=item.get("image"),
+                caption=item.get("caption", ""),
+            )
         question = Question.objects.create(
             question_bank=bank,
             created_by=teacher,
             subject=subject,
             question_type=CBTQuestionType.SHORT_ANSWER,
             stem=item["stem"],
+            rich_stem=rich_stem,
             marks=item["marks"],
             source_reference=f"JS2-MTH-20260323-TH-{index:02d}",
             is_active=True,
         )
-        if "image" in item:
+        if "image" in item and use_uploaded_stimulus:
             _attach_image(question, item["image"], caption=item.get("caption", ""))
         CorrectAnswer.objects.create(question=question, note="", is_finalized=True)
         ExamQuestion.objects.create(
