@@ -7,11 +7,15 @@
 node_modules
 staticfiles
 media
+backups
 .env
 .env.cloud
 .env.lan
 __pycache__
 *.pyc
+*.dump
+*.sql
+*.sql.gz
 SCHOOL/ndga_generated_credentials.txt
 
 README copy.md
