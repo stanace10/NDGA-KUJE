@@ -144,14 +144,14 @@ class StudentDashboardAttendanceTests(TestCase):
         self.assertNotContains(response, "Upload PDF/DOC")
         self.assertNotContains(response, "Submit To Dean")
 
-    def test_it_portal_shows_operations_center_and_drill_commands(self):
+    def test_it_portal_hides_operations_center_and_drill_commands(self):
         client = Client(HTTP_HOST="it.ndgakuje.org")
         client.force_login(self.it_user)
         response = client.get("/portal/it/")
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Operations Center")
-        self.assertContains(response, "Runtime Snapshot")
-        self.assertContains(response, "Restore Drill")
+        self.assertNotContains(response, "Operations Center")
+        self.assertNotContains(response, "Runtime Snapshot")
+        self.assertNotContains(response, "Restore Drill")
 
 
 
