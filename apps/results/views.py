@@ -45,7 +45,8 @@ from apps.cbt.models import (
     SimulationWrapper,
 )
 from apps.notifications.models import NotificationCategory
-from apps.notifications.services import create_notification, notify_results_published, send_email_event
+from apps.notifications.services import create_notification, normalize_whatsapp_phone, notify_results_published, send_email_event, send_whatsapp_event
+from apps.notifications.whatsapp_adapters import get_whatsapp_provider
 from apps.pdfs.services import can_staff_download_term_report
 from apps.results.entry_flow import (
     build_posted_score_bundle,
@@ -168,8 +169,8 @@ RESULT_SHARE_ROLES = {
     ROLE_IT_MANAGER,
     ROLE_DEAN,
     ROLE_FORM_TEACHER,
-    ROLE_VP,
     ROLE_PRINCIPAL,
+    ROLE_VP,
     ROLE_BURSAR,
 }
 
@@ -177,8 +178,8 @@ RESULT_SHARE_ROLES = {
 RESULT_SHARE_OVERSIGHT_ROLES = {
     ROLE_IT_MANAGER,
     ROLE_DEAN,
-    ROLE_VP,
     ROLE_PRINCIPAL,
+    ROLE_VP,
     ROLE_BURSAR,
 }
 
@@ -237,19 +238,6 @@ def _guardian_email_list(student):
     return emails
 
 
-def _normalized_whatsapp_phone(raw_phone):
-    digits = "".join(ch for ch in str(raw_phone or "") if ch.isdigit())
-    if not digits:
-        return ""
-    if digits.startswith("234"):
-        return digits
-    if digits.startswith("0") and len(digits) == 11:
-        return f"234{digits[1:]}"
-    if len(digits) == 10:
-        return f"234{digits}"
-    return digits
-
-
 def _student_result_center_url(*, request, compilation):
     return build_portal_url(
         request,
@@ -301,7 +289,7 @@ def _build_result_share_row(*, request, record):
     compilation = record.compilation
     profile = getattr(student, "student_profile", None)
     guardian_phone = getattr(profile, "guardian_phone", "") if profile else ""
-    whatsapp_phone = _normalized_whatsapp_phone(guardian_phone)
+    whatsapp_phone = normalize_whatsapp_phone(guardian_phone)
     pin_state = _result_pin_state(student=student, compilation=compilation)
     portal_url = _student_result_center_url(request=request, compilation=compilation)
     share_message = _build_result_share_message(
@@ -321,6 +309,7 @@ def _build_result_share_row(*, request, record):
         "class_name": compilation.academic_class.display_name or compilation.academic_class.code,
         "guardian_email": getattr(profile, "guardian_email", "") if profile else "",
         "guardian_phone": guardian_phone,
+        "whatsapp_phone": whatsapp_phone,
         "email_targets": _guardian_email_list(student),
         "pin_state": pin_state,
         "portal_url": portal_url,
@@ -664,7 +653,12 @@ class GradeEntryClassSubjectsView(ResultsAccessMixin, TemplateView):
         rows = []
         for assignment in self.assignments:
             sheet = _get_or_create_sheet_from_assignment(assignment, self.request.user)
-            score_count = StudentSubjectScore.objects.filter(result_sheet=sheet).count()
+            enrollment_qs = _subject_enrollments_for_assignment(assignment)
+            enrolled_student_ids = list(enrollment_qs.values_list("student_id", flat=True))
+            score_count = StudentSubjectScore.objects.filter(
+                result_sheet=sheet,
+                student_id__in=enrolled_student_ids,
+            ).count()
             can_edit = (
                 request_user_can_edit_session(self.request.user, assignment.session)
                 and sheet_is_editable_by_subject_owner(self.request.user, sheet)
@@ -674,6 +668,7 @@ class GradeEntryClassSubjectsView(ResultsAccessMixin, TemplateView):
                     "assignment": assignment,
                     "result_sheet": sheet,
                     "score_count": score_count,
+                    "enrollment_count": len(enrolled_student_ids),
                     "can_submit": can_edit,
                 }
             )
@@ -782,7 +777,7 @@ class AssignmentScoreListView(ResultsAccessMixin, TemplateView):
             pk=self.kwargs["assignment_id"],
             is_active=True,
         )
-        if not has_any_role(self.request.user, {ROLE_IT_MANAGER, ROLE_PRINCIPAL, ROLE_VP}):
+        if not has_any_role(self.request.user, {ROLE_IT_MANAGER, ROLE_PRINCIPAL}):
             if assignment.teacher_id != self.request.user.id:
                 return None
         return assignment
@@ -981,7 +976,7 @@ class StudentScoreEditView(ResultsAccessMixin, TemplateView):
             pk=self.kwargs["assignment_id"],
             is_active=True,
         )
-        if not has_any_role(request.user, {ROLE_IT_MANAGER, ROLE_PRINCIPAL, ROLE_VP}):
+        if not has_any_role(request.user, {ROLE_IT_MANAGER, ROLE_PRINCIPAL}):
             if self.assignment.teacher_id != request.user.id:
                 messages.error(request, "Access restricted for this class subject.")
                 return redirect("results:grade-entry-home")
@@ -2570,7 +2565,7 @@ class PrincipalOverrideView(ResultsAccessMixin, TemplateView):
 
 class ResultSettingsView(ResultsAccessMixin, TemplateView):
     template_name = "results/result_settings.html"
-    allowed_roles = {ROLE_IT_MANAGER, ROLE_DEAN, ROLE_VP, ROLE_PRINCIPAL}
+    allowed_roles = {ROLE_IT_MANAGER, ROLE_DEAN, ROLE_PRINCIPAL}
 
     def dispatch(self, request, *args, **kwargs):
         if not has_any_role(request.user, self.allowed_roles):
@@ -2837,7 +2832,7 @@ class ResultSettingsView(ResultsAccessMixin, TemplateView):
 
 
 class ResultReportAccessMixin(ResultsAccessMixin):
-    allowed_roles = {ROLE_IT_MANAGER, ROLE_DEAN, ROLE_VP, ROLE_PRINCIPAL, ROLE_BURSAR}
+    allowed_roles = {ROLE_IT_MANAGER, ROLE_DEAN, ROLE_PRINCIPAL, ROLE_VP, ROLE_BURSAR}
 
     def dispatch(self, request, *args, **kwargs):
         if not has_any_role(request.user, self.allowed_roles):
@@ -2911,7 +2906,7 @@ class TeacherRankingView(ResultReportAccessMixin, TemplateView):
 
 class PerformanceReportView(ResultReportAccessMixin, TemplateView):
     template_name = "results/performance_report.html"
-    allowed_roles = {ROLE_IT_MANAGER, ROLE_DEAN, ROLE_VP, ROLE_PRINCIPAL, ROLE_FORM_TEACHER, ROLE_BURSAR}
+    allowed_roles = {ROLE_IT_MANAGER, ROLE_DEAN, ROLE_PRINCIPAL, ROLE_VP, ROLE_FORM_TEACHER, ROLE_BURSAR}
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -3061,12 +3056,13 @@ class SendResultsView(ResultReportAccessMixin, TemplateView):
         context["email_ready_count"] = sum(1 for row in share_rows if row["email_targets"])
         context["whatsapp_ready_count"] = sum(1 for row in share_rows if row["whatsapp_url"])
         context["pin_ready_count"] = sum(1 for row in share_rows if row["pin_state"]["label"] == "Issued")
-        context["can_manage_pins"] = has_any_role(self.request.user, {ROLE_IT_MANAGER, ROLE_VP, ROLE_PRINCIPAL})
+        context["can_manage_pins"] = has_any_role(self.request.user, {ROLE_IT_MANAGER, ROLE_PRINCIPAL})
+        context["whatsapp_provider_enabled"] = get_whatsapp_provider().provider_name != "disabled"
         return context
 
     def post(self, request, *args, **kwargs):
         action = (request.POST.get("action") or "email_notice").strip().lower()
-        if action != "email_notice":
+        if action not in {"email_notice", "whatsapp_notice"}:
             messages.error(request, "Invalid result communication action.")
             return self._filtered_redirect(request)
         session, term = self._window()
@@ -3079,9 +3075,6 @@ class SendResultsView(ResultReportAccessMixin, TemplateView):
             student_id=request.POST.get("student_id"),
         )
         row = _build_result_share_row(request=request, record=record)
-        if not row["email_targets"]:
-            messages.error(request, "No student or guardian email is available for this record.")
-            return self._filtered_redirect(request)
         school_profile = SchoolProfile.load()
         title = f"{school_profile.school_name or 'NDGA'} {record.compilation.term.get_name_display()} Result Notice"
         body_text = _build_result_share_message(
@@ -3090,21 +3083,45 @@ class SendResultsView(ResultReportAccessMixin, TemplateView):
             portal_url=row["portal_url"],
             pin_state=row["pin_state"],
         )
-        result = send_email_event(
-            to_emails=row["email_targets"],
-            subject=title,
-            body_text=body_text,
-            actor=request.user,
-            request=request,
-            metadata={
-                "event": "RESULT_SHARE_NOTICE",
-                "student_id": str(record.student_id),
-                "compilation_id": str(record.compilation_id),
-            },
-        )
-        if result is None or not result.success:
-            messages.error(request, f"Email dispatch failed for {row['student_name']}.")
-            return self._filtered_redirect(request)
+        if action == "email_notice":
+            if not row["email_targets"]:
+                messages.error(request, "No student or guardian email is available for this record.")
+                return self._filtered_redirect(request)
+            result = send_email_event(
+                to_emails=row["email_targets"],
+                subject=title,
+                body_text=body_text,
+                actor=request.user,
+                request=request,
+                metadata={
+                    "event": "RESULT_SHARE_NOTICE",
+                    "channel": "email",
+                    "student_id": str(record.student_id),
+                    "compilation_id": str(record.compilation_id),
+                },
+            )
+            if result is None or not result.success:
+                messages.error(request, f"Email dispatch failed for {row['student_name']}.")
+                return self._filtered_redirect(request)
+        else:
+            if not row["whatsapp_phone"]:
+                messages.error(request, "No guardian WhatsApp number is available for this record.")
+                return self._filtered_redirect(request)
+            result = send_whatsapp_event(
+                to_numbers=[row["whatsapp_phone"]],
+                body_text=body_text,
+                actor=request.user,
+                request=request,
+                metadata={
+                    "event": "RESULT_SHARE_NOTICE",
+                    "channel": "whatsapp",
+                    "student_id": str(record.student_id),
+                    "compilation_id": str(record.compilation_id),
+                },
+            )
+            if not result.success and result.sent_count <= 0:
+                messages.error(request, f"WhatsApp dispatch failed for {row['student_name']}.")
+                return self._filtered_redirect(request)
         create_notification(
             recipient=record.student,
             category=NotificationCategory.RESULTS,
@@ -3122,14 +3139,18 @@ class SendResultsView(ResultReportAccessMixin, TemplateView):
         )
         messages.success(
             request,
-            f"Result notice emailed to {len(row['email_targets'])} contact(s) for {row['student_name']}."
+            (
+                f"Result notice emailed to {len(row['email_targets'])} contact(s) for {row['student_name']}."
+                if action == "email_notice"
+                else f"Result notice sent by WhatsApp for {row['student_name']}."
+            )
         )
         return self._filtered_redirect(request)
 
 
 class ResultAccessPinManagementView(ResultReportAccessMixin, TemplateView):
     template_name = "results/result_access_pins.html"
-    allowed_roles = {ROLE_IT_MANAGER, ROLE_VP, ROLE_PRINCIPAL}
+    allowed_roles = {ROLE_IT_MANAGER, ROLE_PRINCIPAL}
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
