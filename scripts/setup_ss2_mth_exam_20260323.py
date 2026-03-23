@@ -312,6 +312,8 @@ THEORY = [
             "    3x^2 - x + 5"
         ),
         "marks": Decimal("10.00"),
+        "image": "no 6 theory ss2.png",
+        "caption": "Expression diagram for theory question 6(a)",
     },
 ]
 
