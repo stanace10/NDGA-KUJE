@@ -50,8 +50,17 @@ _FRACTION_RE = re.compile(
     r"([A-Za-z0-9]+(?:\^[+-]?\d+)?)"
     r"(?![\w<])"
 )
+_COMPLEX_FRACTION_RE = re.compile(
+    r"(?<![\w>])"
+    r"(\([^()]+\)|[A-Za-z0-9.\-+]+(?:\^[+-]?\d+)?)"
+    r"\s*\/\s*"
+    r"(\([^()]+\)|[A-Za-z0-9.\-+]+(?:\^[+-]?\d+)?)"
+    r"(?![\w<])"
+)
 _EXPONENT_RE = re.compile(r"(\([^)]+\)|[A-Za-z0-9]+)\^([+-]?\d+)")
+_FRACTIONAL_EXPONENT_RE = re.compile(r"(\([^)]+\)|[A-Za-z0-9.]+)\^([+-]?\d+)\/(\d+)")
 _DEGREES_RE = re.compile(r"(?<=\d|\))\s*degrees?\b", re.IGNORECASE)
+_LOGIC_CARET_RE = re.compile(r"(?<=[A-Za-z0-9)\]])\s*\^\s*(?=[A-Za-z0-9(~])")
 
 
 def _flush_mapped_run(parts, run, tag_name):
@@ -86,19 +95,44 @@ def _replace_fractions(value):
     )
 
 
+def _replace_complex_fractions(value):
+    return _COMPLEX_FRACTION_RE.sub(
+        lambda match: (
+            f"<sup>{_format_fraction_token(match.group(1))}</sup>"
+            f"&frasl;"
+            f"<sub>{_format_fraction_token(match.group(2))}</sub>"
+        ),
+        value,
+    )
+
+
 def _replace_exponents(value):
     return _EXPONENT_RE.sub(lambda match: f"{match.group(1)}<sup>{match.group(2)}</sup>", value)
+
+
+def _replace_fractional_exponents(value):
+    return _FRACTIONAL_EXPONENT_RE.sub(
+        lambda match: f"{match.group(1)}<sup>{match.group(2)}&frasl;{match.group(3)}</sup>",
+        value,
+    )
 
 
 def _replace_degrees(value):
     return _DEGREES_RE.sub("&deg;", value)
 
 
+def _replace_logic_carets(value):
+    return _LOGIC_CARET_RE.sub(" &and; ", value)
+
+
 def _format_plain_notation(value):
     value = _replace_mixed_fractions(value)
+    value = _replace_fractional_exponents(value)
     value = _replace_fractions(value)
+    value = _replace_complex_fractions(value)
     value = _replace_exponents(value)
     value = _replace_degrees(value)
+    value = _replace_logic_carets(value)
     return value
 
 
