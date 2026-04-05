@@ -6,11 +6,11 @@
       <div class="site-shell">
         <div class="page-hero-panel">
           <div class="page-hero-copy">
-            <p class="site-kicker">{{ page.kicker }}</p>
+            <p class="site-eyebrow">{{ page.eyebrow }}</p>
             <h1>{{ page.title }}</h1>
             <p>{{ page.intro }}</p>
           </div>
-          <div class="page-hero-frame">
+          <div class="page-hero-media">
             <img src="{{ page.hero_image }}" alt="{{ page.title }}">
           </div>
         </div>
@@ -21,7 +21,7 @@
       <div class="site-shell">
         <div class="feature-grid feature-grid-3">
           {% for item in facilities %}
-            <article class="media-card media-card-tall">
+            <article class="media-card">
               <div class="media-card-image">
                 <img src="{{ item.image }}" alt="{{ item.title }}">
               </div>
@@ -33,7 +33,7 @@
                     <li>{{ point }}</li>
                   {% endfor %}
                 </ul>
-                <a href="{{ item.url }}" class="site-text-link">View facility detail</a>
+                <a href="{{ item.url }}" class="site-text-link">View facility</a>
               </div>
             </article>
           {% endfor %}

@@ -6,11 +6,11 @@
       <div class="site-shell">
         <div class="page-hero-panel">
           <div class="page-hero-copy">
-            <p class="site-kicker">{{ page.kicker }}</p>
+            <p class="site-eyebrow">{{ page.eyebrow }}</p>
             <h1>{{ page.title }}</h1>
             <p>{{ page.intro }}</p>
           </div>
-          <div class="page-hero-frame">
+          <div class="page-hero-media">
             <img src="{{ page.hero_image }}" alt="{{ page.title }}">
           </div>
         </div>
@@ -20,12 +20,12 @@
     <section class="site-section reveal">
       <div class="site-shell">
         {% if featured_event %}
-          <article class="featured-story featured-story-event">
+          <article class="featured-story">
             <div class="featured-story-image">
               <img src="{{ featured_event.image }}" alt="{{ featured_event.title }}">
             </div>
             <div class="featured-story-copy">
-              <p class="story-meta">{{ featured_event.status }}</p>
+              <p class="event-status">{{ featured_event.status }}</p>
               <h2>{{ featured_event.title }}</h2>
               <p class="event-meta">{{ featured_event.timing }}</p>
               <p>{{ featured_event.excerpt }}</p>
@@ -33,14 +33,12 @@
             </div>
           </article>
         {% endif %}
-
         <div class="feature-grid feature-grid-3">
           {% for item in event_items %}
-            <article class="event-card event-card-listing">
+            <article class="event-card">
               <p class="event-status">{{ item.status }}</p>
               <h3>{{ item.title }}</h3>
               <p class="event-meta">{{ item.timing }}</p>
-              <p>{{ item.location }}</p>
               <p>{{ item.excerpt }}</p>
               <a href="{{ item.url }}" class="site-text-link">View Details</a>
             </article>

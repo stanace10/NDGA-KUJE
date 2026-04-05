@@ -6,11 +6,25 @@
       <div class="site-shell">
         <div class="page-hero-panel">
           <div class="page-hero-copy">
-            <p class="site-kicker">{{ page.kicker }}</p>
+            <p class="site-eyebrow">{{ page.eyebrow }}</p>
             <h1>{{ page.title }}</h1>
             <p>{{ page.intro }}</p>
+            {% if page.hero_highlights %}
+              <div class="hero-pill-row">
+                {% for item in page.hero_highlights %}
+                  <span class="hero-pill">{{ item }}</span>
+                {% endfor %}
+              </div>
+            {% endif %}
+            {% if page.hero_actions %}
+              <div class="site-inline-actions">
+                {% for action in page.hero_actions %}
+                  <a href="{{ action.url }}" class="site-btn{% if action.variant == 'primary' %} site-btn-gold{% elif action.variant == 'ghost' %} site-btn-navy{% else %} site-btn-outline{% endif %}">{{ action.label }}</a>
+                {% endfor %}
+              </div>
+            {% endif %}
           </div>
-          <div class="page-hero-frame">
+          <div class="page-hero-media">
             <img src="{{ page.hero_image }}" alt="{{ page.title }}">
           </div>
         </div>
@@ -20,77 +34,52 @@
     {% for section in page.sections %}
       <section class="site-section reveal">
         <div class="site-shell">
-          {% if section.layout == "split" %}
-            <div class="editorial-split{% if section.reverse %} editorial-split-reverse{% endif %}">
-              <div class="editorial-copy">
-                <p class="site-kicker">{{ section.kicker }}</p>
-                <h2>{{ section.title }}</h2>
-                {% for paragraph in section.text %}
-                  <p>{{ paragraph }}</p>
-                {% endfor %}
-                {% if section.bullets %}
-                  <ul class="bullet-list">
-                    {% for item in section.bullets %}
-                      <li>{{ item }}</li>
-                    {% endfor %}
-                  </ul>
-                {% endif %}
-              </div>
-              <div class="editorial-image">
-                <img src="{{ section.image }}" alt="{{ section.title }}">
-              </div>
-            </div>
-          {% elif section.layout == "cards" %}
+          {% if section.layout == "cards" %}
             <div class="section-heading section-heading-left">
-              <p class="site-kicker">{{ section.kicker }}</p>
+              <p class="site-eyebrow">{{ section.eyebrow }}</p>
               <h2>{{ section.title }}</h2>
-              {% if section.intro %}<p>{{ section.intro }}</p>{% endif %}
             </div>
-            <div class="feature-grid feature-grid-3">
+            <div class="feature-grid feature-grid-{{ section.columns|default:'3' }}">
               {% for card in section.cards %}
                 <article class="feature-card">
-                  <div class="feature-card-topline"></div>
                   <h3>{{ card.title }}</h3>
                   <p>{{ card.text }}</p>
                   {% if card.url %}
-                    <a href="{{ card.url }}" class="site-text-link">Explore</a>
+                    <a href="{{ card.url }}" class="site-text-link">Open page</a>
                   {% endif %}
                 </article>
               {% endfor %}
             </div>
-          {% elif section.layout == "people" %}
+          {% elif section.layout == "columns" %}
             <div class="section-heading section-heading-left">
-              <p class="site-kicker">{{ section.kicker }}</p>
+              <p class="site-eyebrow">{{ section.eyebrow }}</p>
               <h2>{{ section.title }}</h2>
-              <p>{{ section.intro }}</p>
             </div>
-            <div class="feature-grid feature-grid-3">
-              {% for person in section.people %}
-                <article class="media-card">
-                  <div class="media-card-image portrait-frame">
-                    <img src="{{ person.image }}" alt="{{ person.name }}">
-                  </div>
-                  <div class="media-card-body">
-                    <p class="story-meta">{{ person.role }}</p>
-                    <h3>{{ person.name }}</h3>
-                    <p>{{ person.text }}</p>
-                  </div>
+            <div class="content-columns">
+              {% for column in section.columns %}
+                <article class="content-column">
+                  <h3>{{ column.title }}</h3>
+                  <ul class="bullet-list">
+                    {% for item in column.items %}
+                      <li>{{ item }}</li>
+                    {% endfor %}
+                  </ul>
                 </article>
               {% endfor %}
             </div>
           {% elif section.layout == "process" %}
             <div class="section-heading section-heading-left">
-              <p class="site-kicker">{{ section.kicker }}</p>
+              <p class="site-eyebrow">{{ section.eyebrow }}</p>
               <h2>{{ section.title }}</h2>
             </div>
-            <ol class="process-rail">
+            <ol class="process-grid">
               {% for item in section.steps %}
-                <li class="process-step">{{ item }}</li>
+                <li class="process-card">{{ item }}</li>
               {% endfor %}
             </ol>
           {% elif section.layout == "faq" %}
             <div class="section-heading section-heading-left">
-              <p class="site-kicker">{{ section.kicker }}</p>
+              <p class="site-eyebrow">{{ section.eyebrow }}</p>
               <h2>{{ section.title }}</h2>
             </div>
             <div class="faq-list">
@@ -103,7 +92,7 @@
             </div>
           {% elif section.layout == "table" %}
             <div class="section-heading section-heading-left">
-              <p class="site-kicker">{{ section.kicker }}</p>
+              <p class="site-eyebrow">{{ section.eyebrow }}</p>
               <h2>{{ section.title }}</h2>
             </div>
             <div class="table-card">
@@ -127,7 +116,9 @@
                   </tbody>
                 </table>
               </div>
-              {% if section.note %}<p class="table-note">{{ section.note }}</p>{% endif %}
+              {% if section.note %}
+                <p class="table-note">{{ section.note }}</p>
+              {% endif %}
             </div>
           {% endif %}
         </div>
@@ -137,14 +128,14 @@
     {% if page.cta %}
       <section class="site-section reveal">
         <div class="site-shell">
-          <div class="callout-panel callout-panel-dark">
+          <div class="cta-band">
             <div>
-              <p class="site-kicker">Next Step</p>
+              <p class="site-eyebrow">Next Step</p>
               <h2>{{ page.cta.title }}</h2>
             </div>
             <div class="site-inline-actions">
-              {% for link in page.cta.links %}
-                <a href="{{ link.url }}" class="site-btn{% if forloop.first %} site-btn-gold{% else %} site-btn-outline-light{% endif %}">{{ link.label }}</a>
+              {% for action in page.cta.links %}
+                <a href="{{ action.url }}" class="site-btn{% if action.variant == 'primary' %} site-btn-gold{% else %} site-btn-outline-light{% endif %}">{{ action.label }}</a>
               {% endfor %}
             </div>
           </div>
