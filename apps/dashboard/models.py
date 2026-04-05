@@ -95,6 +95,109 @@ class SchoolProfile(TimeStampedModel):
         return self.school_name
 
 
+class PublicSubmissionType(models.TextChoices):
+    CONTACT = "CONTACT", "Contact Enquiry"
+    ADMISSION = "ADMISSION", "Admission Registration"
+
+
+class PublicSubmissionStatus(models.TextChoices):
+    NEW = "NEW", "New"
+    IN_REVIEW = "IN_REVIEW", "In Review"
+    CLOSED = "CLOSED", "Closed"
+
+
+class PublicSiteSubmission(TimeStampedModel):
+    submission_type = models.CharField(
+        max_length=16,
+        choices=PublicSubmissionType.choices,
+        default=PublicSubmissionType.CONTACT,
+    )
+    status = models.CharField(
+        max_length=16,
+        choices=PublicSubmissionStatus.choices,
+        default=PublicSubmissionStatus.NEW,
+    )
+    contact_name = models.CharField(max_length=180)
+    contact_email = models.EmailField(blank=True)
+    contact_phone = models.CharField(max_length=40, blank=True)
+    category = models.CharField(max_length=80, blank=True)
+    subject = models.CharField(max_length=180, blank=True)
+    message = models.TextField(blank=True)
+    applicant_name = models.CharField(max_length=180, blank=True)
+    applicant_date_of_birth = models.DateField(null=True, blank=True)
+    intended_class = models.CharField(max_length=40, blank=True)
+    guardian_name = models.CharField(max_length=180, blank=True)
+    guardian_email = models.EmailField(blank=True)
+    guardian_phone = models.CharField(max_length=40, blank=True)
+    residential_address = models.TextField(blank=True)
+    previous_school = models.CharField(max_length=180, blank=True)
+    boarding_option = models.CharField(max_length=24, blank=True)
+    medical_notes = models.TextField(blank=True)
+    passport_photo = models.ImageField(
+        upload_to="public_submissions/passports/",
+        blank=True,
+        null=True,
+    )
+    birth_certificate = models.FileField(
+        upload_to="public_submissions/birth_certificates/",
+        blank=True,
+        null=True,
+    )
+    school_result = models.FileField(
+        upload_to="public_submissions/school_results/",
+        blank=True,
+        null=True,
+    )
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+        indexes = [
+            models.Index(fields=("submission_type", "status", "created_at")),
+            models.Index(fields=("contact_email",)),
+            models.Index(fields=("intended_class",)),
+        ]
+
+    def clean(self):
+        self.contact_name = (self.contact_name or "").strip()
+        self.contact_email = (self.contact_email or "").strip().lower()
+        self.contact_phone = (self.contact_phone or "").strip()
+        self.category = (self.category or "").strip()
+        self.subject = (self.subject or "").strip()
+        self.message = (self.message or "").strip()
+        self.applicant_name = (self.applicant_name or "").strip()
+        self.intended_class = (self.intended_class or "").strip().upper()
+        self.guardian_name = (self.guardian_name or "").strip()
+        self.guardian_email = (self.guardian_email or "").strip().lower()
+        self.guardian_phone = (self.guardian_phone or "").strip()
+        self.residential_address = (self.residential_address or "").strip()
+        self.previous_school = (self.previous_school or "").strip()
+        self.boarding_option = (self.boarding_option or "").strip()
+        self.medical_notes = (self.medical_notes or "").strip()
+
+        if self.submission_type == PublicSubmissionType.CONTACT:
+            if not self.subject:
+                raise ValidationError("Contact enquiries require a subject.")
+            if not self.message:
+                raise ValidationError("Contact enquiries require a message.")
+
+        if self.submission_type == PublicSubmissionType.ADMISSION:
+            required_values = {
+                "Applicant name": self.applicant_name,
+                "Intended class": self.intended_class,
+                "Guardian name": self.guardian_name,
+                "Guardian phone": self.guardian_phone,
+                "Residential address": self.residential_address,
+            }
+            missing = [label for label, value in required_values.items() if not value]
+            if missing:
+                raise ValidationError(", ".join(missing) + " required for admission registration.")
+
+    def __str__(self):
+        title = self.applicant_name or self.contact_name or "Public submission"
+        return f"{self.get_submission_type_display()}: {title}"
+
+
 class LearningResourceCategory(models.TextChoices):
     STUDY_MATERIAL = "STUDY_MATERIAL", "Study Material"
     PAST_QUESTION = "PAST_QUESTION", "Past Question"

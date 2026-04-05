@@ -24,7 +24,7 @@ from apps.tenancy.utils import build_portal_url, current_portal_key
 
 class PortalAccessMiddleware:
     PROVISIONING_ROLE_CODES = {ROLE_IT_MANAGER, ROLE_VP, ROLE_PRINCIPAL}
-    PUBLIC_PATH_PREFIXES = ("/static/", "/media/", "/favicon.ico")
+    PUBLIC_PATH_PREFIXES = ("/static/", "/media/", "/favicon.ico", "/robots.txt", "/sitemap.xml")
     AUTH_BYPASS_PREFIXES = (
         "/auth/login/",
         "/auth/logout/",
@@ -41,9 +41,22 @@ class PortalAccessMiddleware:
     )
     LAN_ONLY_ALLOWED_PREFIXES = (
         "/",
+        "/about/",
+        "/principal/",
+        "/academics/",
+        "/admissions/",
+        "/fees/",
+        "/facilities/",
+        "/gallery/",
+        "/news/",
+        "/events/",
+        "/contact/",
         "/ops/",
         "/health/",
         "/sync/",
+        "/attendance/",
+        "/results/",
+        "/pdfs/staff/",
         "/cbt/",
         "/cbt/it/",
         "/cbt/exams/",

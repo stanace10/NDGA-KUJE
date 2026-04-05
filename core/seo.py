@@ -6,6 +6,7 @@ from django.http import HttpResponse
 from django.templatetags.static import static
 from django.urls import reverse
 
+from apps.dashboard.public_site import PUBLIC_INDEXABLE_PATHS
 from apps.tenancy.utils import build_portal_url, current_portal_key
 
 DEFAULT_SITE_NAME = "NDGA AI Enterprise Platform"
@@ -14,8 +15,6 @@ DEFAULT_DESCRIPTION = (
     "Governance-first school management, CBT, elections, finance, sync, and "
     "academic operations for Notre Dame Girls Academy, Kuje Abuja."
 )
-
-
 def _landing_url(request, path="/"):
     return build_portal_url(request, "landing", path)
 
@@ -25,7 +24,7 @@ def _is_public_indexable(request):
         request.method == "GET"
         and not getattr(request.user, "is_authenticated", False)
         and current_portal_key(request) == "landing"
-        and request.path == "/"
+        and request.path in PUBLIC_INDEXABLE_PATHS
     )
 
 
@@ -103,16 +102,22 @@ def robots_txt(request):
 
 
 def sitemap_xml(request):
-    landing_url = _landing_url(request, "/")
     today = date.today().isoformat()
+    urls = []
+    for path in sorted(PUBLIC_INDEXABLE_PATHS):
+        priority = "1.0" if path == "/" else "0.8"
+        changefreq = "daily" if path == "/" else "weekly"
+        urls.append(
+            f"""  <url>
+    <loc>{_landing_url(request, path)}</loc>
+    <lastmod>{today}</lastmod>
+    <changefreq>{changefreq}</changefreq>
+    <priority>{priority}</priority>
+  </url>"""
+        )
     content = f'''<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url>
-    <loc>{landing_url}</loc>
-    <lastmod>{today}</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>1.0</priority>
-  </url>
+{chr(10).join(urls)}
 </urlset>
 '''
     return HttpResponse(content, content_type="application/xml; charset=utf-8")

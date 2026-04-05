@@ -1,6 +1,12 @@
 from django.contrib import admin
 
-from apps.dashboard.models import LearningResource, LessonPlanDraft, PortalDocument, PrincipalSignature
+from apps.dashboard.models import (
+    LearningResource,
+    LessonPlanDraft,
+    PortalDocument,
+    PrincipalSignature,
+    PublicSiteSubmission,
+)
 
 
 @admin.register(PrincipalSignature)
@@ -28,3 +34,26 @@ class PortalDocumentAdmin(admin.ModelAdmin):
     list_display = ("title", "category", "student", "academic_class", "is_visible_to_student", "created_at")
     list_filter = ("category", "is_visible_to_student", "session", "term")
     search_fields = ("title", "student__username", "student__student_profile__student_number")
+
+
+@admin.register(PublicSiteSubmission)
+class PublicSiteSubmissionAdmin(admin.ModelAdmin):
+    list_display = (
+        "submission_type",
+        "status",
+        "applicant_name",
+        "contact_name",
+        "contact_email",
+        "intended_class",
+        "created_at",
+    )
+    list_filter = ("submission_type", "status", "intended_class", "boarding_option")
+    search_fields = (
+        "contact_name",
+        "contact_email",
+        "contact_phone",
+        "applicant_name",
+        "guardian_name",
+        "guardian_phone",
+        "subject",
+    )

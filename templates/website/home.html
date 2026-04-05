@@ -1,0 +1,215 @@
+{% extends "website/base_public.html" %}
+
+{% block public_content %}
+  <main>
+    <section class="hero-section reveal">
+      <div class="hero-media">
+        <img src="{{ hero.image }}" alt="Notre Dame Girls Academy campus life">
+      </div>
+      <div class="site-shell hero-content">
+        <div class="hero-copy">
+          <p class="site-kicker">{{ hero.eyebrow }}</p>
+          <h1>{{ hero.title }}</h1>
+          <p>{{ hero.text }}</p>
+          <div class="site-inline-actions">
+            <a href="{{ apply_now_url }}" class="site-btn site-btn-gold">Apply for Admission</a>
+            <a href="{{ public_root_url }}about/school-life/" class="site-btn site-btn-light">Explore School Life</a>
+            <a href="{{ public_portal_url }}" class="site-btn site-btn-outline-light">School Portal</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="site-section reveal">
+      <div class="site-shell split-panel">
+        <div class="section-copy">
+          <p class="site-kicker">About NDGA</p>
+          <h2>{{ about_preview.title }}</h2>
+          <p>{{ about_preview.text }}</p>
+          <div class="site-inline-actions">
+            <a href="{{ about_preview.about_url }}" class="site-btn site-btn-navy">About NDGA</a>
+            <a href="{{ about_preview.life_url }}" class="site-btn site-btn-outline">View School Life</a>
+          </div>
+        </div>
+        <div class="split-image">
+          <img src="{{ about_preview.image }}" alt="Notre Dame Girls Academy environment">
+        </div>
+      </div>
+    </section>
+
+    <section class="site-section site-section-warm reveal">
+      <div class="site-shell principal-panel">
+        <div class="principal-image-wrap">
+          <img src="{{ principal_preview.image }}" alt="School principal portrait">
+        </div>
+        <div class="principal-copy">
+          <p class="site-kicker">Principal's Welcome</p>
+          <h2>{{ principal_preview.title }}</h2>
+          <p>{{ principal_preview.message }}</p>
+          <p class="principal-signoff">{{ principal_name }}</p>
+          <img src="{{ principal_preview.signature }}" alt="Principal signature" class="principal-signature">
+          <a href="{{ principal_preview.url }}" class="site-text-link">Read Full Message</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="site-section reveal">
+      <div class="site-shell">
+        <div class="section-heading">
+          <p class="site-kicker">Academics</p>
+          <h2>Strong foundations for junior and senior secondary learning</h2>
+          <p>Our academic programme supports girls through guided learning, clear expectations, and opportunities for growth in and beyond the classroom.</p>
+        </div>
+        <div class="card-grid card-grid-4">
+          {% for item in academic_preview %}
+            <article class="site-card">
+              <h3>{{ item.title }}</h3>
+              <p>{{ item.text }}</p>
+              <a href="{{ item.url }}" class="site-text-link">Learn more</a>
+            </article>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+
+    <section class="site-section site-section-muted reveal">
+      <div class="site-shell admissions-panel">
+        <div class="section-copy">
+          <p class="site-kicker">Admissions</p>
+          <h2>Admissions made clear and simple</h2>
+          <p>Parents and guardians can begin the application process online, select the intended class, review fees guidance, and follow the steps for screening and admission.</p>
+          <ol class="process-list">
+            {% for step in admissions_steps %}
+              <li>{{ step }}</li>
+            {% endfor %}
+          </ol>
+          <div class="site-inline-actions">
+            <a href="{{ apply_now_url }}" class="site-btn site-btn-gold">Start Registration</a>
+            <a href="{{ public_root_url }}fees/" class="site-btn site-btn-outline">View Fees</a>
+            <a href="{{ public_root_url }}admissions/how-to-apply/" class="site-btn site-btn-outline">How to Apply</a>
+            <a href="{{ public_portal_url }}" class="site-btn site-btn-outline">School Portal</a>
+          </div>
+        </div>
+        <div class="side-note-card">
+          <h3>What happens next?</h3>
+          <p>After registration, the school reviews the submission and guides families on screening, payment, and portal continuation where required.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="site-section reveal">
+      <div class="site-shell">
+        <div class="section-heading">
+          <p class="site-kicker">Facilities</p>
+          <h2>Facilities that support learning and growth</h2>
+          <p>NDGA provides spaces that support practical learning, reading culture, creativity, sports, and student welfare.</p>
+        </div>
+        <div class="card-grid card-grid-3">
+          {% for item in facility_preview %}
+            <article class="site-card site-card-media">
+              <img src="{{ item.image }}" alt="{{ item.title }}">
+              <div>
+                <h3>{{ item.title }}</h3>
+                <p>{{ item.summary }}</p>
+                <a href="{{ item.url }}" class="site-text-link">View facility</a>
+              </div>
+            </article>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+
+    <section class="site-section site-section-warm reveal">
+      <div class="site-shell">
+        <div class="section-heading">
+          <p class="site-kicker">Gallery</p>
+          <h2>School life in pictures</h2>
+          <p>Explore moments from academics, ICT, music, sports, clubs, ceremonies, and daily school life at NDGA.</p>
+        </div>
+        <div class="category-grid">
+          {% for item in gallery_preview %}
+            <a href="{{ item.url }}" class="category-card">
+              <img src="{{ item.image }}" alt="{{ item.title }}">
+              <span>{{ item.title }}</span>
+            </a>
+          {% endfor %}
+        </div>
+        <div class="section-actions">
+          <a href="{{ public_root_url }}gallery/" class="site-btn site-btn-navy">View Full Gallery</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="site-section reveal">
+      <div class="site-shell two-column-feature">
+        <div>
+          <div class="section-heading section-heading-left">
+            <p class="site-kicker">Latest News</p>
+            <h2>Latest news and school events</h2>
+          </div>
+          <div class="stack-list">
+            {% for item in news_preview %}
+              <article class="story-card">
+                <img src="{{ item.image }}" alt="{{ item.title }}">
+                <div>
+                  <p class="story-meta">{{ item.category }} <span>{{ item.meta }}</span></p>
+                  <h3>{{ item.title }}</h3>
+                  <p>{{ item.excerpt }}</p>
+                  <a href="{{ item.url }}" class="site-text-link">Read more</a>
+                </div>
+              </article>
+            {% endfor %}
+          </div>
+          <a href="{{ public_root_url }}news/" class="site-btn site-btn-outline">View All News</a>
+        </div>
+        <div>
+          <div class="section-heading section-heading-left">
+            <p class="site-kicker">Upcoming Events</p>
+            <h2>Important school notices and event guidance</h2>
+          </div>
+          <div class="stack-list">
+            {% for item in event_preview %}
+              <article class="event-card">
+                <p class="event-status">{{ item.status }}</p>
+                <h3>{{ item.title }}</h3>
+                <p class="event-meta">{{ item.timing }}</p>
+                <p>{{ item.excerpt }}</p>
+                <a href="{{ item.url }}" class="site-text-link">View details</a>
+              </article>
+            {% endfor %}
+          </div>
+          <a href="{{ public_root_url }}events/" class="site-btn site-btn-outline">View All Events</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="site-section site-section-assist reveal">
+      <div class="site-shell assist-strip">
+        <div class="section-copy">
+          <p class="site-kicker">Need Help?</p>
+          <h2>Need help with admissions, fees, or registration?</h2>
+          <p>Use the quick answers below or send an enquiry and the school can guide you directly.</p>
+        </div>
+        <div class="assistant-panel" data-assistant-panel>
+          <div class="assistant-chip-row">
+            {% for topic in assistant_topics %}
+              <button type="button" class="assistant-chip{% if forloop.first %} is-active{% endif %}" data-assistant-target="{{ topic.slug }}">{{ topic.prompt }}</button>
+            {% endfor %}
+          </div>
+          <div class="assistant-response-wrap">
+            {% for topic in assistant_topics %}
+              <article class="assistant-response{% if forloop.first %} is-active{% endif %}" data-assistant-response="{{ topic.slug }}">
+                <h3>{{ topic.title }}</h3>
+                <p>{{ topic.response }}</p>
+                <a href="{{ topic.url }}" class="site-text-link">Open related page</a>
+              </article>
+            {% endfor %}
+          </div>
+          <div class="site-inline-actions">
+            <a href="{{ public_root_url }}contact/" class="site-btn site-btn-gold">Contact Us</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+{% endblock %}

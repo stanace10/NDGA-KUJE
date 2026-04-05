@@ -1,0 +1,51 @@
+{% extends "website/base_public.html" %}
+
+{% block public_content %}
+  <main>
+    <section class="page-hero reveal">
+      <div class="site-shell page-hero-inner">
+        <div class="section-copy">
+          <p class="site-kicker">{{ detail.kicker }}</p>
+          <h1>{{ detail.title }}</h1>
+          <p>{{ detail.summary|default:detail.excerpt }}</p>
+          {% if detail.meta %}<p class="story-meta">{{ detail.meta }}</p>{% endif %}
+          {% if detail.timing %}<p class="story-meta">{{ detail.timing }}</p>{% endif %}
+          {% if detail.location %}<p class="story-meta">{{ detail.location }}</p>{% endif %}
+        </div>
+        <div class="page-hero-image">
+          <img src="{{ detail.image }}" alt="{{ detail.title }}">
+        </div>
+      </div>
+    </section>
+
+    <section class="site-section reveal">
+      <div class="site-shell detail-grid">
+        <article class="detail-body">
+          {% for paragraph in detail.body %}
+            <p>{{ paragraph }}</p>
+          {% endfor %}
+          {% if detail.highlights %}
+            <ul class="bullet-list">
+              {% for point in detail.highlights %}
+                <li>{{ point }}</li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+          <a href="{{ detail.back_url }}" class="site-btn site-btn-outline">{{ detail.back_label }}</a>
+        </article>
+
+        <aside class="detail-sidebar">
+          <h3>Related</h3>
+          <div class="stack-list">
+            {% for item in detail.related_items %}
+              <a href="{{ item.url }}" class="mini-story">
+                <img src="{{ item.image }}" alt="{{ item.title }}">
+                <span>{{ item.title }}</span>
+              </a>
+            {% endfor %}
+          </div>
+        </aside>
+      </div>
+    </section>
+  </main>
+{% endblock %}

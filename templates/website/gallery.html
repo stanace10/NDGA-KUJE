@@ -1,0 +1,49 @@
+{% extends "website/base_public.html" %}
+
+{% block public_content %}
+  <main>
+    <section class="page-hero reveal">
+      <div class="site-shell page-hero-inner">
+        <div class="section-copy">
+          <p class="site-kicker">{{ page.kicker }}</p>
+          <h1>{{ page.title }}</h1>
+          <p>{{ page.intro }}</p>
+        </div>
+        <div class="page-hero-image">
+          <img src="{{ page.hero_image }}" alt="{{ page.title }}">
+        </div>
+      </div>
+    </section>
+
+    <section class="site-section reveal">
+      <div class="site-shell">
+        <div class="filter-row">
+          <a href="{{ public_root_url }}gallery/" class="filter-pill{% if not active_category %} is-active{% endif %}">All</a>
+          {% for item in gallery_categories %}
+            <a href="{{ item.url }}" class="filter-pill{% if active_category == item.slug %} is-active{% endif %}">{{ item.title }}</a>
+          {% endfor %}
+        </div>
+        <div class="gallery-grid">
+          {% for item in gallery_images %}
+            <button type="button" class="gallery-card" data-lightbox-image="{{ item.image }}" data-lightbox-title="{{ item.title }}" data-lightbox-caption="{{ item.caption }}">
+              <img src="{{ item.image }}" alt="{{ item.title }}" loading="lazy">
+              <span class="gallery-card-title">{{ item.title }}</span>
+              <span class="gallery-card-caption">{{ item.caption }}</span>
+            </button>
+          {% endfor %}
+        </div>
+      </div>
+    </section>
+
+    <div class="lightbox" id="siteLightbox" aria-hidden="true">
+      <button type="button" class="lightbox-close" id="siteLightboxClose">Close</button>
+      <div class="lightbox-inner">
+        <img src="" alt="" id="siteLightboxImage">
+        <div class="lightbox-copy">
+          <h3 id="siteLightboxTitle"></h3>
+          <p id="siteLightboxCaption"></p>
+        </div>
+      </div>
+    </div>
+  </main>
+{% endblock %}
