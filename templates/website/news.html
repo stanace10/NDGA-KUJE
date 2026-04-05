@@ -3,14 +3,16 @@
 {% block public_content %}
   <main>
     <section class="page-hero reveal">
-      <div class="site-shell page-hero-inner">
-        <div class="section-copy">
-          <p class="site-kicker">{{ page.kicker }}</p>
-          <h1>{{ page.title }}</h1>
-          <p>{{ page.intro }}</p>
-        </div>
-        <div class="page-hero-image">
-          <img src="{{ page.hero_image }}" alt="{{ page.title }}">
+      <div class="site-shell">
+        <div class="page-hero-panel">
+          <div class="page-hero-copy">
+            <p class="site-kicker">{{ page.kicker }}</p>
+            <h1>{{ page.title }}</h1>
+            <p>{{ page.intro }}</p>
+          </div>
+          <div class="page-hero-frame">
+            <img src="{{ page.hero_image }}" alt="{{ page.title }}">
+          </div>
         </div>
       </div>
     </section>
@@ -26,8 +28,10 @@
 
         {% if featured_story %}
           <article class="featured-story">
-            <img src="{{ featured_story.image }}" alt="{{ featured_story.title }}">
-            <div>
+            <div class="featured-story-image">
+              <img src="{{ featured_story.image }}" alt="{{ featured_story.title }}">
+            </div>
+            <div class="featured-story-copy">
               <p class="story-meta">{{ featured_story.category }} <span>{{ featured_story.meta }}</span></p>
               <h2>{{ featured_story.title }}</h2>
               <p>{{ featured_story.excerpt }}</p>
@@ -36,11 +40,13 @@
           </article>
         {% endif %}
 
-        <div class="card-grid card-grid-3">
+        <div class="feature-grid feature-grid-3">
           {% for item in news_items %}
-            <article class="site-card site-card-media">
-              <img src="{{ item.image }}" alt="{{ item.title }}">
-              <div>
+            <article class="media-card">
+              <div class="media-card-image">
+                <img src="{{ item.image }}" alt="{{ item.title }}">
+              </div>
+              <div class="media-card-body">
                 <p class="story-meta">{{ item.category }} <span>{{ item.meta }}</span></p>
                 <h3>{{ item.title }}</h3>
                 <p>{{ item.excerpt }}</p>

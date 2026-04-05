@@ -106,8 +106,8 @@ ASSISTANT_TOPICS = [
         "title": "How to apply",
         "prompt": "Ask about admissions",
         "response": (
-            "Begin from the admissions or registration page, choose the intended class, submit the required "
-            "applicant and guardian details, then wait for the school to guide you on the next payment and screening step."
+            "Begin with the registration page, choose the intended class, complete the applicant and guardian "
+            "details, and wait for the admissions office to guide you on screening and the next payment step."
         ),
         "url_key": "registration",
     },
@@ -116,8 +116,8 @@ ASSISTANT_TOPICS = [
         "title": "Fees and charges",
         "prompt": "Ask about fees",
         "response": (
-            "The public fees page explains the charge areas families should expect. Exact current amounts should "
-            "come from the school's active fee schedule so the site does not display outdated figures."
+            "The fees page explains tuition, boarding, registration, and other approved charge areas. Current "
+            "amounts are confirmed from the school's active fee schedule."
         ),
         "url_key": "fees",
     },
@@ -126,8 +126,8 @@ ASSISTANT_TOPICS = [
         "title": "Screening and exam dates",
         "prompt": "Ask about exam dates",
         "response": (
-            "Screening and entrance dates are announced by the school after registration review. If the date "
-            "for your class is not yet published, use the contact page so admissions can guide you directly."
+            "Screening and entrance dates are shared by the school after registration review. If your class "
+            "date is not yet published, contact the admissions office for guidance."
         ),
         "url_key": "screening",
     },
@@ -136,8 +136,8 @@ ASSISTANT_TOPICS = [
         "title": "Hostel and boarding",
         "prompt": "Ask about hostel",
         "response": (
-            "Families considering boarding can review the hostel page for welfare, supervision, and boarding "
-            "expectations. Final placement guidance should come from the admissions office."
+            "Families considering boarding can review the hostel page for supervision, welfare, daily routine, "
+            "and boarding expectations. Final placement guidance comes from the admissions office."
         ),
         "url_key": "hostel",
     },
@@ -146,8 +146,8 @@ ASSISTANT_TOPICS = [
         "title": "Portal support",
         "prompt": "Ask about portal help",
         "response": (
-            "The school portal is a separate service for approved accounts and school operations. If you need help "
-            "signing in or waiting for activation, use the contact page and choose portal support."
+            "The school portal is separate from the public website. If you need help with access, activation, "
+            "or sign-in support, use the contact page and choose portal support."
         ),
         "url_key": "contact",
     },
@@ -272,11 +272,11 @@ NEWS_ITEMS = {
         "category": "Admissions",
         "meta": "Current guidance",
         "title": "Admissions guidance for new families",
-        "excerpt": "Families can begin with the admissions overview, review the registration requirements, and contact the school when they need direct guidance.",
+        "excerpt": "Parents and guardians can begin with the admissions overview, review registration requirements, and contact the school for direct help.",
         "image": SITE_IMAGES["students"],
         "body": [
-            "The public website is structured to help families understand the admissions path without confusion.",
-            "Parents and guardians can begin with the admissions overview, move to registration, review the expected fee areas, and contact the school if a screening date or class-level clarification is still needed.",
+            "The admissions pages bring registration, class-level guidance, boarding information, and fee structure into one clear flow.",
+            "Parents and guardians can move from admissions overview to registration, review the required documents, and contact the school when clarification is needed.",
         ],
     },
     "portal-support": {
@@ -284,11 +284,11 @@ NEWS_ITEMS = {
         "category": "Announcements",
         "meta": "Public and portal access",
         "title": "School portal access remains a separate step",
-        "excerpt": "The public website and the school portal now serve different purposes so visitors can find school information without landing inside the portal first.",
+        "excerpt": "The public website provides school information while the portal remains for approved user access and follow-up actions.",
         "image": SITE_IMAGES["campus"],
         "body": [
             "The public website is for school information, admissions guidance, contact, facilities, and updates.",
-            "The school portal is reserved for approved users and school processes. Where activation is required, the admissions or support team will guide families after review.",
+            "The school portal is reserved for approved accounts and school processes. Where activation is required, the admissions or support team will guide families after review.",
         ],
     },
     "school-life-preview": {
@@ -296,11 +296,11 @@ NEWS_ITEMS = {
         "category": "School Life",
         "meta": "Campus update",
         "title": "A clearer look at daily school life",
-        "excerpt": "The gallery and about sections now help visitors see more of the school's learning environment, routines, and student life.",
+        "excerpt": "The gallery and about pages give families a clearer look at the school's learning environment, routines, and student life.",
         "image": SITE_IMAGES["school_life"],
         "body": [
-            "Visitors often want to understand the tone of a school before they enquire.",
-            "The updated public pages place more emphasis on school life, leadership, facilities, and the overall learning environment so families can make a better-informed first impression.",
+            "Families often want to see the tone of a school before they make contact.",
+            "These pages place more emphasis on school life, leadership, facilities, and the wider learning environment so visitors can understand the school more clearly.",
         ],
     },
 }
@@ -312,7 +312,7 @@ EVENT_ITEMS = {
         "timing": "Date to be announced by the school",
         "location": "NDGA, Kuje Abuja",
         "title": "Entrance screening and class-placement notices",
-        "excerpt": "Screening information is shared after registration review. Families should complete registration first and watch for direct guidance from the school.",
+        "excerpt": "Screening information is shared after registration review. Complete registration first and wait for direct guidance from the school.",
         "image": SITE_IMAGES["students"],
         "body": [
             "Screening and entrance arrangements are published by the school when the schedule for a given intake is ready.",
@@ -328,8 +328,8 @@ EVENT_ITEMS = {
         "excerpt": "Parents and guardians who need clarification on admissions, hostel life, or class placement can contact the school for direct guidance.",
         "image": SITE_IMAGES["campus"],
         "body": [
-            "Not every enquiry is best handled through a website page alone.",
-            "Where families need help on admissions, boarding, documentation, or portal access, the school can guide them through direct follow-up after an enquiry is submitted.",
+            "Some enquiries need direct follow-up from the school office.",
+            "Where families need help on admissions, boarding, documentation, or portal access, the school can guide them after an enquiry is submitted.",
         ],
     },
     "orientation-updates": {
@@ -341,8 +341,8 @@ EVENT_ITEMS = {
         "excerpt": "Orientation and resumption guidance will be shared by the school when the relevant dates are ready for release.",
         "image": SITE_IMAGES["school_life"],
         "body": [
-            "Orientation, arrival guidance, and school-start notices should reflect the actual school calendar rather than placeholder dates.",
-            "For that reason, the site points families toward direct updates and the contact channel whenever the final schedule has not yet been published.",
+            "Orientation, arrival guidance, and school-start notices follow the actual school calendar rather than placeholder dates.",
+            "Where the final schedule has not yet been published, families are directed to official school updates and contact support.",
         ],
     },
 }
@@ -352,7 +352,7 @@ STANDARD_PAGES = {
         "nav_key": "about",
         "kicker": "About Notre Dame Girls Academy",
         "title": "A girls' secondary school committed to learning, discipline, and moral formation.",
-        "intro": "Notre Dame Girls Academy serves families seeking a calm and well-guided environment where girls grow in knowledge, character, faith, and responsibility.",
+        "intro": "Notre Dame Girls Academy is a Catholic girls' secondary school in Kuje, Abuja, where academic learning, discipline, faith, and student welfare are held together.",
         "hero_image": SITE_IMAGES["campus"],
         "sections": [
             {
@@ -374,7 +374,7 @@ STANDARD_PAGES = {
                 "layout": "cards",
                 "kicker": "Mission, Vision & Values",
                 "title": "The convictions that shape school life",
-                "intro": "The school's identity is expressed in the way it teaches, guides, and serves families.",
+                "intro": "The school's identity is seen in the way students are taught, guided, and cared for each day.",
                 "cards": [
                     {"title": "Mission", "text": "To provide quality education that forms young girls in knowledge, character, faith, and service."},
                     {"title": "Vision", "text": "To raise confident, responsible, and well-educated young women prepared to contribute positively to society."},
@@ -385,7 +385,7 @@ STANDARD_PAGES = {
                 "layout": "people",
                 "kicker": "Leadership",
                 "title": "Leadership that keeps learning and welfare in view",
-                "intro": "Families should be able to see the people and priorities behind the daily life of the school.",
+                "intro": "The school is led with attention to academics, student welfare, and daily order.",
                 "people": [
                     {"name": "School Principal", "role": "Principal", "text": "Provides overall direction for school culture, academics, and community leadership.", "image": SITE_IMAGES["principal"]},
                     {"name": "Vice Principal", "role": "Academic and Student Support", "text": "Supports teaching quality, student follow-up, and the daily academic rhythm of the school.", "image": SITE_IMAGES["campus"]},
@@ -393,13 +393,13 @@ STANDARD_PAGES = {
                 ],
             },
         ],
-        "cta": {"title": "Learn more about school life and admissions.", "links": [{"label": "View School Life", "url_key": "school-life"}, {"label": "Explore Admissions", "url_key": "admissions"}]},
+        "cta": {"title": "See more of school life or move to admissions.", "links": [{"label": "View School Life", "url_key": "school-life"}, {"label": "Explore Admissions", "url_key": "admissions"}]},
     },
     "principal": {
         "nav_key": "about",
         "kicker": "Principal's Welcome",
         "title": "A welcome rooted in discipline, care, faith, and high expectations.",
-        "intro": "The principal's message should reassure parents, guide students, and reflect the tone of the school with honesty and dignity.",
+        "intro": "The Principal's message reflects the tone of the school and the partnership we value with parents and guardians.",
         "hero_image": SITE_IMAGES["principal"],
         "sections": [
             {
@@ -421,11 +421,11 @@ STANDARD_PAGES = {
                 "layout": "cards",
                 "kicker": "School Direction",
                 "title": "What guides the work of the school",
-                "intro": "The principal's message points to the priorities behind daily school life.",
+                "intro": "The Principal's message points to the priorities behind daily school life.",
                 "cards": [
                     {"title": "Learning", "text": "Students are expected to work steadily and take their studies seriously."},
                     {"title": "Character", "text": "Discipline, conduct, and responsibility remain central to student formation."},
-                    {"title": "Leadership", "text": "Girls are guided toward confidence, service, and purposeful growth."},
+                    {"title": "Leadership", "text": "Girls are guided toward service, responsibility, and purposeful growth."},
                 ],
             },
         ],
@@ -455,14 +455,14 @@ STANDARD_PAGES = {
         "nav_key": "about",
         "kicker": "Mission, Vision & Values",
         "title": "The school's purpose is expressed in how it teaches, guides, and serves.",
-        "intro": "Mission and values are not decorative statements. They shape the tone of the school and the expectations placed before students.",
+        "intro": "Mission and values shape the tone of the school and the expectations placed before students.",
         "hero_image": SITE_IMAGES["students"],
         "sections": [
             {
                 "layout": "cards",
                 "kicker": "Core Statements",
                 "title": "The principles that support school life",
-                "intro": "These statements give parents and students a clearer picture of what NDGA is building.",
+                "intro": "These statements give parents and students a clearer picture of the kind of education NDGA offers.",
                 "cards": [
                     {"title": "Mission", "text": "To provide quality education that forms young girls in knowledge, character, faith, and service."},
                     {"title": "Vision", "text": "To raise confident, responsible, and well-educated young women prepared to contribute positively to society."},
@@ -478,7 +478,7 @@ STANDARD_PAGES = {
         "nav_key": "about",
         "kicker": "School Life",
         "title": "Daily school life should feel calm, active, well-guided, and purposeful.",
-        "intro": "The atmosphere of a school matters to families. It shapes how students learn, participate, and carry themselves each day.",
+        "intro": "School life at NDGA brings together study, worship, activities, routine, and pastoral care in one organised environment.",
         "hero_image": SITE_IMAGES["school_life"],
         "sections": [
             {
@@ -487,7 +487,7 @@ STANDARD_PAGES = {
                 "title": "Order and care matter in the ordinary parts of the school day",
                 "text": [
                     "School life includes routines, assemblies, movement between classes, organised activities, and the moments in between lessons.",
-                    "Parents should be able to picture a school environment where girls are guided with care and clear expectations.",
+                    "Girls are guided with care, clear expectations, and a steady sense of order through the school day.",
                 ],
                 "image": SITE_IMAGES["campus"],
                 "bullets": [
@@ -533,7 +533,7 @@ STANDARD_PAGES = {
                 "layout": "cards",
                 "kicker": "Academic Pathways",
                 "title": "The main parts of the academic programme",
-                "intro": "Families should be able to understand the structure of learning at NDGA at a glance.",
+                "intro": "The academic structure at NDGA is clear, practical, and easy for families to follow.",
                 "cards": [
                     {"title": "Junior Secondary", "text": "Building strong foundations in literacy, numeracy, sciences, and study habits.", "url_key": "junior-secondary"},
                     {"title": "Senior Secondary", "text": "Preparing students for focused subject study, exam readiness, and responsible leadership.", "url_key": "senior-secondary"},
@@ -548,7 +548,7 @@ STANDARD_PAGES = {
         "nav_key": "academics",
         "kicker": "Junior Secondary",
         "title": "Junior secondary helps students build strong habits for deeper academic growth.",
-        "intro": "At this level, students strengthen core skills, improve classroom discipline, and develop the confidence needed for more advanced study.",
+        "intro": "At this level, students strengthen core skills, improve classroom discipline, and prepare for more advanced study.",
         "hero_image": SITE_IMAGES["students"],
         "sections": [
             {
@@ -619,7 +619,7 @@ STANDARD_PAGES = {
     "ict-digital-learning": {
         "nav_key": "academics",
         "kicker": "ICT & Digital Learning",
-        "title": "Students should learn to use technology carefully, confidently, and responsibly.",
+        "title": "Students learn to use technology carefully, responsibly, and with skill.",
         "intro": "Digital learning at NDGA is meant to support classroom education, research habits, and practical readiness.",
         "hero_image": SITE_IMAGES["students"],
         "sections": [
@@ -629,11 +629,11 @@ STANDARD_PAGES = {
                 "title": "Technology used to support real learning",
                 "text": [
                     "ICT learning should help students work more carefully, not more casually.",
-                    "The aim is practical familiarity, responsible use, and steady confidence with essential digital tools.",
+                    "The aim is practical familiarity, responsible use, and steady competence with essential digital tools.",
                 ],
                 "image": SITE_IMAGES["students"],
                 "bullets": [
-                    "Basic computer literacy and digital confidence",
+                    "Basic computer literacy and digital skill",
                     "Research support tied to classroom learning",
                     "Responsible use of technology within a supervised environment",
                 ],
@@ -644,7 +644,7 @@ STANDARD_PAGES = {
         "nav_key": "academics",
         "kicker": "Clubs & Co-curriculars",
         "title": "Growth outside the classroom matters too.",
-        "intro": "Clubs, music, arts, sports, and student activities give girls more room to build confidence, creativity, and teamwork.",
+        "intro": "Clubs, music, arts, sports, and student activities widen school life beyond the classroom.",
         "hero_image": SITE_IMAGES["school_life"],
         "sections": [
             {
@@ -665,7 +665,7 @@ STANDARD_PAGES = {
         "nav_key": "admissions",
         "kicker": "Admissions",
         "title": "Begin your child's journey at Notre Dame Girls Academy through a clear and guided admission process.",
-        "intro": "Parents and guardians should be able to understand the process, required information, and next steps without confusion.",
+        "intro": "Parents and guardians can begin the application process, review the required information, and follow the next steps with clarity.",
         "hero_image": SITE_IMAGES["hero"],
         "sections": [
             {
@@ -674,7 +674,7 @@ STANDARD_PAGES = {
                 "title": "A disciplined school environment with strong academic support and moral formation",
                 "text": [
                     "Notre Dame Girls Academy offers a school culture that supports learning, responsibility, and steady personal growth.",
-                    "Families looking for clarity should find the admissions pathway straightforward from first enquiry to review.",
+                    "The admissions pathway is designed to be clear from first enquiry to school review.",
                 ],
                 "image": SITE_IMAGES["campus"],
                 "bullets": [
@@ -710,13 +710,13 @@ STANDARD_PAGES = {
                 ],
             },
         ],
-        "cta": {"title": "Start registration or review the fee guidance.", "links": [{"label": "Start Registration", "url_key": "registration"}, {"label": "View Fees", "url_key": "fees"}, {"label": "View Hostel Information", "url_key": "hostel"}, {"label": "School Portal", "url_key": "portal"}]},
+        "cta": {"title": "Start registration, review fees, or read the hostel guidance.", "links": [{"label": "Start Registration", "url_key": "registration"}, {"label": "View Fees", "url_key": "fees"}, {"label": "View Hostel Information", "url_key": "hostel"}, {"label": "School Portal", "url_key": "portal"}]},
     },
     "how-to-apply": {
         "nav_key": "admissions",
         "kicker": "How to Apply",
-        "title": "Families should know what to prepare before beginning registration.",
-        "intro": "This page brings the admissions steps together in one place so the application process feels organised and manageable.",
+        "title": "What to prepare before beginning registration.",
+        "intro": "This page brings the admission steps together in one place so families can prepare calmly and submit the right information.",
         "hero_image": SITE_IMAGES["students"],
         "sections": [
             {
@@ -736,7 +736,7 @@ STANDARD_PAGES = {
                 "layout": "cards",
                 "kicker": "Required Information",
                 "title": "Details families should have ready",
-                "intro": "Having the right information ready makes registration easier.",
+                "intro": "Having the right information ready makes registration smoother.",
                 "cards": [
                     {"title": "Applicant details", "text": "Full name, date of birth, intended class, and previous school details."},
                     {"title": "Parent or guardian details", "text": "Name, email, phone number, and residential address."},
@@ -748,8 +748,8 @@ STANDARD_PAGES = {
     "screening": {
         "nav_key": "admissions",
         "kicker": "Entrance Exam / Screening",
-        "title": "Screening guidance should come from the school when the actual schedule is ready.",
-        "intro": "The website should help families understand the process without inventing dates that have not yet been released.",
+        "title": "Screening guidance is shared by the school when the schedule is ready.",
+        "intro": "This page explains how screening fits into the admission process without displaying dates that have not yet been released.",
         "hero_image": SITE_IMAGES["campus"],
         "sections": [
             {
@@ -757,8 +757,8 @@ STANDARD_PAGES = {
                 "kicker": "How Screening Works",
                 "title": "Registration comes first, scheduling follows review",
                 "text": [
-                    "Applicants should complete registration and follow the school's instructions on the next step for screening or entrance assessment.",
-                    "Where dates are not yet published, families should contact the school rather than rely on placeholder notices.",
+                    "Applicants complete registration first and then follow the school's instructions on the next step for screening or entrance assessment.",
+                    "Where dates are not yet published, families can contact the school for guidance.",
                 ],
                 "image": SITE_IMAGES["students"],
                 "bullets": [
@@ -773,7 +773,7 @@ STANDARD_PAGES = {
         "nav_key": "admissions",
         "kicker": "Admission FAQs",
         "title": "Clear answers help families move through admissions with less uncertainty.",
-        "intro": "These answers stay within what the website can honestly say without inventing school policy or unpublished schedules.",
+        "intro": "These answers reflect the information the school can publish clearly without inventing policy or unpublished schedules.",
         "hero_image": SITE_IMAGES["hero"],
         "sections": [
             {
@@ -785,7 +785,7 @@ STANDARD_PAGES = {
                     {"question": "Can we apply for boarding?", "answer": "Yes. Families can indicate day or boarding interest during registration and review the hostel information page before submission."},
                     {"question": "Are screening dates shown on the website?", "answer": "Only when the school has released them. If no date is shown, use the contact page for guidance."},
                     {"question": "Does registration immediately activate portal access?", "answer": "No. Public registration starts the admissions process. Portal activation follows school review and approval where applicable."},
-                    {"question": "Where do we see current fee information?", "answer": "The fees page explains the charge areas families should expect. The school's current schedule remains the authoritative source for exact amounts."},
+                    {"question": "Where do we see current fee information?", "answer": "The fees page explains the charge areas families should expect. The school's current fee schedule remains the authoritative source for exact amounts."},
                 ],
             },
         ],
@@ -794,13 +794,13 @@ STANDARD_PAGES = {
         "nav_key": "admissions",
         "kicker": "Fees & Charges",
         "title": "Review tuition, boarding, and other school charges clearly before beginning the admission process.",
-        "intro": "The public site should help families understand the structure of school charges without displaying invented or outdated amounts.",
+        "intro": "This page explains how tuition, boarding, registration, and other school charges are arranged before families begin admission.",
         "hero_image": SITE_IMAGES["campus"],
         "sections": [
             {
                 "layout": "table",
                 "kicker": "Fee Structure",
-                "title": "Charge areas families should expect",
+                "title": "Charge areas to review before application",
                 "columns": ["Charge Area", "What it may cover", "Current amount"],
                 "rows": [
                     ["Tuition / School Fees", "Classroom teaching, school operations, and core school services", "Shared through the current school fee schedule"],
@@ -808,16 +808,16 @@ STANDARD_PAGES = {
                     ["Registration / Application", "Admissions processing and related first-step costs where applicable", "Shared through admissions guidance"],
                     ["Examination / Activity Charges", "Specific assessments or approved school charges where applicable", "Shared when relevant"],
                 ],
-                "note": "Exact figures should come from the school's active fee schedule so families do not rely on outdated numbers.",
+                "note": "Exact figures come from the school's active fee schedule so families do not rely on outdated information.",
             },
             {
                 "layout": "cards",
                 "kicker": "Payment Information",
                 "title": "How payment guidance is communicated",
-                "intro": "Families should be guided clearly before making payment.",
+                "intro": "Payment guidance is provided clearly before any transfer is made.",
                 "cards": [
                     {"title": "During admissions", "text": "Payment guidance is provided during registration review and follow-up."},
-                    {"title": "Before transfer", "text": "Families should confirm the current schedule and approved payment details with the school."},
+                    {"title": "Before transfer", "text": "Confirm the current schedule and approved payment details with the school office."},
                     {"title": "Portal continuation", "text": "Where the portal is part of the next step, access follows school review and activation."},
                 ],
             },
@@ -827,7 +827,7 @@ STANDARD_PAGES = {
         "nav_key": "admissions",
         "kicker": "Hostel & Boarding",
         "title": "Our boarding environment is designed to support study, discipline, care, and daily routine in a safe and supervised setting.",
-        "intro": "Families considering boarding should be able to understand the environment, welfare expectations, and how hostel life supports learning.",
+        "intro": "Families considering boarding can review the environment, welfare expectations, and how hostel life supports study and personal growth.",
         "hero_image": SITE_IMAGES["campus"],
         "sections": [
             {
@@ -836,7 +836,7 @@ STANDARD_PAGES = {
                 "title": "A boarding environment shaped by routine, care, and responsibility",
                 "text": [
                     "Boarding students are supported through structured supervision, daily routines, and an environment that encourages learning and personal responsibility.",
-                    "Hostel life should feel organised, calm, and clearly guided.",
+                    "Hostel life is organised, calm, and clearly guided.",
                 ],
                 "image": SITE_IMAGES["campus"],
                 "bullets": [
@@ -952,7 +952,7 @@ def _safe_school_profile():
             school_name="Notre Dame Girls Academy",
             address="Kuje, Abuja",
             contact_email="office@ndgakuje.org",
-            contact_phone="",
+            contact_phone="+234 816 711 1734",
             principal_name="The Principal",
         )
 
@@ -1022,7 +1022,7 @@ class PublicWebsiteBaseView(TemplateView):
                 "public_portal_url": self.page_url("portal"),
                 "apply_now_url": self.page_url("registration"),
                 "contact_email": school_profile.contact_email or "office@ndgakuje.org",
-                "contact_phone": school_profile.contact_phone or "Admissions follow-up available by request",
+                "contact_phone": school_profile.contact_phone or "+234 816 711 1734",
                 "school_address": school_profile.address or "Kuje, Abuja",
                 "school_name": school_profile.school_name or "Notre Dame Girls Academy",
                 "principal_name": school_profile.principal_name or "The Principal",
@@ -1068,6 +1068,11 @@ class PublicHomeView(PublicWebsiteBaseView):
             "text": "We provide a disciplined and supportive environment where girls grow in knowledge, character, faith, and confidence.",
             "image": SITE_IMAGES["hero"],
         }
+        context["hero_points"] = [
+            {"label": "School Type", "value": "Catholic girls' secondary school"},
+            {"label": "Learning Stages", "value": "Junior and Senior Secondary"},
+            {"label": "Boarding", "value": "Day and boarding options"},
+        ]
         context["about_preview"] = {
             "title": "An education rooted in learning, character, and care",
             "text": "Notre Dame Girls Academy is committed to the education of the girl child through sound academics, moral formation, and a safe school environment that helps every student grow and succeed.",
@@ -1084,9 +1089,9 @@ class PublicHomeView(PublicWebsiteBaseView):
         }
         context["academic_preview"] = [
             {"title": "Junior Secondary", "text": "Building strong foundations in literacy, numeracy, science, and responsible study habits.", "url": self.page_url("junior-secondary")},
-            {"title": "Senior Secondary", "text": "Preparing students for academic excellence, leadership, and life beyond school.", "url": self.page_url("senior-secondary")},
+            {"title": "Senior Secondary", "text": "Preparing students for examinations, leadership, and life beyond school.", "url": self.page_url("senior-secondary")},
             {"title": "ICT & Digital Learning", "text": "Helping students grow in digital skills, research, and responsible use of technology.", "url": self.page_url("ict-digital-learning")},
-            {"title": "Clubs & Co-curriculars", "text": "Encouraging creativity, teamwork, confidence, and student participation through school activities.", "url": self.page_url("clubs-co-curriculars")},
+            {"title": "Clubs & Co-curriculars", "text": "Encouraging creativity, teamwork, and student participation through school activities.", "url": self.page_url("clubs-co-curriculars")},
         ]
         context["admissions_steps"] = [
             "Register online",
@@ -1094,6 +1099,23 @@ class PublicHomeView(PublicWebsiteBaseView):
             "Review fees and payment guidance",
             "Receive screening or exam schedule",
             "Await review and admission decision",
+        ]
+        context["fees_preview"] = [
+            {
+                "title": "Fees & Charges",
+                "text": "Review tuition, registration, boarding, and other approved charge areas before starting the process.",
+                "url": self.page_url("fees"),
+            },
+            {
+                "title": "Hostel & Boarding",
+                "text": "Read about supervision, student welfare, study routine, and boarding expectations.",
+                "url": self.page_url("hostel"),
+            },
+            {
+                "title": "How to Apply",
+                "text": "See the steps, documents, and class-level guidance before you submit registration.",
+                "url": self.page_url("how-to-apply"),
+            },
         ]
         context["facility_preview"] = [{**item, "url": self.facility_url(item["slug"])} for item in FACILITY_ITEMS.values()]
         context["gallery_preview"] = [{**item, "url": self.gallery_category_url(item["slug"])} for item in list(GALLERY_CATEGORY_ITEMS.values())[:6]]
@@ -1212,7 +1234,7 @@ class PublicNewsView(PublicWebsiteBaseView):
         context["page"] = {
             "kicker": "News",
             "title": "Updates, announcements, achievements, and stories from school life.",
-            "intro": "News content on the public site should stay useful, clear, and tied to what the school is ready to share.",
+            "intro": "News on the public site stays clear, useful, and limited to what the school is ready to share.",
             "hero_image": SITE_IMAGES["campus"],
         }
         context["featured_story"] = items[0] if items else None
@@ -1253,7 +1275,7 @@ class PublicEventsView(PublicWebsiteBaseView):
         context["page"] = {
             "kicker": "Events",
             "title": "School activities, important dates, ceremonies, competitions, and student events.",
-            "intro": "Where specific dates are not yet published, the site says so clearly instead of displaying placeholders as fact.",
+            "intro": "Where specific dates are not yet published, the school says so clearly instead of displaying placeholders as fact.",
             "hero_image": SITE_IMAGES["hero"],
         }
         context["featured_event"] = items[0] if items else None
@@ -1319,6 +1341,13 @@ class PublicContactView(PublicWebsiteBaseView, FormView):
             {"title": "Address", "value": context["school_address"]},
             {"title": "Admissions Office", "value": "Use admissions enquiry for registration, screening, fees, or hostel guidance."},
         ]
+        context["contact_prompts"] = [
+            "Ask about admissions",
+            "Ask about fees",
+            "Ask about exam dates",
+            "Ask about hostel",
+            "Ask about portal help",
+        ]
         return context
 
 
@@ -1355,9 +1384,14 @@ class PublicRegistrationView(PublicWebsiteBaseView, FormView):
         context["page"] = {
             "kicker": "Online Registration",
             "title": "Complete the application form to begin the admission process.",
-            "intro": "Parents and guardians can register applicants online by completing the required details, selecting the intended class, and following the next steps for school guidance.",
+            "intro": "Parents and guardians can register applicants online, select the intended class, indicate day or boarding preference, and follow the next steps from the admissions office.",
             "hero_image": SITE_IMAGES["students"],
         }
+        context["registration_highlights"] = [
+            {"title": "Who can apply", "text": "Applications are accepted for junior and senior secondary entry, with transfer classes subject to school policy and available space."},
+            {"title": "Boarding or day", "text": "Families can indicate either day or boarding during registration so the admissions office can guide the next step."},
+            {"title": "After submission", "text": "The admissions team reviews the form, confirms the next payment or screening step, and follows up directly."},
+        ]
         context["required_documents"] = [
             "Passport photograph",
             "Birth certificate",

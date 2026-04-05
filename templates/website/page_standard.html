@@ -3,14 +3,16 @@
 {% block public_content %}
   <main>
     <section class="page-hero reveal">
-      <div class="site-shell page-hero-inner">
-        <div class="section-copy">
-          <p class="site-kicker">{{ page.kicker }}</p>
-          <h1>{{ page.title }}</h1>
-          <p>{{ page.intro }}</p>
-        </div>
-        <div class="page-hero-image">
-          <img src="{{ page.hero_image }}" alt="{{ page.title }}">
+      <div class="site-shell">
+        <div class="page-hero-panel">
+          <div class="page-hero-copy">
+            <p class="site-kicker">{{ page.kicker }}</p>
+            <h1>{{ page.title }}</h1>
+            <p>{{ page.intro }}</p>
+          </div>
+          <div class="page-hero-frame">
+            <img src="{{ page.hero_image }}" alt="{{ page.title }}">
+          </div>
         </div>
       </div>
     </section>
@@ -19,8 +21,8 @@
       <section class="site-section reveal">
         <div class="site-shell">
           {% if section.layout == "split" %}
-            <div class="split-panel{% if section.reverse %} split-panel-reverse{% endif %}">
-              <div class="section-copy">
+            <div class="editorial-split{% if section.reverse %} editorial-split-reverse{% endif %}">
+              <div class="editorial-copy">
                 <p class="site-kicker">{{ section.kicker }}</p>
                 <h2>{{ section.title }}</h2>
                 {% for paragraph in section.text %}
@@ -34,19 +36,20 @@
                   </ul>
                 {% endif %}
               </div>
-              <div class="split-image">
+              <div class="editorial-image">
                 <img src="{{ section.image }}" alt="{{ section.title }}">
               </div>
             </div>
           {% elif section.layout == "cards" %}
-            <div class="section-heading">
+            <div class="section-heading section-heading-left">
               <p class="site-kicker">{{ section.kicker }}</p>
               <h2>{{ section.title }}</h2>
               {% if section.intro %}<p>{{ section.intro }}</p>{% endif %}
             </div>
-            <div class="card-grid card-grid-3">
+            <div class="feature-grid feature-grid-3">
               {% for card in section.cards %}
-                <article class="site-card">
+                <article class="feature-card">
+                  <div class="feature-card-topline"></div>
                   <h3>{{ card.title }}</h3>
                   <p>{{ card.text }}</p>
                   {% if card.url %}
@@ -56,16 +59,18 @@
               {% endfor %}
             </div>
           {% elif section.layout == "people" %}
-            <div class="section-heading">
+            <div class="section-heading section-heading-left">
               <p class="site-kicker">{{ section.kicker }}</p>
               <h2>{{ section.title }}</h2>
               <p>{{ section.intro }}</p>
             </div>
-            <div class="card-grid card-grid-3">
+            <div class="feature-grid feature-grid-3">
               {% for person in section.people %}
-                <article class="site-card site-card-media">
-                  <img src="{{ person.image }}" alt="{{ person.name }}">
-                  <div>
+                <article class="media-card">
+                  <div class="media-card-image portrait-frame">
+                    <img src="{{ person.image }}" alt="{{ person.name }}">
+                  </div>
+                  <div class="media-card-body">
                     <p class="story-meta">{{ person.role }}</p>
                     <h3>{{ person.name }}</h3>
                     <p>{{ person.text }}</p>
@@ -74,17 +79,17 @@
               {% endfor %}
             </div>
           {% elif section.layout == "process" %}
-            <div class="section-heading">
+            <div class="section-heading section-heading-left">
               <p class="site-kicker">{{ section.kicker }}</p>
               <h2>{{ section.title }}</h2>
             </div>
-            <ol class="process-list process-list-wide">
+            <ol class="process-rail">
               {% for item in section.steps %}
-                <li>{{ item }}</li>
+                <li class="process-step">{{ item }}</li>
               {% endfor %}
             </ol>
           {% elif section.layout == "faq" %}
-            <div class="section-heading">
+            <div class="section-heading section-heading-left">
               <p class="site-kicker">{{ section.kicker }}</p>
               <h2>{{ section.title }}</h2>
             </div>
@@ -97,7 +102,7 @@
               {% endfor %}
             </div>
           {% elif section.layout == "table" %}
-            <div class="section-heading">
+            <div class="section-heading section-heading-left">
               <p class="site-kicker">{{ section.kicker }}</p>
               <h2>{{ section.title }}</h2>
             </div>
@@ -130,16 +135,18 @@
     {% endfor %}
 
     {% if page.cta %}
-      <section class="site-section site-section-muted reveal">
-        <div class="site-shell callout-panel">
-          <div>
-            <p class="site-kicker">Next Step</p>
-            <h2>{{ page.cta.title }}</h2>
-          </div>
-          <div class="site-inline-actions">
-            {% for link in page.cta.links %}
-              <a href="{{ link.url }}" class="site-btn{% if forloop.first %} site-btn-gold{% else %} site-btn-outline{% endif %}">{{ link.label }}</a>
-            {% endfor %}
+      <section class="site-section reveal">
+        <div class="site-shell">
+          <div class="callout-panel callout-panel-dark">
+            <div>
+              <p class="site-kicker">Next Step</p>
+              <h2>{{ page.cta.title }}</h2>
+            </div>
+            <div class="site-inline-actions">
+              {% for link in page.cta.links %}
+                <a href="{{ link.url }}" class="site-btn{% if forloop.first %} site-btn-gold{% else %} site-btn-outline-light{% endif %}">{{ link.label }}</a>
+              {% endfor %}
+            </div>
           </div>
         </div>
       </section>

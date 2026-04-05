@@ -19,126 +19,138 @@
 {% block content %}
   <div class="public-site">
     <header class="site-header" id="siteHeader">
-      <div class="site-shell site-header-inner">
-        <a href="{{ public_root_url }}" class="site-brand" aria-label="Notre Dame Girls Academy home">
+      <div class="site-shell">
+        <div class="site-header-panel">
+          <a href="{{ public_root_url }}" class="site-brand" aria-label="Notre Dame Girls Academy home">
+            <img src="{% static 'images/ndga/logo.png' %}" alt="Notre Dame Girls Academy logo">
+            <div>
+              <span class="site-brand-name">Notre Dame Girls Academy</span>
+              <span class="site-brand-subtitle">Kuje, Abuja</span>
+            </div>
+          </a>
+
+          <nav class="site-nav-desktop" aria-label="Main navigation">
+            <a href="{{ public_root_url }}"{% if not nav_about_active and not nav_academics_active and not nav_admissions_active and not nav_facilities_active and not nav_gallery_active and not nav_news_events_active and not nav_contact_active %} class="is-active"{% endif %}>Home</a>
+
+            <div class="site-nav-item{% if nav_about_active %} is-active{% endif %}">
+              <a href="{{ public_root_url }}about/">About</a>
+              <div class="site-dropdown">
+                <a href="{{ public_root_url }}about/">About NDGA</a>
+                <a href="{{ public_root_url }}principal/">Principal's Welcome</a>
+                <a href="{{ public_root_url }}about/leadership/">Leadership</a>
+                <a href="{{ public_root_url }}about/mission-vision-values/">Mission, Vision & Values</a>
+                <a href="{{ public_root_url }}about/school-life/">School Life</a>
+                <a href="{{ public_root_url }}about/faith-character-formation/">Faith & Character Formation</a>
+              </div>
+            </div>
+
+            <div class="site-nav-item{% if nav_academics_active %} is-active{% endif %}">
+              <a href="{{ public_root_url }}academics/">Academics</a>
+              <div class="site-mega-menu">
+                <div class="site-mega-column">
+                  <p class="site-mega-label">Overview</p>
+                  <a href="{{ public_root_url }}academics/">Academics Overview</a>
+                  <a href="{{ public_root_url }}academics/junior-secondary/">Junior Secondary</a>
+                  <a href="{{ public_root_url }}academics/senior-secondary/">Senior Secondary</a>
+                </div>
+                <div class="site-mega-column">
+                  <p class="site-mega-label">Programmes</p>
+                  <a href="{{ public_root_url }}academics/subjects-curriculum/">Subjects & Curriculum</a>
+                  <a href="{{ public_root_url }}academics/ict-digital-learning/">ICT & Digital Learning</a>
+                  <a href="{{ public_root_url }}academics/clubs-co-curriculars/">Clubs, Music & Sports</a>
+                </div>
+                <div class="site-mega-feature">
+                  <img src="{% static 'images/ndga/hero-alt-3.jpg' %}" alt="Students at Notre Dame Girls Academy">
+                  <div>
+                    <p class="site-kicker">Academics</p>
+                    <h3>Structured learning for junior and senior secondary girls.</h3>
+                    <p>Explore the curriculum, classroom focus, ICT learning, and school life beyond lessons.</p>
+                    <a href="{{ public_root_url }}academics/" class="site-text-link">Explore Academics</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="site-nav-item{% if nav_admissions_active %} is-active{% endif %}">
+              <a href="{{ public_root_url }}admissions/">Admissions</a>
+              <div class="site-mega-menu">
+                <div class="site-mega-column">
+                  <p class="site-mega-label">Admissions</p>
+                  <a href="{{ public_root_url }}admissions/">Admissions Overview</a>
+                  <a href="{{ public_root_url }}admissions/how-to-apply/">How to Apply</a>
+                  <a href="{{ public_root_url }}admissions/registration/">Online Registration</a>
+                  <a href="{{ public_root_url }}admissions/screening/">Entrance Exam / Screening</a>
+                </div>
+                <div class="site-mega-column">
+                  <p class="site-mega-label">Support</p>
+                  <a href="{{ public_root_url }}fees/">Fees & Charges</a>
+                  <a href="{{ public_root_url }}admissions/hostel-boarding/">Hostel / Boarding</a>
+                  <a href="{{ public_root_url }}admissions/faqs/">Admission FAQs</a>
+                  <a href="{{ public_root_url }}contact/">Admissions Contact</a>
+                </div>
+                <div class="site-mega-feature">
+                  <img src="{% static 'images/ndga/hero-alt-1.jpg' %}" alt="Notre Dame Girls Academy campus">
+                  <div>
+                    <p class="site-kicker">Admissions</p>
+                    <h3>Apply online, review fees, and follow the next step with the school.</h3>
+                    <p>Registration sits inside the admission flow, while the school portal remains a secondary service for approved accounts.</p>
+                    <div class="site-inline-actions">
+                      <a href="{{ apply_now_url }}" class="site-btn site-btn-gold">Start Registration</a>
+                      <a href="{{ public_portal_url }}" class="site-btn site-btn-outline">School Portal</a>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <a href="{{ public_root_url }}fees/"{% if nav_admissions_active and page.kicker == "Fees & Charges" %} class="is-active"{% endif %}>Fees</a>
+            <a href="{{ public_root_url }}facilities/"{% if nav_facilities_active %} class="is-active"{% endif %}>Facilities</a>
+
+            <div class="site-nav-item{% if nav_gallery_active %} is-active{% endif %}">
+              <a href="{{ public_root_url }}gallery/">Gallery</a>
+              <div class="site-dropdown">
+                <a href="{{ public_root_url }}gallery/academics/">Academics</a>
+                <a href="{{ public_root_url }}gallery/ict-science/">ICT & Science</a>
+                <a href="{{ public_root_url }}gallery/sports/">Sports</a>
+                <a href="{{ public_root_url }}gallery/music-arts/">Music & Arts</a>
+                <a href="{{ public_root_url }}gallery/clubs/">Clubs & Leadership</a>
+                <a href="{{ public_root_url }}gallery/events-ceremonies/">Events & Ceremonies</a>
+                <a href="{{ public_root_url }}gallery/campus-facilities/">Campus & Facilities</a>
+              </div>
+            </div>
+
+            <div class="site-nav-item{% if nav_news_events_active %} is-active{% endif %}">
+              <a href="{{ public_root_url }}news/">News & Events</a>
+              <div class="site-dropdown">
+                <a href="{{ public_root_url }}news/">Latest News</a>
+                <a href="{{ public_root_url }}events/">Events</a>
+              </div>
+            </div>
+
+            <a href="{{ public_root_url }}contact/"{% if nav_contact_active %} class="is-active"{% endif %}>Contact</a>
+          </nav>
+
+          <div class="site-header-actions">
+            <a href="{{ apply_now_url }}" class="site-btn site-btn-gold">Apply Now</a>
+            <a href="{{ public_portal_url }}" class="site-btn site-btn-outline">School Portal</a>
+          </div>
+
+          <button type="button" class="site-mobile-toggle" id="siteMobileToggle" aria-expanded="false" aria-controls="siteMobileDrawer">
+            Menu
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <aside class="site-mobile-drawer" id="siteMobileDrawer" aria-hidden="true">
+      <div class="site-mobile-head">
+        <a href="{{ public_root_url }}" class="site-brand site-brand-compact" aria-label="Notre Dame Girls Academy home">
           <img src="{% static 'images/ndga/logo.png' %}" alt="Notre Dame Girls Academy logo">
           <div>
             <span class="site-brand-name">Notre Dame Girls Academy</span>
             <span class="site-brand-subtitle">Kuje, Abuja</span>
           </div>
         </a>
-
-        <nav class="site-nav-desktop" aria-label="Main navigation">
-          <a href="{{ public_root_url }}">Home</a>
-
-          <div class="site-nav-item{% if nav_about_active %} is-active{% endif %}">
-            <a href="{{ public_root_url }}about/">About</a>
-            <div class="site-dropdown">
-              <a href="{{ public_root_url }}about/">About NDGA</a>
-              <a href="{{ public_root_url }}principal/">Principal's Welcome</a>
-              <a href="{{ public_root_url }}about/leadership/">Leadership</a>
-              <a href="{{ public_root_url }}about/mission-vision-values/">Mission, Vision & Values</a>
-              <a href="{{ public_root_url }}about/school-life/">School Life</a>
-              <a href="{{ public_root_url }}about/faith-character-formation/">Faith & Character Formation</a>
-            </div>
-          </div>
-
-          <div class="site-nav-item{% if nav_academics_active %} is-active{% endif %}">
-            <a href="{{ public_root_url }}academics/">Academics</a>
-            <div class="site-mega-menu">
-              <div class="site-mega-column">
-                <a href="{{ public_root_url }}academics/">Academics Overview</a>
-                <a href="{{ public_root_url }}academics/junior-secondary/">Junior Secondary</a>
-                <a href="{{ public_root_url }}academics/senior-secondary/">Senior Secondary</a>
-              </div>
-              <div class="site-mega-column">
-                <a href="{{ public_root_url }}academics/subjects-curriculum/">Subjects & Curriculum</a>
-                <a href="{{ public_root_url }}academics/ict-digital-learning/">ICT & Digital Learning</a>
-                <a href="{{ public_root_url }}academics/clubs-co-curriculars/">Clubs & Co-curriculars</a>
-              </div>
-              <div class="site-mega-feature">
-                <p class="site-kicker">Academics</p>
-                <h3>Clear learning pathways for junior and senior secondary students.</h3>
-                <p>Explore the curriculum, digital learning, and the wider academic life of the school.</p>
-                <a href="{{ public_root_url }}academics/" class="site-text-link">Explore Academics</a>
-              </div>
-            </div>
-          </div>
-
-          <div class="site-nav-item{% if nav_admissions_active %} is-active{% endif %}">
-            <a href="{{ public_root_url }}admissions/">Admissions</a>
-            <div class="site-mega-menu">
-              <div class="site-mega-column">
-                <a href="{{ public_root_url }}admissions/">Admissions Overview</a>
-                <a href="{{ public_root_url }}admissions/how-to-apply/">How to Apply</a>
-                <a href="{{ public_root_url }}admissions/registration/">Online Registration</a>
-                <a href="{{ public_root_url }}admissions/screening/">Entrance Exam / Screening</a>
-              </div>
-              <div class="site-mega-column">
-                <a href="{{ public_root_url }}fees/">Fees & Charges</a>
-                <a href="{{ public_root_url }}admissions/hostel-boarding/">Hostel / Boarding</a>
-                <a href="{{ public_root_url }}admissions/faqs/">Admission FAQs</a>
-                <a href="{{ public_root_url }}contact/">Admissions Contact</a>
-              </div>
-              <div class="site-mega-feature">
-                <p class="site-kicker">Admissions</p>
-                <h3>A clearer path from first enquiry to registration.</h3>
-                <p>Use the admissions pages to understand class levels, documents, fees guidance, and the next step after registration.</p>
-                <div class="site-inline-actions">
-                  <a href="{{ apply_now_url }}" class="site-btn site-btn-gold">Start Registration</a>
-                  <a href="{{ public_portal_url }}" class="site-btn site-btn-outline">School Portal</a>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <a href="{{ public_root_url }}fees/"{% if nav_admissions_active %} class="is-active"{% endif %}>Fees</a>
-          <a href="{{ public_root_url }}facilities/"{% if nav_facilities_active %} class="is-active"{% endif %}>Facilities</a>
-
-          <div class="site-nav-item{% if nav_gallery_active %} is-active{% endif %}">
-            <a href="{{ public_root_url }}gallery/">Gallery</a>
-            <div class="site-dropdown">
-              <a href="{{ public_root_url }}gallery/academics/">Academics</a>
-              <a href="{{ public_root_url }}gallery/ict-science/">ICT & Science</a>
-              <a href="{{ public_root_url }}gallery/sports/">Sports</a>
-              <a href="{{ public_root_url }}gallery/music-arts/">Music & Arts</a>
-              <a href="{{ public_root_url }}gallery/clubs/">Clubs</a>
-              <a href="{{ public_root_url }}gallery/events-ceremonies/">Events & Ceremonies</a>
-              <a href="{{ public_root_url }}gallery/campus-facilities/">Campus & Facilities</a>
-            </div>
-          </div>
-
-          <div class="site-nav-item{% if nav_news_events_active %} is-active{% endif %}">
-            <a href="{{ public_root_url }}news/">News & Events</a>
-            <div class="site-dropdown">
-              <a href="{{ public_root_url }}news/">Latest News</a>
-              <a href="{{ public_root_url }}events/">Events</a>
-            </div>
-          </div>
-
-          <a href="{{ public_root_url }}contact/"{% if nav_contact_active %} class="is-active"{% endif %}>Contact</a>
-        </nav>
-
-        <div class="site-header-actions">
-          <a href="{{ apply_now_url }}" class="site-btn site-btn-gold">Apply Now</a>
-          <a href="{{ public_portal_url }}" class="site-btn site-btn-outline">School Portal</a>
-        </div>
-
-        <button type="button" class="site-mobile-toggle" id="siteMobileToggle" aria-expanded="false" aria-controls="siteMobileDrawer">
-          Menu
-        </button>
-      </div>
-    </header>
-
-    <aside class="site-mobile-drawer" id="siteMobileDrawer" aria-hidden="true">
-      <div class="site-mobile-head">
-        <div class="site-brand site-brand-compact">
-          <img src="{% static 'images/ndga/logo.png' %}" alt="Notre Dame Girls Academy logo">
-          <div>
-            <span class="site-brand-name">Notre Dame Girls Academy</span>
-            <span class="site-brand-subtitle">Kuje, Abuja</span>
-          </div>
-        </div>
         <button type="button" class="site-mobile-close" id="siteMobileClose">Close</button>
       </div>
 
@@ -168,7 +180,7 @@
             <a href="{{ public_root_url }}academics/senior-secondary/">Senior Secondary</a>
             <a href="{{ public_root_url }}academics/subjects-curriculum/">Subjects & Curriculum</a>
             <a href="{{ public_root_url }}academics/ict-digital-learning/">ICT & Digital Learning</a>
-            <a href="{{ public_root_url }}academics/clubs-co-curriculars/">Clubs & Co-curriculars</a>
+            <a href="{{ public_root_url }}academics/clubs-co-curriculars/">Clubs, Music & Sports</a>
           </div>
         </details>
         <details{% if nav_admissions_active %} open{% endif %}>
@@ -188,17 +200,18 @@
         <details{% if nav_gallery_active %} open{% endif %}>
           <summary>Gallery</summary>
           <div class="site-mobile-subnav">
-            <a href="{{ public_root_url }}gallery/">All Gallery</a>
+            <a href="{{ public_root_url }}gallery/">View Gallery</a>
             <a href="{{ public_root_url }}gallery/academics/">Academics</a>
             <a href="{{ public_root_url }}gallery/ict-science/">ICT & Science</a>
             <a href="{{ public_root_url }}gallery/sports/">Sports</a>
             <a href="{{ public_root_url }}gallery/music-arts/">Music & Arts</a>
+            <a href="{{ public_root_url }}gallery/events-ceremonies/">Events & Ceremonies</a>
           </div>
         </details>
         <details{% if nav_news_events_active %} open{% endif %}>
           <summary>News & Events</summary>
           <div class="site-mobile-subnav">
-            <a href="{{ public_root_url }}news/">News</a>
+            <a href="{{ public_root_url }}news/">Latest News</a>
             <a href="{{ public_root_url }}events/">Events</a>
           </div>
         </details>
@@ -221,51 +234,65 @@
     {% block public_content %}{% endblock %}
 
     <footer class="site-footer">
-      <div class="site-shell site-footer-grid">
-        <div>
-          <div class="site-footer-brand">
-            <img src="{% static 'images/ndga/logo.png' %}" alt="Notre Dame Girls Academy logo">
-            <div>
-              <p class="site-footer-title">Notre Dame Girls Academy</p>
-              <p class="site-footer-copy">A disciplined and supportive learning community for girls in Kuje, Abuja.</p>
+      <div class="site-shell">
+        <div class="site-footer-callout">
+          <div>
+            <p class="site-kicker">Admissions Support</p>
+            <h2>Need help with fees, boarding, or registration?</h2>
+          </div>
+          <div class="site-inline-actions">
+            <a href="{{ apply_now_url }}" class="site-btn site-btn-gold">Apply Now</a>
+            <a href="{{ public_root_url }}contact/" class="site-btn site-btn-outline-light">Contact the School</a>
+          </div>
+        </div>
+
+        <div class="site-footer-grid">
+          <div class="site-footer-brandblock">
+            <div class="site-footer-brand">
+              <img src="{% static 'images/ndga/logo.png' %}" alt="Notre Dame Girls Academy logo">
+              <div>
+                <p class="site-footer-title">Notre Dame Girls Academy</p>
+                <p class="site-footer-copy">A Catholic girls' secondary school in Kuje, Abuja, committed to sound academics, discipline, faith, and student welfare.</p>
+              </div>
+            </div>
+          </div>
+          <div>
+            <p class="site-footer-heading">About</p>
+            <div class="site-footer-links">
+              <a href="{{ public_root_url }}about/">About NDGA</a>
+              <a href="{{ public_root_url }}principal/">Principal's Welcome</a>
+              <a href="{{ public_root_url }}about/leadership/">Leadership</a>
+              <a href="{{ public_root_url }}about/school-life/">School Life</a>
+            </div>
+          </div>
+          <div>
+            <p class="site-footer-heading">Admissions</p>
+            <div class="site-footer-links">
+              <a href="{{ public_root_url }}admissions/">Admissions Overview</a>
+              <a href="{{ public_root_url }}admissions/registration/">Online Registration</a>
+              <a href="{{ public_root_url }}fees/">Fees & Charges</a>
+              <a href="{{ public_root_url }}admissions/hostel-boarding/">Hostel & Boarding</a>
+            </div>
+          </div>
+          <div>
+            <p class="site-footer-heading">Contact</p>
+            <div class="site-footer-links">
+              <span>{{ contact_email }}</span>
+              <span>{{ contact_phone }}</span>
+              <span>{{ school_address }}</span>
+              <a href="{{ public_portal_url }}">School Portal</a>
             </div>
           </div>
         </div>
-        <div>
-          <p class="site-footer-heading">About</p>
-          <div class="site-footer-links">
-            <a href="{{ public_root_url }}about/">About NDGA</a>
-            <a href="{{ public_root_url }}principal/">Principal's Welcome</a>
-            <a href="{{ public_root_url }}about/leadership/">Leadership</a>
-            <a href="{{ public_root_url }}about/school-life/">School Life</a>
+
+        <div class="site-footer-bottom">
+          <span>&copy; Notre Dame Girls Academy</span>
+          <div class="site-footer-bottom-links">
+            <a href="{{ public_root_url }}news/">News</a>
+            <a href="{{ public_root_url }}events/">Events</a>
+            <a href="{{ public_root_url }}gallery/">Gallery</a>
+            <a href="{{ public_root_url }}contact/">Contact</a>
           </div>
-        </div>
-        <div>
-          <p class="site-footer-heading">Admissions</p>
-          <div class="site-footer-links">
-            <a href="{{ public_root_url }}admissions/">Admissions</a>
-            <a href="{{ public_root_url }}admissions/registration/">Registration</a>
-            <a href="{{ public_root_url }}fees/">Fees & Charges</a>
-            <a href="{{ public_root_url }}admissions/hostel-boarding/">Hostel & Boarding</a>
-          </div>
-        </div>
-        <div>
-          <p class="site-footer-heading">Contact</p>
-          <div class="site-footer-links">
-            <span>{{ contact_email }}</span>
-            <span>{{ contact_phone }}</span>
-            <span>{{ school_address }}</span>
-            <a href="{{ public_root_url }}contact/">Send an enquiry</a>
-          </div>
-        </div>
-      </div>
-      <div class="site-shell site-footer-bottom">
-        <span>&copy; Notre Dame Girls Academy</span>
-        <div class="site-footer-bottom-links">
-          <a href="{{ public_root_url }}news/">News</a>
-          <a href="{{ public_root_url }}events/">Events</a>
-          <a href="{{ public_root_url }}gallery/">Gallery</a>
-          <a href="{{ public_portal_url }}">School Portal</a>
         </div>
       </div>
     </footer>
