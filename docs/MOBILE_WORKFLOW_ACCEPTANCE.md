@@ -16,7 +16,7 @@ Use this checklist on phones and small tablets before public launch.
 ## IT critical flows
 - open `IT Manager Portal` and confirm `Operations Center` is visible on mobile width
 - verify portal toggles, runtime snapshot cards, and drill commands remain readable
-- confirm sync backlog and disk space cards wrap correctly on narrow screens
+- confirm runtime and storage cards wrap correctly on narrow screens
 
 ## Pressure-test rule
 - test with real accounts on a 360px to 430px wide viewport

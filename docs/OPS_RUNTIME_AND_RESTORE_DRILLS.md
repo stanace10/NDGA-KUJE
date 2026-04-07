@@ -14,9 +14,9 @@ The runtime snapshot reports:
 - database and cache readiness
 - disk free space and used percentage
 - current sync node role and node id
-- sync backlog counts for `PENDING`, `RETRY`, `FAILED`, and `CONFLICT`
+- manual push queue and sync state counts where applicable
 - recent audit visibility and missing audit hash count
-- per-domain sync conflict playbooks
+- restore and recovery signals for the active node
 
 ## Restore drills
 
@@ -70,14 +70,14 @@ powershell -ExecutionPolicy Bypass -File .\scripts\restore_lan_recovery_bundle.p
 ### 1. Cloud node degraded but LAN still active
 - keep CBT and election runtime on the LAN node only
 - run `python manage.py ops_runtime_snapshot` on the LAN node
-- confirm sync backlog is growing but not failing hard
-- restore cloud service first, then let queued sync replay
+- keep school operations on LAN
+- restore cloud service before the next manual update cycle
 
 ### 2. Sync conflict spike
-- open the sync dashboard and inspect the per-record timeline
-- use the conflict policy shown for the affected operation type
-- results and finance conflicts should be reviewed before replay
-- active CBT/election windows must remain single-authority
+- pause manual push activity
+- review the affected records directly before the next push
+- results and finance conflicts should be settled on LAN first
+- active CBT and election windows must remain single-authority on LAN
 
 ### 3. Backup confidence check before a term transition
 - run `python manage.py verify_audit_chain`
