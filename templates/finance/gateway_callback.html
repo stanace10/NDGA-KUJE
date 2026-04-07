@@ -23,6 +23,9 @@
 
       <div class="mt-5 flex flex-wrap gap-2">
         <a href="/finance/student/overview/" class="ndga-btn ndga-btn-primary">Open Student Finance</a>
+        {% if receipt %}
+          <a href="{% url 'finance:receipt-download' receipt.id %}" class="ndga-btn ndga-btn-secondary">Download Receipt PDF</a>
+        {% endif %}
         <a href="/" class="ndga-btn ndga-btn-secondary">Back To Portal</a>
       </div>
     </article>

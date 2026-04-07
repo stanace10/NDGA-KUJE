@@ -33,6 +33,13 @@
             <div class="mt-2 leading-relaxed">{{ exam_blueprint.instructions|linebreaksbr }}</div>
           </div>
         {% endif %}
+        {% if exam.activation_snapshot_hash %}
+          <div class="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-slate-700">
+            <p class="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-800">Immutable Activation Snapshot</p>
+            <p class="mt-2 font-mono text-xs text-emerald-900 break-all">{{ exam.activation_snapshot_hash }}</p>
+            <p class="mt-2 text-xs text-slate-600">This paper is already frozen in production and can no longer be changed without revoke/rebuild.</p>
+          </div>
+        {% endif %}
 
         <h2 class="mt-6 text-lg font-semibold text-ndga-navy">Question Set</h2>
         <div class="mt-3 space-y-4">
@@ -43,6 +50,12 @@
                 <p class="text-xs font-semibold text-slate-600">{{ row.question.get_question_type_display }} | {{ row.marks }} marks</p>
               </div>
               <div class="mt-2 text-sm text-slate-700">{% if row.question.rich_stem %}{{ row.question.rich_stem|safe|cbt_notation }}{% else %}{{ row.question.stem|cbt_notation }}{% endif %}</div>
+              {% if row.question.stimulus_caption %}
+                <p class="mt-2 text-xs font-semibold text-cyan-700">{{ row.question.stimulus_caption }}</p>
+              {% endif %}
+              {% if row.question.stimulus_image %}
+                <img src="{{ row.question.stimulus_image.url }}" alt="Question diagram" class="mt-2 max-h-72 w-full max-w-md rounded-lg border border-slate-200 object-contain bg-white p-2">
+              {% endif %}
               {% if row.question.options.all %}
                 <div class="mt-3 grid gap-2 sm:grid-cols-2">
                   {% for option in row.question.options.all %}

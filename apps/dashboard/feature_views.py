@@ -173,7 +173,7 @@ class WeeklyChallengeManagementView(PortalPageView):
     portal_description = "Create weekly brain teasers, publish challenge prompts, and monitor participation by class."
 
     def dispatch(self, request, *args, **kwargs):
-        if not has_any_role(request.user, {ROLE_IT_MANAGER, ROLE_VP, ROLE_PRINCIPAL, ROLE_DEAN}):
+        if not has_any_role(request.user, {ROLE_IT_MANAGER, ROLE_PRINCIPAL, ROLE_DEAN}):
             return redirect("dashboard:landing")
         return super().dispatch(request, *args, **kwargs)
 
@@ -445,7 +445,7 @@ class ClubManagementView(PortalPageView):
     portal_description = "Register clubs, assign students, track offices held, and keep co-curricular records ready for reports."
 
     def dispatch(self, request, *args, **kwargs):
-        if not has_any_role(request.user, {ROLE_IT_MANAGER, ROLE_VP, ROLE_PRINCIPAL, ROLE_DEAN}):
+        if not has_any_role(request.user, {ROLE_IT_MANAGER, ROLE_PRINCIPAL, ROLE_DEAN}):
             return redirect("dashboard:landing")
         return super().dispatch(request, *args, **kwargs)
 
@@ -496,7 +496,7 @@ class DocumentVaultManagementView(PortalPageView):
     portal_description = "Store transcripts, certificates, student records, and graduation records in one vault."
 
     def dispatch(self, request, *args, **kwargs):
-        if not has_any_role(request.user, {ROLE_IT_MANAGER, ROLE_PRINCIPAL, ROLE_VP}):
+        if not has_any_role(request.user, {ROLE_IT_MANAGER, ROLE_PRINCIPAL}):
             return redirect("dashboard:landing")
         return super().dispatch(request, *args, **kwargs)
 

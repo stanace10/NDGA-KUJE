@@ -19,7 +19,18 @@ from apps.academics.models import (
     StudentClassEnrollment,
     StudentSubjectEnrollment,
     Subject,
+    TeacherSubjectAssignment,
     Term,
+)
+from apps.cbt.models import (
+    CBTExamStatus,
+    CBTExamType,
+    Exam,
+    ExamBlueprint,
+    ExamQuestion,
+    Option,
+    Question,
+    QuestionBank,
 )
 from apps.elections.models import Election, ElectionStatus, VoterGroup
 from apps.setup_wizard.models import SetupStateCode, SystemSetupState
@@ -36,8 +47,10 @@ from apps.sync.models import (
     SyncQueueStatus,
     SyncTransferBatch,
 )
+from apps.sync.content_sync import _apply_upsert
 from apps.sync.inbound_sync import ingest_remote_outbox_event
 from apps.sync.services import (
+    build_runtime_status_payload,
     export_sync_queue_snapshot,
     get_runtime_status,
     import_sync_queue_snapshot,
@@ -201,6 +214,23 @@ class SyncServiceTests(TestCase):
         self.assertEqual(status_pending["code"], "SYNC_PENDING")
         self.assertEqual(status_pending["pending_count"], 1)
 
+    def test_runtime_status_payload_never_auto_processes_sync_queue(self):
+        row, _ = queue_sync_operation(
+            operation_type=SyncOperationType.CBT_EXAM_ATTEMPT,
+            payload={"attempt_id": "778"},
+            object_ref="attempt:778",
+            idempotency_key="attempt-778",
+        )
+
+        with patch("apps.sync.services.process_sync_queue_batch") as mocked_process:
+            payload = build_runtime_status_payload()
+
+        row.refresh_from_db()
+        mocked_process.assert_not_called()
+        self.assertEqual(row.status, SyncQueueStatus.PENDING)
+        self.assertFalse(payload["auto_sync"]["triggered"])
+        self.assertEqual(payload["auto_sync"]["reason"], "manual_only")
+
     def test_register_cbt_content_change_gracefully_handles_missing_table(self):
         fake_instance = SimpleNamespace(pk=55)
         with patch("apps.sync.content_sync._serialize_cbt_instance") as serializer, patch(
@@ -336,6 +366,362 @@ class SyncServiceTests(TestCase):
 
 
 @override_settings(**SYNC_TEST_HOST_SETTINGS)
+class ContentSyncConflictRepairTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.role_teacher = Role.objects.get(code=ROLE_SUBJECT_TEACHER)
+        cls.teacher = User.objects.create_user(
+            username="content-sync-teacher@ndgakuje.org",
+            password="Password123!",
+            primary_role=cls.role_teacher,
+            must_change_password=False,
+        )
+        cls.session = AcademicSession.objects.create(name="2030/2031")
+        cls.term = Term.objects.create(session=cls.session, name="SECOND")
+        cls.academic_class = AcademicClass.objects.create(code="SS3X", display_name="SS3X")
+        cls.subject = Subject.objects.create(name="Economics X", code="ECX")
+        cls.assignment = TeacherSubjectAssignment.objects.create(
+            teacher=cls.teacher,
+            academic_class=cls.academic_class,
+            subject=cls.subject,
+            session=cls.session,
+            term=cls.term,
+            is_active=True,
+        )
+
+    def test_option_upsert_reuses_source_pk_after_natural_key_conflict(self):
+        bank = QuestionBank.objects.create(
+            owner=self.teacher,
+            name="Bank",
+            subject=self.subject,
+            academic_class=self.academic_class,
+            session=self.session,
+            term=self.term,
+            assignment=self.assignment,
+        )
+        question = Question.objects.create(
+            id=9101,
+            question_bank=bank,
+            created_by=self.teacher,
+            subject=self.subject,
+            question_type="OBJECTIVE",
+            stem="Stem",
+            marks=Decimal("1.00"),
+        )
+        other_question = Question.objects.create(
+            id=9102,
+            question_bank=bank,
+            created_by=self.teacher,
+            subject=self.subject,
+            question_type="OBJECTIVE",
+            stem="Other stem",
+            marks=Decimal("1.00"),
+        )
+        Option.objects.create(id=300, question=question, label="A", option_text="Old A", sort_order=1)
+        Option.objects.create(id=501, question=other_question, label="B", option_text="Wrong row", sort_order=2)
+
+        _apply_upsert(
+            {
+                "object_type": "OPTION",
+                "payload": {
+                    "id": 501,
+                    "question_id": question.id,
+                    "label": "A",
+                    "option_text": "Fresh A",
+                    "sort_order": 1,
+                },
+            }
+        )
+
+        self.assertFalse(Option.objects.filter(pk=300).exists())
+        synced = Option.objects.get(pk=501)
+        self.assertEqual(synced.question_id, question.id)
+        self.assertEqual(synced.label, "A")
+        self.assertEqual(synced.option_text, "Fresh A")
+        self.assertEqual(Option.objects.filter(question=question, label="A").count(), 1)
+
+    def test_question_bank_upsert_reuses_source_pk_after_natural_key_conflict(self):
+        other_teacher = User.objects.create_user(
+            username="content-sync-other@ndgakuje.org",
+            password="Password123!",
+            primary_role=self.role_teacher,
+            must_change_password=False,
+        )
+        other_assignment = TeacherSubjectAssignment.objects.create(
+            teacher=other_teacher,
+            academic_class=self.academic_class,
+            subject=self.subject,
+            session=self.session,
+            term=self.term,
+            is_active=True,
+        )
+        QuestionBank.objects.create(
+            id=601,
+            owner=self.teacher,
+            name="Shared Bank",
+            subject=self.subject,
+            academic_class=self.academic_class,
+            session=self.session,
+            term=self.term,
+            assignment=self.assignment,
+            description="Old natural match",
+        )
+        QuestionBank.objects.create(
+            id=700,
+            owner=other_teacher,
+            name="Wrong PK row",
+            subject=self.subject,
+            academic_class=self.academic_class,
+            session=self.session,
+            term=self.term,
+            assignment=other_assignment,
+            description="Drifted row",
+        )
+
+        _apply_upsert(
+            {
+                "object_type": "QUESTION_BANK",
+                "payload": {
+                    "id": 700,
+                    "name": "Shared Bank",
+                    "description": "Fresh description",
+                    "owner_id": self.teacher.id,
+                    "assignment_id": self.assignment.id,
+                    "subject_id": self.subject.id,
+                    "academic_class_id": self.academic_class.id,
+                    "session_id": self.session.id,
+                    "term_id": self.term.id,
+                    "is_active": True,
+                },
+            }
+        )
+
+        self.assertFalse(QuestionBank.objects.filter(pk=601).exists())
+        synced = QuestionBank.objects.get(pk=700)
+        self.assertEqual(synced.name, "Shared Bank")
+        self.assertEqual(synced.owner_id, self.teacher.id)
+        self.assertEqual(synced.assignment_id, self.assignment.id)
+        self.assertEqual(synced.description, "Fresh description")
+
+    def test_question_upsert_reuses_source_pk_after_subject_bank_conflict(self):
+        other_subject = Subject.objects.create(name="Biology X", code="BIX")
+        other_assignment = TeacherSubjectAssignment.objects.create(
+            teacher=self.teacher,
+            academic_class=self.academic_class,
+            subject=other_subject,
+            session=self.session,
+            term=self.term,
+            is_active=True,
+        )
+        bank = QuestionBank.objects.create(
+            id=710,
+            owner=self.teacher,
+            name="Target Bank",
+            subject=self.subject,
+            academic_class=self.academic_class,
+            session=self.session,
+            term=self.term,
+            assignment=self.assignment,
+        )
+        other_bank = QuestionBank.objects.create(
+            id=711,
+            owner=self.teacher,
+            name="Other Bank",
+            subject=other_subject,
+            academic_class=self.academic_class,
+            session=self.session,
+            term=self.term,
+            assignment=other_assignment,
+        )
+        Question.objects.create(
+            id=812,
+            question_bank=other_bank,
+            created_by=self.teacher,
+            subject=other_subject,
+            question_type="OBJECTIVE",
+            stem="Old question",
+            marks=Decimal("1.00"),
+        )
+
+        _apply_upsert(
+            {
+                "object_type": "QUESTION",
+                "payload": {
+                    "id": 812,
+                    "question_bank_id": bank.id,
+                    "created_by_id": self.teacher.id,
+                    "subject_id": self.subject.id,
+                    "question_type": "OBJECTIVE",
+                    "stem": "Fresh question",
+                    "topic": "Topic",
+                    "difficulty": "",
+                    "marks": "2.00",
+                    "source_type": "MANUAL",
+                    "source_reference": "REF-1",
+                    "rich_stem": "<p>Fresh question</p>",
+                    "stimulus_image": "",
+                    "stimulus_video": "",
+                    "stimulus_caption": "",
+                    "shared_stimulus_key": "",
+                    "dean_comment": "",
+                    "is_active": True,
+                },
+            }
+        )
+
+        synced = Question.objects.get(pk=812)
+        self.assertEqual(synced.question_bank_id, bank.id)
+        self.assertEqual(synced.subject_id, self.subject.id)
+        self.assertEqual(synced.stem, "Fresh question")
+        self.assertEqual(synced.marks, Decimal("2.00"))
+
+    def test_exam_question_upsert_reuses_source_pk_after_sort_order_conflict(self):
+        bank = QuestionBank.objects.create(
+            owner=self.teacher,
+            name="Exam Bank",
+            subject=self.subject,
+            academic_class=self.academic_class,
+            session=self.session,
+            term=self.term,
+            assignment=self.assignment,
+        )
+        exam = Exam.objects.create(
+            id=9201,
+            title="Conflict Exam",
+            exam_type=CBTExamType.EXAM,
+            status=CBTExamStatus.ACTIVE,
+            created_by=self.teacher,
+            assignment=self.assignment,
+            subject=self.subject,
+            academic_class=self.academic_class,
+            session=self.session,
+            term=self.term,
+            question_bank=bank,
+        )
+        exam2 = Exam.objects.create(
+            id=9202,
+            title="Other Exam",
+            exam_type=CBTExamType.EXAM,
+            status=CBTExamStatus.ACTIVE,
+            created_by=self.teacher,
+            assignment=self.assignment,
+            subject=self.subject,
+            academic_class=self.academic_class,
+            session=self.session,
+            term=self.term,
+            question_bank=bank,
+        )
+        q1 = Question.objects.create(
+            id=9301,
+            question_bank=bank,
+            created_by=self.teacher,
+            subject=self.subject,
+            question_type="OBJECTIVE",
+            stem="Q1",
+            marks=Decimal("1.00"),
+        )
+        q2 = Question.objects.create(
+            id=9302,
+            question_bank=bank,
+            created_by=self.teacher,
+            subject=self.subject,
+            question_type="OBJECTIVE",
+            stem="Q2",
+            marks=Decimal("1.00"),
+        )
+        ExamQuestion.objects.create(id=400, exam=exam, question=q1, sort_order=7, marks=Decimal("1.00"))
+        ExamQuestion.objects.create(id=777, exam=exam2, question=q2, sort_order=2, marks=Decimal("1.00"))
+
+        _apply_upsert(
+            {
+                "object_type": "EXAM_QUESTION",
+                "payload": {
+                    "id": 777,
+                    "exam_id": exam.id,
+                    "question_id": q1.id,
+                    "sort_order": 7,
+                    "marks": "2.00",
+                },
+            }
+        )
+
+        self.assertFalse(ExamQuestion.objects.filter(pk=400).exists())
+        synced = ExamQuestion.objects.get(pk=777)
+        self.assertEqual(synced.exam_id, exam.id)
+        self.assertEqual(synced.question_id, q1.id)
+        self.assertEqual(synced.sort_order, 7)
+        self.assertEqual(synced.marks, Decimal("2.00"))
+        self.assertEqual(ExamQuestion.objects.filter(exam=exam, sort_order=7).count(), 1)
+
+    def test_exam_blueprint_upsert_updates_existing_blueprint_for_exam(self):
+        bank = QuestionBank.objects.create(
+            owner=self.teacher,
+            name="Blueprint Bank",
+            subject=self.subject,
+            academic_class=self.academic_class,
+            session=self.session,
+            term=self.term,
+            assignment=self.assignment,
+        )
+        exam = Exam.objects.create(
+            id=9401,
+            title="Blueprint Exam",
+            exam_type=CBTExamType.EXAM,
+            status=CBTExamStatus.ACTIVE,
+            created_by=self.teacher,
+            assignment=self.assignment,
+            subject=self.subject,
+            academic_class=self.academic_class,
+            session=self.session,
+            term=self.term,
+            question_bank=bank,
+        )
+        exam2 = Exam.objects.create(
+            id=9402,
+            title="Elsewhere",
+            exam_type=CBTExamType.EXAM,
+            status=CBTExamStatus.ACTIVE,
+            created_by=self.teacher,
+            assignment=self.assignment,
+            subject=self.subject,
+            academic_class=self.academic_class,
+            session=self.session,
+            term=self.term,
+            question_bank=bank,
+        )
+        existing = ExamBlueprint.objects.create(exam=exam, duration_minutes=60, max_attempts=1)
+        drifting = ExamBlueprint.objects.create(exam=exam2, duration_minutes=30, max_attempts=1)
+
+        _apply_upsert(
+            {
+                "object_type": "EXAM_BLUEPRINT",
+                "payload": {
+                    "id": drifting.id,
+                    "exam_id": exam.id,
+                    "duration_minutes": 75,
+                    "max_attempts": 1,
+                    "shuffle_questions": True,
+                    "shuffle_options": True,
+                    "instructions": "Updated",
+                    "section_config": {"k": "v"},
+                    "passing_score": "0",
+                    "objective_writeback_target": "OBJECTIVE",
+                    "theory_enabled": True,
+                    "theory_writeback_target": "THEORY",
+                    "auto_show_result_on_submit": False,
+                    "finalize_on_logout": False,
+                    "allow_retake": False,
+                },
+            }
+        )
+
+        existing.refresh_from_db()
+        self.assertEqual(existing.duration_minutes, 75)
+        self.assertEqual(existing.instructions, "Updated")
+        self.assertEqual(ExamBlueprint.objects.filter(exam=exam).count(), 1)
+
+
+@override_settings(**SYNC_TEST_HOST_SETTINGS)
 class SyncDashboardAccessTests(TestCase):
     @classmethod
     def setUpTestData(cls):
@@ -385,30 +771,15 @@ class SyncDashboardAccessTests(TestCase):
         self.assertIn(response.status_code, {200, 302})
         return client
 
-    def test_it_can_access_sync_dashboard(self):
+    def test_sync_dashboard_is_removed_from_web_routes_for_it(self):
         client = self._login_staff(self.it_user.username, host="it.ndgakuje.org")
         response = client.get("/sync/dashboard/")
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Sync Queue Dashboard")
+        self.assertEqual(response.status_code, 404)
 
-    def test_teacher_is_redirected_from_sync_dashboard(self):
+    def test_sync_dashboard_is_removed_from_web_routes_for_teacher(self):
         client = self._login_staff(self.teacher_user.username, host="staff.ndgakuje.org")
         response = client.get("/sync/dashboard/")
-        self.assertEqual(response.status_code, 302)
-
-    def test_sync_import_rejects_executable_signature_payload(self):
-        client = self._login_staff(self.it_user.username, host="it.ndgakuje.org")
-        bad_json = SimpleUploadedFile(
-            "snapshot.json",
-            b"MZ\x90\x00\x03\x00\x00\x00",
-            content_type="application/json",
-        )
-        response = client.post(
-            "/sync/dashboard/",
-            {"action": "import", "snapshot_file": bad_json},
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Executable file signatures are blocked")
+        self.assertEqual(response.status_code, 404)
 
 
 @override_settings(**SYNC_TEST_HOST_SETTINGS)
@@ -1506,6 +1877,371 @@ class GenericModelSyncTests(TestCase):
         self.assertEqual(score.ca4, Decimal("3.50"))
         self.assertEqual(score.objective, Decimal("0.00"))
         self.assertEqual(score.theory, Decimal("31.50"))
+
+    @override_settings(SYNC_NODE_ROLE="CLOUD", SYNC_LOCAL_NODE_ID="ndga-cloud-node")
+    def test_cloud_matches_existing_score_row_before_creating_duplicate(self):
+        from apps.results.models import ResultSheet, StudentSubjectScore
+
+        session = AcademicSession.objects.create(name="2025/2026")
+        term = Term.objects.create(session=session, name="SECOND")
+        academic_class = AcademicClass.objects.create(code="SS2X", display_name="SS2X")
+        subject = Subject.objects.create(name="Mathematics", code="MTHX")
+        student = User.objects.create_user(
+            username="result-merge-cloud-existing-student",
+            password="Password123!",
+            primary_role=self.role_student,
+            must_change_password=False,
+        )
+        result_sheet = ResultSheet.objects.create(
+            academic_class=academic_class,
+            subject=subject,
+            session=session,
+            term=term,
+        )
+        score = StudentSubjectScore.objects.create(
+            result_sheet=result_sheet,
+            student=student,
+            ca2=Decimal("6.50"),
+            objective=Decimal("0.00"),
+            theory=Decimal("0.00"),
+            cbt_locked_fields=["ca2"],
+            cbt_component_breakdown={"ca2_objective": "6.50"},
+        )
+
+        payload = {
+            "model": "results.studentsubjectscore",
+            "identity": {
+                "model": "results.studentsubjectscore",
+                "source_node_id": "ndga-lan-node",
+                "source_pk": "score-lan-1",
+                "lookup": {
+                    "student": {
+                        "model": "accounts.user",
+                        "source_node_id": "ndga-cloud-node",
+                        "source_pk": "student-cloud-1",
+                        "lookup": {"username": student.username},
+                    },
+                    "result_sheet": {
+                        "model": "results.resultsheet",
+                        "source_node_id": "ndga-lan-node",
+                        "source_pk": "sheet-lan-1",
+                        "lookup": {
+                            "academic_class": {
+                                "model": "academics.academicclass",
+                                "source_node_id": "ndga-cloud-node",
+                                "source_pk": "class-cloud-1",
+                                "lookup": {"code": academic_class.code},
+                            },
+                            "subject": {
+                                "model": "academics.subject",
+                                "source_node_id": "ndga-cloud-node",
+                                "source_pk": "subject-cloud-1",
+                                "lookup": {"code": subject.code},
+                            },
+                            "session": {
+                                "model": "academics.academicsession",
+                                "source_node_id": "ndga-cloud-node",
+                                "source_pk": "session-cloud-1",
+                                "lookup": {"name": session.name},
+                            },
+                            "term": {
+                                "model": "academics.term",
+                                "source_node_id": "ndga-cloud-node",
+                                "source_pk": "term-cloud-1",
+                                "lookup": {
+                                    "name": term.name,
+                                    "session": {
+                                        "model": "academics.academicsession",
+                                        "source_node_id": "ndga-cloud-node",
+                                        "source_pk": "session-cloud-1",
+                                        "lookup": {"name": session.name},
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+            "fields": {
+                "result_sheet": {
+                    "model": "results.resultsheet",
+                    "source_node_id": "ndga-lan-node",
+                    "source_pk": "sheet-lan-1",
+                    "lookup": {
+                        "academic_class": {
+                            "model": "academics.academicclass",
+                            "source_node_id": "ndga-cloud-node",
+                            "source_pk": "class-cloud-1",
+                            "lookup": {"code": academic_class.code},
+                        },
+                        "subject": {
+                            "model": "academics.subject",
+                            "source_node_id": "ndga-cloud-node",
+                            "source_pk": "subject-cloud-1",
+                            "lookup": {"code": subject.code},
+                        },
+                        "session": {
+                            "model": "academics.academicsession",
+                            "source_node_id": "ndga-cloud-node",
+                            "source_pk": "session-cloud-1",
+                            "lookup": {"name": session.name},
+                        },
+                        "term": {
+                            "model": "academics.term",
+                            "source_node_id": "ndga-cloud-node",
+                            "source_pk": "term-cloud-1",
+                            "lookup": {
+                                "name": term.name,
+                                "session": {
+                                    "model": "academics.academicsession",
+                                    "source_node_id": "ndga-cloud-node",
+                                    "source_pk": "session-cloud-1",
+                                    "lookup": {"name": session.name},
+                                },
+                            },
+                        },
+                    },
+                },
+                "student": {
+                    "model": "accounts.user",
+                    "source_node_id": "ndga-cloud-node",
+                    "source_pk": "student-cloud-1",
+                    "lookup": {"username": student.username},
+                },
+                "ca1": "0.00",
+                "ca2": "6.50",
+                "ca3": "0.00",
+                "ca4": "0.00",
+                "objective": "14.00",
+                "theory": "0.00",
+                "total_ca": "6.50",
+                "total_exam": "14.00",
+                "grand_total": "20.50",
+                "grade": "F",
+                "has_override": False,
+                "override_reason": "",
+                "cbt_locked_fields": ["ca2", "objective"],
+                "cbt_component_breakdown": {
+                    "ca2_objective": "6.50",
+                    "objective_auto": "14.00",
+                },
+                "override_by": None,
+                "override_at": None,
+            },
+            "m2m": {},
+            "created_at": "",
+            "updated_at": "",
+        }
+
+        apply_generic_model_payload(
+            payload=payload,
+            operation_type=SyncOperationType.MODEL_RECORD_UPSERT,
+        )
+
+        self.assertEqual(StudentSubjectScore.objects.count(), 1)
+        score.refresh_from_db()
+        self.assertEqual(score.objective, Decimal("14.00"))
+        self.assertEqual(score.cbt_locked_fields, ["ca2", "objective"])
+        self.assertEqual(
+            score.cbt_component_breakdown,
+            {"ca2_objective": "6.50", "objective_auto": "14.00"},
+        )
+
+    @override_settings(SYNC_NODE_ROLE="CLOUD", SYNC_LOCAL_NODE_ID="ndga-cloud-node")
+    def test_cloud_rebinds_stale_score_binding_to_lookup_match(self):
+        from apps.results.models import ResultSheet, StudentSubjectScore
+        from apps.sync.model_sync import ensure_local_origin_binding
+        from apps.sync.models import SyncModelBinding
+
+        session = AcademicSession.objects.create(name="2025/2026")
+        term = Term.objects.create(session=session, name="SECOND")
+        academic_class = AcademicClass.objects.create(code="JS3X", display_name="JS3X")
+        subject = Subject.objects.create(name="Mathematics", code="MTHZ")
+        student = User.objects.create_user(
+            username="binding-fix-student",
+            password="Password123!",
+            primary_role=self.role_student,
+            must_change_password=False,
+        )
+        other_student = User.objects.create_user(
+            username="binding-fix-other-student",
+            password="Password123!",
+            primary_role=self.role_student,
+            must_change_password=False,
+        )
+        result_sheet = ResultSheet.objects.create(
+            academic_class=academic_class,
+            subject=subject,
+            session=session,
+            term=term,
+        )
+        correct_score = StudentSubjectScore.objects.create(
+            result_sheet=result_sheet,
+            student=student,
+            ca2=Decimal("7.00"),
+        )
+        wrong_score = StudentSubjectScore.objects.create(
+            result_sheet=result_sheet,
+            student=other_student,
+            ca2=Decimal("4.00"),
+        )
+
+        ensure_local_origin_binding(student)
+        ensure_local_origin_binding(academic_class)
+        ensure_local_origin_binding(subject)
+        ensure_local_origin_binding(session)
+        ensure_local_origin_binding(term)
+        ensure_local_origin_binding(result_sheet)
+        ensure_local_origin_binding(correct_score)
+        ensure_local_origin_binding(wrong_score)
+
+        SyncModelBinding.objects.update_or_create(
+            source_node_id="ndga-lan-node",
+            model_label="results.studentsubjectscore",
+            source_pk="887",
+            defaults={"local_pk": str(wrong_score.pk)},
+        )
+
+        payload = {
+            "model": "results.studentsubjectscore",
+            "identity": {
+                "model": "results.studentsubjectscore",
+                "source_node_id": "ndga-lan-node",
+                "source_pk": "887",
+                "lookup": {
+                    "student": {
+                        "model": "accounts.user",
+                        "source_node_id": "ndga-cloud-node",
+                        "source_pk": str(student.pk),
+                        "lookup": {"username": student.username},
+                    },
+                    "result_sheet": {
+                        "model": "results.resultsheet",
+                        "source_node_id": "ndga-cloud-node",
+                        "source_pk": str(result_sheet.pk),
+                        "lookup": {
+                            "academic_class": {
+                                "model": "academics.academicclass",
+                                "source_node_id": "ndga-cloud-node",
+                                "source_pk": str(academic_class.pk),
+                                "lookup": {"code": academic_class.code},
+                            },
+                            "subject": {
+                                "model": "academics.subject",
+                                "source_node_id": "ndga-cloud-node",
+                                "source_pk": str(subject.pk),
+                                "lookup": {"code": subject.code},
+                            },
+                            "session": {
+                                "model": "academics.academicsession",
+                                "source_node_id": "ndga-cloud-node",
+                                "source_pk": str(session.pk),
+                                "lookup": {"name": session.name},
+                            },
+                            "term": {
+                                "model": "academics.term",
+                                "source_node_id": "ndga-cloud-node",
+                                "source_pk": str(term.pk),
+                                "lookup": {
+                                    "name": term.name,
+                                    "session": {
+                                        "model": "academics.academicsession",
+                                        "source_node_id": "ndga-cloud-node",
+                                        "source_pk": str(session.pk),
+                                        "lookup": {"name": session.name},
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+            "fields": {
+                "result_sheet": {
+                    "model": "results.resultsheet",
+                    "source_node_id": "ndga-cloud-node",
+                    "source_pk": str(result_sheet.pk),
+                    "lookup": {
+                        "academic_class": {
+                            "model": "academics.academicclass",
+                            "source_node_id": "ndga-cloud-node",
+                            "source_pk": str(academic_class.pk),
+                            "lookup": {"code": academic_class.code},
+                        },
+                        "subject": {
+                            "model": "academics.subject",
+                            "source_node_id": "ndga-cloud-node",
+                            "source_pk": str(subject.pk),
+                            "lookup": {"code": subject.code},
+                        },
+                        "session": {
+                            "model": "academics.academicsession",
+                            "source_node_id": "ndga-cloud-node",
+                            "source_pk": str(session.pk),
+                            "lookup": {"name": session.name},
+                        },
+                        "term": {
+                            "model": "academics.term",
+                            "source_node_id": "ndga-cloud-node",
+                            "source_pk": str(term.pk),
+                            "lookup": {
+                                "name": term.name,
+                                "session": {
+                                    "model": "academics.academicsession",
+                                    "source_node_id": "ndga-cloud-node",
+                                    "source_pk": str(session.pk),
+                                    "lookup": {"name": session.name},
+                                },
+                            },
+                        },
+                    },
+                },
+                "student": {
+                    "model": "accounts.user",
+                    "source_node_id": "ndga-cloud-node",
+                    "source_pk": str(student.pk),
+                    "lookup": {"username": student.username},
+                },
+                "ca1": "0.00",
+                "ca2": "7.00",
+                "ca3": "0.00",
+                "ca4": "0.00",
+                "objective": "11.33",
+                "theory": "0.00",
+                "total_ca": "7.00",
+                "total_exam": "11.33",
+                "grand_total": "18.33",
+                "grade": "F",
+                "has_override": False,
+                "override_reason": "",
+                "cbt_locked_fields": ["ca2", "objective"],
+                "cbt_component_breakdown": {
+                    "ca2_objective": "7.00",
+                    "objective_auto": "11.33",
+                },
+                "override_by": None,
+                "override_at": None,
+            },
+            "m2m": {},
+            "created_at": "",
+            "updated_at": "",
+        }
+
+        apply_generic_model_payload(
+            payload=payload,
+            operation_type=SyncOperationType.MODEL_RECORD_UPSERT,
+        )
+
+        correct_score.refresh_from_db()
+        wrong_score.refresh_from_db()
+        binding = SyncModelBinding.objects.get(
+            source_node_id="ndga-lan-node",
+            model_label="results.studentsubjectscore",
+            source_pk="887",
+        )
+        self.assertEqual(correct_score.objective, Decimal("11.33"))
+        self.assertEqual(wrong_score.objective, Decimal("0.00"))
+        self.assertEqual(binding.local_pk, str(correct_score.pk))
 
     @override_settings(SYNC_NODE_ROLE="CLOUD", SYNC_LOCAL_NODE_ID="ndga-cloud-node")
     def test_cloud_preserves_result_sheet_status_when_lan_pushes_cbt_policy(self):

@@ -1,4 +1,5 @@
 from datetime import timedelta
+from uuid import uuid4
 
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -20,7 +21,7 @@ from apps.academics.models import StudentClassEnrollment
 from apps.accounts.permissions import has_any_role
 from apps.notifications.forms import MediaBroadcastForm
 from apps.notifications.models import Notification, NotificationCategory
-from apps.notifications.services import create_bulk_notifications, send_email_event
+from apps.notifications.services import create_bulk_notifications, extract_whatsapp_phones, send_email_event, send_whatsapp_event
 from apps.setup_wizard.services import get_setup_state
 
 
@@ -40,7 +41,7 @@ def _notification_queryset(user):
     return Notification.objects.filter(
         recipient=user,
         category__in=allowed_categories,
-    )
+    ).exclude(metadata__outbox_only=True)
 
 
 class NotificationCenterView(LoginRequiredMixin, TemplateView):
@@ -131,16 +132,57 @@ class MediaCenterView(LoginRequiredMixin, TemplateView):
 
     @staticmethod
     def _can_manage_media(user):
-        return has_any_role(user, {ROLE_VP, ROLE_PRINCIPAL})
+        return has_any_role(user, {ROLE_IT_MANAGER, ROLE_VP, ROLE_PRINCIPAL})
 
     def dispatch(self, request, *args, **kwargs):
         if not self._can_manage_media(request.user):
-            messages.error(request, "Media center is restricted to VP and Principal.")
+            messages.error(request, "Messaging center is restricted to IT Manager, VP, and Principal.")
             return redirect("notifications:center")
         return super().dispatch(request, *args, **kwargs)
 
     def _form(self, data=None):
         return MediaBroadcastForm(data=data)
+
+    def _sent_batches(self):
+        rows = []
+        batch_index = {}
+        sent_queryset = (
+            Notification.objects.filter(created_by=self.request.user)
+            .select_related("recipient", "recipient__student_profile", "recipient__staff_profile")
+            .order_by("-created_at")[:400]
+        )
+        for row in sent_queryset:
+            metadata = row.metadata or {}
+            if metadata.get("event") != "MEDIA_BROADCAST":
+                continue
+            batch_id = metadata.get("broadcast_batch_id") or f"legacy::{row.title}::{row.created_at.isoformat()}"
+            if batch_id not in batch_index:
+                batch_index[batch_id] = {
+                    "created_at": row.created_at,
+                    "title": row.title,
+                    "message": row.message,
+                    "audience": metadata.get("audience", ""),
+                    "delivery_portal": metadata.get("delivery_portal", False),
+                    "delivery_email": metadata.get("delivery_email", False),
+                    "delivery_whatsapp": metadata.get("delivery_whatsapp", False),
+                    "recipient_count": 0,
+                    "sample_recipients": [],
+                }
+                rows.append(batch_index[batch_id])
+            batch_row = batch_index[batch_id]
+            if metadata.get("outbox_only"):
+                batch_row["recipient_count"] = max(
+                    batch_row["recipient_count"],
+                    int(metadata.get("recipient_count", 0) or 0),
+                )
+                continue
+            recipient_profile = getattr(row.recipient, "student_profile", None) or getattr(row.recipient, "staff_profile", None)
+            recipient_code = getattr(recipient_profile, "student_number", "") or getattr(recipient_profile, "staff_id", "") or row.recipient.username
+            recipient_name = row.recipient.get_full_name() or row.recipient.username
+            batch_row["recipient_count"] += 1
+            if len(batch_row["sample_recipients"]) < 4:
+                batch_row["sample_recipients"].append(f"{recipient_name} ({recipient_code})")
+        return rows
 
     def _recipient_emails(self, recipients):
         emails = set()
@@ -152,8 +194,29 @@ class MediaCenterView(LoginRequiredMixin, TemplateView):
                 emails.add(user.email.strip().lower())
         return sorted(email for email in emails if email)
 
+    def _recipient_whatsapp_numbers(self, recipients):
+        numbers = set()
+        for user in recipients:
+            student_profile = getattr(user, "student_profile", None)
+            staff_profile = getattr(user, "staff_profile", None)
+            raw_number = ""
+            if student_profile and student_profile.guardian_phone:
+                raw_number = student_profile.guardian_phone
+            elif staff_profile and staff_profile.phone_number:
+                raw_number = staff_profile.phone_number
+            for normalized in extract_whatsapp_phones(raw_number):
+                numbers.add(normalized)
+        return sorted(numbers)
+
     def _resolve_recipients(self, cleaned_data):
         audience = cleaned_data["audience"]
+        if audience == MediaBroadcastForm.Audience.EVERYONE:
+            return list(
+                User.objects.filter(is_active=True)
+                .exclude(primary_role__code=ROLE_STUDENT, student_profile__isnull=True)
+                .distinct()
+                .order_by("username")
+            )
         if audience == MediaBroadcastForm.Audience.ALL_STUDENTS:
             return list(
                 User.objects.filter(
@@ -164,7 +227,7 @@ class MediaCenterView(LoginRequiredMixin, TemplateView):
         if audience == MediaBroadcastForm.Audience.CLASS_STUDENTS:
             setup_state = get_setup_state()
             enrollments = StudentClassEnrollment.objects.filter(
-                academic_class=cleaned_data["academic_class"],
+                academic_class_id__in=cleaned_data["academic_class"].cohort_class_ids(),
                 is_active=True,
             )
             if setup_state.current_session_id:
@@ -183,15 +246,17 @@ class MediaCenterView(LoginRequiredMixin, TemplateView):
                 .distinct()
                 .order_by("username")
             )
-        return list(cleaned_data["recipients"])
+        if audience == MediaBroadcastForm.Audience.SELECTED_STUDENTS:
+            return list(cleaned_data["student_recipients"])
+        if audience == MediaBroadcastForm.Audience.SELECTED_STAFF:
+            return list(cleaned_data["staff_recipients"])
+        return []
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context["media_form"] = kwargs.get("media_form") or self._form()
         context["inbox_rows"] = _notification_queryset(self.request.user).order_by("-created_at")[:40]
-        context["sent_rows"] = Notification.objects.filter(
-            created_by=self.request.user
-        ).select_related("recipient").order_by("-created_at")[:80]
+        context["sent_batches"] = self._sent_batches()
         context["media_unread_count"] = _notification_queryset(self.request.user).filter(
             read_at__isnull=True
         ).count()
@@ -214,18 +279,39 @@ class MediaCenterView(LoginRequiredMixin, TemplateView):
 
         title = form.cleaned_data["subject"]
         body = form.cleaned_data["message"]
-        create_bulk_notifications(
-            recipients=recipients,
-            category=NotificationCategory.SYSTEM,
-            title=title,
-            message=body,
-            created_by=request.user,
-            action_url="/notifications/center/",
-            metadata={
-                "event": "MEDIA_BROADCAST",
-                "audience": form.cleaned_data["audience"],
-            },
-        )
+        batch_id = str(uuid4())
+        metadata = {
+            "event": "MEDIA_BROADCAST",
+            "audience": form.cleaned_data["audience"],
+            "broadcast_batch_id": batch_id,
+            "delivery_portal": bool(form.cleaned_data.get("send_portal")),
+            "delivery_email": bool(form.cleaned_data.get("send_email")),
+            "delivery_whatsapp": bool(form.cleaned_data.get("send_whatsapp")),
+        }
+        if form.cleaned_data.get("send_portal"):
+            create_bulk_notifications(
+                recipients=recipients,
+                category=NotificationCategory.SYSTEM,
+                title=title,
+                message=body,
+                created_by=request.user,
+                action_url="/notifications/center/",
+                metadata=metadata,
+            )
+        else:
+            Notification.objects.create(
+                recipient=request.user,
+                category=NotificationCategory.SYSTEM,
+                title=title,
+                message=body,
+                created_by=request.user,
+                action_url="",
+                metadata={
+                    **metadata,
+                    "outbox_only": True,
+                    "recipient_count": len(recipients),
+                },
+            )
 
         if form.cleaned_data.get("send_email"):
             send_email_event(
@@ -235,11 +321,26 @@ class MediaCenterView(LoginRequiredMixin, TemplateView):
                 actor=request.user,
                 request=request,
                 metadata={
-                    "event": "MEDIA_BROADCAST",
-                    "audience": form.cleaned_data["audience"],
+                    **metadata,
                     "recipient_count": len(recipients),
                 },
             )
 
-        messages.success(request, f"Broadcast sent to {len(recipients)} recipient(s).")
+        whatsapp_result = None
+        if form.cleaned_data.get("send_whatsapp"):
+            whatsapp_result = send_whatsapp_event(
+                to_numbers=self._recipient_whatsapp_numbers(recipients),
+                body_text=f"{title}\n\n{body}",
+                actor=request.user,
+                request=request,
+                metadata={
+                    **metadata,
+                    "recipient_count": len(recipients),
+                },
+            )
+
+        if form.cleaned_data.get("send_whatsapp") and whatsapp_result and whatsapp_result.sent_count <= 0:
+            messages.warning(request, "Message was created, but WhatsApp delivery did not send to any recipient.")
+        else:
+            messages.success(request, f"Broadcast sent to {len(recipients)} recipient(s).")
         return redirect("notifications:media-center")

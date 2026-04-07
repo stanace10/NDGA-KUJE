@@ -11,9 +11,9 @@
           Upload your question document, auto-extract, auto-detect question blocks/options, and generate a draft exam for teacher review.
         </p>
         <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
-          Best upload formats: `TXT` from Notepad, clean `DOCX`, text-based `PDF`, or clear question images. For the highest success rate,
-          keep each question in a simple numbered block with options `A` to `D`. If teachers only have lesson notes, the draft builder can now
-          turn those notes into a starter question set instead of failing.
+          Best upload formats: `TXT` from Notepad, clean `DOCX`, text-based `PDF`, or clear question images. Keep each question in a simple
+          numbered block with options `A` to `D`. This page now imports only real question papers. For lesson notes or AI drafting, use the
+          separate AI Draft page instead of this upload importer.
         </div>
         {% if prefill_assignment and setup_prefill.title and setup_prefill.exam_type %}
           <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
@@ -111,14 +111,9 @@
                       {% if row.parse_summary %}
                         <div class="mt-1 text-xs text-slate-500">
                           {{ row.parse_summary.question_count|default:"0" }} questions
-                          · {{ row.parse_summary.objective_count|default:"0" }} objective
-                          · {{ row.parse_summary.theory_count|default:"0" }} theory
+                          - {{ row.parse_summary.objective_count|default:"0" }} objective
+                          - {{ row.parse_summary.theory_count|default:"0" }} theory
                         </div>
-                        {% if row.parse_summary.flagged_block_count %}
-                          <div class="mt-1 text-xs font-semibold text-amber-700">
-                            {{ row.parse_summary.flagged_block_count }} block(s) needed repair. Review before submitting to Dean.
-                          </div>
-                        {% endif %}
                       {% endif %}
                     {% elif row.error_message %}
                       <span class="text-rose-700">{{ row.error_message|truncatechars:60 }}</span>

@@ -4,7 +4,7 @@ from datetime import date
 
 from django.db.utils import OperationalError, ProgrammingError
 
-from apps.academics.models import FormTeacherAssignment, StudentClassEnrollment, Term
+from apps.academics.models import AcademicClass, FormTeacherAssignment, StudentClassEnrollment, Term
 from apps.attendance.models import AttendanceRecord, AttendanceStatus, SchoolCalendar
 from apps.setup_wizard.services import get_setup_state
 
@@ -13,13 +13,22 @@ def is_weekend(day: date):
     return day.weekday() >= 5
 
 
+def _attendance_record_class(academic_class: AcademicClass | None):
+    if academic_class is None:
+        return None
+    return academic_class.instructional_class
+
+
 def compute_student_attendance_percentage(*, student, calendar: SchoolCalendar, academic_class):
+    record_class = _attendance_record_class(academic_class)
+    if record_class is None:
+        return 0.0
     valid_school_days = calendar.school_days_count()
     if valid_school_days <= 0:
         return 0.0
     present_days = AttendanceRecord.objects.filter(
         calendar=calendar,
-        academic_class=academic_class,
+        academic_class=record_class,
         student=student,
         status=AttendanceStatus.PRESENT,
     ).count()
@@ -68,7 +77,7 @@ def get_student_attendance_snapshot_for_window(student, *, session, term=None):
 
     records_qs = AttendanceRecord.objects.filter(
         calendar=calendar,
-        academic_class=enrollment.academic_class,
+        academic_class=_attendance_record_class(enrollment.academic_class),
         student=student,
     )
     marked_days = records_qs.count()
@@ -93,7 +102,7 @@ def get_student_attendance_snapshot_for_window(student, *, session, term=None):
         "calendar": calendar,
         "session": session,
         "term": term,
-        "academic_class": enrollment.academic_class,
+        "academic_class": _attendance_record_class(enrollment.academic_class),
     }
 
 

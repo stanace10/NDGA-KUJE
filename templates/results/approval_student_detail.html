@@ -1,13 +1,13 @@
 {% extends "layouts/base.html" %}
 
-{% block title %}Student Result Detail{% endblock %}
+{% block title %}Student Result Management{% endblock %}
 
 {% block content %}
   <section class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
     <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Student Result Detail</p>
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Student Result Management</p>
           <h1 class="mt-2 text-2xl font-bold text-ndga-navy">{{ payload.student.get_full_name|default:payload.student.username }}</h1>
           <p class="mt-1 text-sm text-slate-600">
             {{ payload.student_number }} | {{ payload.class_code }} | {{ payload.session_name }} | {{ payload.term_name }}
@@ -32,6 +32,10 @@
         <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
           <p class="text-xs uppercase tracking-[0.14em] text-slate-500">Cumulative</p>
           <p class="mt-1 text-sm font-semibold text-slate-900">{{ payload.cumulative_total }}</p>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <p class="text-xs uppercase tracking-[0.14em] text-slate-500">Review Status</p>
+          <p class="mt-1 text-sm font-semibold text-slate-900">{{ payload.management_status }}</p>
         </div>
       </div>
     </article>
@@ -70,7 +74,31 @@
 
     <article class="mt-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
       <h2 class="text-base font-semibold text-slate-900">Subject Scores</h2>
-      <div class="mt-3 overflow-x-auto rounded-2xl border border-slate-200">
+      <p class="mt-1 text-sm text-slate-600">Scores and form teacher comments are read-only here. Leadership can only review, comment, publish, or return for correction.</p>
+      <div class="mt-3 space-y-3 md:hidden">
+        {% for row in payload.subject_rows %}
+          <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <h3 class="text-sm font-semibold text-slate-900">{{ row.subject.name }}</h3>
+                <p class="mt-1 text-xs text-slate-500">{{ row.sheet_status }}</p>
+              </div>
+              <span class="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700">{{ row.grade }}</span>
+            </div>
+            <dl class="mt-3 grid grid-cols-3 gap-3 text-sm">
+              <div><dt class="text-xs uppercase tracking-[0.12em] text-slate-500">CA1</dt><dd class="mt-1 font-semibold text-slate-900">{{ row.ca1 }}</dd></div>
+              <div><dt class="text-xs uppercase tracking-[0.12em] text-slate-500">CA2</dt><dd class="mt-1 font-semibold text-slate-900">{{ row.ca2 }}</dd></div>
+              <div><dt class="text-xs uppercase tracking-[0.12em] text-slate-500">CA3</dt><dd class="mt-1 font-semibold text-slate-900">{{ row.ca3 }}</dd></div>
+              <div><dt class="text-xs uppercase tracking-[0.12em] text-slate-500">CA4</dt><dd class="mt-1 font-semibold text-slate-900">{{ row.ca4 }}</dd></div>
+              <div><dt class="text-xs uppercase tracking-[0.12em] text-slate-500">Exam</dt><dd class="mt-1 font-semibold text-slate-900">{{ row.exam_total }}</dd></div>
+              <div><dt class="text-xs uppercase tracking-[0.12em] text-slate-500">Total</dt><dd class="mt-1 font-semibold text-slate-900">{{ row.grand_total }}</dd></div>
+            </dl>
+          </article>
+        {% empty %}
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">No scores available for this student yet.</div>
+        {% endfor %}
+      </div>
+      <div class="mt-3 hidden overflow-x-auto rounded-2xl border border-slate-200 md:block">
         <table class="min-w-full divide-y divide-slate-200 text-sm">
           <thead class="bg-slate-50">
             <tr class="text-left text-slate-600">
@@ -112,12 +140,79 @@
           <p><span class="font-semibold">Attendance:</span> {{ payload.attendance_percentage }}%</p>
           <p class="mt-1"><span class="font-semibold">Behavior:</span> {{ payload.behavior_rating }}/5</p>
           <p class="mt-1"><span class="font-semibold">Form Teacher Comment:</span> {{ payload.teacher_comment|default:"-" }}</p>
+          <p class="mt-1"><span class="font-semibold">Management Note:</span> {{ payload.management_comment|default:"-" }}</p>
         </div>
         <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-          <p class="font-semibold text-slate-900">Principal Comment Preview</p>
-          <p class="mt-2">{{ payload.comment_bundle.principal_comment }}</p>
+          <p class="font-semibold text-slate-900">Psychomotor Breakdown</p>
+          <div class="mt-3 grid gap-2 sm:grid-cols-2">
+            {% for row in payload.behavior_rows %}
+              <div class="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                <p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{{ row.label }}</p>
+                <p class="mt-1 text-sm font-semibold text-slate-900">{{ row.value }}/5</p>
+              </div>
+            {% empty %}
+              <p class="text-sm text-slate-500">No psychomotor ratings recorded.</p>
+            {% endfor %}
+          </div>
         </div>
       </div>
     </article>
+
+    <article class="mt-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="grid gap-4 lg:grid-cols-2">
+        <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">AI Principal Suggestions</p>
+          <div class="mt-3 space-y-3">
+            {% for suggestion in principal_suggestions %}
+              <div class="rounded-2xl border border-slate-200 bg-white px-3 py-3">
+                <p class="text-sm text-slate-700">{{ suggestion }}</p>
+                <button type="button" data-principal-suggestion="{{ suggestion|escape }}" class="mt-3 rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-700">
+                  Use This Suggestion
+                </button>
+              </div>
+            {% empty %}
+              <p class="text-sm text-slate-500">No suggestion available.</p>
+            {% endfor %}
+          </div>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Current Principal Comment</p>
+          <p class="mt-2 text-sm text-slate-700">{{ payload.principal_comment|default:"No principal comment saved yet." }}</p>
+        </div>
+      </div>
+
+      <form method="post" class="mt-4 space-y-4">
+        {% csrf_token %}
+        <div>
+          <label for="principal_comment" class="mb-1 block text-sm font-semibold text-slate-700">Principal Comment</label>
+          <textarea id="principal_comment" name="principal_comment" rows="5" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">{{ record.principal_comment }}</textarea>
+        </div>
+        <div>
+          <label for="review_comment" class="mb-1 block text-sm font-semibold text-slate-700">Return For Correction Note</label>
+          <textarea id="review_comment" name="review_comment" rows="3" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" placeholder="Required only when rejecting this student result.">{{ record.management_comment }}</textarea>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button type="submit" name="action" value="use_principal_suggestion" class="ndga-btn ndga-btn-secondary">Use AI Suggestion</button>
+          <button type="submit" name="action" value="save_principal_comment" class="ndga-btn ndga-btn-primary">Save Principal Comment</button>
+          <button type="submit" name="action" value="reject_student" class="ndga-btn ndga-btn-secondary">Reject This Student</button>
+        </div>
+      </form>
+    </article>
   </section>
+{% endblock %}
+
+{% block extra_scripts %}
+  <script>
+    (function () {
+      const commentBox = document.getElementById("principal_comment");
+      if (!commentBox) {
+        return;
+      }
+      document.querySelectorAll("[data-principal-suggestion]").forEach((button) => {
+        button.addEventListener("click", function () {
+          commentBox.value = this.getAttribute("data-principal-suggestion") || "";
+        });
+      });
+    })();
+  </script>
 {% endblock %}

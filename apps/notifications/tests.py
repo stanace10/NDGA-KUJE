@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from django.test import Client, TestCase, override_settings
 
 from apps.accounts.constants import ROLE_BURSAR, ROLE_STUDENT, ROLE_SUBJECT_TEACHER, ROLE_VP
@@ -5,7 +7,8 @@ from apps.accounts.models import Role, StudentProfile, User
 from apps.academics.models import AcademicClass, AcademicSession, ClassSubject, StudentClassEnrollment, StudentSubjectEnrollment, Subject, Term
 from apps.audit.models import AuditEvent
 from apps.notifications.models import Notification, NotificationCategory
-from apps.notifications.services import notify_assignment_deadline, notify_election_announcement, notify_payment_receipt
+from apps.notifications.services import notify_assignment_deadline, notify_election_announcement, notify_payment_receipt, send_whatsapp_event
+from apps.notifications.whatsapp_adapters import WhatsAppSendResult
 from apps.results.models import (
     ClassCompilationStatus,
     ClassResultCompilation,
@@ -246,6 +249,34 @@ class NotificationWorkflowTests(TestCase):
         response = client.get(f"/notifications/detail/{notice.id}/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "/finance/student/overview/")
+
+    @override_settings(
+        WHATSAPP_PROVIDER="meta_cloud",
+        WHATSAPP_ACCESS_TOKEN="token",
+        WHATSAPP_PHONE_NUMBER_ID="123456",
+    )
+    @patch("apps.notifications.whatsapp_adapters.MetaWhatsAppCloudProvider.send")
+    def test_send_whatsapp_event_logs_success(self, mocked_send):
+        mocked_send.return_value = WhatsAppSendResult(
+            success=True,
+            provider="meta_cloud",
+            detail="status=200",
+            message_id="wamid-001",
+        )
+        result = send_whatsapp_event(
+            to_numbers=["08011111111"],
+            body_text="Leadership message",
+            actor=self.vp_user,
+        )
+        self.assertTrue(result.success)
+        self.assertEqual(result.sent_count, 1)
+        self.assertTrue(
+            AuditEvent.objects.filter(
+                event_type="WHATSAPP_EVENT",
+                status="SUCCESS",
+                metadata__sent_count=1,
+            ).exists()
+        )
 
 
 @override_settings(

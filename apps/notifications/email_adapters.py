@@ -27,6 +27,7 @@ class EmailProvider(Protocol):
         subject: str,
         body_text: str,
         body_html: str = "",
+        attachments: list[dict] | None = None,
     ) -> EmailSendResult:
         ...
 
@@ -34,7 +35,7 @@ class EmailProvider(Protocol):
 class ConsoleEmailProvider:
     provider_name = "console"
 
-    def send(self, *, to_emails, subject, body_text, body_html=""):
+    def send(self, *, to_emails, subject, body_text, body_html="", attachments=None):
         from_email = settings.NOTIFICATIONS_FROM_EMAIL
         message = EmailMultiAlternatives(
             subject=subject,
@@ -44,6 +45,11 @@ class ConsoleEmailProvider:
         )
         if body_html:
             message.attach_alternative(body_html, "text/html")
+        for row in attachments or []:
+            name = row.get("name") or "attachment.bin"
+            content = row.get("content") or b""
+            mimetype = row.get("mimetype") or "application/octet-stream"
+            message.attach(name, content, mimetype)
         sent = message.send(fail_silently=False)
         return EmailSendResult(
             success=sent > 0,
@@ -56,7 +62,9 @@ class BrevoEmailProvider:
     provider_name = "brevo"
     endpoint = "https://api.brevo.com/v3/smtp/email"
 
-    def send(self, *, to_emails, subject, body_text, body_html=""):
+    def send(self, *, to_emails, subject, body_text, body_html="", attachments=None):
+        import base64
+
         if not settings.BREVO_API_KEY:
             return EmailSendResult(
                 success=False,
@@ -74,6 +82,14 @@ class BrevoEmailProvider:
         }
         if body_html:
             payload["htmlContent"] = body_html
+        if attachments:
+            payload["attachment"] = [
+                {
+                    "name": row.get("name") or "attachment.bin",
+                    "content": base64.b64encode(row.get("content") or b"").decode("ascii"),
+                }
+                for row in attachments
+            ]
         request = Request(
             self.endpoint,
             data=json.dumps(payload).encode("utf-8"),

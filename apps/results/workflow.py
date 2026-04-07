@@ -92,19 +92,27 @@ def mark_compilation_rejected_by_vp(
     return compilation
 
 
-def mark_compilation_published(compilation: ClassResultCompilation, actor, *, principal_override=False):
+def mark_compilation_published(
+    compilation: ClassResultCompilation,
+    actor,
+    *,
+    principal_override=False,
+    comment="",
+):
     compilation.status = ClassCompilationStatus.PUBLISHED
     compilation.published_at = timezone.now()
     if principal_override:
         compilation.principal_override_actor = actor
     else:
         compilation.vp_actor = actor
+    compilation.decision_comment = (comment or "").strip()
     compilation.save(
         update_fields=[
             "status",
             "published_at",
             "vp_actor",
             "principal_override_actor",
+            "decision_comment",
             "updated_at",
         ]
     )

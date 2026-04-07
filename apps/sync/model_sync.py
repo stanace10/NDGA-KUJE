@@ -423,6 +423,33 @@ def _materialize_instance_from_lookup(model_label, lookup_payload):
     return instance
 
 
+def _match_existing_student_subject_score(payload):
+    if not isinstance(payload, dict):
+        return None
+
+    fields_payload = payload.get("fields") or {}
+    result_sheet_identity = fields_payload.get("result_sheet")
+    student_identity = fields_payload.get("student")
+    if not result_sheet_identity or not student_identity:
+        return None
+
+    result_sheet = _resolve_identity(
+        "results.resultsheet",
+        result_sheet_identity,
+        allow_missing=True,
+    )
+    student = _resolve_identity(
+        "accounts.user",
+        student_identity,
+        allow_missing=True,
+    )
+    if result_sheet is None or student is None:
+        return None
+
+    model = apps.get_model("results.studentsubjectscore")
+    return model.objects.filter(result_sheet=result_sheet, student=student).first()
+
+
 def _resolve_identity(model_label, identity_payload, *, allow_missing=False):
     if not isinstance(identity_payload, dict):
         if allow_missing:
@@ -439,6 +466,13 @@ def _resolve_identity(model_label, identity_payload, *, allow_missing=False):
     if binding:
         instance = model.objects.filter(pk=binding.local_pk).first()
         if instance is not None:
+            lookup_payload = identity_payload.get("lookup") or {}
+            if lookup_payload:
+                matched = _find_instance_by_lookup(model, lookup_payload)
+                if matched is not None and matched.pk != instance.pk:
+                    binding.local_pk = _pk_to_string(matched.pk)
+                    binding.save(update_fields=["local_pk", "updated_at"])
+                    return matched
             return instance
         binding.delete()
 
@@ -727,6 +761,12 @@ def apply_generic_model_payload(*, payload, operation_type):
             previous_score_state = _snapshot_student_subject_score(instance)
         elif instance is not None and model_label == "results.resultsheet":
             previous_sheet_state = _snapshot_result_sheet(instance)
+
+        if instance is None:
+            if model_label == "results.studentsubjectscore":
+                instance = _match_existing_student_subject_score(payload)
+                if instance is not None:
+                    previous_score_state = _snapshot_student_subject_score(instance)
 
         if instance is None:
             pk_field = model._meta.pk

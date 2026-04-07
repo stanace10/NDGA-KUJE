@@ -8,42 +8,203 @@
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 class="text-3xl font-bold text-slate-900">Performance Analysis</h1>
-          <p class="mt-2 text-sm text-slate-600">Student-by-student performance analysis for {{ current_session.name }} {{ current_term.get_name_display }}.</p>
+          <p class="mt-2 text-sm text-slate-600">One clean page for class-wide ranking, subject leaders, and student-by-student analysis for {{ current_session.name }} {{ current_term.get_name_display }}.</p>
         </div>
-        {% if send_results_url %}
-          <a href="{{ send_results_url }}" class="ndga-btn ndga-btn-secondary">Send Results</a>
-        {% endif %}
       </div>
-      <form method="get" class="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.7fr)_10rem]">
+      <form method="get" class="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.8fr)_minmax(0,0.8fr)_10rem]">
         <input type="text" name="q" value="{{ student_query }}" placeholder="Search student name or admission number" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
-        <select name="class_id" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
-          <option value="">All classes</option>
-          {% for row in class_options %}
-            <option value="{{ row.id }}" {% if selected_class and selected_class.id == row.id %}selected{% endif %}>{{ row.display_name|default:row.code }}</option>
+        <select name="level_id" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+          <option value="">All class levels</option>
+          {% for row in level_options %}
+            <option value="{{ row.id }}" {% if selected_level and selected_level.id == row.id %}selected{% endif %}>{{ row.display_name|default:row.code }}</option>
+          {% endfor %}
+        </select>
+        <select name="arm_id" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+          <option value="">All class arms</option>
+          {% for row in arm_options %}
+            <option value="{{ row.id }}" {% if selected_arm and selected_arm.id == row.id %}selected{% endif %}>{{ row.display_name|default:row.code }}</option>
           {% endfor %}
         </select>
         <button type="submit" class="ndga-btn ndga-btn-secondary">Search</button>
       </form>
     </article>
 
-    <div class="mt-6 grid gap-6 xl:grid-cols-[22rem_minmax(0,1fr)]">
-      <aside class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-        <h2 class="text-base font-semibold text-slate-900">Students</h2>
-        <div class="mt-3 space-y-2">
+    {% if class_performance.available %}
+      <article class="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Class Performance</p>
+            <h2 class="mt-2 text-2xl font-bold text-slate-900">{{ class_performance.scope_label }}</h2>
+            <p class="mt-1 text-sm text-slate-600">Highest in each subject, overall best student, class average, total average, and full positions from first to last.</p>
+          </div>
+        </div>
+
+        <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <article class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+            <p class="text-xs uppercase tracking-[0.14em] text-emerald-700">Overall Best</p>
+            <p class="mt-1 text-lg font-bold text-emerald-900">{{ class_performance.overall_best.student_name }}</p>
+            <p class="text-xs text-emerald-800">{{ class_performance.overall_best.student_number }}</p>
+            <p class="mt-2 text-2xl font-bold text-emerald-900">{{ class_performance.overall_best.average }}%</p>
+          </article>
+          <article class="rounded-2xl border border-sky-200 bg-sky-50 p-4">
+            <p class="text-xs uppercase tracking-[0.14em] text-sky-700">Highest Total</p>
+            <p class="mt-1 text-lg font-bold text-sky-900">{{ class_performance.highest_total.student_name }}</p>
+            <p class="text-xs text-sky-800">{{ class_performance.highest_total.student_number }}</p>
+            <p class="mt-2 text-2xl font-bold text-sky-900">{{ class_performance.highest_total.total }}</p>
+          </article>
+          <article class="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+            <p class="text-xs uppercase tracking-[0.14em] text-amber-700">Class Average</p>
+            <p class="mt-2 text-3xl font-bold text-amber-900">{{ class_performance.class_average }}%</p>
+          </article>
+          <article class="rounded-2xl border border-indigo-200 bg-indigo-50 p-4">
+            <p class="text-xs uppercase tracking-[0.14em] text-indigo-700">Average Total</p>
+            <p class="mt-2 text-3xl font-bold text-indigo-900">{{ class_performance.total_average }}</p>
+          </article>
+          <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <p class="text-xs uppercase tracking-[0.14em] text-slate-600">Students / Subjects</p>
+            <p class="mt-2 text-3xl font-bold text-slate-900">{{ class_performance.student_count }}</p>
+            <p class="text-xs text-slate-500">{{ class_performance.subject_count }} subject rows</p>
+          </article>
+        </div>
+
+        <div class="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+          <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <h3 class="text-base font-semibold text-slate-900">Highest In Each Subject</h3>
+            <p class="mt-1 text-xs text-slate-500">Overall subject leaders based on total subject score inside this selected class scope.</p>
+            <div class="mt-3 max-h-[32rem] overflow-auto rounded-2xl border border-slate-200 bg-white">
+              <table class="min-w-full divide-y divide-slate-200 text-sm">
+                <thead class="bg-slate-50">
+                  <tr>
+                    <th class="px-3 py-2 text-left">Subject</th>
+                    <th class="px-3 py-2 text-left">Student</th>
+                    <th class="px-3 py-2 text-left">Class</th>
+                    <th class="px-3 py-2 text-left">Score</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 bg-white">
+                  {% for section in class_performance.component_subject_winners %}
+                    {% if section.key == "grand_total" %}
+                      {% for row in section.rows %}
+                        <tr>
+                          <td class="px-3 py-2 font-semibold text-slate-900">{{ row.subject }}</td>
+                          <td class="px-3 py-2">
+                            <p class="font-semibold text-slate-900">{{ row.student_name }}</p>
+                            <p class="text-xs text-slate-500">{{ row.student_number }}</p>
+                          </td>
+                          <td class="px-3 py-2">{{ row.class_name }}</td>
+                          <td class="px-3 py-2 font-semibold">{{ row.score }}</td>
+                        </tr>
+                      {% endfor %}
+                    {% endif %}
+                  {% empty %}
+                    <tr>
+                      <td colspan="4" class="px-3 py-4 text-sm text-slate-500">No subject leaders are available yet.</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </article>
+
+          <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <h3 class="text-base font-semibold text-slate-900">Component Leaders</h3>
+            <div class="mt-3 space-y-4">
+              {% for section in class_performance.component_subject_winners %}
+                {% if section.key != "grand_total" %}
+                  <div class="rounded-2xl border border-slate-200 bg-white p-3">
+                    <p class="text-sm font-semibold text-slate-900">{{ section.label }}</p>
+                    <div class="mt-2 max-h-56 overflow-auto rounded-2xl border border-slate-200">
+                      <table class="min-w-full divide-y divide-slate-200 text-sm">
+                        <thead class="bg-slate-50">
+                          <tr>
+                            <th class="px-3 py-2 text-left">Subject</th>
+                            <th class="px-3 py-2 text-left">Student</th>
+                            <th class="px-3 py-2 text-left">Score</th>
+                          </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100 bg-white">
+                          {% for row in section.rows %}
+                            <tr>
+                              <td class="px-3 py-2 font-semibold text-slate-900">{{ row.subject }}</td>
+                              <td class="px-3 py-2">
+                                <p class="font-semibold text-slate-900">{{ row.student_name }}</p>
+                                <p class="text-xs text-slate-500">{{ row.student_number }}</p>
+                              </td>
+                              <td class="px-3 py-2 font-semibold">{{ row.score }}</td>
+                            </tr>
+                          {% endfor %}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                {% endif %}
+              {% empty %}
+                <p class="text-sm text-slate-500">No component winners are available yet.</p>
+              {% endfor %}
+            </div>
+          </article>
+        </div>
+
+        <article class="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <h3 class="text-base font-semibold text-slate-900">Positions First To Last</h3>
+          <div class="mt-3 max-h-[30rem] overflow-auto rounded-2xl border border-slate-200 bg-white">
+            <table class="min-w-full divide-y divide-slate-200 text-sm">
+              <thead class="bg-slate-50">
+                <tr>
+                  <th class="px-3 py-2 text-left">Pos</th>
+                  <th class="px-3 py-2 text-left">Student</th>
+                  <th class="px-3 py-2 text-left">Class</th>
+                  <th class="px-3 py-2 text-left">Total</th>
+                  <th class="px-3 py-2 text-left">Average</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100 bg-white">
+                {% for row in class_performance.position_rows %}
+                  <tr>
+                    <td class="px-3 py-2 font-semibold text-slate-900">{{ row.position }}</td>
+                    <td class="px-3 py-2">
+                      <p class="font-semibold text-slate-900">{{ row.student_name }}</p>
+                      <p class="text-xs text-slate-500">{{ row.student_number }}</p>
+                    </td>
+                    <td class="px-3 py-2">{{ row.class_name }}</td>
+                    <td class="px-3 py-2 font-semibold">{{ row.total }}</td>
+                    <td class="px-3 py-2 font-semibold">{{ row.average }}%</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </article>
+    {% endif %}
+
+    <article class="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Student View</p>
+          <h2 class="mt-2 text-2xl font-bold text-slate-900">Each Student Analysis</h2>
+          <p class="mt-1 text-sm text-slate-600">Pick any student below to open that student’s personal subject breakdown, ranking, strengths, and watchlist.</p>
+        </div>
+        {% if selected_student %}
+          <a href="?{% if student_query %}q={{ student_query|urlencode }}&{% endif %}{% if selected_level %}level_id={{ selected_level.id }}&{% endif %}{% if selected_arm %}arm_id={{ selected_arm.id }}&{% endif %}" class="ndga-btn ndga-btn-secondary">Close Student View</a>
+        {% endif %}
+      </div>
+
+      <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {% for row in student_rows %}
-            <a href="?student_id={{ row.id }}{% if student_query %}&q={{ student_query|urlencode }}{% endif %}{% if selected_class %}&class_id={{ selected_class.id }}{% endif %}" class="block rounded-2xl border px-3 py-3 transition {% if selected_student and selected_student.id == row.id %}border-ndga-navy bg-slate-50{% else %}border-slate-200 bg-white hover:border-slate-300{% endif %}">
+            <a href="?student_id={{ row.id }}{% if student_query %}&q={{ student_query|urlencode }}{% endif %}{% if selected_level %}&level_id={{ selected_level.id }}{% endif %}{% if selected_arm %}&arm_id={{ selected_arm.id }}{% endif %}" class="block rounded-2xl border px-3 py-3 transition {% if selected_student and selected_student.id == row.id %}border-ndga-navy bg-slate-50{% else %}border-slate-200 bg-white hover:border-slate-300{% endif %}">
               <p class="text-sm font-semibold text-slate-900">{{ row.get_full_name|default:row.username }}</p>
               <p class="text-xs text-slate-500">{{ row.student_profile.student_number|default:row.username }}</p>
             </a>
           {% empty %}
             <p class="text-sm text-slate-500">No students found for this window.</p>
           {% endfor %}
-        </div>
-      </aside>
+      </div>
+    </article>
 
-      <div class="space-y-6">
-        {% if selected_student and report.available %}
-          <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div class="mt-6 space-y-6">
+      {% if selected_student and report.available %}
+        <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
             <div class="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h2 class="text-2xl font-bold text-slate-900">{{ selected_student.get_full_name|default:selected_student.username }}</h2>
@@ -81,23 +242,19 @@
               </article>
 
               <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <h3 class="text-base font-semibold text-slate-900">AI Insights</h3>
+                <h3 class="text-base font-semibold text-slate-900">Performance Summary</h3>
                 <p class="mt-2 text-sm text-slate-700">{{ report.analytics.headline }}</p>
                 <div class="mt-3 rounded-2xl border border-slate-200 bg-white p-3 text-sm text-slate-700">
                   <p class="font-semibold text-slate-900">Strength Summary</p>
                   <p class="mt-1">{{ report.subject_strength_summary }}</p>
                 </div>
                 <div class="mt-3 rounded-2xl border border-slate-200 bg-white p-3 text-sm text-slate-700">
-                  <p class="font-semibold text-slate-900">Teacher Suggestion</p>
-                  <p class="mt-1">{{ report.comment_bundle.teacher_comment }}</p>
+                  <p class="font-semibold text-slate-900">Form Teacher Comment</p>
+                  <p class="mt-1">{{ report.teacher_comment|default:"No form teacher comment recorded." }}</p>
                 </div>
                 <div class="mt-3 rounded-2xl border border-slate-200 bg-white p-3 text-sm text-slate-700">
-                  <p class="font-semibold text-slate-900">Dean Suggestion</p>
-                  <p class="mt-1">{{ report.comment_bundle.dean_comment }}</p>
-                </div>
-                <div class="mt-3 rounded-2xl border border-slate-200 bg-white p-3 text-sm text-slate-700">
-                  <p class="font-semibold text-slate-900">Principal Suggestion</p>
-                  <p class="mt-1">{{ report.comment_bundle.principal_comment }}</p>
+                  <p class="font-semibold text-slate-900">Principal Comment</p>
+                  <p class="mt-1">{{ report.principal_comment|default:"No principal comment recorded." }}</p>
                 </div>
                 <div class="mt-3 rounded-2xl border border-slate-200 bg-white p-3 text-sm text-slate-700">
                   <p class="font-semibold text-slate-900">Watch Subjects</p>
@@ -159,11 +316,10 @@
                 </div>
               </article>
             </div>
-          </article>
-        {% else %}
-          <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm text-sm text-slate-500">Select a student with available results to view performance analysis.</article>
-        {% endif %}
-      </div>
+        </article>
+      {% else %}
+        <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm text-sm text-slate-500">Choose a student from the student list above when you want the individual performance breakdown. The class board stays visible for all students at once.</article>
+      {% endif %}
     </div>
   </section>
 {% endblock %}

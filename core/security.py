@@ -1,11 +1,60 @@
 from __future__ import annotations
 
+import ipaddress
+
 from django.conf import settings
 from django.core.cache import cache
 from django.http import HttpResponse
 
 from apps.audit.models import AuditCategory, AuditStatus
 from apps.audit.services import get_client_ip, log_event
+
+
+class LocalNetworkHostCompatibilityMiddleware:
+    """
+    Keeps local/LAN HTTP access working even when production HTTPS settings are enabled.
+
+    Public domains continue to use normal HTTPS enforcement, while private IPs and local
+    hostnames can be served over plain HTTP for on-prem/LAN access.
+    """
+
+    LOCAL_HOSTNAMES = {
+        "localhost",
+        "127.0.0.1",
+        "::1",
+        "ndgak.local",
+    }
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        host = (request.get_host() or "").split(":", 1)[0].strip("[]").lower()
+        is_local_host = self._is_local_host(host)
+        request._ndga_local_http_host = is_local_host
+        if is_local_host:
+            # Pretend the request is already secure so SecurityMiddleware does not
+            # bounce local IP/HTTP users to a non-existent HTTPS listener.
+            request.META["HTTP_X_FORWARDED_PROTO"] = "https"
+
+        response = self.get_response(request)
+
+        if is_local_host:
+            response.headers.pop("Strict-Transport-Security", None)
+            for morsel in response.cookies.values():
+                morsel["secure"] = False
+
+        return response
+
+    def _is_local_host(self, host: str) -> bool:
+        if not host:
+            return False
+        if host in self.LOCAL_HOSTNAMES or host.endswith(".local"):
+            return True
+        try:
+            return ipaddress.ip_address(host).is_private or ipaddress.ip_address(host).is_loopback
+        except ValueError:
+            return False
 
 
 class RequestRateLimitMiddleware:
@@ -103,9 +152,9 @@ class StrictSecurityHeadersMiddleware:
 
     NO_STORE_PREFIXES = (
         "/auth/",
+        "/cbt/",
         "/setup/session-term/",
         "/setup/backup/",
-        "/sync/dashboard/",
     )
 
     def __init__(self, get_response):

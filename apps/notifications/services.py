@@ -1,16 +1,24 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass
+from urllib.parse import urlparse
 
+from django.templatetags.static import static
+from django.template.loader import render_to_string
+from django.utils.html import conditional_escape
+from django.utils.safestring import mark_safe
 from django.utils import timezone
 
 from apps.audit.services import log_event
 from apps.audit.models import AuditCategory, AuditStatus
+from apps.dashboard.models import SchoolProfile
 from apps.notifications.email_adapters import EmailSendResult, get_email_provider
 from apps.notifications.whatsapp_adapters import WhatsAppSendResult, get_whatsapp_provider
 from apps.notifications.models import Notification, NotificationCategory
 from apps.tenancy.utils import build_portal_url
+from apps.pdfs.services import school_logo_data_uri
 
 
 def _normalized_emails(emails):
@@ -38,16 +46,98 @@ def normalize_whatsapp_phone(raw_phone):
     return digits
 
 
+def extract_whatsapp_phones(raw_phone):
+    parts = re.split(r"[;\n,/|]+", str(raw_phone or ""))
+    numbers = []
+    seen = set()
+    for part in parts:
+        value = normalize_whatsapp_phone(part)
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        numbers.append(value)
+    return numbers
+
+
 def _normalized_phones(phones):
     seen = set()
     clean = []
     for phone in phones:
-        value = normalize_whatsapp_phone(phone)
-        if not value or value in seen:
-            continue
-        seen.add(value)
-        clean.append(value)
+        for value in extract_whatsapp_phones(phone):
+            if value in seen:
+                continue
+            seen.add(value)
+            clean.append(value)
     return clean
+
+
+def _email_paragraphs(body_text):
+    paragraphs = []
+    for block in (body_text or "").replace("\r\n", "\n").split("\n\n"):
+        lines = [conditional_escape(line.strip()) for line in block.split("\n") if line.strip()]
+        if not lines:
+            continue
+        paragraphs.append(mark_safe("<br>".join(lines)))
+    return paragraphs
+
+
+def _public_root_url(*, request=None, profile=None):
+    profile = profile or SchoolProfile.load()
+    if request is not None:
+        return build_portal_url(request, "landing", "/").rstrip("/")
+    website = (profile.website or "ndgakuje.org").strip()
+    if not website:
+        return "https://ndgakuje.org"
+    parsed = urlparse(website)
+    if parsed.scheme and parsed.netloc:
+        return website.rstrip("/")
+    if website.startswith("//"):
+        return f"https:{website}".rstrip("/")
+    return f"https://{website.lstrip('/')}".rstrip("/")
+
+
+def _school_logo_url(*, request=None, profile=None):
+    profile = profile or SchoolProfile.load()
+    if profile and profile.school_logo:
+        logo_path = profile.school_logo.url
+    else:
+        logo_path = static("images/ndga/logo.png")
+    if logo_path.startswith(("http://", "https://")):
+        return logo_path
+    if not logo_path.startswith("/"):
+        logo_path = f"/{logo_path}"
+    return f"{_public_root_url(request=request, profile=profile)}{logo_path}"
+
+
+def _school_email_html(*, subject, body_text, body_html="", request=None):
+    profile = SchoolProfile.load()
+    portal_home = build_portal_url(request, "landing", "/") if request else ""
+    support_email = profile.contact_email or "office@ndgakuje.org"
+    support_phone = profile.contact_phone or ""
+    website = profile.website or portal_home
+    resolved_logo_url = _school_logo_url(request=request, profile=profile)
+    rendered_body = body_html or render_to_string(
+        "notifications/email_body_default.html",
+        {
+            "paragraphs": _email_paragraphs(body_text),
+        },
+    )
+    return render_to_string(
+        "notifications/email_shell.html",
+        {
+            "school_profile": profile,
+            "logo_url": resolved_logo_url,
+            # Gmail is more reliable with an absolute HTTPS image than a base64 data URI.
+            "logo_data_uri": resolved_logo_url or school_logo_data_uri(),
+            "subject": subject,
+            "body_html_content": mark_safe(rendered_body),
+            "portal_home": portal_home,
+            "support_email": support_email,
+            "support_phone": support_phone,
+            "website": website,
+            "current_year": timezone.now().year,
+        },
+    )
 
 
 @dataclass
@@ -116,17 +206,25 @@ def send_email_event(
     request=None,
     metadata=None,
     body_html="",
+    attachments=None,
 ):
     provider = get_email_provider()
     emails = _normalized_emails(to_emails)
     if not emails:
         return None
+    branded_html = _school_email_html(
+        subject=subject,
+        body_text=body_text,
+        body_html=body_html,
+        request=request,
+    )
     try:
         result = provider.send(
             to_emails=emails,
             subject=subject,
             body_text=body_text,
-            body_html=body_html,
+            body_html=branded_html,
+            attachments=attachments,
         )
     except Exception as exc:  # noqa: BLE001
         result = EmailSendResult(
@@ -147,6 +245,7 @@ def send_email_event(
             "detail": result.detail,
             "to_count": len(emails),
             "to_emails": emails,
+            "attachment_count": len(attachments or []),
             **(metadata or {}),
         },
     )
@@ -261,9 +360,13 @@ def notify_results_published(*, compilation, actor, request=None):
             to_emails=guardian_emails,
             subject=f"NDGA Result Published: {compilation.term.get_name_display()}",
             body_text=(
-                f"Results are now published for {compilation.academic_class.code} "
-                f"({compilation.session.name}, {compilation.term.get_name_display()}). "
-                f"Access the portal: {report_url}"
+                f"The {compilation.term.get_name_display()} result for "
+                f"{compilation.academic_class.code} in the {compilation.session.name} academic session "
+                f"is now available.\n\n"
+                f"Student portal login: https://student.ndgakuje.org/auth/login/?audience=student\n"
+                f"Result link: {report_url}\n\n"
+                f"Official report and performance PDFs are available in the portal.\n\n"
+                f"Thank you for your continued support."
             ),
             actor=actor,
             request=request,
@@ -275,11 +378,29 @@ def notify_results_published(*, compilation, actor, request=None):
     return created
 
 
-def notify_payment_receipt(*, student, receipt_number, amount, actor, request=None, message=""):
+def notify_payment_receipt(
+    *,
+    student,
+    receipt_number,
+    amount,
+    actor,
+    request=None,
+    message="",
+    email_subject="",
+    email_body_text="",
+    email_body_html="",
+    email_attachments=None,
+):
     title = "Payment Receipt Issued"
     base_message = (
         message
-        or f"Receipt {receipt_number} has been issued for payment of {amount}."
+        or (
+            f"This is to confirm that payment has been received and receipt {receipt_number} "
+            f"has been issued for the sum of {amount}.\n\n"
+            f"You may log in to the student finance portal at any time to review the receipt, "
+            f"outstanding balance, and payment history.\n\n"
+            f"Thank you for your prompt attention to school payments."
+        )
     )
     notification = create_notification(
         recipient=student,
@@ -299,11 +420,13 @@ def notify_payment_receipt(*, student, receipt_number, amount, actor, request=No
     if emails:
         send_email_event(
             to_emails=emails,
-            subject=f"NDGA Payment Receipt {receipt_number}",
-            body_text=base_message,
+            subject=email_subject or f"NDGA Payment Receipt {receipt_number}",
+            body_text=email_body_text or base_message,
             actor=actor,
             request=request,
             metadata={"event": "PAYMENT_RECEIPT", "receipt_number": receipt_number},
+            body_html=email_body_html,
+            attachments=email_attachments,
         )
     return notification
 
@@ -348,7 +471,11 @@ def notify_attendance_alert(*, student, attendance_date, status, actor, request=
         return None
     title = "Attendance Alert"
     class_code = getattr(academic_class, "code", "your class")
-    message = f"Attendance was marked ABSENT for {attendance_date} in {class_code}."
+    message = (
+        f"This is a quick attendance notice to let you know that {student.get_full_name() or student.username} "
+        f"was marked absent on {attendance_date} for {class_code}.\n\n"
+        f"If this record needs clarification, please contact the school promptly so we can review it together."
+    )
     notification = create_notification(
         recipient=student,
         category=NotificationCategory.SYSTEM,
@@ -431,7 +558,12 @@ def notify_cbt_schedule_published(*, exam, actor, request=None):
         send_email_event(
             to_emails=emails,
             subject=title,
-            body_text=f"{message} Access the CBT portal: {portal_url}",
+            body_text=(
+                f"A CBT assessment has been scheduled for {exam.subject.name} in {exam.academic_class.code}.\n\n"
+                f"{time_message}\n\n"
+                f"Please ensure your child is ready and logs in within the approved exam window.\n\n"
+                f"CBT portal: {portal_url}"
+            ),
             actor=actor,
             request=request,
             metadata={
@@ -489,7 +621,12 @@ def notify_assignment_deadline(*, academic_class, subject, topic, due_date, acto
         send_email_event(
             to_emails=emails,
             subject=title,
-            body_text=f"{message} Open the learning hub: {portal_url}",
+            body_text=(
+                f"A new assignment has been published for {academic_class.code} in {subject.name}.\n\n"
+                f"Topic: {topic}\n"
+                f"{f'Due date: {due_date}' if due_date else 'Please check the portal for the submission timeline.'}\n\n"
+                f"The learning hub can be opened here: {portal_url}"
+            ),
             actor=actor,
             request=request,
             metadata={

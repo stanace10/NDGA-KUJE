@@ -255,8 +255,11 @@ def main():
     blueprint.instructions = INSTRUCTIONS
     blueprint.section_config = {
         "paper_code": "JS3-CRS-EXAM",
+        "flow_type": "OBJECTIVE_THEORY",
         "objective_count": len(OBJECTIVES),
         "theory_count": len(THEORY),
+        "objective_target_max": "20.00",
+        "theory_target_max": "40.00",
     }
     blueprint.passing_score = Decimal("0.00")
     blueprint.objective_writeback_target = CBTWritebackTarget.OBJECTIVE

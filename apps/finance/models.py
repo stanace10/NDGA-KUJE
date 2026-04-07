@@ -40,6 +40,8 @@ class SalaryStatus(models.TextChoices):
 
 class PaymentGatewayProvider(models.TextChoices):
     PAYSTACK = "PAYSTACK", "Paystack"
+    REMITTA = "REMITTA", "Remitta"
+    FLUTTERWAVE = "FLUTTERWAVE", "Flutterwave"
 
 
 class PaymentGatewayStatus(models.TextChoices):

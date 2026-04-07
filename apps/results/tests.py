@@ -126,11 +126,12 @@ class ResultSettingsEnhancementTests(TestCase):
         response = client.get("/results/settings/")
         self.assertEqual(response.status_code, 302)
 
-    def test_vp_cannot_open_result_reports(self):
+    def test_vp_can_open_result_reports(self):
         client = Client(HTTP_HOST="vp.ndgakuje.org")
         client.force_login(self.vp_user)
         response = client.get("/results/report/performance/")
-        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Performance Analysis")
 
     def test_it_can_manage_grade_scale_bands(self):
         client = Client(HTTP_HOST="it.ndgakuje.org")
@@ -308,3 +309,86 @@ class ResultEntryCBTPolicyTests(TestCase):
         self.assertEqual(bundle["payload"].ca3, Decimal("9.25"))
         self.assertEqual(cbt_state["ca23"]["theory"], "8.00")
         self.assertTrue(cbt_state["ca23"]["locked"])
+
+    def test_exam_policy_without_cbt_import_allows_manual_objective_input(self):
+        score = StudentSubjectScore.objects.create(
+            result_sheet=self.sheet,
+            student=self.student,
+            objective=Decimal("0.00"),
+            theory=Decimal("0.00"),
+        )
+        policies = {
+            "ca1": {"enabled": False, "objective_max": "5.00", "theory_max": "5.00"},
+            "ca23": {"enabled": False, "objective_max": "10.00", "theory_max": "10.00"},
+            "ca4": {"enabled": False, "objective_max": "5.00", "theory_max": "5.00"},
+            "exam": {"enabled": True, "objective_max": "40.00", "theory_max": "60.00"},
+        }
+
+        bundle = build_posted_score_bundle(
+            current_score=score,
+            post={f"objective_{self.student.id}": "24.50", f"theory_{self.student.id}": "18.00"},
+            student_id=self.student.id,
+            policies=policies,
+            actor=self.actor,
+        )
+        cbt_state = row_component_state(score, policies)
+
+        self.assertEqual(bundle["payload"].objective, Decimal("24.50"))
+        self.assertEqual(bundle["payload"].theory, Decimal("18.00"))
+        self.assertEqual(bundle["breakdown_updates"]["objective_auto"], Decimal("0.00"))
+        self.assertFalse(cbt_state["exam"]["locked"])
+
+    def test_ca23_policy_without_cbt_import_allows_manual_ca2_input(self):
+        score = StudentSubjectScore.objects.create(
+            result_sheet=self.sheet,
+            student=self.student,
+            ca2=Decimal("0.00"),
+            ca3=Decimal("0.00"),
+        )
+        policies = {
+            "ca1": {"enabled": False, "objective_max": "5.00", "theory_max": "5.00"},
+            "ca23": {"enabled": True, "objective_max": "10.00", "theory_max": "10.00"},
+            "ca4": {"enabled": False, "objective_max": "5.00", "theory_max": "5.00"},
+            "exam": {"enabled": False, "objective_max": "40.00", "theory_max": "20.00"},
+        }
+
+        bundle = build_posted_score_bundle(
+            current_score=score,
+            post={f"ca2_{self.student.id}": "7.50", f"ca3_{self.student.id}": "8.25"},
+            student_id=self.student.id,
+            policies=policies,
+            actor=self.actor,
+        )
+        cbt_state = row_component_state(score, policies)
+
+        self.assertEqual(bundle["payload"].ca2, Decimal("7.50"))
+        self.assertEqual(bundle["payload"].ca3, Decimal("8.25"))
+        self.assertEqual(bundle["breakdown_updates"]["ca2_objective"], Decimal("0.00"))
+        self.assertFalse(cbt_state["ca23"]["locked"])
+
+    def test_ca1_policy_without_cbt_import_allows_full_manual_score(self):
+        score = StudentSubjectScore.objects.create(
+            result_sheet=self.sheet,
+            student=self.student,
+            ca1=Decimal("0.00"),
+        )
+        policies = {
+            "ca1": {"enabled": True, "objective_max": "5.00", "theory_max": "5.00"},
+            "ca23": {"enabled": False, "objective_max": "10.00", "theory_max": "10.00"},
+            "ca4": {"enabled": False, "objective_max": "5.00", "theory_max": "5.00"},
+            "exam": {"enabled": False, "objective_max": "40.00", "theory_max": "20.00"},
+        }
+
+        bundle = build_posted_score_bundle(
+            current_score=score,
+            post={f"ca1_{self.student.id}": "8.50"},
+            student_id=self.student.id,
+            policies=policies,
+            actor=self.actor,
+        )
+        cbt_state = row_component_state(score, policies)
+
+        self.assertEqual(bundle["payload"].ca1, Decimal("8.50"))
+        self.assertEqual(bundle["breakdown_updates"]["ca1_objective"], Decimal("0.00"))
+        self.assertEqual(bundle["breakdown_updates"]["ca1_theory"], Decimal("0.00"))
+        self.assertFalse(cbt_state["ca1"]["locked"])

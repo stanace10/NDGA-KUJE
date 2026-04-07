@@ -98,9 +98,10 @@
         <p class="mt-1 text-sm text-emerald-800">
           Publish final results to student portal.
         </p>
-        <form method="post" class="mt-3">
+        <form method="post" class="mt-3 space-y-3">
           {% csrf_token %}
           <input type="hidden" name="action" value="publish">
+          {{ action_form.comment }}
           <button
             type="submit"
             class="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-slate-300"

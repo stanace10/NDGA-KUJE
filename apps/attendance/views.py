@@ -35,6 +35,41 @@ class RoleRestrictedView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         return has_any_role(self.request.user, self.allowed_roles)
 
 
+def _pick_form_assignment(request, assignments):
+    class_id_raw = (request.GET.get("class_id") or request.POST.get("class_id") or "").strip()
+    if class_id_raw.isdigit():
+        selected = assignments.filter(academic_class_id=int(class_id_raw)).first()
+        if selected is not None:
+            return selected
+    return assignments.first()
+
+
+class FormTeacherClassListView(RoleRestrictedView):
+    template_name = "attendance/form_class_list.html"
+    allowed_roles = {ROLE_FORM_TEACHER}
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        setup_state = get_setup_state()
+        assignments = list(
+            get_form_teacher_assignments_for_current_session(self.request.user)
+            .select_related("academic_class", "session")
+            .order_by("academic_class__code")
+        )
+        context["current_session"] = setup_state.current_session
+        context["current_term"] = setup_state.current_term
+        context["class_rows"] = [
+            {
+                "assignment": assignment,
+                "display_name": assignment.academic_class.display_name or assignment.academic_class.code,
+                "daily_url": f"{reverse('attendance:form-mark')}?{urlencode({'class_id': assignment.academic_class_id, 'attendance_date': date.today().isoformat()})}",
+                "weekly_url": f"{reverse('attendance:form-weekly')}?{urlencode({'class_id': assignment.academic_class_id, 'week_start': date.today().isoformat()})}",
+            }
+            for assignment in assignments
+        ]
+        return context
+
+
 class CalendarManagementView(RoleRestrictedView):
     template_name = "attendance/calendar_manage.html"
     allowed_roles = {ROLE_IT_MANAGER, ROLE_VP, ROLE_PRINCIPAL}
@@ -385,7 +420,7 @@ class FormTeacherAttendanceView(RoleRestrictedView):
         assignments = get_form_teacher_assignments_for_current_session(
             self.request.user
         ).select_related("academic_class", "session")
-        return setup_state, assignments, assignments.first()
+        return setup_state, assignments, _pick_form_assignment(self.request, assignments)
 
     def _selected_page_size(self):
         page_size_raw = self.request.GET.get("page_size") or self.request.POST.get("page_size")
@@ -408,6 +443,19 @@ class FormTeacherAttendanceView(RoleRestrictedView):
                 return date.today()
         return date.today()
 
+    def _selected_class_scope_label(self, assignment):
+        if not assignment:
+            return ""
+        selected_class = assignment.academic_class
+        arm_labels = list(
+            selected_class.arm_classes.filter(is_active=True)
+            .order_by("arm_name", "code")
+            .values_list("display_name", flat=True)
+        )
+        if not arm_labels:
+            return selected_class.display_name or selected_class.code
+        return f"{selected_class.code} ({', '.join(arm_labels)})"
+
     def _build_context(self):
         setup_state, assignments, assignment = self._setup_and_assignment()
         selected_date = self._selected_date()
@@ -420,6 +468,8 @@ class FormTeacherAttendanceView(RoleRestrictedView):
             "page_obj": None,
             "present_student_ids": set(),
             "selected_class": selected_class,
+            "selected_class_id": assignment.academic_class_id if assignment else "",
+            "selected_class_scope_label": self._selected_class_scope_label(assignment),
             "selected_date": selected_date,
             "week_start": week_start,
             "marking_allowed": False,
@@ -427,7 +477,12 @@ class FormTeacherAttendanceView(RoleRestrictedView):
             "page_size": self._selected_page_size(),
             "page_size_options": self.page_size_options,
             "current_page": int((self.request.GET.get("page") or self.request.POST.get("page") or "1")),
-            "weekly_url": f"{reverse('attendance:form-weekly')}?week_start={week_start.isoformat()}",
+            "weekly_url": (
+                f"{reverse('attendance:form-weekly')}?"
+                f"{urlencode({'class_id': assignment.academic_class_id, 'week_start': week_start.isoformat()})}"
+                if assignment
+                else f"{reverse('attendance:form-weekly')}?week_start={week_start.isoformat()}"
+            ),
             "daily_base_url": reverse("attendance:form-mark"),
             "prev_date": selected_date - timedelta(days=1),
             "next_date": selected_date + timedelta(days=1),
@@ -456,7 +511,7 @@ class FormTeacherAttendanceView(RoleRestrictedView):
             context["marking_allowed"] = True
 
         enrollments_qs = StudentClassEnrollment.objects.select_related("student").filter(
-            academic_class=assignment.academic_class,
+            academic_class_id__in=assignment.academic_class.cohort_class_ids(),
             session=assignment.session,
             is_active=True,
         )
@@ -565,7 +620,8 @@ class FormTeacherAttendanceView(RoleRestrictedView):
         messages.success(request, "Attendance saved successfully.")
         page_size = self._selected_page_size()
         return redirect(
-            f"{reverse('attendance:form-mark')}?attendance_date={selected_date}"
+            f"{reverse('attendance:form-mark')}?class_id={assignment.academic_class_id}"
+            f"&attendance_date={selected_date}"
             f"&page={request.POST.get('page', 1)}&page_size={page_size}"
         )
 
@@ -581,7 +637,7 @@ class FormTeacherWeeklyAttendanceView(RoleRestrictedView):
         assignments = get_form_teacher_assignments_for_current_session(
             self.request.user
         ).select_related("academic_class", "session")
-        return setup_state, assignments.first()
+        return setup_state, _pick_form_assignment(self.request, assignments)
 
     def _selected_page_size(self):
         page_size_raw = self.request.GET.get("page_size") or self.request.POST.get("page_size")
@@ -603,6 +659,19 @@ class FormTeacherWeeklyAttendanceView(RoleRestrictedView):
         else:
             selected = date.today()
         return selected - timedelta(days=selected.weekday())
+
+    def _selected_class_scope_label(self, assignment):
+        if not assignment:
+            return ""
+        selected_class = assignment.academic_class
+        arm_labels = list(
+            selected_class.arm_classes.filter(is_active=True)
+            .order_by("arm_name", "code")
+            .values_list("display_name", flat=True)
+        )
+        if not arm_labels:
+            return selected_class.display_name or selected_class.code
+        return f"{selected_class.code} ({', '.join(arm_labels)})"
 
     def _week_days(self, *, week_start, calendar):
         holidays = set(calendar.holidays.values_list("date", flat=True))
@@ -631,13 +700,20 @@ class FormTeacherWeeklyAttendanceView(RoleRestrictedView):
             "calendar": None,
             "page_obj": None,
             "week_days": [],
+            "selected_class_id": assignment.academic_class_id if assignment else "",
+            "selected_class_scope_label": self._selected_class_scope_label(assignment),
             "week_start": week_start,
             "prev_week": week_start - timedelta(days=7),
             "next_week": week_start + timedelta(days=7),
             "page_size": self._selected_page_size(),
             "page_size_options": self.page_size_options,
             "current_page": int((self.request.GET.get("page") or self.request.POST.get("page") or "1")),
-            "daily_url": f"{reverse('attendance:form-mark')}?attendance_date={date.today().isoformat()}",
+            "daily_url": (
+                f"{reverse('attendance:form-mark')}?"
+                f"{urlencode({'class_id': assignment.academic_class_id, 'attendance_date': date.today().isoformat()})}"
+                if assignment
+                else f"{reverse('attendance:form-mark')}?attendance_date={date.today().isoformat()}"
+            ),
             "attendance_block_reason": "",
         }
         if not assignment:
@@ -657,7 +733,7 @@ class FormTeacherWeeklyAttendanceView(RoleRestrictedView):
         context["week_days"] = week_days
 
         enrollments_qs = StudentClassEnrollment.objects.select_related("student").filter(
-            academic_class=assignment.academic_class,
+            academic_class_id__in=assignment.academic_class.cohort_class_ids(),
             session=assignment.session,
             is_active=True,
         )
@@ -766,6 +842,7 @@ class FormTeacherWeeklyAttendanceView(RoleRestrictedView):
         messages.success(request, "Weekly attendance saved successfully.")
         page_size = self._selected_page_size()
         return redirect(
-            f"{reverse('attendance:form-weekly')}?week_start={week_start.isoformat()}"
+            f"{reverse('attendance:form-weekly')}?class_id={assignment.academic_class_id}"
+            f"&week_start={week_start.isoformat()}"
             f"&page={request.POST.get('page', 1)}&page_size={page_size}"
         )

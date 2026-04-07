@@ -1,5 +1,6 @@
 .env
 .venv/
+.vscode/
 .postgres/
 .run/
 .tools/
@@ -10,9 +11,16 @@ __pycache__/
 *.py[cod]
 *.sqlite3
 SCHOOL/ndga_generated_credentials.txt
+backups/**
+!backups/.gitkeep
+!backups/README.md
+!backups/manifests/
+!backups/manifests/.gitkeep
 
 README copy.md
 
 NDGA_result_preview.pdf
 NDGA_result_preview.png
 gradex format/
+ndga/
+SCHOOL FOLDER/

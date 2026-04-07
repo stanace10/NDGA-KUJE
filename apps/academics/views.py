@@ -78,9 +78,14 @@ class ITAcademicHubView(ITManagerRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        class_levels_total = AcademicClass.objects.filter(is_active=True, base_class__isnull=True).count()
+        class_list_total = AcademicClass.objects.filter(is_active=True, base_class__isnull=False).count()
+        if not class_list_total:
+            class_list_total = class_levels_total
         context["counts"] = {
             "campuses": Campus.objects.count(),
-            "classes": AcademicClass.objects.count(),
+            "classes": class_list_total,
+            "class_levels": class_levels_total,
             "subjects": Subject.objects.count(),
             "class_subjects": ClassSubject.objects.count(),
             "subject_assignments": TeacherSubjectAssignment.objects.filter(is_active=True).count(),

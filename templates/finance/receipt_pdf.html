@@ -1,3 +1,4 @@
+{% load finance_tags %}
 <!doctype html>
 <html lang="en">
 <head>
@@ -215,6 +216,7 @@
         <div class="meta-row"><span class="label">Term</span><span>{% if payment.term %}{{ payment.term.get_name_display }}{% else %}-{% endif %}</span></div>
         <div class="meta-row"><span class="label">Payment Date</span><span>{{ payment.payment_date }}</span></div>
         <div class="meta-row"><span class="label">Method</span><span>{{ payment.get_payment_method_display }}</span></div>
+        <div class="meta-row"><span class="label">Plan</span><span>{{ payment|payment_plan_label }}</span></div>
         <div class="meta-row"><span class="label">Reference</span><span>{{ payment.gateway_reference|default:"-" }}</span></div>
       </article>
     </section>
@@ -239,8 +241,8 @@
           <tr>
             <td>Void Status</td>
             <td class="value">{% if payment.is_void %}VOID{% else %}VALID{% endif %}</td>
-            <td>Payload Hash</td>
-            <td class="value">{{ receipt.payload_hash|slice:":18" }}...</td>
+            <td>Plan Summary</td>
+            <td class="value">{{ payment|payment_plan_summary }}</td>
           </tr>
           <tr class="total-row">
             <td>Total</td>

@@ -10,6 +10,7 @@
 @layer base {
   body {
     @apply bg-ndga-ash text-slate-900 antialiased;
+    overflow-x: hidden;
   }
 
   button,
@@ -329,6 +330,106 @@
 
   .animate-soft-reveal-delay-3 {
     animation: soft-reveal 0.7s ease-out 0.45s both;
+  }
+}
+
+@media (max-width: 768px) {
+  .portal-shell {
+    display: block;
+  }
+
+  .portal-sidebar-mobile {
+    width: min(85vw, 20rem);
+  }
+
+  .portal-main {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .portal-topbar {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding-left: 0.85rem;
+    padding-right: 0.85rem;
+  }
+
+  .portal-topbar-title {
+    width: 100%;
+  }
+
+  .portal-topbar-meta {
+    flex-wrap: wrap;
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .portal-user-pill,
+  .portal-topbar-chip {
+    max-width: 100%;
+    word-break: break-word;
+  }
+
+  .portal-profile-shell {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+    max-width: 100%;
+  }
+
+  .portal-profile-grid {
+    gap: 0.9rem;
+  }
+
+  .portal-profile-shell article,
+  .portal-profile-shell section,
+  .portal-profile-shell aside,
+  .portal-profile-shell div {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .portal-profile-sidebar {
+    margin-left: auto;
+    margin-right: auto;
+    width: 100%;
+    max-width: 22rem;
+  }
+
+  .portal-profile-photo {
+    height: 6rem !important;
+    width: 6rem !important;
+  }
+
+  .portal-profile-cards > div,
+  .portal-profile-cards > article {
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .portal-profile-cards {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .portal-profile-shell p,
+  .portal-profile-shell h1,
+  .portal-profile-shell h2,
+  .portal-profile-shell h3,
+  .portal-profile-shell span {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  table {
+    font-size: 0.75rem;
+  }
+
+  th,
+  td {
+    padding-left: 0.6rem;
+    padding-right: 0.6rem;
   }
 }
 

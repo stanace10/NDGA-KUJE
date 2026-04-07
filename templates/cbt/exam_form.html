@@ -189,10 +189,6 @@
         var mode = (authoringMode && authoringMode.value) || "";
         var flow = (flowType && flowType.value) || "";
 
-        if (exam === "EXAM" && flowType && flowType.value !== "OBJECTIVE_THEORY") {
-          flowType.value = "OBJECTIVE_THEORY";
-          flow = "OBJECTIVE_THEORY";
-        }
         if ((exam === "CA" || exam === "PRACTICAL") && flowType && !flow) {
           flowType.value = "OBJECTIVE_THEORY";
           flow = "OBJECTIVE_THEORY";
@@ -217,7 +213,7 @@
         setVisible(structureBlock, !isUploadOrAi);
         setVisible(
           flowType ? flowType.parentElement : null,
-          isScratch && !isFreeTest && (exam === "CA" || exam === "PRACTICAL")
+          isScratch && !isFreeTest && (exam === "CA" || exam === "PRACTICAL" || exam === "EXAM")
         );
         setVisible(objectiveCountField, isScratch && hasObjective && !isSimulationFlow);
         setVisible(theoryCountField, isScratch && hasTheory && !isSimulationFlow && !isFreeTest);

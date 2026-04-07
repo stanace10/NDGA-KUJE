@@ -75,6 +75,7 @@
       </div>
       <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
         <p><span class="font-semibold">Form Teacher Comment:</span> {{ payload.teacher_comment|default:"-" }}</p>
+        <p class="mt-1"><span class="font-semibold">Principal Comment:</span> {{ payload.principal_comment|default:"-" }}</p>
         <p class="mt-1"><span class="font-semibold">Behavior Rating:</span> {{ payload.behavior_rating }}/5</p>
       </div>
     </article>

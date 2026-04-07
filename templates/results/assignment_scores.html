@@ -96,28 +96,32 @@
           </div>
         </div>
 
+        <div class="rounded-2xl border border-slate-200 bg-slate-50/70 p-3 text-xs font-semibold text-slate-600">
+          On phones and smaller laptops, the student column now stays visible while you scroll across scores.
+        </div>
+
         <div class="overflow-x-auto rounded-2xl border border-slate-200">
           <table class="min-w-[1380px] w-full divide-y divide-slate-200 text-sm">
             <thead>
               <tr class="bg-slate-50 text-left text-slate-500">
-                <th class="px-3 py-2">Student</th>
-                <th class="px-3 py-2">CA1</th>
-                <th class="px-3 py-2">CA2</th>
-                <th class="px-3 py-2">CA3</th>
-                <th class="px-3 py-2">CA4</th>
-                <th class="px-3 py-2">Objective</th>
-                <th class="px-3 py-2">Theory</th>
-                <th class="px-3 py-2">CA Total</th>
-                <th class="px-3 py-2">Exam Total</th>
-                <th class="px-3 py-2">Grand Total</th>
-                <th class="px-3 py-2">Grade</th>
+                <th class="sticky left-0 z-20 min-w-[220px] border-r border-slate-200 bg-slate-50 px-3 py-2 shadow-[6px_0_12px_-10px_rgba(15,23,42,0.35)]">Student</th>
+                <th class="px-3 py-2 whitespace-nowrap">CA1</th>
+                <th class="px-3 py-2 whitespace-nowrap">CA2</th>
+                <th class="px-3 py-2 whitespace-nowrap">CA3</th>
+                <th class="px-3 py-2 whitespace-nowrap">CA4</th>
+                <th class="px-3 py-2 whitespace-nowrap">Objective</th>
+                <th class="px-3 py-2 whitespace-nowrap">Theory</th>
+                <th class="px-3 py-2 whitespace-nowrap">CA Total</th>
+                <th class="px-3 py-2 whitespace-nowrap">Exam Total</th>
+                <th class="px-3 py-2 whitespace-nowrap">Grand Total</th>
+                <th class="px-3 py-2 whitespace-nowrap">Grade</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
               {% for row in rows %}
                 {% with enrollment=row.enrollment score=row.score cbt=row.cbt %}
                   <tr data-score-row>
-                    <td class="px-3 py-2 font-semibold text-slate-800 align-top">
+                    <td class="sticky left-0 z-10 min-w-[220px] border-r border-slate-200 bg-white px-3 py-2 font-semibold text-slate-800 align-top shadow-[6px_0_12px_-10px_rgba(15,23,42,0.25)]">
                       <p>{{ enrollment.student.get_full_name|default:enrollment.student.username }}</p>
                       <p class="text-xs font-semibold text-slate-500">{{ enrollment.student.student_profile.student_number }}</p>
                       {% if row.locked_fields %}
@@ -126,10 +130,10 @@
                     </td>
 
                     <td class="px-3 py-2 align-top">
-                      <div data-policy-manual="ca1" {% if cbt.ca1.enabled %}class="hidden"{% endif %}>
+                      <div data-policy-manual="ca1" data-objective-locked="{% if cbt.ca1.objective_locked %}true{% else %}false{% endif %}" {% if cbt.ca1.enabled and cbt.ca1.objective_locked %}class="hidden"{% endif %}>
                         <input type="number" step="0.01" min="0" max="10" data-score-input data-field="ca1" class="w-24 rounded-lg border border-slate-300 px-2 py-1.5 text-sm {% if 'ca1' in row.locked_fields %}cursor-not-allowed bg-slate-100 text-slate-500{% endif %}" name="ca1_{{ enrollment.student_id }}" value="{% if score %}{{ score.ca1 }}{% else %}0{% endif %}" {% if not can_edit or 'ca1' in row.locked_fields %}readonly disabled{% endif %}>
                       </div>
-                      <div data-policy-cbt="ca1" class="space-y-2 {% if not cbt.ca1.enabled %}hidden{% endif %}">
+                      <div data-policy-cbt="ca1" data-objective-locked="{% if cbt.ca1.objective_locked %}true{% else %}false{% endif %}" class="space-y-2 {% if not cbt.ca1.enabled or not cbt.ca1.objective_locked %}hidden{% endif %}">
                         <div>
                           <p class="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Objective</p>
                           <input type="number" step="0.01" class="w-24 rounded-lg border border-slate-200 bg-slate-100 px-2 py-1.5 text-sm font-semibold text-slate-600" value="{{ cbt.ca1.objective }}" data-score-input data-field="ca1-objective" readonly disabled>
@@ -142,20 +146,20 @@
                     </td>
 
                     <td class="px-3 py-2 align-top">
-                      <p class="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 {% if not cbt.ca23.enabled %}hidden{% endif %}" data-policy-label="ca23">Objective From CBT</p>
-                      <input type="number" step="0.01" min="0" max="10" data-score-input data-field="ca2" class="w-24 rounded-lg border px-2 py-1.5 text-sm {% if cbt.ca23.enabled or 'ca2' in row.locked_fields %}border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed{% else %}border-slate-300{% endif %}" name="ca2_{{ enrollment.student_id }}" value="{% if score %}{{ score.ca2 }}{% else %}0{% endif %}" {% if not can_edit or cbt.ca23.enabled or 'ca2' in row.locked_fields %}readonly disabled{% endif %}>
+                      <p class="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 {% if not cbt.ca23.enabled or not cbt.ca23.objective_locked %}hidden{% endif %}" data-policy-label="ca23" data-objective-locked="{% if cbt.ca23.objective_locked %}true{% else %}false{% endif %}">Objective From CBT</p>
+                      <input type="number" step="0.01" min="0" max="10" data-score-input data-field="ca2" class="w-24 rounded-lg border px-2 py-1.5 text-sm {% if cbt.ca23.objective_locked or 'ca2' in row.locked_fields %}border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed{% else %}border-slate-300{% endif %}" name="ca2_{{ enrollment.student_id }}" value="{% if score %}{{ score.ca2 }}{% else %}0{% endif %}" {% if not can_edit or cbt.ca23.objective_locked or 'ca2' in row.locked_fields %}readonly disabled{% endif %}>
                     </td>
 
                     <td class="px-3 py-2 align-top">
-                      <p class="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 {% if not cbt.ca23.enabled %}hidden{% endif %}" data-policy-label="ca23">Teacher Theory</p>
+                      <p class="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 {% if not cbt.ca23.enabled or not cbt.ca23.objective_locked %}hidden{% endif %}" data-policy-label="ca23" data-objective-locked="{% if cbt.ca23.objective_locked %}true{% else %}false{% endif %}">Teacher Theory</p>
                       <input type="number" step="0.01" min="0" max="20" data-score-input data-field="ca3" class="w-24 rounded-lg border border-slate-300 px-2 py-1.5 text-sm" name="ca3_{{ enrollment.student_id }}" value="{% if score %}{{ score.ca3 }}{% else %}0{% endif %}" {% if not can_edit %}readonly disabled{% endif %}>
                     </td>
 
                     <td class="px-3 py-2 align-top">
-                      <div data-policy-manual="ca4" {% if cbt.ca4.enabled %}class="hidden"{% endif %}>
+                      <div data-policy-manual="ca4" data-objective-locked="{% if cbt.ca4.objective_locked %}true{% else %}false{% endif %}" {% if cbt.ca4.enabled and cbt.ca4.objective_locked %}class="hidden"{% endif %}>
                         <input type="number" step="0.01" min="0" max="10" data-score-input data-field="ca4" class="w-24 rounded-lg border border-slate-300 px-2 py-1.5 text-sm {% if 'ca4' in row.locked_fields %}cursor-not-allowed bg-slate-100 text-slate-500{% endif %}" name="ca4_{{ enrollment.student_id }}" value="{% if score %}{{ score.ca4 }}{% else %}0{% endif %}" {% if not can_edit or 'ca4' in row.locked_fields %}readonly disabled{% endif %}>
                       </div>
-                      <div data-policy-cbt="ca4" class="space-y-2 {% if not cbt.ca4.enabled %}hidden{% endif %}">
+                      <div data-policy-cbt="ca4" data-objective-locked="{% if cbt.ca4.objective_locked %}true{% else %}false{% endif %}" class="space-y-2 {% if not cbt.ca4.enabled or not cbt.ca4.objective_locked %}hidden{% endif %}">
                         <div>
                           <p class="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Objective</p>
                           <input type="number" step="0.01" class="w-24 rounded-lg border border-slate-200 bg-slate-100 px-2 py-1.5 text-sm font-semibold text-slate-600" value="{{ cbt.ca4.objective }}" data-score-input data-field="ca4-objective" readonly disabled>
@@ -168,12 +172,12 @@
                     </td>
 
                     <td class="px-3 py-2 align-top">
-                      <p class="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 {% if not cbt.exam.enabled %}hidden{% endif %}" data-policy-label="exam">Objective From CBT</p>
-                      <input type="number" step="0.01" min="0" max="100" data-score-input data-field="objective" class="w-24 rounded-lg border px-2 py-1.5 text-sm {% if cbt.exam.enabled or 'objective' in row.locked_fields %}border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed{% else %}border-slate-300{% endif %}" name="objective_{{ enrollment.student_id }}" value="{% if score %}{{ score.objective }}{% else %}0{% endif %}" {% if not can_edit or cbt.exam.enabled or 'objective' in row.locked_fields %}readonly disabled{% endif %}>
+                      <p class="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 {% if not cbt.exam.enabled or not cbt.exam.objective_locked %}hidden{% endif %}" data-policy-label="exam" data-objective-locked="{% if cbt.exam.objective_locked %}true{% else %}false{% endif %}">Objective From CBT</p>
+                      <input type="number" step="0.01" min="0" max="100" data-score-input data-field="objective" class="w-24 rounded-lg border px-2 py-1.5 text-sm {% if cbt.exam.objective_locked or 'objective' in row.locked_fields %}border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed{% else %}border-slate-300{% endif %}" name="objective_{{ enrollment.student_id }}" value="{% if score %}{{ score.objective }}{% else %}0{% endif %}" {% if not can_edit or cbt.exam.objective_locked or 'objective' in row.locked_fields %}readonly disabled{% endif %}>
                     </td>
 
                     <td class="px-3 py-2 align-top">
-                      <p class="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 {% if not cbt.exam.enabled %}hidden{% endif %}" data-policy-label="exam">Teacher Theory</p>
+                      <p class="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 {% if not cbt.exam.enabled or not cbt.exam.objective_locked %}hidden{% endif %}" data-policy-label="exam" data-objective-locked="{% if cbt.exam.objective_locked %}true{% else %}false{% endif %}">Teacher Theory</p>
                       <input type="number" step="0.01" min="0" max="100" data-score-input data-field="theory" class="w-24 rounded-lg border border-slate-300 px-2 py-1.5 text-sm" name="theory_{{ enrollment.student_id }}" value="{% if score %}{{ score.theory }}{% else %}0{% endif %}" {% if not can_edit %}readonly disabled{% endif %}>
                     </td>
 
@@ -230,24 +234,29 @@
         ["ca1", "ca23", "ca4", "exam"].forEach((key) => {
           const enabled = policyEnabled(key);
           document.querySelectorAll('[data-policy-manual="' + key + '"]').forEach((node) => {
-            node.classList.toggle('hidden', enabled);
+            const objectiveLocked = node.dataset.objectiveLocked === 'true';
+            node.classList.toggle('hidden', enabled && objectiveLocked);
           });
           document.querySelectorAll('[data-policy-cbt="' + key + '"]').forEach((node) => {
-            node.classList.toggle('hidden', !enabled);
+            const objectiveLocked = node.dataset.objectiveLocked === 'true';
+            node.classList.toggle('hidden', !(enabled && objectiveLocked));
           });
           document.querySelectorAll('[data-policy-label="' + key + '"]').forEach((node) => {
-            node.classList.toggle('hidden', !enabled);
+            const objectiveLocked = node.dataset.objectiveLocked === 'true';
+            node.classList.toggle('hidden', !(enabled && objectiveLocked));
           });
         });
       }
 
       function updateRow(row) {
-        const ca1 = policyEnabled('ca1')
+        const ca1Split = row.querySelector('[data-policy-cbt="ca1"]');
+        const ca1 = ca1Split && !ca1Split.classList.contains('hidden')
           ? toNum(row.querySelector('[data-field="ca1-objective"]')?.value) + toNum(row.querySelector('[data-field="ca1-theory"]')?.value)
           : toNum(row.querySelector('[data-field="ca1"]')?.value);
         const ca2 = toNum(row.querySelector('[data-field="ca2"]')?.value);
         const ca3 = toNum(row.querySelector('[data-field="ca3"]')?.value);
-        const ca4 = policyEnabled('ca4')
+        const ca4Split = row.querySelector('[data-policy-cbt="ca4"]');
+        const ca4 = ca4Split && !ca4Split.classList.contains('hidden')
           ? toNum(row.querySelector('[data-field="ca4-objective"]')?.value) + toNum(row.querySelector('[data-field="ca4-theory"]')?.value)
           : toNum(row.querySelector('[data-field="ca4"]')?.value);
         const objective = toNum(row.querySelector('[data-field="objective"]')?.value);

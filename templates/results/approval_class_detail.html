@@ -1,13 +1,13 @@
 {% extends "layouts/base.html" %}
 
-{% block title %}Class Approval Detail{% endblock %}
+{% block title %}Class Result Management{% endblock %}
 
 {% block content %}
   <section class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
     <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Class Review</p>
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Result Management</p>
           <h1 class="mt-2 text-2xl font-bold text-ndga-navy">{{ compilation.academic_class.code }}</h1>
           <p class="mt-1 text-sm text-slate-600">
             {{ compilation.session.name }} | {{ compilation.term.get_name_display }} |
@@ -19,6 +19,21 @@
     </article>
 
     <article class="mt-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="grid gap-3 md:grid-cols-3">
+        <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <p class="text-xs uppercase tracking-[0.14em] text-slate-500">Reviewed Students</p>
+          <p class="mt-1 text-xl font-bold text-slate-900">{{ reviewed_student_count }}</p>
+        </div>
+        <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+          <p class="text-xs uppercase tracking-[0.14em] text-amber-700">Rejected Students</p>
+          <p class="mt-1 text-xl font-bold text-amber-900">{{ rejected_student_count }}</p>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <p class="text-xs uppercase tracking-[0.14em] text-slate-500">Form Teacher</p>
+          <p class="mt-1 text-sm font-semibold text-slate-900">{{ compilation.form_teacher.get_full_name|default:compilation.form_teacher.username|default:"-" }}</p>
+        </div>
+      </div>
+
       <form method="get" class="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
         <div>
           <label for="q" class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Search Student</label>
@@ -28,7 +43,31 @@
         <a href="{% url 'results:approval-class-detail' compilation.id %}" class="ndga-btn ndga-btn-secondary">Reset</a>
       </form>
 
-      <div class="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
+      <div class="mt-4 space-y-3 md:hidden">
+        {% for row in student_rows %}
+          <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <h3 class="text-sm font-semibold text-slate-900">{{ row.student.get_full_name|default:row.student.username }}</h3>
+                <p class="mt-1 text-xs text-slate-500">{{ row.admission_number }}</p>
+              </div>
+              <span class="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700">{{ row.management_status }}</span>
+            </div>
+            <dl class="mt-3 grid grid-cols-2 gap-3 text-sm">
+              <div><dt class="text-xs uppercase tracking-[0.12em] text-slate-500">Subjects</dt><dd class="mt-1 font-semibold text-slate-900">{{ row.subject_count }}</dd></div>
+              <div><dt class="text-xs uppercase tracking-[0.12em] text-slate-500">Average</dt><dd class="mt-1 font-semibold text-slate-900">{{ row.average_score }}</dd></div>
+              <div><dt class="text-xs uppercase tracking-[0.12em] text-slate-500">Attendance</dt><dd class="mt-1 text-slate-900">{{ row.attendance_percentage }}%</dd></div>
+              <div><dt class="text-xs uppercase tracking-[0.12em] text-slate-500">Psychomotor</dt><dd class="mt-1 text-slate-900">{{ row.behavior_rating }}/5</dd></div>
+            </dl>
+            <div class="mt-3">
+              <a href="{{ row.detail_url }}" class="font-semibold text-ndga-navy hover:text-ndga-gold">Manage Student</a>
+            </div>
+          </article>
+        {% empty %}
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">No students found for this class.</div>
+        {% endfor %}
+      </div>
+      <div class="mt-4 hidden overflow-x-auto rounded-2xl border border-slate-200 md:block">
         <table class="min-w-full divide-y divide-slate-200 text-sm">
           <thead class="bg-slate-50">
             <tr class="text-left text-slate-600">
@@ -37,8 +76,9 @@
               <th class="px-3 py-2">Subjects</th>
               <th class="px-3 py-2">Average</th>
               <th class="px-3 py-2">Attendance</th>
-              <th class="px-3 py-2">Behavior</th>
-              <th class="px-3 py-2">Result</th>
+              <th class="px-3 py-2">Psychomotor</th>
+              <th class="px-3 py-2">Review</th>
+              <th class="px-3 py-2">Action</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100 bg-white">
@@ -51,17 +91,41 @@
                 <td class="px-3 py-2 text-slate-700">{{ row.attendance_percentage }}%</td>
                 <td class="px-3 py-2 text-slate-700">{{ row.behavior_rating }}/5</td>
                 <td class="px-3 py-2">
-                  <a href="{{ row.detail_url }}" class="font-semibold text-ndga-navy hover:text-ndga-gold">View Result</a>
+                  <span class="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
+                    {{ row.management_status }}
+                  </span>
+                </td>
+                <td class="px-3 py-2">
+                  <a href="{{ row.detail_url }}" class="font-semibold text-ndga-navy hover:text-ndga-gold">Manage Student</a>
                 </td>
               </tr>
             {% empty %}
               <tr>
-                <td colspan="7" class="px-3 py-6 text-center text-slate-500">No students found for this class.</td>
+                <td colspan="8" class="px-3 py-6 text-center text-slate-500">No students found for this class.</td>
               </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
+
+      <form method="post" class="mt-4 grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 lg:grid-cols-2">
+        {% csrf_token %}
+        <div>
+          <label for="publish_comment" class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Publish Note</label>
+          <textarea id="publish_comment" name="publish_comment" rows="3" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="Optional note for final publishing."></textarea>
+        </div>
+        <div>
+          <label for="reject_comment" class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Return Class For Correction</label>
+          <textarea id="reject_comment" name="reject_comment" rows="3" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="Required when returning the whole class."></textarea>
+        </div>
+        <div class="flex flex-wrap gap-2 lg:col-span-2">
+          <button type="submit" name="action" value="publish_class" class="ndga-btn ndga-btn-primary" {% if not can_publish or rejected_student_count %}disabled{% endif %}>Publish Class</button>
+          <button type="submit" name="action" value="reject_class" class="ndga-btn ndga-btn-secondary" {% if not can_reject %}disabled{% endif %}>Reject Class</button>
+          {% if rejected_student_count %}
+            <p class="self-center text-xs font-semibold text-amber-800">Resolve rejected student records before publishing this class.</p>
+          {% endif %}
+        </div>
+      </form>
     </article>
   </section>
 {% endblock %}

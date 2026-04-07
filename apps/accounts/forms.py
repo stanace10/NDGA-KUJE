@@ -70,9 +70,9 @@ def _singleton_role_account_preset(role_code):
             "password": "bursar1804",
         },
         ROLE_DEAN: {
-            "username": "ndgak/staff/dean",
-            "staff_id": "NDGAK/STAFF/DEAN",
-            "password": "ndgak/dean",
+            "username": f"dean@{domain}",
+            "staff_id": "NDGAK/DEAN",
+            "password": "admin",
         },
     }
     return presets.get(role_code)
@@ -234,6 +234,22 @@ def resolve_user_by_login_identifier(raw_identifier):
     identifier = (raw_identifier or "").strip()
     if not identifier:
         return None
+    singleton_aliases = {
+        "NDGAK/VP": ROLE_VP,
+        "NDGAK/PRINCIPAL": ROLE_PRINCIPAL,
+        "NDGAK/BURSAR": ROLE_BURSAR,
+        "NDGAK/DEAN": ROLE_DEAN,
+    }
+    normalized = identifier.upper()
+    if normalized in singleton_aliases:
+        user = (
+            User.objects.select_related("primary_role")
+            .filter(primary_role__code=singleton_aliases[normalized], is_active=True)
+            .order_by("id")
+            .first()
+        )
+        if user:
+            return user
     user = User.objects.select_related("primary_role").filter(
         username__iexact=identifier
     ).first()
@@ -747,7 +763,7 @@ class ITStudentRegistrationForm(forms.Form):
         required=False,
     )
     guardian_name = forms.CharField(max_length=150, required=False)
-    guardian_phone = forms.CharField(max_length=30, required=False)
+    guardian_phone = forms.CharField(max_length=120, required=False)
     guardian_email = forms.EmailField(required=True, label="Parent/Guardian Email")
     address = forms.CharField(
         required=False,
@@ -1239,7 +1255,7 @@ class ITStudentUpdateForm(forms.Form):
     admission_date = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}))
     gender = forms.ChoiceField(choices=[("", "Select"), *StudentProfile.Gender.choices], required=False)
     guardian_name = forms.CharField(max_length=150, required=False)
-    guardian_phone = forms.CharField(max_length=30, required=False)
+    guardian_phone = forms.CharField(max_length=120, required=False)
     guardian_email = forms.EmailField(required=False, label="Parent/Guardian Email")
     address = forms.CharField(required=False, widget=forms.Textarea(attrs={"rows": 3}))
     state_of_origin = forms.CharField(max_length=80, required=False)

@@ -2682,11 +2682,23 @@ class CBTStudentAttemptRunView(CBTStudentAccessMixin, TemplateView):
     template_name = "cbt/student_attempt_run.html"
 
     def dispatch(self, request, *args, **kwargs):
-        self.attempt = get_object_or_404(
-            ExamAttempt.objects.select_related("exam", "exam__subject", "exam__academic_class", "exam__blueprint"),
-            pk=kwargs["attempt_id"],
-            student=request.user,
+        self.attempt = (
+            ExamAttempt.objects.select_related(
+                "exam",
+                "exam__subject",
+                "exam__academic_class",
+                "exam__term",
+                "exam__blueprint",
+            )
+            .filter(
+                pk=kwargs["attempt_id"],
+                student=request.user,
+            )
+            .first()
         )
+        if self.attempt is None:
+            messages.info(request, "That exam attempt is no longer active. Please start again from Available CBT.")
+            return redirect("cbt:student-exam-list")
         self.simulation_records = ensure_simulation_records_for_attempt(self.attempt)
         self.answers = ordered_attempt_answers(self.attempt)
         if not self.answers and not self.simulation_records:
@@ -2893,25 +2905,28 @@ class CBTStudentAttemptRunView(CBTStudentAccessMixin, TemplateView):
                 }
             )
         question_panels = []
-        for idx, answer in enumerate(self.answers, start=1):
-            question = answer.exam_question.question
-            question_text = (getattr(question, "rich_stem", "") or getattr(question, "stem", ""))
-            question_stimulus = self._resolve_stimulus_question(question)
+        for panel_index, panel_answer in enumerate(self.answers, start=1):
+            panel_question = panel_answer.exam_question.question
+            panel_stimulus_question = self._resolve_stimulus_question(panel_question)
+            panel_question_text = (
+                getattr(panel_question, "rich_stem", "") or getattr(panel_question, "stem", "")
+            )
+            panel_ordering_items = self._ordering_items(
+                panel_question,
+                attempt_id=self.attempt.id,
+                exam_question_id=panel_answer.exam_question_id,
+            )
             question_panels.append(
                 {
-                    "index": idx,
-                    "answer": answer,
-                    "question": question,
-                    "question_text": question_text,
-                    "stimulus_question": question_stimulus,
-                    "option_entries": self._option_entries(answer),
-                    "ordering_items": self._ordering_items(
-                        question,
-                        attempt_id=self.attempt.id,
-                        exam_question_id=answer.exam_question_id,
-                    ),
-                    "is_theory_page": bool(objective_count and idx > objective_count),
-                    "is_active": idx == index,
+                    "index": panel_index,
+                    "answer": panel_answer,
+                    "question": panel_question,
+                    "question_text": panel_question_text,
+                    "stimulus_question": panel_stimulus_question,
+                    "option_entries": self._option_entries(panel_answer),
+                    "ordering_items": panel_ordering_items,
+                    "is_theory_page": bool(objective_count and panel_index > objective_count),
+                    "is_active": panel_index == index,
                 }
             )
         student_photo_url = ""
@@ -3095,7 +3110,13 @@ class CBTStudentSimulationSessionView(CBTStudentAccessMixin, TemplateView):
 
     def dispatch(self, request, *args, **kwargs):
         self.attempt = get_object_or_404(
-            ExamAttempt.objects.select_related("exam", "exam__subject", "exam__academic_class", "exam__blueprint"),
+            ExamAttempt.objects.select_related(
+                "exam",
+                "exam__subject",
+                "exam__academic_class",
+                "exam__term",
+                "exam__blueprint",
+            ),
             pk=kwargs["attempt_id"],
             student=request.user,
         )

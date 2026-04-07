@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
     libpq5 \
+    postgresql-client \
     libpango-1.0-0 \
     libharfbuzz0b \
     libpangoft2-1.0-0 \

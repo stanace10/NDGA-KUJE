@@ -165,6 +165,75 @@ def _portal_redirect_response(request, target_url):
     return response
 
 
+def _next_url_matches_primary_portal(*, user, request, next_url):
+    if not next_url:
+        return False
+    primary_role = getattr(user, "primary_role", None)
+    primary_code = primary_role.code if primary_role is not None else ""
+    portal_key = ROLE_HOME_PORTAL.get(primary_code, "staff")
+
+    parsed = urlsplit(next_url)
+    path = parsed.path or "/"
+    host = (parsed.netloc or request.get_host() or "").split(":")[0].strip().lower()
+    expected_host = urlsplit(build_portal_url(request, portal_key, "/")).netloc.split(":")[0].strip().lower()
+
+    allowed_prefixes = {
+        "student": ("/portal/student/",),
+        "staff": (
+            "/portal/staff/",
+            "/results/grade-entry/",
+            "/results/dean/",
+            "/attendance/form/",
+            "/results/report/",
+            "/cbt/authoring/",
+        ),
+        "vp": (
+            "/portal/vp/",
+            "/results/vp/",
+            "/results/approval/",
+            "/results/report/",
+            "/attendance/form/",
+            "/notifications/",
+            "/portal/staff/profile/",
+            "/portal/staff/settings/",
+        ),
+        "principal": (
+            "/portal/principal/",
+            "/results/principal/",
+            "/results/report/",
+            "/notifications/",
+            "/portal/staff/profile/",
+            "/portal/principal/settings/",
+        ),
+        "it": (
+            "/portal/it/",
+            "/auth/it/",
+            "/academics/it/",
+            "/results/approval/",
+            "/results/report/",
+            "/attendance/",
+            "/setup/",
+            "/sync/",
+            "/audit/",
+            "/cbt/it/",
+            "/elections/it/",
+            "/notifications/",
+        ),
+        "bursar": (
+            "/portal/bursar/",
+            "/finance/bursar/",
+            "/notifications/",
+            "/portal/staff/profile/",
+        ),
+        "cbt": ("/portal/cbt/", "/cbt/"),
+        "election": ("/portal/election/", "/elections/"),
+    }.get(portal_key, (f"/portal/{portal_key}/",))
+
+    if parsed.netloc and host != expected_host:
+        return False
+    return any(path.startswith(prefix) for prefix in allowed_prefixes)
+
+
 def _clear_pending_privileged_login(request):
     challenge = request.session.pop(PRIVILEGED_LOGIN_SESSION_KEY, None) or {}
     clear_privileged_login_challenge(challenge.get("challenge_id"))
@@ -193,7 +262,11 @@ def _complete_login_response(
     if user.must_change_password:
         messages.info(request, "Password change required before continuing.")
         return redirect("accounts:password-change")
-    if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+    if (
+        next_url
+        and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()})
+        and _next_url_matches_primary_portal(user=user, request=request, next_url=next_url)
+    ):
         return redirect(next_url)
     return _portal_redirect_response(
         request,

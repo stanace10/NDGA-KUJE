@@ -324,6 +324,15 @@ def _set_updated_at(model_class, pk, value):
     model_class.objects.filter(pk=pk).update(updated_at=parsed)
 
 
+def _update_or_insert_by_pk(model_class, obj_id, defaults):
+    updated = model_class.objects.filter(pk=obj_id).update(**defaults)
+    if updated:
+        return model_class.objects.get(pk=obj_id), False
+    instance = model_class(id=obj_id, **defaults)
+    model_class.objects.bulk_create([instance])
+    return model_class.objects.get(pk=obj_id), True
+
+
 def _apply_upsert(change):
     from apps.cbt.models import (
         CorrectAnswer,
@@ -342,31 +351,50 @@ def _apply_upsert(change):
     if not isinstance(payload, dict):
         raise ValueError("Invalid payload format.")
 
+    def _resolved_question_bank_id(raw_value):
+        bank_id = _as_int(raw_value, fallback=0)
+        if bank_id <= 0:
+            return None
+        if QuestionBank.objects.filter(pk=bank_id).exists():
+            return bank_id
+        return None
+
     try:
         if object_type == SyncContentObjectType.QUESTION_BANK:
             obj_id = _as_int(payload.get("id"))
-            obj, _ = QuestionBank.objects.update_or_create(
-                pk=obj_id,
-                defaults={
-                    "name": payload.get("name", ""),
-                    "description": payload.get("description", ""),
-                    "owner_id": payload.get("owner_id"),
-                    "assignment_id": payload.get("assignment_id"),
-                    "subject_id": payload.get("subject_id"),
-                    "academic_class_id": payload.get("academic_class_id"),
-                    "session_id": payload.get("session_id"),
-                    "term_id": payload.get("term_id"),
-                    "is_active": bool(payload.get("is_active", True)),
-                },
+            defaults = {
+                "name": payload.get("name", ""),
+                "description": payload.get("description", ""),
+                "owner_id": payload.get("owner_id"),
+                "assignment_id": payload.get("assignment_id"),
+                "subject_id": payload.get("subject_id"),
+                "academic_class_id": payload.get("academic_class_id"),
+                "session_id": payload.get("session_id"),
+                "term_id": payload.get("term_id"),
+                "is_active": bool(payload.get("is_active", True)),
+            }
+            QuestionBank.objects.filter(
+                owner_id=defaults["owner_id"],
+                name=defaults["name"],
+                subject_id=defaults["subject_id"],
+                academic_class_id=defaults["academic_class_id"],
+                session_id=defaults["session_id"],
+                term_id=defaults["term_id"],
+            ).exclude(pk=obj_id).delete()
+            obj, _ = _update_or_insert_by_pk(
+                QuestionBank,
+                obj_id,
+                defaults,
             )
             _set_updated_at(QuestionBank, obj.pk, payload.get("updated_at"))
             return
         if object_type == SyncContentObjectType.QUESTION:
             obj_id = _as_int(payload.get("id"))
-            obj, _ = Question.objects.update_or_create(
-                pk=obj_id,
-                defaults={
-                    "question_bank_id": payload.get("question_bank_id"),
+            obj, _ = _update_or_insert_by_pk(
+                Question,
+                obj_id,
+                {
+                    "question_bank_id": _resolved_question_bank_id(payload.get("question_bank_id")),
                     "created_by_id": payload.get("created_by_id"),
                     "subject_id": payload.get("subject_id"),
                     "question_type": payload.get("question_type"),
@@ -389,11 +417,18 @@ def _apply_upsert(change):
             return
         if object_type == SyncContentObjectType.OPTION:
             obj_id = _as_int(payload.get("id"))
-            obj, _ = Option.objects.update_or_create(
-                pk=obj_id,
-                defaults={
-                    "question_id": payload.get("question_id"),
-                    "label": payload.get("label", Option.Label.A),
+            question_id = payload.get("question_id")
+            label = payload.get("label", Option.Label.A)
+            Option.objects.filter(
+                question_id=question_id,
+                label=label,
+            ).exclude(pk=obj_id).delete()
+            obj, _ = _update_or_insert_by_pk(
+                Option,
+                obj_id,
+                {
+                    "question_id": question_id,
+                    "label": label,
                     "option_text": payload.get("option_text", ""),
                     "sort_order": _as_int(payload.get("sort_order"), fallback=1),
                 },
@@ -402,10 +437,12 @@ def _apply_upsert(change):
             return
         if object_type == SyncContentObjectType.CORRECT_ANSWER:
             obj_id = _as_int(payload.get("id"))
+            question_id = payload.get("question_id")
+            CorrectAnswer.objects.filter(question_id=question_id).exclude(pk=obj_id).delete()
             answer, _ = CorrectAnswer.objects.update_or_create(
                 pk=obj_id,
                 defaults={
-                    "question_id": payload.get("question_id"),
+                    "question_id": question_id,
                     "note": payload.get("note", ""),
                     "is_finalized": bool(payload.get("is_finalized", False)),
                 },
@@ -430,7 +467,7 @@ def _apply_upsert(change):
                     "academic_class_id": payload.get("academic_class_id"),
                     "session_id": payload.get("session_id"),
                     "term_id": payload.get("term_id"),
-                    "question_bank_id": payload.get("question_bank_id"),
+                    "question_bank_id": _resolved_question_bank_id(payload.get("question_bank_id")),
                     "dean_reviewed_by_id": payload.get("dean_reviewed_by_id"),
                     "dean_reviewed_at": _dt(payload.get("dean_reviewed_at")),
                     "dean_review_comment": payload.get("dean_review_comment", ""),
@@ -448,35 +485,47 @@ def _apply_upsert(change):
             return
         if object_type == SyncContentObjectType.EXAM_BLUEPRINT:
             obj_id = _as_int(payload.get("id"))
-            obj, _ = ExamBlueprint.objects.update_or_create(
-                pk=obj_id,
-                defaults={
-                    "exam_id": payload.get("exam_id"),
-                    "duration_minutes": _as_int(payload.get("duration_minutes"), fallback=60),
-                    "max_attempts": _as_int(payload.get("max_attempts"), fallback=1),
-                    "shuffle_questions": bool(payload.get("shuffle_questions", True)),
-                    "shuffle_options": bool(payload.get("shuffle_options", True)),
-                    "instructions": payload.get("instructions", ""),
-                    "section_config": payload.get("section_config") or [],
-                    "passing_score": _decimal(payload.get("passing_score"), fallback="0"),
-                    "objective_writeback_target": payload.get("objective_writeback_target"),
-                    "theory_enabled": bool(payload.get("theory_enabled", False)),
-                    "theory_writeback_target": payload.get("theory_writeback_target"),
-                    "auto_show_result_on_submit": bool(payload.get("auto_show_result_on_submit", True)),
-                    "finalize_on_logout": bool(payload.get("finalize_on_logout", True)),
-                    "allow_retake": bool(payload.get("allow_retake", False)),
-                },
-            )
+            target_exam_id = payload.get("exam_id")
+            defaults = {
+                "exam_id": target_exam_id,
+                "duration_minutes": _as_int(payload.get("duration_minutes"), fallback=60),
+                "max_attempts": _as_int(payload.get("max_attempts"), fallback=1),
+                "shuffle_questions": bool(payload.get("shuffle_questions", True)),
+                "shuffle_options": bool(payload.get("shuffle_options", True)),
+                "instructions": payload.get("instructions", ""),
+                "section_config": payload.get("section_config") or [],
+                "passing_score": _decimal(payload.get("passing_score"), fallback="0"),
+                "objective_writeback_target": payload.get("objective_writeback_target"),
+                "theory_enabled": bool(payload.get("theory_enabled", False)),
+                "theory_writeback_target": payload.get("theory_writeback_target"),
+                "auto_show_result_on_submit": bool(payload.get("auto_show_result_on_submit", True)),
+                "finalize_on_logout": bool(payload.get("finalize_on_logout", True)),
+                "allow_retake": bool(payload.get("allow_retake", False)),
+            }
+            obj = ExamBlueprint.objects.filter(exam_id=target_exam_id).first()
+            if obj is None:
+                obj = ExamBlueprint.objects.filter(pk=obj_id).first()
+            if obj is not None:
+                ExamBlueprint.objects.filter(pk=obj.pk).update(**defaults)
+                obj.refresh_from_db()
+            else:
+                obj, _ = _update_or_insert_by_pk(ExamBlueprint, obj_id, defaults)
             _set_updated_at(ExamBlueprint, obj.pk, payload.get("updated_at"))
             return
         if object_type == SyncContentObjectType.EXAM_QUESTION:
             obj_id = _as_int(payload.get("id"))
-            obj, _ = ExamQuestion.objects.update_or_create(
-                pk=obj_id,
-                defaults={
-                    "exam_id": payload.get("exam_id"),
-                    "question_id": payload.get("question_id"),
-                    "sort_order": _as_int(payload.get("sort_order"), fallback=1),
+            exam_id = payload.get("exam_id")
+            question_id = payload.get("question_id")
+            sort_order = _as_int(payload.get("sort_order"), fallback=1)
+            ExamQuestion.objects.filter(exam_id=exam_id, question_id=question_id).exclude(pk=obj_id).delete()
+            ExamQuestion.objects.filter(exam_id=exam_id, sort_order=sort_order).exclude(pk=obj_id).delete()
+            obj, _ = _update_or_insert_by_pk(
+                ExamQuestion,
+                obj_id,
+                {
+                    "exam_id": exam_id,
+                    "question_id": question_id,
+                    "sort_order": sort_order,
                     "marks": _decimal(payload.get("marks"), fallback="1"),
                 },
             )
@@ -576,31 +625,55 @@ def apply_cbt_content_changes(*, changes):
         "last_applied_id": 0,
         "errors": [],
     }
+    applied_ids = set()
+    pending_rows = [row for row in rows if isinstance(row, dict)]
+    if len(pending_rows) != len(rows):
+        summary["blocked"] += len(rows) - len(pending_rows)
+        summary["errors"].append("Invalid change payload row.")
     with suppress_cbt_change_capture():
-        for row in rows:
-            if not isinstance(row, dict):
-                summary["blocked"] += 1
-                summary["errors"].append("Invalid change payload row.")
+        while pending_rows:
+            next_pending = []
+            pass_progress = False
+            for row in pending_rows:
+                change_id = _as_int(row.get("id"), fallback=0)
+                try:
+                    with transaction.atomic():
+                        operation = row.get("operation") or SyncContentOperation.UPSERT
+                        if operation == SyncContentOperation.DELETE:
+                            _apply_delete(row)
+                        else:
+                            _apply_upsert(row)
+                    summary["applied"] += 1
+                    applied_ids.add(change_id)
+                    pass_progress = True
+                except SyncDependencyUnavailable:
+                    next_pending.append(row)
+                except Exception as exc:
+                    summary["blocked"] += 1
+                    summary["errors"].append(str(exc))
+                    next_pending.extend(
+                        pending for pending in pending_rows if pending is not row
+                    )
+                    pending_rows = []
+                    pass_progress = False
+                    break
+            if not next_pending:
                 break
-            change_id = _as_int(row.get("id"), fallback=0)
-            try:
-                with transaction.atomic():
-                    operation = row.get("operation") or SyncContentOperation.UPSERT
-                    if operation == SyncContentOperation.DELETE:
-                        _apply_delete(row)
-                    else:
-                        _apply_upsert(row)
-                summary["applied"] += 1
-                if change_id > summary["last_applied_id"]:
-                    summary["last_applied_id"] = change_id
-            except SyncDependencyUnavailable as exc:
-                summary["blocked"] += 1
-                summary["errors"].append(f"Dependency unavailable: {exc}")
+            if not pass_progress:
+                summary["blocked"] += len(next_pending)
+                for row in next_pending:
+                    summary["errors"].append(
+                        f"Dependency unavailable for {row.get('object_type')}:{row.get('object_pk')}"
+                    )
                 break
-            except Exception as exc:
-                summary["blocked"] += 1
-                summary["errors"].append(str(exc))
-                break
+            pending_rows = next_pending
+    for row in rows:
+        if not isinstance(row, dict):
+            break
+        change_id = _as_int(row.get("id"), fallback=0)
+        if change_id not in applied_ids:
+            break
+        summary["last_applied_id"] = change_id
     return summary
 
 

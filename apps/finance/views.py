@@ -5,6 +5,7 @@ import hmac
 import json
 from datetime import date
 from decimal import Decimal
+from pathlib import Path
 
 from django import forms
 from django.conf import settings
@@ -42,6 +43,7 @@ from apps.finance.models import (
     InventoryAsset,
     InventoryAssetMovement,
     Payment,
+    PaymentGatewayProvider,
     PaymentGatewayTransaction,
     Receipt,
     SalaryRecord,
@@ -49,22 +51,35 @@ from apps.finance.models import (
     StudentCharge,
 )
 from apps.finance.services import (
+    build_receipt_dispatch_package,
+    configured_gateway_provider_choices,
     current_academic_window,
+    default_gateway_provider,
     dispatch_scheduled_fee_reminders,
     finance_summary_metrics,
     finance_bank_details_text,
     finance_profile,
     evaluate_receipt_integrity,
+    gateway_is_enabled,
+    gateway_provider_label,
     generate_receipt_pdf,
     initialize_gateway_payment_transaction,
     monthly_cashflow_series,
+    remitta_launch_context,
     record_manual_payment,
+    resolve_payment_plan_amount,
     student_finance_overview,
     verify_gateway_payment_by_reference,
 )
 from apps.notifications.models import Notification, NotificationCategory
 from apps.notifications.services import create_bulk_notifications, notify_payment_receipt, send_email_event
 from apps.tenancy.utils import build_portal_url, current_portal_key
+
+
+def _apply_gateway_provider_choices(form):
+    form.fields["provider"].choices = configured_gateway_provider_choices()
+    form.fields["provider"].initial = default_gateway_provider()
+    return form
 
 
 def _preferred_portal_for_user(user):
@@ -77,6 +92,21 @@ def _preferred_portal_for_user(user):
     if user.has_role(ROLE_PRINCIPAL):
         return "principal"
     return "landing"
+
+
+def _portal_media_url(file_field):
+    if not file_field:
+        return ""
+    name = (getattr(file_field, "name", "") or "").lstrip("/")
+    if name:
+        candidate = Path(settings.MEDIA_ROOT) / Path(name)
+        if candidate.exists():
+            version = int(candidate.stat().st_mtime)
+            return f"/media/{name}?v={version}".replace("\\", "/")
+    try:
+        return file_field.url
+    except Exception:
+        return ""
 
 
 class FinancePortalAccessMixin(LoginRequiredMixin, UserPassesTestMixin):
@@ -103,7 +133,7 @@ class FinanceSummaryAccessMixin(FinancePortalAccessMixin):
 
 
 class ReceiptAccessMixin(FinancePortalAccessMixin):
-    allowed_roles = {ROLE_BURSAR, ROLE_VP, ROLE_PRINCIPAL}
+    allowed_roles = {ROLE_BURSAR, ROLE_VP, ROLE_PRINCIPAL, ROLE_STUDENT}
 
 
 class StudentFinanceAccessMixin(FinancePortalAccessMixin):
@@ -122,6 +152,7 @@ class StudentFinanceOverviewView(StudentFinanceAccessMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         user = self.request.user
         current_session, current_term = current_academic_window()
+        student_profile = getattr(user, "student_profile", None)
 
         session_ids = set(
             StudentCharge.objects.filter(student=user).values_list("session_id", flat=True)
@@ -135,6 +166,8 @@ class StudentFinanceOverviewView(StudentFinanceAccessMixin, TemplateView):
         session_ids.update(
             Payment.objects.filter(student=user).values_list("session_id", flat=True)
         )
+        if current_session:
+            session_ids.add(current_session.id)
 
         available_sessions = list(AcademicSession.objects.filter(id__in=session_ids).order_by("-name"))
 
@@ -188,11 +221,26 @@ class StudentFinanceOverviewView(StudentFinanceAccessMixin, TemplateView):
                 term=selected_term,
             )
         gateway_transactions = PaymentGatewayTransaction.objects.filter(student=user).order_by("-created_at")[:8]
+        payment_rows_qs = Payment.objects.filter(student=user, is_void=False)
+        if selected_session:
+            payment_rows_qs = payment_rows_qs.filter(session=selected_session)
+        if selected_term:
+            payment_rows_qs = payment_rows_qs.filter(term__in=[selected_term, None])
+        recent_payments = list(
+            payment_rows_qs.select_related("receipt", "gateway_transaction", "session", "term")
+            .order_by("-created_at")[:8]
+        )
         gateway_form = kwargs.get("gateway_form") or GatewayPaymentInitForm(
-            initial={"student": user.id, "amount": overview["total_outstanding"] or Decimal("0.00")}
+            initial={
+                "student": user.id,
+                "amount": overview["total_outstanding"] or Decimal("0.00"),
+                "payment_plan": GatewayPaymentInitForm.PaymentPlan.FULL,
+                "percentage": 50,
+            }
         )
         gateway_form.fields["student"].queryset = User.objects.filter(id=user.id)
         gateway_form.fields["student"].widget = forms.HiddenInput()
+        _apply_gateway_provider_choices(gateway_form)
 
         rows = list(overview["charge_rows"])
         if status_filter in {"paid", "partial", "owing"}:
@@ -220,9 +268,43 @@ class StudentFinanceOverviewView(StudentFinanceAccessMixin, TemplateView):
             key=lambda row: (row["outstanding"], row["category"]),
             reverse=True,
         )
+        class_session = selected_session or current_session
+        current_enrollment = None
+        if class_session:
+            current_enrollment = (
+                StudentClassEnrollment.objects.filter(
+                    student=user,
+                    session=class_session,
+                    is_active=True,
+                )
+                .select_related("academic_class", "academic_class__base_class")
+                .order_by("-updated_at", "-created_at")
+                .first()
+            )
+        current_class = current_enrollment.academic_class.instructional_class if current_enrollment else None
+        student_photo_url = ""
+        if student_profile and student_profile.profile_photo:
+            student_photo_url = _portal_media_url(student_profile.profile_photo)
+        gateway_provider_cards = []
+        for code, label in PaymentGatewayProvider.choices:
+            gateway_provider_cards.append(
+                {
+                    "code": code,
+                    "label": label,
+                    "enabled": gateway_is_enabled(code),
+                }
+            )
+        gateway_any_enabled = any(row["enabled"] for row in gateway_provider_cards)
 
         context.update(
             {
+                "student_profile": student_profile,
+                "student_photo_url": student_photo_url,
+                "student_name": user.get_full_name() or user.display_name or user.username,
+                "student_admission_number": getattr(student_profile, "student_number", "") or user.username,
+                "current_class_label": current_class.level_display_name if current_class else "-",
+                "current_session": current_session,
+                "current_term": current_term,
                 "available_sessions": available_sessions,
                 "available_terms": available_terms,
                 "selected_session": selected_session,
@@ -238,7 +320,11 @@ class StudentFinanceOverviewView(StudentFinanceAccessMixin, TemplateView):
                 "category_examples": "School Fees, Cloth, Feeding, Sports Wear, Pocket Money",
                 "gateway_form": gateway_form,
                 "gateway_transactions": gateway_transactions,
-                "gateway_enabled": bool(getattr(settings, "PAYSTACK_SECRET_KEY", "")),
+                "recent_payments": recent_payments,
+                "gateway_enabled": gateway_any_enabled,
+                "gateway_provider_label": gateway_provider_label(),
+                "gateway_provider_cards": gateway_provider_cards,
+                "gateway_fee_items": [row for row in filtered_categories if row["outstanding"] > Decimal("0.00")],
             }
         )
         return context
@@ -254,21 +340,34 @@ class StudentFinanceOverviewView(StudentFinanceAccessMixin, TemplateView):
             messages.error(request, "Session setup is not ready for online payment.")
             return redirect("finance:student-overview")
 
-        form = GatewayPaymentInitForm(request.POST)
+        form = _apply_gateway_provider_choices(GatewayPaymentInitForm(request.POST))
         form.fields["student"].queryset = User.objects.filter(id=request.user.id)
         if not form.is_valid():
             return self.render_to_response(self.get_context_data(gateway_form=form))
         try:
+            overview = student_finance_overview(student=request.user, session=session, term=term)
+            resolved_amount, plan_meta = resolve_payment_plan_amount(
+                overview=overview,
+                payment_plan=form.cleaned_data["payment_plan"],
+                fee_item=form.cleaned_data.get("fee_item", ""),
+                percentage=form.cleaned_data.get("percentage"),
+                custom_amount=form.cleaned_data["amount"],
+            )
             transaction_row = initialize_gateway_payment_transaction(
                 student=request.user,
                 session=session,
                 term=term,
-                amount=form.cleaned_data["amount"],
+                amount=resolved_amount,
                 initiated_by=request.user,
                 request=request,
                 provider=form.cleaned_data["provider"],
                 auto_email_link=False,
             )
+            transaction_row.metadata = {
+                **transaction_row.metadata,
+                "payment_plan": plan_meta,
+            }
+            transaction_row.save(update_fields=["metadata", "updated_at"])
         except ValidationError as exc:
             messages.error(request, "; ".join(exc.messages))
             return self.render_to_response(self.get_context_data(gateway_form=form))
@@ -332,8 +431,8 @@ class BursarFinanceDashboardView(BursarAccessMixin, TemplateView):
         context["cashflow_max"] = max(
             [max(row["inflow"], row["outflow"]) for row in cashflow_rows] or [1]
         )
-        context["recent_receipts"] = Receipt.objects.select_related("payment", "payment__student").order_by("-issued_at")[:12]
-        context["recent_payments"] = Payment.objects.select_related("student", "receipt").order_by("-created_at")[:12]
+        context["recent_receipts"] = Receipt.objects.select_related("payment", "payment__student", "payment__gateway_transaction").order_by("-issued_at")[:12]
+        context["recent_payments"] = Payment.objects.select_related("student", "receipt", "gateway_transaction").order_by("-created_at")[:12]
         return context
 
 
@@ -673,22 +772,22 @@ class BursarPaymentManagementView(BursarAccessMixin, TemplateView):
             if not hasattr(payment, "receipt"):
                 messages.error(request, "Receipt has not been generated for this payment.")
                 return redirect("finance:bursar-fees")
-            email_message = (
-                f"Payment confirmed. Receipt {payment.receipt.receipt_number} "
-                f"for amount {payment.amount} has been sent."
+            email_package = build_receipt_dispatch_package(
+                payment=payment,
+                receipt=payment.receipt,
+                request=request,
             )
-            profile = finance_profile()
-            if profile.include_bank_details_in_messages:
-                bank_block = finance_bank_details_text()
-                if bank_block:
-                    email_message = f"{email_message}\n\nSchool Account Details\n{bank_block}"
             notify_payment_receipt(
                 student=payment.student,
                 receipt_number=payment.receipt.receipt_number,
                 amount=payment.amount,
                 actor=request.user,
                 request=request,
-                message=email_message,
+                message=email_package["body_text"],
+                email_subject=email_package["subject"],
+                email_body_text=email_package["body_text"],
+                email_body_html=email_package["body_html"],
+                email_attachments=email_package["attachments"],
             )
             log_finance_transaction(
                 actor=request.user,
@@ -743,13 +842,17 @@ class BursarStudentFinanceDetailView(BursarAccessMixin, TemplateView):
         return form
 
     def _gateway_form(self, data=None, initial_amount=None):
-        initial = {"student": self.student.id}
+        initial = {
+            "student": self.student.id,
+            "payment_plan": GatewayPaymentInitForm.PaymentPlan.FULL,
+            "percentage": 50,
+        }
         if initial_amount is not None:
             initial["amount"] = initial_amount
         form = GatewayPaymentInitForm(data=data, initial=initial)
         form.fields["student"].queryset = User.objects.filter(id=self.student.id)
         form.fields["student"].widget = forms.HiddenInput()
-        return form
+        return _apply_gateway_provider_choices(form)
 
     def _pop_latest_receipt(self):
         return self.request.session.pop(self.receipt_session_key, None)
@@ -778,7 +881,7 @@ class BursarStudentFinanceDetailView(BursarAccessMixin, TemplateView):
             payments = Payment.objects.filter(
                 student=self.student,
                 session=session,
-            ).select_related("receipt").order_by("-created_at")
+            ).select_related("receipt", "gateway_transaction").order_by("-created_at")
         context.update(
             {
                 "student_user": self.student,
@@ -795,7 +898,9 @@ class BursarStudentFinanceDetailView(BursarAccessMixin, TemplateView):
                 "gateway_transactions": PaymentGatewayTransaction.objects.filter(student=self.student).order_by("-created_at")[:10],
                 "reminder_dispatches": FinanceReminderDispatch.objects.filter(student=self.student).order_by("-created_at")[:10],
                 "latest_receipt": self._pop_latest_receipt(),
-                "gateway_enabled": bool(getattr(settings, "PAYSTACK_SECRET_KEY", "")),
+                "gateway_enabled": gateway_is_enabled(),
+                "gateway_provider_label": gateway_provider_label(),
+                "gateway_fee_items": [row for row in overview["category_rows"] if row["outstanding"] > Decimal("0.00")],
             }
         )
         return context
@@ -841,22 +946,22 @@ class BursarStudentFinanceDetailView(BursarAccessMixin, TemplateView):
             if not hasattr(payment, "receipt"):
                 messages.error(request, "Receipt has not been generated for this payment.")
                 return redirect("finance:bursar-student-finance", student_id=self.student.id)
-            email_message = (
-                f"Payment confirmed. Receipt {payment.receipt.receipt_number} "
-                f"for amount {payment.amount} has been sent."
+            email_package = build_receipt_dispatch_package(
+                payment=payment,
+                receipt=payment.receipt,
+                request=request,
             )
-            profile = finance_profile()
-            if profile.include_bank_details_in_messages:
-                bank_block = finance_bank_details_text()
-                if bank_block:
-                    email_message = f"{email_message}\n\nSchool Account Details\n{bank_block}"
             notify_payment_receipt(
                 student=payment.student,
                 receipt_number=payment.receipt.receipt_number,
                 amount=payment.amount,
                 actor=request.user,
                 request=request,
-                message=email_message,
+                message=email_package["body_text"],
+                email_subject=email_package["subject"],
+                email_body_text=email_package["body_text"],
+                email_body_html=email_package["body_html"],
+                email_attachments=email_package["attachments"],
             )
             log_finance_transaction(
                 actor=request.user,
@@ -875,16 +980,29 @@ class BursarStudentFinanceDetailView(BursarAccessMixin, TemplateView):
             if not gateway_form.is_valid():
                 return self.render_to_response(self.get_context_data(gateway_form=gateway_form))
             try:
+                overview = student_finance_overview(student=self.student, session=session, term=term)
+                resolved_amount, plan_meta = resolve_payment_plan_amount(
+                    overview=overview,
+                    payment_plan=gateway_form.cleaned_data["payment_plan"],
+                    fee_item=gateway_form.cleaned_data.get("fee_item", ""),
+                    percentage=gateway_form.cleaned_data.get("percentage"),
+                    custom_amount=gateway_form.cleaned_data["amount"],
+                )
                 transaction_row = initialize_gateway_payment_transaction(
                     student=self.student,
                     session=session,
                     term=term,
-                    amount=gateway_form.cleaned_data["amount"],
+                    amount=resolved_amount,
                     initiated_by=request.user,
                     request=request,
                     provider=gateway_form.cleaned_data["provider"],
                     auto_email_link=gateway_form.cleaned_data.get("auto_email_link", True),
                 )
+                transaction_row.metadata = {
+                    **transaction_row.metadata,
+                    "payment_plan": plan_meta,
+                }
+                transaction_row.save(update_fields=["metadata", "updated_at"])
             except ValidationError as exc:
                 messages.error(request, "; ".join(exc.messages))
                 return self.render_to_response(self.get_context_data(gateway_form=gateway_form))
@@ -1444,7 +1562,7 @@ class FinanceSummaryView(FinanceSummaryAccessMixin, TemplateView):
         context["cashflow_max"] = max(
             [max(row["inflow"], row["outflow"]) for row in cashflow_rows] or [1]
         )
-        context["latest_receipts"] = Receipt.objects.select_related("payment", "payment__student").order_by("-issued_at")[:20]
+        context["latest_receipts"] = Receipt.objects.select_related("payment", "payment__student", "payment__gateway_transaction").order_by("-issued_at")[:20]
         context["latest_expenses"] = Expense.objects.order_by("-expense_date")[:20]
         context["latest_salaries"] = SalaryRecord.objects.select_related("staff").order_by("-month")[:20]
         context["latest_assets"] = InventoryAsset.objects.order_by("-updated_at")[:20]
@@ -1461,12 +1579,52 @@ class BursarReminderRunView(BursarAccessMixin, View):
         return redirect("finance:bursar-settings")
 
 
+class RemittaGatewayLaunchView(TemplateView):
+    template_name = "finance/remitta_launch.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        gateway_transaction = get_object_or_404(
+            PaymentGatewayTransaction.objects.select_related("student", "session", "term"),
+            reference=kwargs["reference"],
+        )
+        launch_context = remitta_launch_context(gateway_transaction=gateway_transaction)
+        context.update(
+            {
+                "gateway_transaction": gateway_transaction,
+                "action_url": launch_context["action_url"],
+                "launch_fields": launch_context["fields"],
+            }
+        )
+        return context
+
+
 class GatewayPaymentCallbackView(TemplateView):
     template_name = "finance/gateway_callback.html"
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        reference = (self.request.GET.get("reference") or self.request.GET.get("trxref") or "").strip()
+        reference = (
+            self.request.GET.get("reference")
+            or self.request.GET.get("trxref")
+            or self.request.GET.get("tx_ref")
+            or self.request.GET.get("orderID")
+            or self.request.GET.get("orderId")
+            or ""
+        ).strip()
+        callback_params = {
+            key: value
+            for key, value in self.request.GET.items()
+            if value not in {None, ""}
+        }
+        raw_rrr = (
+            self.request.GET.get("RRR")
+            or self.request.GET.get("rrr")
+            or self.request.GET.get("payment_reference")
+            or ""
+        ).strip()
+        if raw_rrr:
+            callback_params["rrr"] = raw_rrr
         context["reference"] = reference
         context["verified"] = False
         context["error_message"] = ""
@@ -1474,6 +1632,14 @@ class GatewayPaymentCallbackView(TemplateView):
         if not reference:
             context["error_message"] = "Gateway reference was not provided."
             return context
+        gateway_txn = PaymentGatewayTransaction.objects.filter(reference=reference).first()
+        if gateway_txn is not None:
+            metadata = dict(gateway_txn.metadata or {})
+            metadata["callback_params"] = callback_params
+            if raw_rrr:
+                gateway_txn.gateway_reference = raw_rrr[:180]
+            gateway_txn.metadata = metadata
+            gateway_txn.save(update_fields=["gateway_reference", "metadata", "updated_at"])
         try:
             gateway_txn, payment, receipt = verify_gateway_payment_by_reference(
                 reference=reference,
@@ -1522,6 +1688,9 @@ class ReceiptPDFDownloadView(ReceiptAccessMixin, View):
             Receipt.objects.select_related("payment", "payment__student", "payment__session", "payment__term"),
             pk=kwargs["receipt_id"],
         )
+        if request.user.has_role(ROLE_STUDENT) and receipt.payment.student_id != request.user.id:
+            messages.error(request, "You can only download receipts issued for your own account.")
+            return redirect("finance:student-overview")
         try:
             pdf_bytes = generate_receipt_pdf(
                 request=request,
@@ -1532,6 +1701,8 @@ class ReceiptPDFDownloadView(ReceiptAccessMixin, View):
             messages.error(request, "; ".join(exc.messages))
             if request.user.has_role(ROLE_BURSAR):
                 return redirect("finance:bursar-fees")
+            if request.user.has_role(ROLE_STUDENT):
+                return redirect("finance:student-overview")
             return redirect("finance:summary")
         except RuntimeError:
             messages.error(
@@ -1540,6 +1711,8 @@ class ReceiptPDFDownloadView(ReceiptAccessMixin, View):
             )
             if request.user.has_role(ROLE_BURSAR):
                 return redirect("finance:bursar-fees")
+            if request.user.has_role(ROLE_STUDENT):
+                return redirect("finance:student-overview")
             return redirect("finance:summary")
         filename = f"NDGA-Receipt-{receipt.receipt_number}.pdf"
         response = HttpResponse(pdf_bytes, content_type="application/pdf")

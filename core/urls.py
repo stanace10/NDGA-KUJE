@@ -3,7 +3,7 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
-from core.ops import healthz, readyz
+from core.ops import healthz, metrics, readyz
 from core.seo import robots_txt, sitemap_xml
 
 urlpatterns = [
@@ -11,6 +11,7 @@ urlpatterns = [
     path("sitemap.xml", sitemap_xml, name="sitemap-xml"),
     path("ops/healthz/", healthz, name="ops-healthz"),
     path("ops/readyz/", readyz, name="ops-readyz"),
+    path("ops/metrics/", metrics, name="ops-metrics"),
     path("admin/", admin.site.urls),
     path("auth/", include("apps.accounts.urls")),
     path("audit/", include("apps.audit.urls")),

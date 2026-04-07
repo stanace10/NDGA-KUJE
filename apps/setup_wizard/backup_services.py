@@ -4,11 +4,14 @@ from dataclasses import dataclass
 import hashlib
 import io
 import json
+import os
 from pathlib import Path
+import subprocess
 import shutil
 import tempfile
 import zipfile
 
+import boto3
 from django.conf import settings
 from django.core import management
 from django.core.exceptions import ValidationError
@@ -25,6 +28,17 @@ class BackupArchivePayload:
     media_file_count: int
 
 
+@dataclass
+class PostgresDumpBackupPayload:
+    filename: str
+    file_path: str
+    size_bytes: int
+    sha256: str
+    generated_at: str
+    s3_bucket: str = ""
+    s3_key: str = ""
+
+
 def _sha256_file(path: Path):
     digest = hashlib.sha256()
     with path.open("rb") as stream:
@@ -33,9 +47,132 @@ def _sha256_file(path: Path):
     return digest.hexdigest()
 
 
+def _resolve_pg_backup_output_dir(output_dir=None):
+    base_dir = Path(getattr(settings, "ROOT_DIR", Path.cwd()))
+    target = Path(output_dir or getattr(settings, "BACKUP_PG_OUTPUT_DIR", "backups/postgres"))
+    if not target.is_absolute():
+        target = base_dir / target
+    target.mkdir(parents=True, exist_ok=True)
+    return target
+
+
+def _prune_old_files(*, directory: Path, pattern: str, keep_count: int):
+    keep_count = max(int(keep_count or 1), 1)
+    candidates = sorted(directory.glob(pattern), key=lambda row: row.stat().st_mtime, reverse=True)
+    for stale in candidates[keep_count:]:
+        stale.unlink(missing_ok=True)
+
+
 def _db_dump_json(path: Path):
     with path.open("w", encoding="utf-8") as stream:
         management.call_command("dumpdata", indent=2, stdout=stream)
+
+
+def create_postgres_dump_backup(
+    *,
+    output_dir=None,
+    s3_bucket="",
+    s3_prefix="",
+    upload_to_s3=False,
+    keep_local_count=None,
+):
+    db_settings = settings.DATABASES["default"]
+    db_engine = (db_settings.get("ENGINE") or "").lower()
+    if "postgresql" not in db_engine:
+        raise ValidationError("PostgreSQL pg_dump backup requires a PostgreSQL database engine.")
+
+    target_dir = _resolve_pg_backup_output_dir(output_dir=output_dir)
+    now = timezone.now()
+    stamp = now.strftime("%Y%m%d_%H%M%S")
+    filename = f"ndga_pg_{stamp}.dump"
+    file_path = target_dir / filename
+
+    command = [
+        "pg_dump",
+        "-Fc",
+        "--no-owner",
+        "--no-privileges",
+        "-h",
+        str(db_settings.get("HOST") or "127.0.0.1"),
+        "-p",
+        str(db_settings.get("PORT") or "5432"),
+        "-U",
+        str(db_settings.get("USER") or ""),
+        "-d",
+        str(db_settings.get("NAME") or ""),
+        "-f",
+        str(file_path),
+    ]
+    env = os.environ.copy()
+    env["PGPASSWORD"] = str(db_settings.get("PASSWORD") or "")
+    try:
+        subprocess.run(
+            command,
+            check=True,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError as exc:
+        raise ValidationError("pg_dump is not installed in this runtime.") from exc
+    except subprocess.CalledProcessError as exc:
+        stderr = (exc.stderr or "").strip()
+        raise ValidationError(f"pg_dump failed: {stderr or exc}") from exc
+
+    digest = _sha256_file(file_path)
+    payload = PostgresDumpBackupPayload(
+        filename=filename,
+        file_path=str(file_path),
+        size_bytes=file_path.stat().st_size,
+        sha256=digest,
+        generated_at=now.isoformat(),
+    )
+
+    if upload_to_s3:
+        bucket = (s3_bucket or getattr(settings, "BACKUP_PG_S3_BUCKET", "")).strip()
+        if not bucket:
+            raise ValidationError("S3 upload requested but BACKUP_PG_S3_BUCKET is not configured.")
+        prefix = (s3_prefix or getattr(settings, "BACKUP_PG_S3_PREFIX", "nightly")).strip().strip("/")
+        key = f"{prefix}/{filename}" if prefix else filename
+        session = boto3.session.Session(
+            region_name=(
+                getattr(settings, "AWS_S3_REGION_NAME", "")
+                or os.environ.get("AWS_REGION", "")
+                or None
+            )
+        )
+        session.client("s3").upload_file(str(file_path), bucket, key)
+        payload.s3_bucket = bucket
+        payload.s3_key = key
+
+    metadata_path = file_path.with_suffix(".json")
+    metadata_path.write_text(
+        json.dumps(
+            {
+                "filename": payload.filename,
+                "generated_at": payload.generated_at,
+                "size_bytes": payload.size_bytes,
+                "sha256": payload.sha256,
+                "s3_bucket": payload.s3_bucket,
+                "s3_key": payload.s3_key,
+            },
+            indent=2,
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+
+    _prune_old_files(
+        directory=target_dir,
+        pattern="ndga_pg_*.dump",
+        keep_count=keep_local_count or getattr(settings, "BACKUP_PG_KEEP_LOCAL_COUNT", 14),
+    )
+    _prune_old_files(
+        directory=target_dir,
+        pattern="ndga_pg_*.json",
+        keep_count=keep_local_count or getattr(settings, "BACKUP_PG_KEEP_LOCAL_COUNT", 14),
+    )
+    return payload
 
 
 def _media_manifest(media_root: Path):

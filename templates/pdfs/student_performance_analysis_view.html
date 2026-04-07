@@ -35,15 +35,15 @@
           </div>
         </article>
         <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 class="text-lg font-semibold text-slate-900">Insight Summary</h2>
+          <h2 class="text-lg font-semibold text-slate-900">Performance Summary</h2>
           <p class="mt-2 text-sm text-slate-700">{{ payload.analytics.headline }}</p>
           <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-            <p class="font-semibold text-slate-900">Teacher Comment Suggestion</p>
-            <p class="mt-1">{{ payload.comment_bundle.teacher_comment }}</p>
+            <p class="font-semibold text-slate-900">Form Teacher Comment</p>
+            <p class="mt-1">{{ payload.teacher_comment|default:"No form teacher comment recorded." }}</p>
           </div>
           <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-            <p class="font-semibold text-slate-900">Principal Comment Suggestion</p>
-            <p class="mt-1">{{ payload.comment_bundle.principal_comment }}</p>
+            <p class="font-semibold text-slate-900">Principal Comment</p>
+            <p class="mt-1">{{ payload.principal_comment|default:"No principal comment recorded." }}</p>
           </div>
           <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
             <p class="font-semibold text-slate-900">Watch Subjects</p>

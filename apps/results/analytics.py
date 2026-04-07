@@ -20,6 +20,16 @@ from apps.results.models import (
 )
 
 TERM_ORDER = {"FIRST": 1, "SECOND": 2, "THIRD": 3}
+COMPONENT_LEADERBOARD_FIELDS = (
+    ("ca1", "CA 1"),
+    ("ca2", "CA 2"),
+    ("ca3", "CA 3"),
+    ("ca4", "CA 4"),
+    ("objective", "Objective"),
+    ("theory", "Theory"),
+    ("total_exam", "Exam"),
+    ("grand_total", "Overall Total"),
+)
 
 
 def _to_float(value, digits=2):
@@ -70,6 +80,56 @@ def _enrollment_map(*, student_ids, session):
 
 def _student_label(student):
     return student.get_full_name() or student.display_name or student.username
+
+
+def _fallback_compilation_for_student(*, student, session=None, term=None):
+    score_qs = StudentSubjectScore.objects.filter(student=student).select_related(
+        "result_sheet__session",
+        "result_sheet__term",
+        "result_sheet__academic_class",
+    )
+    if session is not None:
+        score_qs = score_qs.filter(result_sheet__session=session)
+    if term is not None:
+        score_qs = score_qs.filter(result_sheet__term=term)
+    latest_score = score_qs.order_by("-result_sheet__session__id", "-result_sheet__term__id", "-id").first()
+    if latest_score is None:
+        return None
+
+    resolved_session = session or latest_score.result_sheet.session
+    resolved_term = term or latest_score.result_sheet.term
+    enrollment = (
+        StudentClassEnrollment.objects.select_related("academic_class")
+        .filter(student=student, session=resolved_session, is_active=True)
+        .order_by("-updated_at", "-id")
+        .first()
+    )
+    academic_class = None
+    if enrollment is not None:
+        academic_class = enrollment.academic_class
+    elif latest_score.result_sheet.academic_class_id:
+        academic_class = latest_score.result_sheet.academic_class.base_class or latest_score.result_sheet.academic_class
+    if academic_class is None:
+        return None
+
+    compilation = (
+        ClassResultCompilation.objects.filter(
+            academic_class=academic_class,
+            session=resolved_session,
+            term=resolved_term,
+        )
+        .select_related("academic_class", "session", "term")
+        .first()
+    )
+    if compilation is not None:
+        return compilation
+
+    return ClassResultCompilation(
+        academic_class=academic_class,
+        session=resolved_session,
+        term=resolved_term,
+        status=ClassCompilationStatus.DRAFT,
+    )
 
 
 def build_result_upload_statistics(*, session, term, academic_class=None, teacher=None):
@@ -437,6 +497,103 @@ def build_award_listing(*, session, term, academic_class=None):
     }
 
 
+def build_class_performance_snapshot(*, session, term, academic_class=None):
+    if session is None or term is None:
+        return {"available": False}
+
+    student_rows = _student_average_rows(session=session, term=term, academic_class=academic_class)
+    if not student_rows:
+        return {
+            "available": False,
+            "scope_label": "Selected Class" if academic_class is not None else "All Classes",
+            "position_rows": [],
+            "component_subject_winners": [],
+        }
+
+    filtered_student_ids = {row["student"].id for row in student_rows}
+    score_qs = StudentSubjectScore.objects.filter(
+        result_sheet__session=session,
+        result_sheet__term=term,
+        student_id__in=filtered_student_ids,
+    ).select_related("student__student_profile", "result_sheet__subject")
+    if academic_class is not None:
+        score_qs = score_qs.filter(result_sheet__academic_class=academic_class.instructional_class)
+
+    score_rows = list(score_qs)
+    enrollment_map = _enrollment_map(student_ids=filtered_student_ids, session=session)
+    component_subject_winners = []
+    for field_name, label in COMPONENT_LEADERBOARD_FIELDS:
+        subject_rows = []
+        subject_buckets = defaultdict(list)
+        for row in score_rows:
+            subject_buckets[row.result_sheet.subject.name].append(row)
+        for subject_name, items in subject_buckets.items():
+            ranked_items = sorted(
+                items,
+                key=lambda item: (
+                    -float(getattr(item, field_name) or 0),
+                    _student_label(item.student).lower(),
+                    item.student_id,
+                ),
+            )
+            winner = ranked_items[0] if ranked_items else None
+            if winner is None:
+                continue
+            winner_score = _to_float(getattr(winner, field_name))
+            if winner_score <= 0:
+                continue
+            enrollment = enrollment_map.get(winner.student_id)
+            subject_rows.append(
+                {
+                    "subject": subject_name,
+                    "student_name": _student_label(winner.student),
+                    "student_number": getattr(
+                        getattr(winner.student, "student_profile", None),
+                        "student_number",
+                        winner.student.username,
+                    ),
+                    "class_name": (
+                        enrollment.academic_class.display_name or enrollment.academic_class.code
+                    ) if enrollment else "-",
+                    "score": winner_score,
+                }
+            )
+        if subject_rows:
+            component_subject_winners.append(
+                {
+                    "key": field_name,
+                    "label": label,
+                    "rows": sorted(subject_rows, key=lambda item: item["subject"].lower()),
+                }
+            )
+
+    overall_best = student_rows[0]
+    highest_total = sorted(
+        student_rows,
+        key=lambda item: (-item["total"], -item["average"], item["student_name"].lower()),
+    )[0]
+    class_average = _to_float(sum(row["average"] for row in student_rows) / len(student_rows))
+    total_average = _to_float(sum(row["total"] for row in student_rows) / len(student_rows))
+    if academic_class is None:
+        scope_label = "All Classes"
+    elif academic_class.base_class_id:
+        scope_label = f"{academic_class.display_name or academic_class.code} Class Arm"
+    else:
+        scope_label = f"{academic_class.display_name or academic_class.code} Class Level"
+    return {
+        "available": True,
+        "scope_label": scope_label,
+        "student_count": len(student_rows),
+        "subject_count": len({row.result_sheet.subject_id for row in score_rows}),
+        "overall_best": overall_best,
+        "highest_total": highest_total,
+        "class_average": class_average,
+        "total_average": total_average,
+        "position_rows": student_rows,
+        "component_subject_winners": component_subject_winners,
+    }
+
+
 def build_student_performance_report(*, student, session=None, term=None):
     compilation_qs = ClassResultCompilation.objects.filter(
         status=ClassCompilationStatus.PUBLISHED,
@@ -452,13 +609,25 @@ def build_student_performance_report(*, student, session=None, term=None):
         .first()
     )
     if compilation is None:
+        compilation = _fallback_compilation_for_student(student=student, session=session, term=term)
+    if compilation is None:
         return {"available": False}
 
-    record = compilation.student_records.filter(student=student).first()
+    record = compilation.student_records.filter(student=student).first() if compilation.pk else None
     attendance_percentage = Decimal(str(getattr(record, "attendance_percentage", 0) or 0)).quantize(Decimal("0.01"))
     school_profile = SchoolProfile.load()
 
-    cohort_student_ids = list(compilation.student_records.values_list("student_id", flat=True))
+    cohort_student_ids = list(
+        StudentClassEnrollment.objects.filter(
+            academic_class=compilation.academic_class,
+            session=compilation.session,
+            is_active=True,
+        ).values_list("student_id", flat=True)
+    )
+    if not cohort_student_ids and compilation.pk:
+        cohort_student_ids = list(compilation.student_records.values_list("student_id", flat=True))
+    if not cohort_student_ids:
+        cohort_student_ids = [student.id]
     score_rows = list(
         StudentSubjectScore.objects.filter(
             student_id__in=cohort_student_ids,
@@ -553,6 +722,11 @@ def build_student_performance_report(*, student, session=None, term=None):
         dean_guidance=school_profile.dean_comment_guidance or school_profile.auto_comment_guidance,
         principal_guidance=school_profile.principal_comment_guidance or school_profile.auto_comment_guidance,
     )
+    principal_comment = (
+        (getattr(record, "principal_comment", "") or "").strip()
+        or (getattr(compilation, "decision_comment", "") or "").strip()
+        or comment_bundle["principal_comment"]
+    )
 
     if student_average >= 75:
         performance_band = "Outstanding"
@@ -577,8 +751,11 @@ def build_student_performance_report(*, student, session=None, term=None):
     return {
         "available": True,
         "compilation": compilation,
+        "is_preview": compilation.status != ClassCompilationStatus.PUBLISHED or not bool(compilation.pk),
         "student": student,
         "analytics": analytics,
+        "teacher_comment": getattr(record, "teacher_comment", "") if record else "",
+        "principal_comment": principal_comment,
         "subject_rows": current_rows,
         "strongest_subjects": strongest_subjects,
         "subject_strength_summary": subject_strength_summary,

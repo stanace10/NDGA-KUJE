@@ -527,6 +527,10 @@ class BackupCenterView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         pending_sync = SyncQueue.objects.filter(
             status__in=[SyncQueueStatus.PENDING, SyncQueueStatus.RETRY]
         ).count()
+        class_levels_total = AcademicClass.objects.filter(is_active=True, base_class__isnull=True).count()
+        class_list_total = AcademicClass.objects.filter(is_active=True, base_class__isnull=False).count()
+        if not class_list_total:
+            class_list_total = class_levels_total
         return [
             {"metric": "Generated At", "value": timezone.localtime().strftime("%Y-%m-%d %H:%M:%S")},
             {"metric": "Setup State", "value": setup_state.state},
@@ -544,7 +548,8 @@ class BackupCenterView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
             },
             {"metric": "Academic Sessions", "value": AcademicSession.objects.count()},
             {"metric": "Terms", "value": Term.objects.count()},
-            {"metric": "Classes", "value": AcademicClass.objects.count()},
+            {"metric": "Class Levels", "value": class_levels_total},
+            {"metric": "Class List", "value": class_list_total},
             {"metric": "Subjects", "value": Subject.objects.count()},
             {"metric": "Users", "value": User.objects.count()},
             {"metric": "Charges", "value": StudentCharge.objects.count()},
@@ -553,7 +558,7 @@ class BackupCenterView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
             {"metric": "Salary Records", "value": SalaryRecord.objects.count()},
             {"metric": "Elections", "value": Election.objects.count()},
             {"metric": "Votes", "value": Vote.objects.count()},
-            {"metric": "Pending Sync Queue", "value": pending_sync},
+            {"metric": "Pending Manual Push Queue", "value": pending_sync},
         ]
 
     def _export_summary_csv(self):

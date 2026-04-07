@@ -99,6 +99,7 @@ def validate_document_upload(uploaded_file):
             "application/msword",
             "application/vnd.openxmlformats-officedocument",
             "text/plain",
+            "application/octet-stream",
         ),
     )
 
@@ -133,6 +134,7 @@ def validate_simulation_evidence_upload(uploaded_file):
             "application/msword",
             "application/vnd.openxmlformats-officedocument",
             "text/plain",
+            "application/octet-stream",
         ),
     )
 

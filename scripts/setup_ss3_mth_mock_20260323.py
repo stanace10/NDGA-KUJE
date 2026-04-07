@@ -40,7 +40,7 @@ OBJECTIVES = [
     {"stem": "3. Solve (y + 1)⁄2 − (2y − 1)⁄3 = 4", "options": {"A": "y = 19", "B": "y = −19", "C": "y = −29", "D": "y = 29"}, "answer": "B"},
     {"stem": "4. Simplify, correct to three significant figures, (27.63)² − (12.37)²", "options": {"A": "614", "B": "612", "C": "611", "D": "610"}, "answer": "D"},
     {"stem": "5. If 7 + y ≡ 4 (mod 8), find the least value of y, 10 ≤ y ≤ 30", "options": {"A": "11", "B": "13", "C": "19", "D": "21"}, "answer": "B"},
-    {"stem": "6. If T = {prime numbers} and M = {odd numbers} are subsets of μ = {x : 0 < x < 10, and x is an integer}, find (T′ ∩ M′)", "options": {"A": "{4, 6, 8}", "B": "{1, 4, 6, 8, 10}", "C": "{1, 2, 4, 6, 8, 10}", "D": "{1, 2, 3, 5, 7, 8, 9}"}, "answer": "A"},
+    {"stem": "6. If T = {prime numbers} and M = {odd numbers} are subsets of \u03bc = {x: 0 < x < 10, and x is an integer}, find (T\u2032 \u2229 M\u2032)", "options": {"A": "{4, 6, 8}", "B": "{1, 4, 6, 8, 10}", "C": "{1, 2, 4, 6, 8, 10}", "D": "{1, 2, 3, 5, 7, 8, 9}"}, "answer": "A"},
     {"stem": "7. Evaluate: (log₃ 9 − log₂ 8)⁄log₃ 9", "options": {"A": "−1⁄3", "B": "1⁄2", "C": "1⁄3", "D": "−1⁄2"}, "answer": "D"},
     {"stem": "8. If 23y = 1111₂, find the value of y", "options": {"A": "4", "B": "5", "C": "6", "D": "7"}, "answer": "C"},
     {"stem": "9. If 6, p and 14 are consecutive terms in an Arithmetic Progression (A.P), find the value of p", "options": {"A": "9", "B": "10", "C": "6", "D": "8"}, "answer": "B"},
@@ -278,8 +278,11 @@ def main():
     blueprint.instructions = INSTRUCTIONS
     blueprint.section_config = {
         "paper_code": "SS3-MTH-MOCK-EXAM",
+        "flow_type": "OBJECTIVE_THEORY",
         "objective_count": len(OBJECTIVES),
         "theory_count": len(THEORY),
+        "objective_target_max": "40.00",
+        "theory_target_max": "60.00",
     }
     blueprint.passing_score = Decimal("0.00")
     blueprint.objective_writeback_target = CBTWritebackTarget.OBJECTIVE

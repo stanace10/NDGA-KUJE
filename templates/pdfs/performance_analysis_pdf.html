@@ -68,14 +68,13 @@
       </tbody>
     </table>
 
-    <div class="section-title">AI Insight Summary</div>
+    <div class="section-title">Performance Summary</div>
     <div class="note">{{ payload.analytics.headline }}</div>
     <div class="note"><strong>Attendance:</strong> {{ payload.attendance_percentage }}% | <strong>Gap To Top:</strong> {{ payload.average_gap_to_top }} | <strong>Band:</strong> {{ payload.performance_band }}</div>
     <div class="note"><strong>Strength Summary:</strong> {{ payload.subject_strength_summary }}</div>
     <div class="note"><strong>Watch Subjects:</strong> {{ payload.watch_summary }}</div>
-    <div class="note"><strong>Teacher Comment Suggestion:</strong> {{ payload.comment_bundle.teacher_comment }}</div>
-    <div class="note"><strong>Dean Comment Suggestion:</strong> {{ payload.comment_bundle.dean_comment }}</div>
-    <div class="note"><strong>Principal Comment Suggestion:</strong> {{ payload.comment_bundle.principal_comment }}</div>
+    <div class="note"><strong>Form Teacher Comment:</strong> {{ payload.teacher_comment|default:"No form teacher comment recorded." }}</div>
+    <div class="note"><strong>Principal Comment:</strong> {{ payload.principal_comment|default:"No principal comment recorded." }}</div>
 
     <div class="footer">
       <div>

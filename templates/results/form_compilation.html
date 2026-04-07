@@ -1,6 +1,6 @@
 {% extends "layouts/base.html" %}
 
-{% block title %}Grade Cumulative{% endblock %}
+{% block title %}Class Result Compilation{% endblock %}
 
 {% block content %}
   <section class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -8,7 +8,7 @@
       <div class="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 class="text-2xl font-bold text-ndga-navy">
-            Grade Cumulative{% if current_session and current_term %} - {{ current_session.name }} - {{ current_term.get_name_display }}{% endif %}
+            Class Result Compilation{% if current_session and current_term %} - {{ current_session.name }} - {{ current_term.get_name_display }}{% endif %}
           </h1>
           {% if selected_assignment %}
             <p class="mt-1 text-sm font-semibold text-slate-600">Class: {{ selected_assignment.academic_class.code }}</p>
@@ -84,6 +84,7 @@
                 <th class="px-3 py-2">Name</th>
                 <th class="px-3 py-2">Admission No</th>
                 <th class="px-3 py-2">Progress</th>
+                <th class="px-3 py-2">Review</th>
                 <th class="px-3 py-2">Action</th>
               </tr>
             </thead>
@@ -96,6 +97,7 @@
                   </td>
                   <td class="px-3 py-2 text-slate-700">{{ row.admission_number }}</td>
                   <td class="px-3 py-2 text-slate-700">{{ row.progress_label }}</td>
+                  <td class="px-3 py-2 text-slate-700">{{ row.management_status }}</td>
                   <td class="px-3 py-2">
                     <a href="{{ row.detail_url }}" class="ndga-btn ndga-btn-secondary !px-3 !py-1.5 !text-xs">
                       Enter Cumulative
@@ -104,7 +106,7 @@
                 </tr>
               {% empty %}
                 <tr>
-                  <td colspan="5" class="px-3 py-4 text-slate-500">No student record found for current filter.</td>
+                  <td colspan="6" class="px-3 py-4 text-slate-500">No student record found for current filter.</td>
                 </tr>
               {% endfor %}
             </tbody>

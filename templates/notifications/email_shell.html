@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ subject }}</title>
+</head>
+<body style="margin:0; padding:0; background:#eef2f7; font-family:Arial, Helvetica, sans-serif; color:#0f172a;">
+  <table role="presentation" style="width:100%; border-collapse:collapse; background:#eef2f7;">
+    <tr>
+      <td align="center" style="padding:28px 12px;">
+        <table role="presentation" style="width:100%; max-width:720px; border-collapse:collapse;">
+          <tr>
+            <td style="padding-bottom:18px; text-align:center; font-size:12px; color:#64748b;">
+              Official communication from {{ school_profile.school_name|default:"Notre Dame Girls Academy" }}
+            </td>
+          </tr>
+          <tr>
+            <td style="background:linear-gradient(135deg, #0f2747 0%, #173a66 55%, #c99628 100%); border-radius:28px 28px 0 0; padding:28px 30px; color:#ffffff;">
+              <table role="presentation" style="width:100%; border-collapse:collapse;">
+                <tr>
+                  <td style="vertical-align:middle;">
+                    {% if logo_url %}
+                      <img src="{{ logo_url }}" alt="{{ school_profile.school_name }}" style="width:64px; height:64px; object-fit:contain; display:block; margin-bottom:10px; background:#ffffff; border-radius:16px; padding:6px; border:0; outline:none;">
+                    {% elif logo_data_uri %}
+                      <img src="{{ logo_data_uri }}" alt="{{ school_profile.school_name }}" style="width:64px; height:64px; object-fit:contain; display:block; margin-bottom:10px; background:#ffffff; border-radius:16px; padding:6px; border:0; outline:none;">
+                    {% endif %}
+                    <div style="font-size:25px; line-height:1.2; font-weight:700;">{{ school_profile.school_name|default:"Notre Dame Girls Academy" }}</div>
+                    <div style="margin-top:6px; font-size:13px; line-height:1.5; color:#e2e8f0;">
+                      {{ school_profile.address|default:"Kuje, Abuja" }}
+                    </div>
+                  </td>
+                  <td style="vertical-align:top; text-align:right;">
+                    <div style="display:inline-block; padding:10px 14px; border-radius:999px; background:rgba(255,255,255,0.15); font-size:12px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase;">
+                      School Notice
+                    </div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="background:#ffffff; border-radius:0 0 28px 28px; padding:32px 30px; box-shadow:0 20px 45px rgba(15, 23, 42, 0.08);">
+              <h1 style="margin:0 0 14px; font-size:26px; line-height:1.25; color:#0f172a;">{{ subject }}</h1>
+              <p style="margin:0 0 10px; font-size:12px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:#c99628;">
+                Parent / Guardian Update
+              </p>
+              <p style="margin:0 0 22px; font-size:15px; line-height:1.7; color:#475569;">
+                Dear Parent/Guardian,
+              </p>
+
+              {{ body_html_content }}
+
+              <div style="margin-top:28px; padding:18px 20px; border-radius:18px; background:#f8fafc; border:1px solid #e2e8f0;">
+                <p style="margin:0 0 8px; font-size:13px; font-weight:700; color:#0f172a;">Need help?</p>
+                <p style="margin:0; font-size:13px; line-height:1.7; color:#475569;">
+                  Email: <a href="mailto:{{ support_email }}" style="color:#173a66; text-decoration:none;">{{ support_email }}</a>
+                  {% if support_phone %}<br>Phone: <span style="color:#0f172a; font-weight:600;">{{ support_phone }}</span>{% endif %}
+                  {% if website %}<br>Website: <a href="{{ website }}" style="color:#173a66; text-decoration:none;">{{ website }}</a>{% endif %}
+                </p>
+              </div>
+
+              <div style="margin-top:24px; padding-top:18px; border-top:1px solid #e2e8f0;">
+                <p style="margin:0; font-size:14px; line-height:1.7; color:#334155;">
+                  Warm regards,<br>
+                  <strong>{{ school_profile.school_name|default:"Notre Dame Girls Academy" }}</strong><br>
+                  <span style="color:#64748b;">{{ school_profile.principal_name|default:"School Administration" }}</span>
+                </p>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding-top:16px; text-align:center; font-size:11px; line-height:1.7; color:#64748b;">
+              This is an official school email from {{ school_profile.school_name|default:"Notre Dame Girls Academy" }}.<br>
+              &copy; {{ current_year }} {{ school_profile.school_name|default:"Notre Dame Girls Academy" }}. All rights reserved.
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

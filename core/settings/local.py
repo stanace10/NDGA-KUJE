@@ -1,4 +1,5 @@
 from .base import *  # noqa
+from core.sentry import initialize_sentry
 
 DEBUG = env.bool("DJANGO_DEBUG", default=True)
 NDGA_LOCAL_SIMPLE_HOST_MODE = env.bool("NDGA_LOCAL_SIMPLE_HOST_MODE", default=True)
@@ -40,3 +41,5 @@ if "script-src 'self' 'unsafe-inline';" in _local_csp and "'unsafe-eval'" not in
         "script-src 'self' 'unsafe-inline';",
         "script-src 'self' 'unsafe-inline' 'unsafe-eval';",
     )
+
+initialize_sentry(env=env, default_environment="local")

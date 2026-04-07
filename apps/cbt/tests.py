@@ -466,6 +466,7 @@ class StageTenCBTWorkflowTests(TestCase):
                 "assignment": str(self.assignment.id),
                 "title": "Imported Physics Quiz",
                 "exam_type": "CA",
+                "flow_type": "OBJECTIVE_ONLY",
                 "source_file": upload,
             },
         )
@@ -503,7 +504,7 @@ class StageTenCBTWorkflowTests(TestCase):
         self.assertEqual(exam.status, CBTExamStatus.DRAFT)
         self.assertGreater(ExamQuestion.objects.filter(exam=exam).count(), 0)
 
-    def test_upload_notes_fallback_generates_draft_exam(self):
+    def test_upload_notes_import_requires_real_question_paper(self):
         teacher_client = self.login_client(host="staff.ndgakuje.org", username=self.teacher_user.username)
         note_content = (
             "Digital technology covers data, devices, and safe use of computer systems.\n"
@@ -524,16 +525,8 @@ class StageTenCBTWorkflowTests(TestCase):
             follow=True,
         )
         self.assertEqual(response.status_code, 200)
-        exam = Exam.objects.get(title="Imported Notes Draft")
-        blueprint = ExamBlueprint.objects.get(exam=exam)
-        self.assertEqual(exam.status, CBTExamStatus.DRAFT)
-        self.assertEqual(blueprint.objective_writeback_target, CBTWritebackTarget.OBJECTIVE)
-        self.assertEqual(blueprint.theory_writeback_target, CBTWritebackTarget.NONE)
-        self.assertEqual(blueprint.section_config.get("objective_target_max"), "20.00")
-        self.assertEqual(blueprint.section_config.get("theory_target_max"), "40.00")
-        self.assertGreater(ExamQuestion.objects.filter(exam=exam).count(), 0)
-        import_row = ExamDocumentImport.objects.get(exam=exam)
-        self.assertEqual(import_row.extraction_status, CBTDocumentStatus.SUCCESS)
+        self.assertContains(response, "Could not detect a clean question paper")
+        self.assertFalse(Exam.objects.filter(title="Imported Notes Draft").exists())
 
     def test_docx_upload_generates_draft_exam(self):
         teacher_client = self.login_client(host="staff.ndgakuje.org", username=self.teacher_user.username)
@@ -557,6 +550,7 @@ class StageTenCBTWorkflowTests(TestCase):
                 "assignment": str(self.assignment.id),
                 "title": "Imported DOCX Draft",
                 "exam_type": "CA",
+                "flow_type": "OBJECTIVE_ONLY",
                 "source_file": upload,
             },
         )
@@ -564,6 +558,27 @@ class StageTenCBTWorkflowTests(TestCase):
         exam = Exam.objects.get(title="Imported DOCX Draft")
         self.assertEqual(exam.status, CBTExamStatus.DRAFT)
         self.assertGreater(ExamQuestion.objects.filter(exam=exam).count(), 0)
+
+    def test_doc_upload_is_rejected_with_clear_error(self):
+        teacher_client = self.login_client(host="staff.ndgakuje.org", username=self.teacher_user.username)
+        upload = SimpleUploadedFile(
+            "legacy_questions.doc",
+            b"legacy doc placeholder",
+            content_type="application/msword",
+        )
+        response = teacher_client.post(
+            "/cbt/authoring/upload/",
+            {
+                "assignment": str(self.assignment.id),
+                "title": "Imported DOC Draft",
+                "exam_type": "CA",
+                "source_file": upload,
+            },
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Upload PDF, DOCX, TXT, or question image")
+        self.assertFalse(Exam.objects.filter(title="Imported DOC Draft").exists())
 
     def test_pdf_upload_generates_draft_exam(self):
         teacher_client = self.login_client(host="staff.ndgakuje.org", username=self.teacher_user.username)
@@ -587,6 +602,7 @@ class StageTenCBTWorkflowTests(TestCase):
                 "assignment": str(self.assignment.id),
                 "title": "Imported PDF Draft",
                 "exam_type": "CA",
+                "flow_type": "OBJECTIVE_ONLY",
                 "source_file": upload,
             },
         )
@@ -616,6 +632,7 @@ class StageTenCBTWorkflowTests(TestCase):
                 "assignment": str(self.assignment.id),
                 "title": "Imported Image Draft",
                 "exam_type": "CA",
+                "flow_type": "OBJECTIVE_ONLY",
                 "source_file": upload,
             },
         )
@@ -745,6 +762,31 @@ class StageTenCBTWorkflowTests(TestCase):
         )
         parsed = parse_objective_questions(pasted_text)
         self.assertEqual(parsed, [])
+
+    def test_upload_import_does_not_generate_placeholder_questions_from_notes(self):
+        teacher_client = self.login_client(host="staff.ndgakuje.org", username=self.teacher_user.username)
+        upload = SimpleUploadedFile(
+            "lesson_note_blob.txt",
+            (
+                "This lesson note explains photosynthesis, chlorophyll, sunlight, and glucose production. "
+                "It contains teaching points only and no numbered question paper or A-D objective layout."
+            ).encode("utf-8"),
+            content_type="text/plain",
+        )
+        response = teacher_client.post(
+            "/cbt/authoring/upload/",
+            {
+                "assignment": str(self.assignment.id),
+                "title": "Imported Notes Failure Probe",
+                "exam_type": "CA",
+                "flow_type": "OBJECTIVE_THEORY",
+                "source_file": upload,
+            },
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "No valid objective questions were detected")
+        self.assertFalse(Exam.objects.filter(title="Imported Notes Failure Probe").exists())
 
     def test_resequence_exam_rows_reorders_without_unique_sort_collision(self):
         exam, question_bank, objective_question = self._create_minimal_exam()
@@ -1106,10 +1148,10 @@ class StageElevenCBTRunnerTests(TestCase):
         attempt.refresh_from_db()
         self.assertEqual(attempt.status, CBTAttemptStatus.SUBMITTED)
         self.assertTrue(attempt.auto_marking_completed)
-        self.assertEqual(str(attempt.objective_score), "40.00")
+        self.assertEqual(str(attempt.objective_score), "20.00")
 
         score = StudentSubjectScore.objects.get(student=self.student_user)
-        self.assertEqual(str(score.objective), "40.00")
+        self.assertEqual(str(score.objective), "20.00")
 
     def test_attempt_integrity_bundle_tracks_start_and_submit(self):
         exam, objective_question, _ = self._create_exam(theory_enabled=False)
@@ -1194,9 +1236,9 @@ class StageElevenCBTRunnerTests(TestCase):
         self.assertEqual(mark_response.status_code, 302)
         attempt.refresh_from_db()
         self.assertTrue(attempt.theory_marking_completed)
-        self.assertEqual(str(attempt.theory_score), "20.00")
+        self.assertEqual(str(attempt.theory_score), "40.00")
         score.refresh_from_db()
-        self.assertEqual(str(score.theory), "20.00")
+        self.assertEqual(str(score.theory), "40.00")
 
     def test_shuffle_keeps_theory_after_objective_questions(self):
         exam, _, theory_question = self._create_exam(theory_enabled=True)

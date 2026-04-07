@@ -24,6 +24,7 @@ from apps.finance.models import (
     InventoryAsset,
     InventoryAssetMovement,
     Payment,
+    PaymentGatewayProvider,
     PaymentGatewayStatus,
     PaymentMethod,
     Receipt,
@@ -38,6 +39,8 @@ from apps.finance.services import (
     initialize_gateway_payment_transaction,
     monthly_cashflow_series,
     record_manual_payment,
+    resolve_payment_plan_amount,
+    student_finance_overview,
     verify_gateway_payment_transaction,
 )
 from apps.notifications.models import Notification, NotificationCategory
@@ -519,6 +522,105 @@ class FinancePortalTests(TestCase):
             )
             self.assertEqual(transaction_row.status, PaymentGatewayStatus.INITIALIZED)
             self.assertTrue(bool(transaction_row.authorization_url))
+
+    @override_settings(
+        PAYMENT_GATEWAY_PROVIDER="REMITTA",
+        REMITTA_MERCHANT_ID="2547916",
+        REMITTA_SERVICE_TYPE_ID="4430731",
+        REMITTA_API_KEY="remitta-secret",
+    )
+    def test_remitta_initialize_creates_internal_launch_url(self):
+        transaction_row = initialize_gateway_payment_transaction(
+            student=self.student,
+            session=self.session,
+            term=self.term,
+            amount=Decimal("15000"),
+            initiated_by=self.bursar,
+        )
+        self.assertEqual(transaction_row.provider, PaymentGatewayProvider.REMITTA)
+        self.assertEqual(transaction_row.status, PaymentGatewayStatus.INITIALIZED)
+        self.assertIn("/finance/gateway/launch/remitta/", transaction_row.authorization_url)
+        self.assertIn("remitta_checkout_payload", transaction_row.metadata)
+
+    @override_settings(
+        PAYMENT_GATEWAY_PROVIDER="FLUTTERWAVE",
+        FLUTTERWAVE_PUBLIC_KEY="flw-public",
+        FLUTTERWAVE_SECRET_KEY="flw-secret",
+    )
+    def test_flutterwave_initialize_creates_checkout_link(self):
+        with patch("apps.finance.services._flutterwave_api_request") as mocked_gateway:
+            mocked_gateway.return_value = {
+                "status": "success",
+                "data": {
+                    "link": "https://checkout.flutterwave.com/pay/ndga-123",
+                    "flw_ref": "FLW-123",
+                },
+            }
+            transaction_row = initialize_gateway_payment_transaction(
+                student=self.student,
+                session=self.session,
+                term=self.term,
+                amount=Decimal("15000"),
+                initiated_by=self.bursar,
+                provider=PaymentGatewayProvider.FLUTTERWAVE,
+            )
+            self.assertEqual(transaction_row.provider, PaymentGatewayProvider.FLUTTERWAVE)
+            self.assertEqual(transaction_row.status, PaymentGatewayStatus.INITIALIZED)
+            self.assertEqual(transaction_row.authorization_url, "https://checkout.flutterwave.com/pay/ndga-123")
+
+    def test_resolve_payment_plan_amount_supports_full_item_and_percentage(self):
+        StudentCharge.objects.create(
+            item_name="School Fees",
+            description="Main fee",
+            amount=Decimal("20000"),
+            session=self.session,
+            term=self.term,
+            target_type=ChargeTargetType.CLASS,
+            academic_class=self.academic_class,
+            created_by=self.bursar,
+            is_active=True,
+        )
+        StudentCharge.objects.create(
+            item_name="Hostel",
+            description="Hostel fee",
+            amount=Decimal("10000"),
+            session=self.session,
+            term=self.term,
+            target_type=ChargeTargetType.CLASS,
+            academic_class=self.academic_class,
+            created_by=self.bursar,
+            is_active=True,
+        )
+        overview = student_finance_overview(
+            student=self.student,
+            session=self.session,
+            term=self.term,
+        )
+        amount_full, meta_full = resolve_payment_plan_amount(
+            overview=overview,
+            payment_plan="FULL",
+            custom_amount=Decimal("1"),
+        )
+        self.assertEqual(amount_full, Decimal("30000.00"))
+        self.assertEqual(meta_full["payment_plan"], "FULL")
+
+        amount_item, meta_item = resolve_payment_plan_amount(
+            overview=overview,
+            payment_plan="FEE_ITEM",
+            fee_item="Hostel",
+            custom_amount=Decimal("1"),
+        )
+        self.assertEqual(amount_item, Decimal("10000.00"))
+        self.assertEqual(meta_item["fee_item"], "Hostel")
+
+        amount_pct, meta_pct = resolve_payment_plan_amount(
+            overview=overview,
+            payment_plan="PERCENTAGE",
+            percentage=50,
+            custom_amount=Decimal("1"),
+        )
+        self.assertEqual(amount_pct, Decimal("15000.00"))
+        self.assertEqual(meta_pct["percentage"], 50)
 
     def test_scheduled_finance_reminders_dispatch_overdue_notice(self):
         due_date = timezone.localdate() - timedelta(days=1)

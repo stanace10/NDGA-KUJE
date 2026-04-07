@@ -25,32 +25,69 @@ class _StyledFormMixin:
             widget.attrs.setdefault("class", self.base_input_class)
 
 
+class _StudentRecipientField(forms.ModelMultipleChoiceField):
+    def label_from_instance(self, obj):
+        profile = getattr(obj, "student_profile", None)
+        admission_no = getattr(profile, "student_number", "") or "-"
+        full_name = obj.get_full_name() or getattr(profile, "full_name", "") or obj.username
+        return f"{full_name} | {admission_no}"
+
+
+class _StaffRecipientField(forms.ModelMultipleChoiceField):
+    def label_from_instance(self, obj):
+        profile = getattr(obj, "staff_profile", None)
+        staff_id = getattr(profile, "staff_id", "") or "-"
+        full_name = obj.get_full_name() or obj.username
+        return f"{full_name} | {staff_id}"
+
+
 class MediaBroadcastForm(_StyledFormMixin, forms.Form):
     class Audience(models.TextChoices):
+        EVERYONE = "EVERYONE", "Everyone"
         ALL_STUDENTS = "ALL_STUDENTS", "All Students + Parents"
         CLASS_STUDENTS = "CLASS_STUDENTS", "One Class + Parents"
         ALL_STAFF = "ALL_STAFF", "All Staff"
-        SELECTED_USERS = "SELECTED_USERS", "Selected Users"
+        SELECTED_STUDENTS = "SELECTED_STUDENTS", "Selected Student(s)"
+        SELECTED_STAFF = "SELECTED_STAFF", "Selected Staff"
 
     audience = forms.ChoiceField(
         choices=Audience.choices,
         initial=Audience.CLASS_STUDENTS,
     )
     academic_class = forms.ModelChoiceField(
-        queryset=AcademicClass.objects.filter(is_active=True).order_by("code"),
+        queryset=AcademicClass.objects.filter(is_active=True, base_class__isnull=True).order_by("code"),
         required=False,
+        label="Class",
     )
-    recipients = forms.ModelMultipleChoiceField(
-        queryset=User.objects.filter(is_active=True).order_by("username"),
+    student_recipients = _StudentRecipientField(
+        queryset=User.objects.filter(
+            is_active=True,
+            student_profile__isnull=False,
+        ).select_related("student_profile").order_by("student_profile__student_number", "username"),
         required=False,
+        label="Students",
+    )
+    staff_recipients = _StaffRecipientField(
+        queryset=User.objects.filter(
+            is_active=True,
+            staff_profile__isnull=False,
+        ).select_related("staff_profile").order_by("staff_profile__staff_id", "username"),
+        required=False,
+        label="Staff",
     )
     subject = forms.CharField(max_length=140)
     message = forms.CharField(widget=forms.Textarea(attrs={"rows": 4}))
-    send_email = forms.BooleanField(required=False, initial=True)
+    send_portal = forms.BooleanField(required=False, initial=True)
+    send_email = forms.BooleanField(required=False, initial=False)
+    send_whatsapp = forms.BooleanField(required=False, initial=False)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.apply_default_styles()
+        self.fields["subject"].label = "Message Subject"
+        self.fields["message"].label = "Message Body"
+        self.fields["student_recipients"].widget.attrs["size"] = 12
+        self.fields["staff_recipients"].widget.attrs["size"] = 12
 
     def clean_subject(self):
         return (self.cleaned_data.get("subject") or "").strip()
@@ -62,9 +99,15 @@ class MediaBroadcastForm(_StyledFormMixin, forms.Form):
         cleaned = super().clean()
         audience = cleaned.get("audience")
         class_obj = cleaned.get("academic_class")
-        recipients = cleaned.get("recipients")
         if audience == self.Audience.CLASS_STUDENTS and not class_obj:
             raise forms.ValidationError("Select a class for class-based broadcast.")
-        if audience == self.Audience.SELECTED_USERS and not recipients:
-            raise forms.ValidationError("Select at least one recipient.")
+        if audience == self.Audience.SELECTED_STUDENTS and not cleaned.get("student_recipients"):
+            raise forms.ValidationError("Select at least one student.")
+        if audience == self.Audience.SELECTED_STAFF and not cleaned.get("staff_recipients"):
+            raise forms.ValidationError("Select at least one staff member.")
+        if not any(
+            cleaned.get(flag)
+            for flag in ("send_portal", "send_email", "send_whatsapp")
+        ):
+            raise forms.ValidationError("Select at least one delivery channel: portal, email, or WhatsApp.")
         return cleaned

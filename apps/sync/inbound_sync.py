@@ -407,7 +407,7 @@ def _apply_remote_operation(*, operation_type, payload, object_ref="", conflict_
     raise ValidationError("Unsupported sync operation type.")
 
 
-def ingest_remote_outbox_event(*, envelope):
+def ingest_remote_outbox_event(*, envelope, force_reapply=False):
     payload = envelope.get("payload")
     operation_type = (envelope.get("operation_type") or "").strip()
     idempotency_key = (envelope.get("idempotency_key") or "").strip()
@@ -429,7 +429,7 @@ def ingest_remote_outbox_event(*, envelope):
         max_retries=0,
         local_node_id=(envelope.get("local_node_id") or "")[:80],
     )
-    if not created and queue_row.status == SyncQueueStatus.SYNCED:
+    if not created and queue_row.status == SyncQueueStatus.SYNCED and not force_reapply:
         return {"status": "duplicate", "reference": queue_row.remote_reference}
 
     try:
@@ -505,4 +505,7 @@ def ingest_remote_outbox_event(*, envelope):
             "updated_at",
         ]
     )
-    return {"status": "applied", "reference": queue_row.remote_reference}
+    return {
+        "status": "reapplied" if force_reapply and not created else "applied",
+        "reference": queue_row.remote_reference,
+    }

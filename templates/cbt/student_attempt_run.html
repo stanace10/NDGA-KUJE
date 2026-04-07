@@ -238,11 +238,13 @@
                   <span class="rounded-full border border-cyan-500/40 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-semibold text-cyan-100">Keyboard Disabled</span>
                 </div>
                 <p class="mt-2 text-[11px] text-slate-300">Use only the on-screen controls for answering and movement during the exam.</p>
-                <div class="mt-3 grid grid-cols-2 gap-2">
+                <div class="mt-3 grid grid-cols-3 gap-2">
                   <button type="button" data-answer-pad="A" class="answer-pad-btn rounded-2xl border border-slate-600 bg-slate-800 px-3 py-3 text-sm font-semibold text-slate-100 hover:border-cyan-400/60">A</button>
                   <button type="button" data-answer-pad="B" class="answer-pad-btn rounded-2xl border border-slate-600 bg-slate-800 px-3 py-3 text-sm font-semibold text-slate-100 hover:border-cyan-400/60">B</button>
                   <button type="button" data-answer-pad="C" class="answer-pad-btn rounded-2xl border border-slate-600 bg-slate-800 px-3 py-3 text-sm font-semibold text-slate-100 hover:border-cyan-400/60">C</button>
                   <button type="button" data-answer-pad="D" class="answer-pad-btn rounded-2xl border border-slate-600 bg-slate-800 px-3 py-3 text-sm font-semibold text-slate-100 hover:border-cyan-400/60">D</button>
+                  <button type="button" data-answer-pad="E" class="answer-pad-btn rounded-2xl border border-slate-600 bg-slate-800 px-3 py-3 text-sm font-semibold text-slate-100 hover:border-cyan-400/60">E</button>
+                  <button type="button" id="padClearBtn" class="rounded-2xl border border-rose-500/40 bg-rose-500/10 px-3 py-3 text-sm font-semibold text-rose-100 hover:border-rose-400/60">Clear</button>
                 </div>
                 <div class="mt-3 grid grid-cols-2 gap-2">
                   <button type="button" id="padPrevBtn" class="rounded-2xl border border-slate-600 bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-100 hover:border-cyan-400/60">Prev</button>
@@ -413,6 +415,7 @@
       const padNextBtn = document.getElementById("padNextBtn");
       const padTheoryBtn = document.getElementById("padTheoryBtn");
       const padSubmitBtn = document.getElementById("padSubmitBtn");
+      const padClearBtn = document.getElementById("padClearBtn");
       const theoryModal = document.getElementById("theoryConfirmModal");
       const cancelTheoryMoveBtn = document.getElementById("cancelTheoryMoveBtn");
       const confirmTheoryMoveBtn = document.getElementById("confirmTheoryMoveBtn");
@@ -434,6 +437,7 @@
       let started = false;
       let violationSent = false;
       let autosaveBusy = false;
+      let autosaveDirty = false;
       let warningBusy = false;
       let warningCount = 0;
       let lastActivity = Date.now();
@@ -442,6 +446,7 @@
       let startedAt = 0;
       let timeoutSubmitTriggered = false;
       let isSubmitting = false;
+      let navBusy = false;
 
       function hhmmss(value) {
         const total = Math.max(value, 0);
@@ -550,6 +555,38 @@
         }
       }
 
+      function setNavigationBusy(isBusy) {
+        navBusy = !!isBusy;
+        if (prevBtn) prevBtn.disabled = navBusy || activeIndex <= 1;
+        if (nextBtn) {
+          const disableNext =
+            activeIndex >= questionCount ||
+            (objectiveCount > 0 && theoryCount > 0 && !theoryUnlocked && activeIndex >= objectiveCount);
+          nextBtn.disabled = navBusy || disableNext;
+        }
+        if (reviewBtn) reviewBtn.disabled = navBusy;
+        if (moveTheoryBtn) moveTheoryBtn.disabled = navBusy || moveTheoryBtn.classList.contains("hidden");
+        if (submitBtn) submitBtn.disabled = navBusy;
+        if (padPrevBtn) padPrevBtn.disabled = navBusy || activeIndex <= 1;
+        if (padNextBtn) {
+          const disableNext =
+            activeIndex >= questionCount ||
+            (objectiveCount > 0 && theoryCount > 0 && !theoryUnlocked && activeIndex >= objectiveCount);
+          padNextBtn.disabled = navBusy || disableNext;
+        }
+        if (padTheoryBtn) padTheoryBtn.disabled = navBusy || padTheoryBtn.classList.contains("hidden");
+        if (padSubmitBtn) padSubmitBtn.disabled = navBusy || !hasQuestionFlow;
+        document.querySelectorAll("[data-jump-index]").forEach((node) => {
+          if (navBusy) {
+            node.classList.add("pointer-events-none", "opacity-60");
+            node.setAttribute("aria-disabled", "true");
+          } else {
+            node.classList.remove("pointer-events-none", "opacity-60");
+            node.removeAttribute("aria-disabled");
+          }
+        });
+      }
+
       function setAnswerPadButtonState(button, selected) {
         if (!button) return;
         button.classList.toggle("border-cyan-400/70", selected);
@@ -597,6 +634,32 @@
         if (padSubmitBtn) {
           padSubmitBtn.disabled = !hasQuestionFlow;
         }
+        if (padClearBtn) {
+          const clearVisible = objectivePanel;
+          padClearBtn.classList.toggle("hidden", !clearVisible);
+          padClearBtn.disabled = !clearVisible;
+          padClearBtn.classList.toggle("opacity-50", !clearVisible);
+        }
+      }
+
+      function clearObjectiveSelection(panel) {
+        if (!panel) return false;
+        const optionInputs = Array.from(panel.querySelectorAll("input[name='selected_options']"));
+        if (!optionInputs.length) return false;
+        let changed = false;
+        optionInputs.forEach(function (input) {
+          if (input.checked) {
+            input.checked = false;
+            changed = true;
+          }
+        });
+        if (changed) {
+          markPanelAnswered(activeIndex, false);
+          syncAnswerPad();
+          autosaveDirty = true;
+          autosaveCurrentQuestion();
+        }
+        return changed;
       }
 
       function showQuestion(index) {
@@ -630,6 +693,8 @@
         const panel = getActivePanel();
         const payload = buildFormData(action, extraData);
         if (!panel || !payload) return false;
+        suppressViolation = true;
+        isSubmitting = action === "submit";
         panel.querySelectorAll(".fallback-extra-input").forEach(function (node) {
           node.remove();
         });
@@ -691,29 +756,50 @@
       }
 
       function markPanelAnswered(index, answered) {
-        if (!answered) return;
         document.querySelectorAll(".js-nav-item").forEach((node) => {
           const nodeIndex = parseInt(node.getAttribute("data-jump-index") || "0", 10);
           if (nodeIndex !== index) return;
-          node.classList.remove("border-slate-600", "bg-slate-800", "text-slate-300", "border-amber-500/70", "bg-amber-500/15", "text-amber-200");
-          node.classList.add("border-emerald-500/70", "bg-emerald-500/15", "text-emerald-200");
+          node.classList.remove(
+            "border-slate-600",
+            "bg-slate-800",
+            "text-slate-300",
+            "border-amber-500/70",
+            "bg-amber-500/15",
+            "text-amber-200",
+            "border-emerald-500/70",
+            "bg-emerald-500/15",
+            "text-emerald-200"
+          );
+          if (answered) {
+            node.classList.add("border-emerald-500/70", "bg-emerald-500/15", "text-emerald-200");
+          } else {
+            node.classList.add("border-slate-600", "bg-slate-800", "text-slate-300");
+          }
         });
       }
 
       async function handleQuestionAction(action, extraData, options) {
-        if (!hasQuestionFlow || !started || violationSent || isSubmitting) return;
+        if (!hasQuestionFlow || !started || violationSent || isSubmitting || navBusy) return;
         const settings = options || {};
         const currentPanel = getActivePanel();
         const currentAnswered = isPanelAnswered(currentPanel);
+        const isNavigationAction = action !== "save_stay";
+        if (isNavigationAction) {
+          setNavigationBusy(true);
+        }
         const response = await ajaxAction(action, extraData);
         if (response.fallback) {
           return;
+        }
+        if (isNavigationAction && !response.submitted) {
+          setNavigationBusy(false);
         }
         if (!response.ok) {
           setAutoMessage(response.error || "Unable to save.", false);
           return;
         }
         markPanelAnswered(activeIndex, currentAnswered);
+        autosaveDirty = false;
         if (response.submitted) {
           isSubmitting = true;
           suppressViolation = true;
@@ -740,13 +826,14 @@
       }
 
       async function autosaveCurrentQuestion() {
-        if (!hasQuestionFlow || !started || violationSent || autosaveBusy || isSubmitting) return;
+        if (!hasQuestionFlow || !started || violationSent || autosaveBusy || isSubmitting || navBusy || !autosaveDirty) return;
         autosaveBusy = true;
         const response = await ajaxAction("save_stay", null);
         if (!response.ok) {
           setAutoMessage(response.error || "Autosave failed", false);
         } else {
           markPanelAnswered(activeIndex, isPanelAnswered(getActivePanel()));
+          autosaveDirty = false;
           setAutoMessage("Autosaved", true);
           window.setTimeout(function () {
             setAutoMessage("", true);
@@ -893,7 +980,7 @@
       }
 
       function heartbeat() {
-        if (!started || !lockOn || violationSent || isSubmitting) return;
+        if (!started || violationSent || isSubmitting) return;
         const csrfToken = getCsrfToken(getActivePanel());
         postJson(
           hbUrl,
@@ -909,6 +996,16 @@
           .then((response) => response.json().catch(() => ({})))
           .then((data) => {
             if (data && data.locked) {
+              window.location.href = data.redirect_url || resultUrl;
+              return;
+            }
+            if (data && data.attempt_closed) {
+              suppressViolation = true;
+              isSubmitting = true;
+              sessionStorage.removeItem(startedKey);
+              if (document.fullscreenElement && document.exitFullscreen) {
+                document.exitFullscreen().catch(function () { return null; });
+              }
               window.location.href = data.redirect_url || resultUrl;
               return;
             }
@@ -1073,7 +1170,26 @@
         const optionInputs = Array.from(panel.querySelectorAll("input[name='selected_options']"));
         const responseTextNode = panel.querySelector("textarea[name='response_text']");
         optionInputs.forEach(function (input) {
+          if (input.type === "radio") {
+            input.addEventListener("pointerdown", function () {
+              input.dataset.wasChecked = input.checked ? "1" : "0";
+            });
+            input.addEventListener("click", function (event) {
+              if (input.dataset.wasChecked === "1") {
+                event.preventDefault();
+                input.checked = false;
+                delete input.dataset.wasChecked;
+                markPanelAnswered(activeIndex, false);
+                syncAnswerPad();
+                autosaveDirty = true;
+                autosaveCurrentQuestion();
+                return;
+              }
+              delete input.dataset.wasChecked;
+            });
+          }
           input.addEventListener("change", function () {
+            autosaveDirty = true;
             syncAnswerPad();
             autosaveCurrentQuestion();
           });
@@ -1084,6 +1200,7 @@
             if (theorySaveDelay) {
               window.clearTimeout(theorySaveDelay);
             }
+            autosaveDirty = true;
             theorySaveDelay = window.setTimeout(function () {
               autosaveCurrentQuestion();
             }, 900);
@@ -1107,11 +1224,19 @@
           } else {
             input.checked = true;
           }
+          autosaveDirty = true;
           input.dispatchEvent(new Event("change", { bubbles: true }));
           markPanelAnswered(activeIndex, isPanelAnswered(panel));
           syncAnswerPad();
         });
       });
+
+      if (padClearBtn) {
+        padClearBtn.addEventListener("click", function () {
+          if (!started || violationSent || isSubmitting) return;
+          clearObjectiveSelection(getActivePanel());
+        });
+      }
 
       document.querySelectorAll("[data-jump-index]").forEach((node) => {
         node.addEventListener("click", function (event) {
@@ -1317,7 +1442,7 @@
         });
       }
 
-      window.setInterval(heartbeat, Math.min(hbSeconds, 5) * 1000);
+      window.setInterval(heartbeat, hbSeconds * 1000);
       window.setInterval(autosaveCurrentQuestion, 16000);
 
       showQuestion(activeIndex);

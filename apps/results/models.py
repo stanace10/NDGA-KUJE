@@ -331,6 +331,12 @@ class ClassResultCompilation(TimeStampedModel):
         return f"{self.academic_class.code} {self.term.get_name_display()} {self.status}"
 
 
+class StudentResultManagementStatus(models.TextChoices):
+    PENDING = "PENDING", "Pending Review"
+    REVIEWED = "REVIEWED", "Reviewed"
+    REJECTED = "REJECTED", "Rejected For Correction"
+
+
 class ClassResultStudentRecord(TimeStampedModel):
     compilation = models.ForeignKey(
         ClassResultCompilation,
@@ -346,6 +352,20 @@ class ClassResultStudentRecord(TimeStampedModel):
     behavior_rating = models.PositiveSmallIntegerField(default=3)
     behavior_breakdown = models.JSONField(default=dict, blank=True)
     teacher_comment = models.TextField(blank=True)
+    principal_comment = models.TextField(blank=True)
+    management_status = models.CharField(
+        max_length=20,
+        choices=StudentResultManagementStatus.choices,
+        default=StudentResultManagementStatus.PENDING,
+    )
+    management_comment = models.TextField(blank=True)
+    management_actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="managed_class_result_records",
+    )
     club_membership = models.CharField(max_length=160, blank=True)
     office_held = models.CharField(max_length=160, blank=True)
     notable_contribution = models.TextField(blank=True)

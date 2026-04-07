@@ -25,7 +25,7 @@ def teacher_assignments_for_user(user, *, include_all_periods=False):
     ).filter(is_active=True)
     if not include_all_periods and session and term:
         qs = qs.filter(session=session, term=term)
-    if user.has_role(ROLE_IT_MANAGER) or user.has_role(ROLE_PRINCIPAL) or user.has_role(ROLE_VP):
+    if user.has_role(ROLE_IT_MANAGER) or user.has_role(ROLE_PRINCIPAL):
         return qs
     return qs.filter(teacher=user)
 
@@ -124,7 +124,7 @@ def form_teacher_classes_for_user(user, *, session=None):
     )
     if active_session:
         qs = qs.filter(session=active_session)
-    if user.has_role(ROLE_IT_MANAGER) or user.has_role(ROLE_PRINCIPAL) or user.has_role(ROLE_VP):
+    if user.has_role(ROLE_IT_MANAGER) or user.has_role(ROLE_PRINCIPAL):
         return qs
     return qs.filter(teacher=user)
 

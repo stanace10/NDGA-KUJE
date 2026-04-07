@@ -151,10 +151,16 @@ def principal_signature_data_uri(*, preferred_user=None):
         .first()
     )
     if not signature or not signature.signature_image:
+        fallback_path = settings.ROOT_DIR / "SCHOOL FOLDER" / "principal signature.png"
+        if fallback_path.exists():
+            return _read_file_as_data_uri(fallback_path)
         return ""
 
     path = getattr(signature.signature_image, "path", "")
     if not path or not Path(path).exists():
+        fallback_path = settings.ROOT_DIR / "SCHOOL FOLDER" / "principal signature.png"
+        if fallback_path.exists():
+            return _read_file_as_data_uri(fallback_path)
         return ""
     return _read_file_as_data_uri(path)
 
@@ -519,6 +525,58 @@ def _approval_trail(*, compilation):
     return markers
 
 
+def _term_report_layout_config(subject_count):
+    if subject_count <= 0:
+        return {
+            "layout_density_class": "normal-density",
+            "subject_row_height_px": 18,
+            "behavior_box_min_height_px": 84,
+            "comment_box_min_height_px": 60,
+            "club_box_min_height_px": 34,
+            "principal_comment_min_height_px": 42,
+            "signature_row_height_px": 40,
+        }
+    if subject_count <= 8:
+        return {
+            "layout_density_class": "expanded-density",
+            "subject_row_height_px": 28,
+            "behavior_box_min_height_px": 118,
+            "comment_box_min_height_px": 88,
+            "club_box_min_height_px": 42,
+            "principal_comment_min_height_px": 52,
+            "signature_row_height_px": 42,
+        }
+    if subject_count <= 12:
+        return {
+            "layout_density_class": "expanded-density",
+            "subject_row_height_px": 22,
+            "behavior_box_min_height_px": 102,
+            "comment_box_min_height_px": 74,
+            "club_box_min_height_px": 40,
+            "principal_comment_min_height_px": 48,
+            "signature_row_height_px": 40,
+        }
+    if subject_count <= 16:
+        return {
+            "layout_density_class": "normal-density",
+            "subject_row_height_px": 18,
+            "behavior_box_min_height_px": 88,
+            "comment_box_min_height_px": 60,
+            "club_box_min_height_px": 36,
+            "principal_comment_min_height_px": 42,
+            "signature_row_height_px": 36,
+        }
+    return {
+        "layout_density_class": "compact-density",
+        "subject_row_height_px": 15,
+        "behavior_box_min_height_px": 74,
+        "comment_box_min_height_px": 48,
+        "club_box_min_height_px": 32,
+        "principal_comment_min_height_px": 36,
+        "signature_row_height_px": 32,
+    }
+
+
 def build_term_report_payload(*, student, compilation):
     if compilation.status != ClassCompilationStatus.PUBLISHED:
         raise ValueError("Term report can be generated only for published class compilations.")
@@ -568,6 +626,11 @@ def build_term_report_payload(*, student, compilation):
         dean_guidance=profile.dean_comment_guidance or profile.auto_comment_guidance,
         principal_guidance=profile.principal_comment_guidance or profile.auto_comment_guidance,
     )
+    principal_comment = (
+        (getattr(record, "principal_comment", "") or "").strip()
+        or (compilation.decision_comment or "").strip()
+        or comment_bundle["principal_comment"]
+    )
 
     school_days = int(attendance_snapshot.get("valid_school_days", 0) or 0) if attendance_snapshot else 0
     present_days = int(attendance_snapshot.get("present_days", 0) or 0) if attendance_snapshot else 0
@@ -575,8 +638,7 @@ def build_term_report_payload(*, student, compilation):
     behavior_rows = _behavior_metric_rows(record) if record else []
     class_code = compilation.academic_class.display_name or compilation.academic_class.code
     level_code = compilation.academic_class.instructional_class.display_name or compilation.academic_class.instructional_class.code
-    layout_padding_rows = list(range(max(0, 20 - subject_count)))
-
+    layout = _term_report_layout_config(subject_count)
     return {
         "document_type": PDFDocumentType.TERM_REPORT,
         "student_id": student.id,
@@ -597,10 +659,11 @@ def build_term_report_payload(*, student, compilation):
         "cognitive_rows": _cognitive_domain_rows(subject_rows),
         "teacher_comment": record.teacher_comment if record else "",
         "dean_comment": comment_bundle["dean_comment"],
-        "principal_comment": comment_bundle["principal_comment"],
+        "principal_comment": principal_comment,
         "comment_headline": comment_bundle["headline"],
         "subject_rows": subject_rows,
         "subject_count": subject_count,
+        **layout,
         "total_mark_obtainable": subject_count * 100,
         "cumulative_total": cumulative_total.quantize(Decimal("0.01")),
         "average": average,
@@ -615,7 +678,6 @@ def build_term_report_payload(*, student, compilation):
             }
             for row in get_grade_key_rows()
         ],
-        "layout_padding_rows": layout_padding_rows,
         "health": {
             "height_start_cm": getattr(record, "height_start_cm", None) if record else None,
             "height_end_cm": getattr(record, "height_end_cm", None) if record else None,

@@ -49,6 +49,9 @@ class User(AbstractUser):
         return self.username
 
     def get_all_role_codes(self):
+        cached = getattr(self, "_cached_all_role_codes", None)
+        if cached is not None:
+            return set(cached)
         role_codes = set()
         if self.primary_role_id:
             role_codes.add(self.primary_role.code)
@@ -56,7 +59,8 @@ class User(AbstractUser):
         # Some legacy/imported student accounts may have a profile before role repair.
         if ROLE_STUDENT not in role_codes and hasattr(self, "student_profile"):
             role_codes.add(ROLE_STUDENT)
-        return role_codes
+        self._cached_all_role_codes = tuple(sorted(role_codes))
+        return set(role_codes)
 
     def has_role(self, role_code):
         return role_code in self.get_all_role_codes()
@@ -159,7 +163,7 @@ class StudentProfile(TimeStampedModel):
     date_of_birth = models.DateField(null=True, blank=True)
     gender = models.CharField(max_length=1, choices=Gender.choices, blank=True)
     guardian_name = models.CharField(max_length=150, blank=True)
-    guardian_phone = models.CharField(max_length=30, blank=True)
+    guardian_phone = models.CharField(max_length=120, blank=True)
     guardian_email = models.EmailField(blank=True)
     address = models.TextField(blank=True)
     state_of_origin = models.CharField(max_length=80, blank=True)

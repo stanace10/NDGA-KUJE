@@ -16,6 +16,8 @@ from django.db import transaction
 from django.db.models import Q
 from django.db.models import Sum
 from django.db.models.functions import TruncMonth
+from django.template.loader import render_to_string
+from django.test import RequestFactory
 from django.urls import reverse
 from django.utils import timezone
 
@@ -41,7 +43,7 @@ from apps.finance.models import (
     StudentCharge,
 )
 from apps.notifications.models import NotificationCategory
-from apps.notifications.services import create_notification, notify_payment_receipt, send_email_event
+from apps.notifications.services import create_notification, extract_whatsapp_phones, notify_payment_receipt, send_email_event
 from apps.pdfs.services import (
     payload_sha256,
     qr_code_data_uri,
@@ -96,6 +98,11 @@ def finance_bank_details_text():
         f"Account Name: {profile.school_account_name}\n"
         f"Account Number: {profile.school_account_number}"
     )
+
+
+def _system_request_for_portal(portal_key="student"):
+    host = settings.PORTAL_SUBDOMAINS.get(portal_key, settings.PORTAL_SUBDOMAINS.get("landing", "ndgakuje.org"))
+    return RequestFactory().get("/", secure=True, HTTP_HOST=host)
 
 
 def current_academic_window():
@@ -241,6 +248,73 @@ def evaluate_receipt_integrity(*, receipt, actor=None, request=None, source="", 
     }
 
 
+def build_receipt_dispatch_package(*, payment, receipt, request=None):
+    request_for_links = request or _system_request_for_portal("student")
+    portal_url = build_portal_url(
+        request_for_links,
+        "student",
+        "/finance/student/overview/",
+    )
+    session_label = payment.session.name if payment.session_id else "-"
+    term_label = payment.term.get_name_display() if payment.term_id else "-"
+    student_name = payment.student.get_full_name() or payment.student.username
+    profile = getattr(payment.student, "student_profile", None)
+    student_number = profile.student_number if profile and profile.student_number else payment.student.username
+    amount_text = str(_money(payment.amount))
+    subject = f"NDGA Payment Receipt | {receipt.receipt_number}"
+    body_text = (
+        "Dear Parent/Guardian,\n\n"
+        f"This is to confirm that payment has been received for {student_name}.\n\n"
+        f"Receipt Number: {receipt.receipt_number}\n"
+        f"Admission Number: {student_number}\n"
+        f"Session: {session_label}\n"
+        f"Term: {term_label}\n"
+        f"Amount Paid: {amount_text}\n"
+        f"Payment Method: {payment.get_payment_method_display()}\n"
+        f"Payment Date: {payment.payment_date}\n\n"
+        "The official NDGA receipt PDF is attached to this email.\n"
+        f"You may also sign in to the student portal to review payment history: {portal_url}\n\n"
+        "Thank you."
+    )
+    body_html = render_to_string(
+        "notifications/email_body_finance_receipt.html",
+        {
+            "student_name": student_name,
+            "student_number": student_number,
+            "receipt_number": receipt.receipt_number,
+            "amount_text": amount_text,
+            "payment_method": payment.get_payment_method_display(),
+            "payment_date": payment.payment_date,
+            "session_label": session_label,
+            "term_label": term_label,
+            "portal_url": portal_url,
+        },
+    )
+    attachments = []
+    try:
+        receipt_pdf = generate_receipt_pdf(
+            request=request_for_links,
+            receipt=receipt,
+            generated_by=payment.received_by or payment.student,
+        )
+    except Exception:
+        receipt_pdf = b""
+    if receipt_pdf:
+        attachments.append(
+            {
+                "name": f"NDGA-Receipt-{receipt.receipt_number}.pdf",
+                "content": receipt_pdf,
+                "mimetype": "application/pdf",
+            }
+        )
+    return {
+        "subject": subject,
+        "body_text": body_text,
+        "body_html": body_html,
+        "attachments": attachments,
+    }
+
+
 @transaction.atomic
 def record_manual_payment(
     *,
@@ -304,6 +378,11 @@ def record_manual_payment(
         bank_block = finance_bank_details_text()
         if bank_block:
             receipt_message = f"{receipt_message}\n\nSchool Account Details\n{bank_block}"
+    email_package = build_receipt_dispatch_package(
+        payment=payment,
+        receipt=receipt,
+        request=request,
+    )
 
     notify_payment_receipt(
         student=student,
@@ -312,6 +391,10 @@ def record_manual_payment(
         actor=received_by,
         request=request,
         message=receipt_message,
+        email_subject=email_package["subject"],
+        email_body_text=email_package["body_text"],
+        email_body_html=email_package["body_html"],
+        email_attachments=email_package["attachments"],
     )
     return payment, receipt
 
@@ -320,8 +403,101 @@ def _gateway_provider():
     return (getattr(settings, "PAYMENT_GATEWAY_PROVIDER", "") or PaymentGatewayProvider.PAYSTACK).strip().upper()
 
 
+def gateway_provider_label(provider=None):
+    selected = (provider or _gateway_provider() or PaymentGatewayProvider.PAYSTACK).strip().upper()
+    labels = dict(PaymentGatewayProvider.choices)
+    return labels.get(selected, selected.title())
+
+
+def _payment_gateway_timeout_seconds():
+    return int(getattr(settings, "PAYMENT_GATEWAY_TIMEOUT_SECONDS", 12) or 12)
+
+
 def _paystack_secret_key():
     return (getattr(settings, "PAYSTACK_SECRET_KEY", "") or "").strip()
+
+
+def _paystack_enabled():
+    return bool(_paystack_secret_key())
+
+
+def _flutterwave_public_key():
+    return (getattr(settings, "FLUTTERWAVE_PUBLIC_KEY", "") or "").strip()
+
+
+def _flutterwave_secret_key():
+    return (getattr(settings, "FLUTTERWAVE_SECRET_KEY", "") or "").strip()
+
+
+def _flutterwave_api_base_url():
+    return (getattr(settings, "FLUTTERWAVE_API_BASE_URL", "") or "https://api.flutterwave.com/v3").rstrip("/")
+
+
+def _flutterwave_enabled():
+    return bool(_flutterwave_public_key() and _flutterwave_secret_key())
+
+
+def _remitta_merchant_id():
+    return (getattr(settings, "REMITTA_MERCHANT_ID", "") or "").strip()
+
+
+def _remitta_service_type_id():
+    return (getattr(settings, "REMITTA_SERVICE_TYPE_ID", "") or "").strip()
+
+
+def _remitta_api_key():
+    return (getattr(settings, "REMITTA_API_KEY", "") or "").strip()
+
+
+def _remitta_checkout_url():
+    return (
+        getattr(settings, "REMITTA_CHECKOUT_URL", "")
+        or "https://login.remita.net/remita/ecomm/finalize.reg"
+    ).strip()
+
+
+def _remitta_verify_url_template():
+    return (getattr(settings, "REMITTA_VERIFY_URL_TEMPLATE", "") or "").strip()
+
+
+def _remitta_enabled():
+    return bool(_remitta_merchant_id() and _remitta_service_type_id() and _remitta_api_key() and _remitta_checkout_url())
+
+
+def configured_gateway_provider_choices():
+    choices = []
+    if _paystack_enabled():
+        choices.append((PaymentGatewayProvider.PAYSTACK, gateway_provider_label(PaymentGatewayProvider.PAYSTACK)))
+    if _flutterwave_enabled():
+        choices.append((PaymentGatewayProvider.FLUTTERWAVE, gateway_provider_label(PaymentGatewayProvider.FLUTTERWAVE)))
+    if _remitta_enabled():
+        choices.append((PaymentGatewayProvider.REMITTA, gateway_provider_label(PaymentGatewayProvider.REMITTA)))
+    if choices:
+        return choices
+    return list(PaymentGatewayProvider.choices)
+
+
+def default_gateway_provider():
+    configured = _gateway_provider()
+    if configured == PaymentGatewayProvider.PAYSTACK and _paystack_enabled():
+        return configured
+    if configured == PaymentGatewayProvider.FLUTTERWAVE and _flutterwave_enabled():
+        return configured
+    if configured == PaymentGatewayProvider.REMITTA and _remitta_enabled():
+        return configured
+    choices = configured_gateway_provider_choices()
+    return choices[0][0] if choices else PaymentGatewayProvider.PAYSTACK
+
+
+def gateway_is_enabled(provider=None):
+    selected = (provider or default_gateway_provider() or PaymentGatewayProvider.PAYSTACK).strip().upper()
+    if selected == PaymentGatewayProvider.PAYSTACK:
+        return _paystack_enabled()
+    if selected == PaymentGatewayProvider.FLUTTERWAVE:
+        return _flutterwave_enabled()
+    if selected == PaymentGatewayProvider.REMITTA:
+        return _remitta_enabled()
+    return False
 
 
 def _paystack_api_request(*, path, method="GET", payload=None):
@@ -338,7 +514,36 @@ def _paystack_api_request(*, path, method="GET", payload=None):
     if payload is not None:
         body = json.dumps(payload).encode("utf-8")
     request = url_request.Request(url, method=method.upper(), data=body, headers=headers)
-    timeout_seconds = int(getattr(settings, "PAYMENT_GATEWAY_TIMEOUT_SECONDS", 12) or 12)
+    timeout_seconds = _payment_gateway_timeout_seconds()
+    try:
+        with url_request.urlopen(request, timeout=timeout_seconds) as response:
+            raw = response.read().decode("utf-8")
+    except url_error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="ignore")
+        raise ValidationError(f"Gateway request failed ({exc.code}): {detail or exc.reason}") from exc
+    except url_error.URLError as exc:
+        raise ValidationError(f"Gateway network error: {exc.reason}") from exc
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ValidationError("Invalid gateway response format.") from exc
+    return parsed
+
+
+def _flutterwave_api_request(*, path, method="GET", payload=None):
+    secret_key = _flutterwave_secret_key()
+    if not secret_key:
+        raise ValidationError("Flutterwave secret key is not configured.")
+    url = f"{_flutterwave_api_base_url()}{path}"
+    headers = {
+        "Authorization": f"Bearer {secret_key}",
+        "Content-Type": "application/json",
+    }
+    body = None
+    if payload is not None:
+        body = json.dumps(payload).encode("utf-8")
+    request = url_request.Request(url, method=method.upper(), data=body, headers=headers)
+    timeout_seconds = _payment_gateway_timeout_seconds()
     try:
         with url_request.urlopen(request, timeout=timeout_seconds) as response:
             raw = response.read().decode("utf-8")
@@ -377,6 +582,221 @@ def _guardian_emails_for_student(student):
     return list(dict.fromkeys(email.strip().lower() for email in emails if email))
 
 
+def _guardian_phone_for_student(student):
+    profile = getattr(student, "student_profile", None)
+    if profile and profile.guardian_phone:
+        numbers = extract_whatsapp_phones(profile.guardian_phone)
+        return numbers[0] if numbers else ""
+    return ""
+
+
+def _student_full_name(student):
+    return (student.get_full_name() or student.username or "NDGA Student").strip()
+
+
+def resolve_payment_plan_amount(*, overview, payment_plan, fee_item="", percentage=None, custom_amount=None):
+    payment_plan = (payment_plan or "FULL").strip().upper()
+    total_outstanding = _money((overview or {}).get("total_outstanding"))
+    if total_outstanding <= Decimal("0.00"):
+        raise ValidationError("There is no outstanding balance to pay.")
+
+    if payment_plan == "FULL":
+        return total_outstanding, {
+            "payment_plan": "FULL",
+            "label": "Full outstanding bundle",
+        }
+
+    if payment_plan == "FEE_ITEM":
+        selected_item = (fee_item or "").strip()
+        if not selected_item:
+            raise ValidationError("Select the fee item to pay.")
+        category_rows = (overview or {}).get("category_rows") or []
+        match = next(
+            (row for row in category_rows if (row.get("category") or "").strip().lower() == selected_item.lower()),
+            None,
+        )
+        if not match:
+            raise ValidationError("Selected fee item could not be found.")
+        outstanding = _money(match.get("outstanding"))
+        if outstanding <= Decimal("0.00"):
+            raise ValidationError("Selected fee item has no outstanding balance.")
+        return outstanding, {
+            "payment_plan": "FEE_ITEM",
+            "fee_item": match.get("category"),
+            "label": f"{match.get('category')} only",
+        }
+
+    if payment_plan == "PERCENTAGE":
+        if percentage in {None, ""}:
+            raise ValidationError("Select the percentage payment to apply.")
+        percentage_value = int(percentage)
+        if percentage_value not in {25, 50, 75, 100}:
+            raise ValidationError("Unsupported percentage payment option.")
+        amount = _money(total_outstanding * Decimal(percentage_value) / Decimal("100"))
+        if amount <= Decimal("0.00"):
+            raise ValidationError("Computed percentage payment is too small.")
+        return amount, {
+            "payment_plan": "PERCENTAGE",
+            "percentage": percentage_value,
+            "label": f"{percentage_value}% of outstanding balance",
+        }
+
+    amount = _money(custom_amount)
+    if amount <= Decimal("0.00"):
+        raise ValidationError("Enter a valid payment amount.")
+    if amount > total_outstanding:
+        raise ValidationError("Custom amount cannot be more than the outstanding balance.")
+    return amount, {
+        "payment_plan": "CUSTOM",
+        "label": "Custom amount",
+    }
+
+
+def _remitta_amount_string(value):
+    return f"{_money(value):.2f}"
+
+
+def _remitta_hash(*, reference, amount):
+    signature = f"{_remitta_merchant_id()}{_remitta_service_type_id()}{reference}{amount}{_remitta_api_key()}"
+    return hashlib.sha512(signature.encode("utf-8")).hexdigest()
+
+
+def _remitta_launch_url(*, request, reference):
+    launch_path = reverse("finance:gateway-remitta-launch", kwargs={"reference": reference})
+    if request is not None:
+        return build_portal_url(request, "landing", launch_path)
+    return launch_path
+
+
+def _remitta_checkout_payload(*, transaction_row, student):
+    amount = _remitta_amount_string(transaction_row.amount)
+    description = (
+        f"NDGA fees for {_student_full_name(student)} "
+        f"({transaction_row.session.name}{f' {transaction_row.term.get_name_display()}' if transaction_row.term_id else ''})"
+    )
+    payer_phone = _guardian_phone_for_student(student)
+    payer_emails = _guardian_emails_for_student(student)
+    payer_email = payer_emails[0] if payer_emails else ""
+    return {
+        "merchantId": _remitta_merchant_id(),
+        "serviceTypeId": _remitta_service_type_id(),
+        "amount": amount,
+        "orderId": transaction_row.reference,
+        "payerName": _student_full_name(student),
+        "payerEmail": payer_email,
+        "payerPhone": payer_phone,
+        "description": description[:180],
+        "responseurl": transaction_row.callback_url,
+        "hash": _remitta_hash(reference=transaction_row.reference, amount=amount),
+    }
+
+
+def _flutterwave_checkout_payload(*, transaction_row, student):
+    payer_phone = _guardian_phone_for_student(student)
+    payer_emails = _guardian_emails_for_student(student)
+    payer_email = payer_emails[0] if payer_emails else ""
+    return {
+        "tx_ref": transaction_row.reference,
+        "amount": str(_money(transaction_row.amount)),
+        "currency": "NGN",
+        "redirect_url": transaction_row.callback_url,
+        "customer": {
+            "email": payer_email,
+            "name": _student_full_name(student),
+            "phonenumber": payer_phone,
+        },
+        "customizations": {
+            "title": "Notre Dame Girls Academy",
+            "description": f"NDGA fee payment for {_student_full_name(student)}",
+        },
+        "meta": {
+            "student_id": str(transaction_row.student_id),
+            "session_id": str(transaction_row.session_id),
+            "term_id": str(transaction_row.term_id or ""),
+            "transaction_id": str(transaction_row.id),
+        },
+    }
+
+
+def remitta_launch_context(*, gateway_transaction):
+    if gateway_transaction.provider != PaymentGatewayProvider.REMITTA:
+        raise ValidationError("Remitta launch is only available for Remitta transactions.")
+    fields = dict((gateway_transaction.metadata or {}).get("remitta_checkout_payload") or {})
+    if not fields:
+        raise ValidationError("Remitta checkout payload is missing.")
+    return {
+        "action_url": _remitta_checkout_url(),
+        "fields": fields,
+        "reference": gateway_transaction.reference,
+    }
+
+
+def _remitta_verify_request(*, gateway_transaction):
+    template = _remitta_verify_url_template()
+    if not template:
+        return None
+    url = template.format(
+        reference=gateway_transaction.reference,
+        order_id=gateway_transaction.reference,
+        rrr=gateway_transaction.gateway_reference,
+        merchant_id=_remitta_merchant_id(),
+        api_key=_remitta_api_key(),
+    )
+    request = url_request.Request(url, method="GET")
+    try:
+        with url_request.urlopen(request, timeout=_payment_gateway_timeout_seconds()) as response:
+            raw = response.read().decode("utf-8")
+    except url_error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="ignore")
+        raise ValidationError(f"Remitta verification failed ({exc.code}): {detail or exc.reason}") from exc
+    except url_error.URLError as exc:
+        raise ValidationError(f"Remitta network error: {exc.reason}") from exc
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        return {"raw": raw}
+
+
+def _remitta_amount_matches(payload, expected_amount):
+    candidates = [
+        payload.get("amount"),
+        (payload.get("data") or {}).get("amount") if isinstance(payload.get("data"), dict) else None,
+    ]
+    expected = _money(expected_amount)
+    for value in candidates:
+        try:
+            if _money(value) == expected:
+                return True
+        except Exception:  # noqa: BLE001
+            continue
+    return not any(value is not None for value in candidates)
+
+
+def _remitta_success_payload(payload):
+    normalized_candidates = []
+    for value in [
+        payload.get("status"),
+        payload.get("message"),
+        payload.get("statuscode"),
+        payload.get("statusCode"),
+        payload.get("responseCode"),
+        payload.get("responsecode"),
+        (payload.get("data") or {}).get("status") if isinstance(payload.get("data"), dict) else None,
+        (payload.get("data") or {}).get("statusMessage") if isinstance(payload.get("data"), dict) else None,
+    ]:
+        if value is None:
+            continue
+        normalized_candidates.append(str(value).strip().lower())
+    success_codes = {"00", "01", "success", "successful", "approved", "completed", "payment successful"}
+    return any(
+        candidate in success_codes
+        or "success" in candidate
+        or "approved" in candidate
+        or "completed" in candidate
+        for candidate in normalized_candidates
+    )
+
+
 @transaction.atomic
 def initialize_gateway_payment_transaction(
     *,
@@ -386,22 +806,27 @@ def initialize_gateway_payment_transaction(
     amount,
     initiated_by=None,
     request=None,
-    provider=PaymentGatewayProvider.PAYSTACK,
+    provider=None,
     auto_email_link=True,
 ):
-    if _gateway_provider() != PaymentGatewayProvider.PAYSTACK:
+    selected_provider = (provider or default_gateway_provider() or PaymentGatewayProvider.PAYSTACK).strip().upper()
+    if selected_provider not in dict(PaymentGatewayProvider.choices):
         raise ValidationError("Unsupported payment gateway provider.")
+    if not gateway_is_enabled(selected_provider):
+        raise ValidationError(f"{gateway_provider_label(selected_provider)} is not configured.")
 
     reference = f"NDGA-{timezone.now().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:10].upper()}"
     callback_url = _gateway_callback_url(request)
     customer_email = _guardian_emails_for_student(student)
     email = customer_email[0] if customer_email else None
-    if not email:
+    if selected_provider == PaymentGatewayProvider.PAYSTACK and not email:
+        raise ValidationError("Student or guardian email is required for gateway initialization.")
+    if selected_provider == PaymentGatewayProvider.FLUTTERWAVE and not email:
         raise ValidationError("Student or guardian email is required for gateway initialization.")
 
     transaction_row = PaymentGatewayTransaction.objects.create(
         reference=reference,
-        provider=provider,
+        provider=selected_provider,
         status=PaymentGatewayStatus.PENDING,
         student=student,
         session=session,
@@ -415,59 +840,125 @@ def initialize_gateway_payment_transaction(
         },
     )
 
-    payload = {
-        "email": email,
-        "amount": _money_to_minor_units(transaction_row.amount),
-        "reference": reference,
-        "callback_url": callback_url,
-        "metadata": {
-            "student_id": transaction_row.student_id,
-            "session_id": transaction_row.session_id,
-            "term_id": transaction_row.term_id,
-            "transaction_id": transaction_row.id,
-        },
-    }
-    gateway_response = _paystack_api_request(
-        path="/transaction/initialize",
-        method="POST",
-        payload=payload,
-    )
-    if not gateway_response.get("status"):
-        message = gateway_response.get("message") or "Gateway initialization failed."
-        transaction_row.status = PaymentGatewayStatus.FAILED
-        transaction_row.failure_reason = message
-        transaction_row.metadata = {**transaction_row.metadata, "initialize_payload": payload, "initialize_response": gateway_response}
-        transaction_row.save(update_fields=["status", "failure_reason", "metadata", "updated_at"])
-        raise ValidationError(message)
+    if selected_provider == PaymentGatewayProvider.PAYSTACK:
+        payload = {
+            "email": email,
+            "amount": _money_to_minor_units(transaction_row.amount),
+            "reference": reference,
+            "callback_url": callback_url,
+            "metadata": {
+                "student_id": transaction_row.student_id,
+                "session_id": transaction_row.session_id,
+                "term_id": transaction_row.term_id,
+                "transaction_id": transaction_row.id,
+            },
+        }
+        gateway_response = _paystack_api_request(
+            path="/transaction/initialize",
+            method="POST",
+            payload=payload,
+        )
+        if not gateway_response.get("status"):
+            message = gateway_response.get("message") or "Gateway initialization failed."
+            transaction_row.status = PaymentGatewayStatus.FAILED
+            transaction_row.failure_reason = message
+            transaction_row.metadata = {
+                **transaction_row.metadata,
+                "initialize_payload": payload,
+                "initialize_response": gateway_response,
+            }
+            transaction_row.save(update_fields=["status", "failure_reason", "metadata", "updated_at"])
+            raise ValidationError(message)
 
-    data = gateway_response.get("data") or {}
-    transaction_row.status = PaymentGatewayStatus.INITIALIZED
-    transaction_row.initialized_at = timezone.now()
-    transaction_row.authorization_url = (data.get("authorization_url") or "")[:500]
-    transaction_row.gateway_reference = (data.get("reference") or reference)[:180]
-    transaction_row.metadata = {
-        **transaction_row.metadata,
-        "initialize_payload": payload,
-        "initialize_response": gateway_response,
-        "access_code": data.get("access_code", ""),
-    }
-    transaction_row.save(
-        update_fields=[
-            "status",
-            "initialized_at",
-            "authorization_url",
-            "gateway_reference",
-            "metadata",
-            "updated_at",
-        ]
-    )
+        data = gateway_response.get("data") or {}
+        transaction_row.status = PaymentGatewayStatus.INITIALIZED
+        transaction_row.initialized_at = timezone.now()
+        transaction_row.authorization_url = (data.get("authorization_url") or "")[:500]
+        transaction_row.gateway_reference = (data.get("reference") or reference)[:180]
+        transaction_row.metadata = {
+            **transaction_row.metadata,
+            "initialize_payload": payload,
+            "initialize_response": gateway_response,
+            "access_code": data.get("access_code", ""),
+        }
+        transaction_row.save(
+            update_fields=[
+                "status",
+                "initialized_at",
+                "authorization_url",
+                "gateway_reference",
+                "metadata",
+                "updated_at",
+            ]
+        )
+    elif selected_provider == PaymentGatewayProvider.FLUTTERWAVE:
+        payload = _flutterwave_checkout_payload(transaction_row=transaction_row, student=student)
+        gateway_response = _flutterwave_api_request(
+            path="/payments",
+            method="POST",
+            payload=payload,
+        )
+        if gateway_response.get("status") != "success":
+            message = gateway_response.get("message") or "Gateway initialization failed."
+            transaction_row.status = PaymentGatewayStatus.FAILED
+            transaction_row.failure_reason = message
+            transaction_row.metadata = {
+                **transaction_row.metadata,
+                "initialize_payload": payload,
+                "initialize_response": gateway_response,
+            }
+            transaction_row.save(update_fields=["status", "failure_reason", "metadata", "updated_at"])
+            raise ValidationError(message)
+        data = gateway_response.get("data") or {}
+        transaction_row.status = PaymentGatewayStatus.INITIALIZED
+        transaction_row.initialized_at = timezone.now()
+        transaction_row.authorization_url = (data.get("link") or "")[:500]
+        transaction_row.gateway_reference = (data.get("flw_ref") or reference)[:180]
+        transaction_row.metadata = {
+            **transaction_row.metadata,
+            "initialize_payload": payload,
+            "initialize_response": gateway_response,
+            "provider_label": gateway_provider_label(selected_provider),
+        }
+        transaction_row.save(
+            update_fields=[
+                "status",
+                "initialized_at",
+                "authorization_url",
+                "gateway_reference",
+                "metadata",
+                "updated_at",
+            ]
+        )
+    else:
+        remitta_payload = _remitta_checkout_payload(transaction_row=transaction_row, student=student)
+        transaction_row.status = PaymentGatewayStatus.INITIALIZED
+        transaction_row.initialized_at = timezone.now()
+        transaction_row.authorization_url = _remitta_launch_url(request=request, reference=transaction_row.reference)[:500]
+        transaction_row.gateway_reference = reference
+        transaction_row.metadata = {
+            **transaction_row.metadata,
+            "initialize_payload": remitta_payload,
+            "remitta_checkout_payload": remitta_payload,
+            "provider_label": gateway_provider_label(selected_provider),
+        }
+        transaction_row.save(
+            update_fields=[
+                "status",
+                "initialized_at",
+                "authorization_url",
+                "gateway_reference",
+                "metadata",
+                "updated_at",
+            ]
+        )
 
     if auto_email_link:
         payment_link = transaction_row.authorization_url
         if payment_link:
             send_email_event(
                 to_emails=_guardian_emails_for_student(student),
-                subject="NDGA Online Payment Link",
+                subject=f"NDGA {gateway_provider_label(selected_provider)} Payment Link",
                 body_text=(
                     f"Use this secure payment link to pay NDGA fees.\n\n"
                     f"Reference: {transaction_row.reference}\n"
@@ -504,27 +995,52 @@ def verify_gateway_payment_transaction(*, gateway_transaction, actor=None, reque
     if transaction_row.payment_id and transaction_row.status == PaymentGatewayStatus.PAID:
         return transaction_row, transaction_row.payment, getattr(transaction_row.payment, "receipt", None)
 
-    verification = _paystack_api_request(
-        path=f"/transaction/verify/{transaction_row.reference}",
-        method="GET",
-    )
-    data = verification.get("data") or {}
     transaction_row.verified_at = timezone.now()
-    transaction_row.metadata = {**transaction_row.metadata, "verify_response": verification}
+    paid_ok = False
+    amount_ok = False
+    verification = {}
 
-    paid_ok = bool(verification.get("status")) and (data.get("status") == "success")
-    amount_minor = int(data.get("amount") or 0)
-    expected_minor = _money_to_minor_units(transaction_row.amount)
-    amount_ok = amount_minor == expected_minor
+    if transaction_row.provider == PaymentGatewayProvider.PAYSTACK:
+        verification = _paystack_api_request(
+            path=f"/transaction/verify/{transaction_row.reference}",
+            method="GET",
+        )
+        data = verification.get("data") or {}
+        paid_ok = bool(verification.get("status")) and (data.get("status") == "success")
+        amount_minor = int(data.get("amount") or 0)
+        expected_minor = _money_to_minor_units(transaction_row.amount)
+        amount_ok = amount_minor == expected_minor
+    elif transaction_row.provider == PaymentGatewayProvider.REMITTA:
+        callback_state = dict((transaction_row.metadata or {}).get("callback_params") or {})
+        if callback_state.get("rrr") and not transaction_row.gateway_reference:
+            transaction_row.gateway_reference = str(callback_state.get("rrr"))[:180]
+        verification = _remitta_verify_request(gateway_transaction=transaction_row) or callback_state
+        paid_ok = _remitta_success_payload(verification) or _remitta_success_payload(callback_state)
+        amount_ok = _remitta_amount_matches(verification, transaction_row.amount)
+    elif transaction_row.provider == PaymentGatewayProvider.FLUTTERWAVE:
+        verification = _flutterwave_api_request(
+            path=f"/transactions/verify_by_reference?tx_ref={transaction_row.reference}",
+            method="GET",
+        )
+        data = verification.get("data") or {}
+        paid_ok = (verification.get("status") == "success") and str(data.get("status", "")).lower() == "successful"
+        amount_ok = _money(data.get("amount")) == _money(transaction_row.amount)
+    else:
+        raise ValidationError("Unsupported payment gateway provider.")
+
+    transaction_row.metadata = {**transaction_row.metadata, "verify_response": verification}
 
     if not paid_ok or not amount_ok:
         transaction_row.status = PaymentGatewayStatus.FAILED
         if not paid_ok:
-            transaction_row.failure_reason = data.get("gateway_response") or data.get("status") or "Gateway verification failed."
-        else:
             transaction_row.failure_reason = (
-                f"Amount mismatch. Expected {expected_minor}, got {amount_minor}."
+                verification.get("gateway_response")
+                or verification.get("status")
+                or verification.get("message")
+                or "Gateway verification failed."
             )
+        else:
+            transaction_row.failure_reason = "Amount mismatch during gateway verification."
         transaction_row.save(update_fields=["status", "failure_reason", "verified_at", "metadata", "updated_at"])
         raise ValidationError(transaction_row.failure_reason)
 

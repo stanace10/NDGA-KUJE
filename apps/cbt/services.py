@@ -780,32 +780,8 @@ def extract_text_from_document(path_or_file):
             except Exception as exc:
                 raise ValidationError("Could not parse DOCX content.") from exc
     if extension == ".doc":
-        # Legacy binary .doc files are unreliable with naive UTF decoding.
-        # Try common external converters first, then fail clearly if unreadable.
-        import subprocess
-
-        converter_commands = [
-            ["antiword", str(path)],
-            ["catdoc", str(path)],
-        ]
-        for command in converter_commands:
-            try:
-                result = subprocess.run(
-                    command,
-                    capture_output=True,
-                    text=True,
-                    encoding="utf-8",
-                    errors="ignore",
-                    timeout=20,
-                    check=False,
-                )
-            except Exception:
-                continue
-            candidate = (result.stdout or "").strip()
-            if result.returncode == 0 and len(re.sub(r"\s+", "", candidate)) >= 40:
-                return candidate
         raise ValidationError(
-            "Legacy .doc extraction is not reliable on this server. Save as .docx or PDF and upload again."
+            "Legacy .doc files are not accepted here. Save as .docx, TXT, or PDF and upload again."
         )
 
     if extension in {".txt", ".rtf"}:
@@ -838,7 +814,7 @@ def extract_text_from_document(path_or_file):
             "Could not read text from image. Upload a clearer image, use a text-based PDF/DOCX, or paste the text."
         )
     raise ValidationError(
-        "Unsupported file type. Upload PDF, DOC, DOCX, TXT, or image file (PNG/JPG/JPEG/BMP/TIFF/WEBP)."
+        "Unsupported file type. Upload PDF, DOCX, TXT, or image file (PNG/JPG/JPEG/BMP/TIFF/WEBP)."
     )
 
 
@@ -2276,38 +2252,6 @@ def build_exam_from_uploaded_document(
         flagged_blocks = list(parse_payload.get("flagged_blocks") or [])
         parser_used = "deterministic"
 
-        repaired_rows = _repair_flagged_blocks_with_openai(
-            flagged_blocks=flagged_blocks,
-            subject_name=assignment.subject.name,
-        )
-        if repaired_rows:
-            seen_keys = {
-                (
-                    (row.get("question_type") or "").strip(),
-                    re.sub(r"\s+", " ", (row.get("stem") or "").strip()).lower(),
-                )
-                for row in parsed_questions
-            }
-            for row in repaired_rows:
-                key = (
-                    (row.get("question_type") or "").strip(),
-                    re.sub(r"\s+", " ", (row.get("stem") or "").strip()).lower(),
-                )
-                if key in seen_keys or not key[1]:
-                    continue
-                seen_keys.add(key)
-                parsed_questions.append(row)
-            if parsed_questions:
-                parser_used = "deterministic_plus_ai_repair"
-            else:
-                parser_used = "ai_repair_only"
-
-        if not parsed_questions:
-            parsed_questions = _parse_questions_with_openai(
-                extracted_text=normalized_text,
-                subject_name=assignment.subject.name,
-            )
-            parser_used = "ai_fallback_fulltext"
         if not parsed_questions:
             linewise_rows = _parse_questions_linewise(normalized_text)
             linewise_objective = sum(
@@ -2319,48 +2263,14 @@ def build_exam_from_uploaded_document(
                 or _objective_marker_count(normalized_text) >= 8
             ):
                 parsed_questions = linewise_rows
-                parser_used = "linewise_last_resort"
-        if not parsed_questions and normalized_text.strip():
-            fallback_objective_count = _upload_fallback_objective_count(
-                exam_type=exam_type,
-                flow_type=flow_type,
-                assignment=assignment,
+                parser_used = "linewise_fallback"
+        if flagged_blocks:
+            raise ValidationError(
+                "Upload could not be parsed cleanly. Reformat the paper so each question is numbered clearly and every objective question has A-D options and an Answer line, then retry."
             )
-            drafted_objectives = []
-            if fallback_objective_count > 0:
-                drafted_objectives = _generate_ai_question_blocks_with_openai(
-                    subject_name=assignment.subject.name,
-                    topic=title,
-                    question_count=fallback_objective_count,
-                    lesson_note_text=normalized_text,
-                )
-                if drafted_objectives:
-                    parser_used = "ai_note_rebuild"
-                else:
-                    drafted_objectives = generate_ai_question_blocks(
-                        subject_name=assignment.subject.name,
-                        topic=title,
-                        question_count=fallback_objective_count,
-                        lesson_note_text=normalized_text,
-                    )
-                    if drafted_objectives:
-                        parser_used = "deterministic_note_rebuild"
-            parsed_questions = [
-                {
-                    "question_type": "OBJECTIVE",
-                    "stem": row.get("stem") or "",
-                    "options": row.get("options") or {},
-                    "correct_label": row.get("correct_label") or "",
-                }
-                for row in drafted_objectives
-            ]
-            if flow_type == "OBJECTIVE_THEORY":
-                theory_rows = _draft_theory_rows_from_note(note_text=normalized_text, question_count=3)
-                if theory_rows:
-                    parsed_questions.extend(theory_rows)
         if not parsed_questions:
             raise ValidationError(
-                "No valid questions detected. Ensure your document uses numbered questions and A-D options, then retry."
+                "Could not detect a clean question paper. Upload numbered questions with A-D options, or use the AI Draft page for lesson notes."
             )
 
         created_count = 0
@@ -2424,73 +2334,14 @@ def build_exam_from_uploaded_document(
             )
             created_count += 1
 
-        if exam_type != CBTExamType.FREE_TEST and flow_type != "THEORY_ONLY":
-            if objective_count <= 0:
-                created_count += 1
-                fallback_objective = Question.objects.create(
-                    question_bank=question_bank,
-                    created_by=actor,
-                    subject=assignment.subject,
-                    question_type=CBTQuestionType.OBJECTIVE,
-                    stem="Objective Question 1",
-                    topic="Imported",
-                    difficulty="MEDIUM",
-                    marks=1,
-                    source_type=Question.SourceType.DOCUMENT,
-                    source_reference=f"{import_row.id}:FALLBACK_OBJECTIVE",
-                )
-                for label, option_text, sort_order in (
-                    ("A", "Option A", 1),
-                    ("B", "Option B", 2),
-                    ("C", "Option C", 3),
-                    ("D", "Option D", 4),
-                ):
-                    Option.objects.create(
-                        question=fallback_objective,
-                        label=label,
-                        option_text=option_text,
-                        sort_order=sort_order,
-                    )
-                fallback_answer = CorrectAnswer.objects.create(
-                    question=fallback_objective,
-                    is_finalized=True,
-                )
-                fallback_answer.correct_options.set(
-                    fallback_objective.options.filter(label="A")
-                )
-                ExamQuestion.objects.create(
-                    exam=exam,
-                    question=fallback_objective,
-                    sort_order=created_count,
-                    marks=fallback_objective.marks,
-                )
-                objective_count += 1
-
-            if flow_type == "OBJECTIVE_THEORY" and theory_count <= 0:
-                created_count += 1
-                fallback_theory = Question.objects.create(
-                    question_bank=question_bank,
-                    created_by=actor,
-                    subject=assignment.subject,
-                    question_type=CBTQuestionType.SHORT_ANSWER,
-                    stem="Theory Question 1",
-                    topic="Imported",
-                    difficulty="MEDIUM",
-                    marks=1,
-                    source_type=Question.SourceType.DOCUMENT,
-                    source_reference=f"{import_row.id}:FALLBACK_THEORY",
-                )
-                CorrectAnswer.objects.create(
-                    question=fallback_theory,
-                    is_finalized=False,
-                )
-                ExamQuestion.objects.create(
-                    exam=exam,
-                    question=fallback_theory,
-                    sort_order=created_count,
-                    marks=fallback_theory.marks,
-                )
-                theory_count += 1
+        if exam_type != CBTExamType.FREE_TEST and flow_type != "THEORY_ONLY" and objective_count <= 0:
+            raise ValidationError(
+                "No valid objective questions were detected. Check numbering, A-D options, and answer lines, then retry."
+            )
+        if flow_type == "OBJECTIVE_THEORY" and theory_count <= 0:
+            raise ValidationError(
+                "No theory section was detected. Add the theory questions to the upload or switch the flow to Objective Only."
+            )
 
         blueprint = ensure_default_blueprint(exam)
         objective_total, theory_total = _default_section_totals(
@@ -2859,7 +2710,7 @@ def student_exam_authorization_reason(*, student, exam, now=None):
     return ""
 
 
-def student_available_exams(student):
+def student_available_exams(student, *, target_day=None):
     now = timezone.now()
     recent_closed_cutoff = now - timezone.timedelta(hours=24)
     close_expired_exams(now=now)
@@ -2878,16 +2729,19 @@ def student_available_exams(student):
     for exam in exams:
         if not _student_enrolled_for_exam(student, exam):
             continue
+        if target_day is not None and not exam_occurs_on_day(exam, target_day):
+            continue
 
         attempt_qs = ExamAttempt.objects.filter(exam=exam, student=student)
         latest_attempt = attempt_qs.order_by("-updated_at").first()
         if exam.status == CBTExamStatus.CLOSED:
             if latest_attempt is None:
                 continue
-            closed_anchor = exam.schedule_end or exam.updated_at
-            latest_seen_at = getattr(latest_attempt, "updated_at", None) or getattr(latest_attempt, "submitted_at", None)
-            if closed_anchor and closed_anchor < recent_closed_cutoff and latest_seen_at and latest_seen_at < recent_closed_cutoff:
-                continue
+            if target_day is None:
+                closed_anchor = exam.schedule_end or exam.updated_at
+                latest_seen_at = getattr(latest_attempt, "updated_at", None) or getattr(latest_attempt, "submitted_at", None)
+                if closed_anchor and closed_anchor < recent_closed_cutoff and latest_seen_at and latest_seen_at < recent_closed_cutoff:
+                    continue
         blueprint = getattr(exam, "blueprint", None) or ensure_default_blueprint(exam)
         is_done = bool(
             latest_attempt and latest_attempt.status in {CBTAttemptStatus.SUBMITTED, CBTAttemptStatus.FINALIZED}
@@ -3050,6 +2904,20 @@ def get_or_start_attempt(*, student, exam, request=None):
         exam,
         shuffle_questions=blueprint.shuffle_questions,
     )
+    section_config = getattr(blueprint, "section_config", {}) or {}
+    if not isinstance(section_config, dict):
+        section_config = {}
+    objective_draw_count = int(section_config.get("objective_draw_count") or 0)
+    if objective_draw_count > 0:
+        objective_rows = []
+        theory_rows = []
+        for row in question_rows:
+            if row.question.question_type in OBJECTIVE_TYPES:
+                objective_rows.append(row)
+            else:
+                theory_rows.append(row)
+        if len(objective_rows) > objective_draw_count:
+            question_rows = objective_rows[:objective_draw_count] + theory_rows
     option_order_map = _build_option_order_map(
         question_rows,
         shuffle_options=blueprint.shuffle_options,

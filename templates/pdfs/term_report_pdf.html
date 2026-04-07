@@ -5,7 +5,7 @@
   <style>
     @page {
       size: A4;
-      margin: 3mm 4mm 3.5mm 4mm;
+      margin: 20mm 10mm 14mm 10mm;
     }
     html, body {
       height: 100%;
@@ -13,18 +13,25 @@
     body {
       font-family: "DejaVu Serif", "Times New Roman", serif;
       color: #1d1d1d;
-      font-size: 8px;
-      line-height: 1.16;
+      font-size: 8.2px;
+      line-height: 1.2;
       margin: 0;
       background: #ffffff;
     }
     .sheet {
       position: relative;
-      height: 290.5mm;
-      min-height: 290.5mm;
       display: flex;
       flex-direction: column;
       box-sizing: border-box;
+      height: 263mm;
+      min-height: 263mm;
+      padding-top: 3mm;
+    }
+    .sheet-main {
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 auto;
+      min-height: 0;
     }
     .sheet > * {
       width: 100%;
@@ -45,7 +52,7 @@
     .header {
       width: 100%;
       border-collapse: collapse;
-      margin-bottom: 3px;
+      margin-bottom: 4px;
     }
     .header td {
       vertical-align: top;
@@ -63,6 +70,7 @@
       height: 54px;
       object-fit: cover;
       border: 1px solid #b9b9b9;
+      border-radius: 50%;
     }
     .school-title {
       margin: 0;
@@ -103,7 +111,7 @@
     }
     .rule {
       border-top: 2px solid #295b94;
-      margin: 4px 0 4px;
+      margin: 5px 0 4px;
     }
     .meta-table {
       width: 100%;
@@ -138,7 +146,7 @@
       font-size: 15px;
       font-weight: 700;
       color: #2c2c2c;
-      margin: 2px 0 5px;
+      margin: 4px 0 6px;
       letter-spacing: 0.02em;
       text-transform: uppercase;
     }
@@ -148,14 +156,17 @@
     }
     .score-table {
       border: 1px solid #9e9e9e;
-      margin-bottom: 3px;
+      margin-bottom: 0;
       table-layout: fixed;
+    }
+    .subject-row {
+      height: {{ payload.subject_row_height_px|default_if_none:"18" }}px;
     }
     .score-table th,
     .score-table td {
       border: 1px solid #bcbcbc;
-      padding: 2.4px 3px;
-      font-size: 6.9px;
+      padding: 2.8px 3px;
+      font-size: 7.2px;
       vertical-align: middle;
       word-wrap: break-word;
     }
@@ -168,7 +179,7 @@
     .score-table th:first-child,
     .score-table td:first-child {
       text-align: left;
-      width: 19%;
+      width: 21%;
     }
     .score-table td {
       text-align: center;
@@ -185,7 +196,7 @@
     .comment-table,
     .footer-table {
       border: 1px solid #a9a9a9;
-      margin-bottom: 3px;
+      margin-bottom: 0;
       table-layout: fixed;
     }
     .analysis-table td,
@@ -222,29 +233,10 @@
       margin-bottom: 4px;
     }
     .summary-zone {
-      display: flex;
-      flex-direction: column;
-      flex: 1 1 auto;
-      min-height: 0;
-    }
-    .summary-zone.summary-zone-tall {
-      min-height: 118mm;
+      display: block;
+      margin-top: 0;
     }
     .analysis-split {
-      flex: 1 1 auto;
-      margin-bottom: 0;
-    }
-    .analysis-split > tbody {
-      height: 100%;
-    }
-    .analysis-split > tbody > tr {
-      height: 100%;
-    }
-    .analysis-split > tbody > tr > td {
-      height: 100%;
-    }
-    .analysis-split .section-table {
-      height: 100%;
       margin-bottom: 0;
     }
     .split > tbody > tr > td {
@@ -259,10 +251,10 @@
     }
     .psych-table td,
     .psych-table th {
-      font-size: 6.8px;
+      font-size: 7px;
     }
-    .filler-row td {
-      height: 20px;
+    .psych-table {
+      min-height: {{ payload.behavior_box_min_height_px|default_if_none:"84" }}px;
     }
     .psych-table .score {
       width: 34px;
@@ -279,28 +271,52 @@
     }
     .doctor-box,
     .club-box {
-      min-height: 54px;
+      min-height: 36px;
     }
     .comment-box {
-      min-height: 74px;
+      min-height: {{ payload.comment_box_min_height_px|default_if_none:"60" }}px;
+      height: 100%;
     }
-    .bottom-section {
-      margin-top: 4px;
-      break-inside: avoid;
-      page-break-inside: avoid;
+    .adaptive-fill {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .subject-table-wrap,
+    .summary-zone,
+    .club-box,
+    .footer-wrap {
+      flex: 0 0 auto;
+    }
+    .comment-table {
+      flex: 1 1 auto;
+    }
+    .comment-table td {
+      vertical-align: top;
     }
     .footer-wrap {
-      padding-top: 4px;
+      margin-top: auto;
+      break-inside: avoid;
+      page-break-inside: avoid;
     }
     .footer-table {
       margin-bottom: 0;
     }
     .footer-table td {
       border-color: #cfcfcf;
-      vertical-align: bottom;
-      height: 46px;
-      padding-top: 6px;
+      vertical-align: top;
+      padding-top: 4px;
+      padding-bottom: 4px;
+    }
+    .footer-comment-cell {
+      min-height: {{ payload.principal_comment_min_height_px|default_if_none:"42" }}px;
       padding-bottom: 6px;
+    }
+    .footer-signature-row td {
+      height: {{ payload.signature_row_height_px|default_if_none:"40" }}px;
+      vertical-align: bottom;
     }
     .signature-img {
       max-width: 148px;
@@ -326,10 +342,50 @@
       word-break: break-all;
       text-align: center;
     }
+    .principal-panel {
+      min-height: 0;
+    }
+    .signature-label {
+      margin-top: 2px;
+      font-weight: 700;
+    }
+    .principal-name {
+      margin-top: 1px;
+      font-weight: 700;
+    }
+    .club-box td {
+      min-height: {{ payload.club_box_min_height_px|default_if_none:"34" }}px;
+    }
+    .sheet.expanded-density .score-table th,
+    .sheet.expanded-density .score-table td {
+      font-size: 7.5px;
+      padding-top: 3.2px;
+      padding-bottom: 3.2px;
+    }
+    .sheet.compact-density .score-table th,
+    .sheet.compact-density .score-table td {
+      font-size: 6.8px;
+      padding-top: 2px;
+      padding-bottom: 2px;
+    }
+    .sheet.expanded-density .comment-table td,
+    .sheet.expanded-density .section-table td,
+    .sheet.expanded-density .section-table th,
+    .sheet.expanded-density .box-table td,
+    .sheet.expanded-density .box-table th {
+      font-size: 7.35px;
+    }
+    .sheet.compact-density .comment-table td,
+    .sheet.compact-density .section-table td,
+    .sheet.compact-density .section-table th,
+    .sheet.compact-density .box-table td,
+    .sheet.compact-density .box-table th {
+      font-size: 6.85px;
+    }
   </style>
 </head>
 <body>
-  <div class="sheet">
+  <div class="sheet dynamic-room {{ payload.layout_density_class|default:'normal-density' }}">
     <div class="watermark">
       {% if watermark_data_uri %}
         <img src="{{ watermark_data_uri }}" alt="">
@@ -351,9 +407,9 @@
         </td>
         <td class="contact-box">
           <table>
-            <tr><td class="label">Email:</td><td>{{ school_profile.contact_email|default:"office@notredameacademyabuja.com" }}</td></tr>
+            <tr><td class="label">Email:</td><td>{{ school_profile.contact_email|default:"office@ndgakuje.org" }}</td></tr>
             <tr><td class="label">Phone:</td><td>{{ school_profile.contact_phone|default:"0906 330 2377" }}</td></tr>
-            <tr><td class="label">Website:</td><td>{{ school_profile.website|default:"www.notredameacademyabuja.com" }}</td></tr>
+            <tr><td class="label">Website:</td><td>{{ school_profile.website|default:"ndgakuje.org" }}</td></tr>
           </table>
         </td>
         <td style="width:60px; text-align:right;">
@@ -387,8 +443,11 @@
       </tr>
     </table>
 
+    <div class="sheet-main">
     <div class="report-title">{{ school_profile.result_tagline|default:"Termly Evaluation Report" }}</div>
 
+    <div class="adaptive-fill">
+    <div class="subject-table-wrap">
     <table class="score-table">
       <thead>
         <tr>
@@ -409,7 +468,7 @@
       </thead>
       <tbody>
         {% for row in payload.subject_rows %}
-          <tr>
+          <tr class="subject-row">
             <td>{{ row.subject }}</td>
             <td>{{ row.ca1 }}</td>
             <td>{{ row.ca2 }}</td>
@@ -431,8 +490,9 @@
         {% endfor %}
       </tbody>
     </table>
+    </div>
 
-    <div class="summary-zone{% if payload.subject_count <= 12 %} summary-zone-tall{% endif %}">
+    <div class="summary-zone">
       <table class="analysis-table">
       <tr>
         <td class="head" style="width:12%;">Analysis</td>
@@ -462,9 +522,6 @@
               </tr>
             {% empty %}
               <tr><td colspan="2">No psychomotor ratings recorded.</td></tr>
-            {% endfor %}
-            {% for _ in payload.layout_padding_rows %}
-              <tr class="filler-row"><td>&nbsp;</td><td class="score">&nbsp;</td></tr>
             {% endfor %}
             <tr><td>No. of Times School Open</td><td class="score">{{ payload.attendance.school_open }}</td></tr>
             <tr><td>Time(s) Present</td><td class="score">{{ payload.attendance.present }}</td></tr>
@@ -513,98 +570,62 @@
                 </td>
               </tr>
             {% endfor %}
-            {% for _ in payload.layout_padding_rows %}
-              <tr class="filler-row"><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td></tr>
-            {% endfor %}
           </table>
         </td>
       </tr>
       </table>
     </div>
 
-    <div class="bottom-section">
-      <div class="analysis-label">Physical Development &amp; Health</div>
-      <table class="health-table">
-        <tr>
-          <th class="head" colspan="2">Height</th>
-          <th class="head" colspan="2">Weight</th>
-          <th class="head" colspan="2">Illness Stats</th>
-        </tr>
-        <tr>
-          <th>Beginning of Term</th>
-          <th>End of Term</th>
-          <th>Beginning of Term</th>
-          <th>End of Term</th>
-          <th>Number of days absent due to illness</th>
-          <th>Nature of Illness</th>
-        </tr>
-        <tr>
-          <td>{% if payload.health.height_start_cm %}{{ payload.health.height_start_cm }} cm{% else %}-{% endif %}</td>
-          <td>{% if payload.health.height_end_cm %}{{ payload.health.height_end_cm }} cm{% else %}-{% endif %}</td>
-          <td>{% if payload.health.weight_start_kg %}{{ payload.health.weight_start_kg }} kg{% else %}-{% endif %}</td>
-          <td>{% if payload.health.weight_end_kg %}{{ payload.health.weight_end_kg }} kg{% else %}-{% endif %}</td>
-          <td>{{ payload.health.medical_incidents }}</td>
-          <td>{{ payload.health.nature_of_illness|default:"-" }}</td>
-        </tr>
-      </table>
+    <table class="comment-table">
+      <tr>
+        <th class="head">Form Teacher Comment</th>
+      </tr>
+      <tr>
+        <td class="comment-box">{{ payload.teacher_comment|default:"No form teacher comment recorded." }}</td>
+      </tr>
+    </table>
 
-      <table class="split">
+    <table class="box-table club-box">
+      <tr>
+        <th class="head">Club</th>
+        <th class="head">Office Held</th>
+        <th class="head">Significant Contribution</th>
+      </tr>
+      <tr>
+        <td>{{ payload.co_curricular.club_membership|default:"-" }}</td>
+        <td>{{ payload.co_curricular.office_held|default:"-" }}</td>
+        <td>{{ payload.co_curricular.notable_contribution|default:"-" }}</td>
+      </tr>
+    </table>
+
+    </div>
+    <div class="footer-wrap">
+      <table class="footer-table">
         <tr>
-          <td>
-            <table class="box-table doctor-box">
-              <tr><th class="head">Doctor's Remark</th></tr>
-              <tr><td>{{ payload.health.doctor_remark|default:"-" }}</td></tr>
-            </table>
-          </td>
-          <td>
-            <table class="box-table club-box">
-              <tr>
-                <th class="head">Club</th>
-                <th class="head">Office Held</th>
-                <th class="head">Significant Contribution</th>
-              </tr>
-              <tr>
-                <td>{{ payload.co_curricular.club_membership|default:"-" }}</td>
-                <td>{{ payload.co_curricular.office_held|default:"-" }}</td>
-                <td>{{ payload.co_curricular.notable_contribution|default:"-" }}</td>
-              </tr>
-            </table>
+          <td colspan="3" class="footer-comment-cell">
+            <div class="strong" style="margin-bottom:4px;">Principal Comment</div>
+            <div>{{ payload.principal_comment|default:"No principal comment recorded." }}</div>
           </td>
         </tr>
-      </table>
-
-      <table class="comment-table">
-        <tr>
-          <th class="head">Form Teacher Comment</th>
-          <th class="head">Principal Comment</th>
+        <tr class="footer-signature-row">
+          <td style="width:57%;" class="principal-panel">
+            {% if principal_signature_data_uri %}
+              <img src="{{ principal_signature_data_uri }}" alt="Principal signature" class="signature-img">
+            {% endif %}
+            <div class="signature-label">Principal Signature</div>
+            {% if school_profile.principal_name %}<div class="principal-name">{{ school_profile.principal_name }}</div>{% endif %}
+          </td>
+          <td style="width:18%; text-align:center;">
+            {% if school_stamp_data_uri %}
+              <img src="{{ school_stamp_data_uri }}" alt="School stamp" class="stamp">
+            {% endif %}
+          </td>
+          <td style="width:25%; text-align:center;">
+            <img src="{{ verification_qr_data_uri }}" alt="Verification QR" class="qr">
+          </td>
         </tr>
-        <tr>
-          <td class="comment-box">{{ payload.teacher_comment|default:"No form teacher comment recorded." }}</td>
-          <td class="comment-box">{{ payload.principal_comment|default:"No principal comment generated." }}</td>
-        </tr>
       </table>
-
-      <div class="footer-wrap">
-        <table class="footer-table">
-          <tr>
-            <td style="width:57%;">
-              {% if principal_signature_data_uri %}
-                <img src="{{ principal_signature_data_uri }}" alt="Principal signature" class="signature-img">
-              {% endif %}
-              <div class="strong">Principal Signature</div>
-              {% if school_profile.principal_name %}<div>{{ school_profile.principal_name }}</div>{% endif %}
-            </td>
-            <td style="width:18%; text-align:center;">
-              {% if school_stamp_data_uri %}
-                <img src="{{ school_stamp_data_uri }}" alt="School stamp" class="stamp">
-              {% endif %}
-            </td>
-            <td style="width:25%; text-align:center;">
-              <img src="{{ verification_qr_data_uri }}" alt="Verification QR" class="qr">
-            </td>
-          </tr>
-        </table>
-      </div>
+    </div>
     </div>
   </div>
 </body>

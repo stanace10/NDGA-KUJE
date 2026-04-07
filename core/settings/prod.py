@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-import importlib.util
+import importlib
+from urllib.parse import urlparse
 
 from django.core.exceptions import ImproperlyConfigured
 
 from .base import *  # noqa
+from core.sentry import initialize_sentry
 
 DEBUG = False
 
@@ -66,10 +68,10 @@ if MEDIA_STORAGE_BACKEND == "s3":
     AWS_SECRET_ACCESS_KEY = env("AWS_SECRET_ACCESS_KEY", default="").strip() or None
     AWS_STORAGE_BUCKET_NAME = env("AWS_STORAGE_BUCKET_NAME", default="")
     AWS_S3_REGION_NAME = env("AWS_S3_REGION_NAME", default=env("AWS_REGION", default=""))
-    AWS_S3_ENDPOINT_URL = env("AWS_S3_ENDPOINT_URL", default="")
+    AWS_S3_ENDPOINT_URL = env("AWS_S3_ENDPOINT_URL", default="").strip() or None
     AWS_S3_CUSTOM_DOMAIN = env("AWS_S3_CUSTOM_DOMAIN", default="")
     AWS_S3_FILE_OVERWRITE = env.bool("AWS_S3_FILE_OVERWRITE", default=False)
-    AWS_QUERYSTRING_AUTH = env.bool("AWS_QUERYSTRING_AUTH", default=False)
+    AWS_QUERYSTRING_AUTH = env.bool("AWS_QUERYSTRING_AUTH", default=True)
     AWS_DEFAULT_ACL = None
     if not AWS_STORAGE_BUCKET_NAME:
         raise ImproperlyConfigured("AWS_STORAGE_BUCKET_NAME is required for S3 media.")
@@ -106,6 +108,21 @@ elif MEDIA_STORAGE_BACKEND == "cloudinary":
     }
 else:
     STORAGES["default"] = {"BACKEND": "django.core.files.storage.FileSystemStorage"}
+
+media_origin = ""
+if str(MEDIA_URL).startswith("http"):
+    parsed_media_url = urlparse(MEDIA_URL)
+    if parsed_media_url.scheme and parsed_media_url.netloc:
+        media_origin = f"{parsed_media_url.scheme}://{parsed_media_url.netloc}"
+if media_origin:
+    current_csp = SECURITY_RESPONSE_HEADERS.get("Content-Security-Policy", "")
+    img_directive = "img-src 'self' data: blob:;"
+    replacement = f"img-src 'self' data: blob: {media_origin};"
+    if img_directive in current_csp and media_origin not in current_csp:
+        SECURITY_RESPONSE_HEADERS["Content-Security-Policy"] = current_csp.replace(
+            img_directive,
+            replacement,
+        )
 
 LOG_LEVEL = env("DJANGO_LOG_LEVEL", default="INFO").upper()
 LOG_JSON = env.bool("DJANGO_LOG_JSON", default=True)
@@ -156,25 +173,4 @@ LOGGING = {
     },
 }
 
-SENTRY_DSN = env("SENTRY_DSN", default="").strip()
-if SENTRY_DSN:
-    if importlib.util.find_spec("sentry_sdk") is None:
-        raise ImproperlyConfigured("SENTRY_DSN is set but sentry-sdk is not installed.")
-    import sentry_sdk
-    from sentry_sdk.integrations.celery import CeleryIntegration
-    from sentry_sdk.integrations.django import DjangoIntegration
-    from sentry_sdk.integrations.redis import RedisIntegration
-
-    sentry_sdk.init(
-        dsn=SENTRY_DSN,
-        environment=env("SENTRY_ENVIRONMENT", default="production"),
-        release=env("SENTRY_RELEASE", default=""),
-        traces_sample_rate=env.float("SENTRY_TRACES_SAMPLE_RATE", default=0.1),
-        profiles_sample_rate=env.float("SENTRY_PROFILES_SAMPLE_RATE", default=0.0),
-        send_default_pii=False,
-        integrations=[
-            DjangoIntegration(),
-            CeleryIntegration(),
-            RedisIntegration(),
-        ],
-    )
+initialize_sentry(env=env, default_environment="production")

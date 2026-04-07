@@ -1,0 +1,7 @@
+<div style="font-size:15px; line-height:1.7; color:#334155;">
+  {% for paragraph in paragraphs %}
+    <p style="margin:0 0 16px;">{{ paragraph }}</p>
+  {% empty %}
+    <p style="margin:0;">No message content was provided.</p>
+  {% endfor %}
+</div>

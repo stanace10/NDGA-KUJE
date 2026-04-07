@@ -30,9 +30,10 @@
         <p class="mt-1 text-sm text-emerald-800">
           Force publication decision for this class compilation.
         </p>
-        <form method="post" class="mt-3">
+        <form method="post" class="mt-3 space-y-3">
           {% csrf_token %}
           <input type="hidden" name="action" value="override_publish">
+          {{ action_form.comment }}
           <button
             type="submit"
             class="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800"

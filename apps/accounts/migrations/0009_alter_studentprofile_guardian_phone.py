@@ -1,0 +1,16 @@
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ("accounts", "0008_user_two_factor_email_user_two_factor_enabled"),
+    ]
+
+    operations = [
+        migrations.AlterField(
+            model_name="studentprofile",
+            name="guardian_phone",
+            field=models.CharField(blank=True, max_length=120),
+        ),
+    ]

@@ -107,11 +107,27 @@ class PaymentForm(_StyledFormMixin, forms.ModelForm):
 
 
 class GatewayPaymentInitForm(_StyledFormMixin, forms.Form):
+    class PaymentPlan(models.TextChoices):
+        FULL = "FULL", "Full Outstanding"
+        FEE_ITEM = "FEE_ITEM", "Single Fee Item"
+        PERCENTAGE = "PERCENTAGE", "Percentage Payment"
+        CUSTOM = "CUSTOM", "Custom Amount"
+
     student = forms.ModelChoiceField(
         queryset=User.objects.filter(primary_role__code="STUDENT", is_active=True).order_by("username"),
         required=True,
     )
     amount = forms.DecimalField(max_digits=12, decimal_places=2, min_value=0.01)
+    payment_plan = forms.ChoiceField(
+        choices=PaymentPlan.choices,
+        initial=PaymentPlan.FULL,
+    )
+    fee_item = forms.CharField(required=False, max_length=140)
+    percentage = forms.TypedChoiceField(
+        required=False,
+        coerce=int,
+        choices=[("", "Select percentage"), (25, "25%"), (50, "50%"), (75, "75%"), (100, "100%")],
+    )
     provider = forms.ChoiceField(
         choices=PaymentGatewayProvider.choices,
         initial=PaymentGatewayProvider.PAYSTACK,
@@ -121,6 +137,9 @@ class GatewayPaymentInitForm(_StyledFormMixin, forms.Form):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.apply_default_styles()
+
+    def clean_fee_item(self):
+        return (self.cleaned_data.get("fee_item") or "").strip()
 
 
 class ExpenseForm(_StyledFormMixin, forms.ModelForm):

@@ -40,7 +40,6 @@ ROLE_SCOPE_DEFAULTS = {
     },
     ROLE_VP: {
         SCOPE_MANAGE_USERS,
-        SCOPE_MANAGE_ALL_CBT,
     },
     ROLE_BURSAR: set(),
 }
