@@ -118,6 +118,46 @@ def _get_or_create_sheet_from_assignment(assignment, actor):
     return sheet
 
 
+def _score_snapshot(score):
+    if score is None:
+        return {}
+    return {
+        "ca1": str(score.ca1),
+        "ca2": str(score.ca2),
+        "ca3": str(score.ca3),
+        "ca4": str(score.ca4),
+        "objective": str(score.objective),
+        "theory": str(score.theory),
+        "total_ca": str(score.total_ca),
+        "total_exam": str(score.total_exam),
+        "grand_total": str(score.grand_total),
+        "grade": score.grade,
+        "has_override": bool(score.has_override),
+        "override_reason": score.override_reason or "",
+    }
+
+
+def _log_score_change(*, actor, request, score, sheet, before_snapshot, violations=None):
+    after_snapshot = _score_snapshot(score)
+    changed_fields = [
+        key
+        for key, new_value in after_snapshot.items()
+        if before_snapshot.get(key) != new_value
+    ]
+    log_results_edit(
+        actor=actor,
+        request=request,
+        metadata={
+            "sheet_id": str(sheet.id),
+            "student_id": str(score.student_id),
+            "changed_fields": changed_fields,
+            "before": before_snapshot,
+            "after": after_snapshot,
+            "violations": violations or {},
+        },
+    )
+
+
 def _subject_enrollments_for_assignment(assignment):
     base_qs = StudentClassEnrollment.objects.select_related("student").filter(
         academic_class_id__in=_cohort_class_ids(assignment.academic_class),
@@ -1014,6 +1054,7 @@ class AssignmentScoreListView(ResultsAccessMixin, TemplateView):
                         result_sheet=sheet,
                         student=row["student"],
                     )
+                    before_snapshot = _score_snapshot(score if score.pk else None)
                     payload = row["payload"]
                     score.ca1 = payload.ca1
                     score.ca2 = payload.ca2
@@ -1033,14 +1074,13 @@ class AssignmentScoreListView(ResultsAccessMixin, TemplateView):
                     if row["locked_fields"]:
                         score.cbt_locked_fields = sorted(set(score.normalized_locked_fields()) | set(row["locked_fields"]))
                     score.save()
-                    log_results_edit(
+                    _log_score_change(
                         actor=request.user,
                         request=request,
-                        metadata={
-                            "sheet_id": str(sheet.id),
-                            "student_id": str(score.student_id),
-                            "violations": payload.violations,
-                        },
+                        score=score,
+                        sheet=sheet,
+                        before_snapshot=before_snapshot,
+                        violations=payload.violations,
                     )
 
         if is_autosave:
@@ -1129,16 +1169,16 @@ class StudentScoreEditView(ResultsAccessMixin, TemplateView):
         )
         if not form.is_valid():
             return self.render_to_response(self.get_context_data(form=form))
+        before_snapshot = _score_snapshot(self.score if self.score.pk else None)
         score = form.save()
         payload = getattr(form, "computed_payload", None)
-        log_results_edit(
+        _log_score_change(
             actor=request.user,
             request=request,
-            metadata={
-                "sheet_id": str(self.sheet.id),
-                "student_id": str(score.student_id),
-                "violations": payload.violations if payload else {},
-            },
+            score=score,
+            sheet=self.sheet,
+            before_snapshot=before_snapshot,
+            violations=payload.violations if payload else {},
         )
         messages.success(request, "Student score saved.")
         return redirect("results:assignment-scores", assignment_id=self.assignment.id)

@@ -2,11 +2,28 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
+from django.views.generic import TemplateView
 
 from core.ops import healthz, metrics, readyz
 from core.seo import robots_txt, sitemap_xml
 
 urlpatterns = [
+    path(
+        "manifest.webmanifest",
+        TemplateView.as_view(
+            template_name="pwa/manifest.webmanifest",
+            content_type="application/manifest+json",
+        ),
+        name="pwa-manifest",
+    ),
+    path(
+        "portal-sw.js",
+        TemplateView.as_view(
+            template_name="pwa/portal_sw.js",
+            content_type="application/javascript",
+        ),
+        name="pwa-service-worker",
+    ),
     path("robots.txt", robots_txt, name="robots-txt"),
     path("sitemap.xml", sitemap_xml, name="sitemap-xml"),
     path("ops/healthz/", healthz, name="ops-healthz"),

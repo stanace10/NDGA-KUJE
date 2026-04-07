@@ -20,10 +20,13 @@ from apps.finance.models import (
     AssetMovementType,
     ChargeTargetType,
     Expense,
+    FinanceDataAuthority,
     FinanceReminderDispatch,
+    FinanceReconciliationEvent,
     InventoryAsset,
     InventoryAssetMovement,
     Payment,
+    PaymentGatewayTransaction,
     PaymentGatewayProvider,
     PaymentGatewayStatus,
     PaymentMethod,
@@ -35,6 +38,7 @@ from apps.finance.models import (
 from apps.finance.services import (
     debtor_rows,
     dispatch_scheduled_fee_reminders,
+    finance_payment_delta_payload,
     finance_summary_metrics,
     initialize_gateway_payment_transaction,
     monthly_cashflow_series,
@@ -685,3 +689,66 @@ class FinancePortalTests(TestCase):
         asset.refresh_from_db()
         self.assertEqual(asset.quantity_available, 9)
         self.assertEqual(asset.quantity_total, 10)
+
+
+@override_settings(
+    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+    NOTIFICATIONS_EMAIL_PROVIDER="console",
+    SYNC_ENDPOINT_AUTH_TOKEN="manual-sync-token",
+)
+class FinanceDeltaExportTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        student_role = Role.objects.get(code=ROLE_STUDENT)
+        cls.student = User.objects.create_user(
+            username="finance-delta-student",
+            password="Password123!",
+            primary_role=student_role,
+            must_change_password=False,
+            email="student@ndga.test",
+        )
+        cls.session = AcademicSession.objects.create(name="2026/2027")
+        cls.term = Term.objects.create(session=cls.session, name="FIRST")
+        payment = Payment.objects.create(
+            student=cls.student,
+            session=cls.session,
+            term=cls.term,
+            amount=Decimal("15000.00"),
+            payment_method=PaymentMethod.GATEWAY,
+            gateway_reference="GATEWAY-REF-1",
+            payment_date=timezone.localdate(),
+            source_authority=FinanceDataAuthority.CLOUD,
+            source_updated_at=timezone.now(),
+        )
+        cls.gateway_transaction = PaymentGatewayTransaction.objects.create(
+            reference="NDGA-DELTA-1",
+            provider=PaymentGatewayProvider.PAYSTACK,
+            status=PaymentGatewayStatus.PAID,
+            student=cls.student,
+            session=cls.session,
+            term=cls.term,
+            amount=Decimal("15000.00"),
+            gateway_reference="GATEWAY-REF-1",
+            payment=payment,
+            source_authority=FinanceDataAuthority.CLOUD,
+            source_updated_at=timezone.now(),
+        )
+
+    def test_finance_payment_delta_payload_returns_cloud_authoritative_rows(self):
+        payload = finance_payment_delta_payload()
+        self.assertEqual(payload["count"], 1)
+        self.assertEqual(payload["items"][0]["reference"], "NDGA-DELTA-1")
+
+    def test_manual_payment_delta_export_requires_token_and_returns_json(self):
+        client = Client(HTTP_HOST="ndgakuje.org")
+        unauthorized = client.get("/finance/api/manual-export/payments/")
+        self.assertEqual(unauthorized.status_code, 403)
+
+        response = client.get(
+            "/finance/api/manual-export/payments/",
+            HTTP_X_NDGA_MANUAL_SYNC_TOKEN="manual-sync-token",
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["count"], 1)
+        self.assertEqual(payload["items"][0]["gateway_reference"], "GATEWAY-REF-1")

@@ -22,7 +22,18 @@ from apps.academics.models import (
 from apps.attendance.models import AttendanceRecord, AttendanceStatus, SchoolCalendar
 from apps.results.models import ClassCompilationStatus, ClassResultCompilation, ClassResultStudentRecord
 from apps.setup_wizard.models import SetupStateCode, SystemSetupState
-from apps.dashboard.models import LearningResource, LessonPlanDraft, PortalDocument, PrincipalSignature, WeeklyChallenge, WeeklyChallengeSubmission
+from apps.dashboard.models import (
+    LearningResource,
+    LessonPlanDraft,
+    LMSAssignment,
+    LMSAssignmentSubmission,
+    LMSClassroom,
+    LMSModule,
+    PortalDocument,
+    PrincipalSignature,
+    WeeklyChallenge,
+    WeeklyChallengeSubmission,
+)
 from apps.dashboard.intelligence import (
     build_school_intelligence,
     build_student_academic_analytics,
@@ -257,6 +268,131 @@ class AccountSecuritySettingsTests(TestCase):
         self.it_user.refresh_from_db()
         self.assertTrue(self.it_user.two_factor_enabled)
         self.assertEqual(self.it_user.two_factor_email, "otp@ndgakuje.org")
+
+
+class LMSPortalFlowTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        student_role = Role.objects.get(code=ROLE_STUDENT)
+        teacher_role = Role.objects.get(code=ROLE_SUBJECT_TEACHER)
+        cls.student = User.objects.create_user(
+            username="lms-student",
+            password="Password123!",
+            primary_role=student_role,
+            must_change_password=False,
+        )
+        cls.teacher = User.objects.create_user(
+            username="lms-teacher",
+            password="Password123!",
+            primary_role=teacher_role,
+            must_change_password=False,
+        )
+        cls.session = AcademicSession.objects.create(name="2026/2027")
+        cls.term = Term.objects.create(session=cls.session, name="FIRST")
+        cls.academic_class = AcademicClass.objects.create(code="JSS2A", display_name="JSS2A")
+        cls.subject = Subject.objects.create(name="English Language", code="ENG")
+        ClassSubject.objects.create(academic_class=cls.academic_class, subject=cls.subject, is_active=True)
+        cls.assignment_window = TeacherSubjectAssignment.objects.create(
+            teacher=cls.teacher,
+            subject=cls.subject,
+            academic_class=cls.academic_class,
+            session=cls.session,
+            term=cls.term,
+            is_active=True,
+        )
+        StudentClassEnrollment.objects.create(
+            student=cls.student,
+            academic_class=cls.academic_class,
+            session=cls.session,
+            is_active=True,
+        )
+        StudentSubjectEnrollment.objects.create(
+            student=cls.student,
+            subject=cls.subject,
+            session=cls.session,
+            is_active=True,
+        )
+        cls.classroom = LMSClassroom.objects.create(
+            teacher_assignment=cls.assignment_window,
+            title="JSS2A English Classroom",
+            overview="Weekly reading and writing track.",
+            is_published=True,
+        )
+        cls.module = LMSModule.objects.create(
+            classroom=cls.classroom,
+            title="Comprehension Skills",
+            summary="Reading and response practice.",
+            sort_order=1,
+            is_published=True,
+        )
+        cls.lms_assignment = LMSAssignment.objects.create(
+            classroom=cls.classroom,
+            module=cls.module,
+            title="Reading Response",
+            instructions="Read the passage and write a short response.",
+            max_score=20,
+            is_published=True,
+        )
+        setup_state = SystemSetupState.get_solo()
+        setup_state.state = SetupStateCode.IT_READY
+        setup_state.current_session = cls.session
+        setup_state.current_term = cls.term
+        setup_state.save(update_fields=["state", "current_session", "current_term", "updated_at"])
+
+    def test_student_can_open_lms_and_submit_assignment(self):
+        client = Client(HTTP_HOST="student.ndgakuje.org")
+        client.force_login(self.student)
+
+        response = client.get("/portal/student/lms/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "JSS2A English Classroom")
+        self.assertContains(response, "Reading Response")
+
+        post_response = client.post(
+            "/portal/student/lms/",
+            {
+                "action": "submit_assignment",
+                "classroom_id": str(self.classroom.id),
+                "assignment_id": str(self.lms_assignment.id),
+                "submission_text": "My response to the reading task.",
+            },
+            follow=False,
+        )
+        self.assertEqual(post_response.status_code, 302)
+        submission = LMSAssignmentSubmission.objects.get(
+            assignment=self.lms_assignment,
+            student=self.student,
+        )
+        self.assertEqual(submission.status, "SUBMITTED")
+
+    def test_teacher_can_create_module_from_staff_lms(self):
+        client = Client(HTTP_HOST="staff.ndgakuje.org")
+        client.force_login(self.teacher)
+
+        response = client.get(f"/portal/staff/lms/?classroom={self.classroom.id}")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "JSS2A English Classroom")
+
+        post_response = client.post(
+            "/portal/staff/lms/",
+            {
+                "action": "create_module",
+                "classroom_id": str(self.classroom.id),
+                "classroom": str(self.classroom.id),
+                "title": "Grammar Extension",
+                "summary": "Sentence structure and punctuation.",
+                "sort_order": "2",
+                "is_published": "on",
+            },
+            follow=False,
+        )
+        self.assertEqual(post_response.status_code, 302)
+        self.assertTrue(
+            LMSModule.objects.filter(
+                classroom=self.classroom,
+                title="Grammar Extension",
+            ).exists()
+        )
 
 
 class DashboardIntelligenceTests(TestCase):

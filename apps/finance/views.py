@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
 
@@ -14,8 +14,9 @@ from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.core.exceptions import ValidationError
 from django.views.decorators.csrf import csrf_exempt
 from django.db.models import Q
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
+from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.generic import TemplateView
@@ -58,6 +59,7 @@ from apps.finance.services import (
     dispatch_scheduled_fee_reminders,
     finance_summary_metrics,
     finance_bank_details_text,
+    finance_payment_delta_payload,
     finance_profile,
     evaluate_receipt_integrity,
     gateway_is_enabled,
@@ -109,6 +111,14 @@ def _portal_media_url(file_field):
         return ""
 
 
+def _manual_sync_token_valid(request):
+    expected = (getattr(settings, "SYNC_ENDPOINT_AUTH_TOKEN", "") or "").strip()
+    if not expected:
+        return False
+    provided = (request.headers.get("X-NDGA-Manual-Sync-Token") or request.GET.get("token") or "").strip()
+    return bool(provided) and hmac.compare_digest(provided, expected)
+
+
 class FinancePortalAccessMixin(LoginRequiredMixin, UserPassesTestMixin):
     allowed_roles = set()
 
@@ -122,6 +132,23 @@ class FinancePortalAccessMixin(LoginRequiredMixin, UserPassesTestMixin):
 
     def test_func(self):
         return has_any_role(self.request.user, self.allowed_roles)
+
+
+class ManualPaymentDeltaExportView(View):
+    def get(self, request, *args, **kwargs):
+        if not _manual_sync_token_valid(request):
+            return JsonResponse({"detail": "Unauthorized"}, status=403)
+        since_raw = (request.GET.get("since") or "").strip()
+        since = None
+        if since_raw:
+            try:
+                since = datetime.fromisoformat(since_raw)
+                if timezone.is_naive(since):
+                    since = timezone.make_aware(since, timezone.get_current_timezone())
+            except ValueError:
+                return JsonResponse({"detail": "Invalid since timestamp."}, status=400)
+        payload = finance_payment_delta_payload(updated_since=since)
+        return JsonResponse(payload)
 
 
 class BursarAccessMixin(FinancePortalAccessMixin):

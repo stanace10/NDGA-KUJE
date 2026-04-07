@@ -52,6 +52,18 @@ class PaymentGatewayStatus(models.TextChoices):
     CANCELLED = "CANCELLED", "Cancelled"
 
 
+class FinanceDataAuthority(models.TextChoices):
+    LAN = "LAN", "LAN"
+    CLOUD = "CLOUD", "Cloud"
+
+
+class FinanceReconciliationStatus(models.TextChoices):
+    IMPORTED = "IMPORTED", "Imported"
+    DUPLICATE = "DUPLICATE", "Duplicate"
+    CONFLICT = "CONFLICT", "Conflict"
+    SKIPPED = "SKIPPED", "Skipped"
+
+
 class ReminderType(models.TextChoices):
     UPCOMING = "UPCOMING", "Upcoming Due"
     OVERDUE = "OVERDUE", "Overdue"
@@ -234,12 +246,19 @@ class Payment(TimeStampedModel):
         related_name="received_finance_payments",
     )
     is_void = models.BooleanField(default=False)
+    source_authority = models.CharField(
+        max_length=16,
+        choices=FinanceDataAuthority.choices,
+        default=FinanceDataAuthority.LAN,
+    )
+    source_updated_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ("-payment_date", "-created_at")
         indexes = [
             models.Index(fields=("student", "session", "payment_date")),
             models.Index(fields=("is_void", "payment_date")),
+            models.Index(fields=("source_authority", "source_updated_at")),
         ]
 
     def clean(self):
@@ -478,6 +497,12 @@ class PaymentGatewayTransaction(TimeStampedModel):
         blank=True,
         related_name="gateway_transaction",
     )
+    source_authority = models.CharField(
+        max_length=16,
+        choices=FinanceDataAuthority.choices,
+        default=FinanceDataAuthority.LAN,
+    )
+    source_updated_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ("-created_at",)
@@ -485,6 +510,7 @@ class PaymentGatewayTransaction(TimeStampedModel):
             models.Index(fields=("status", "created_at")),
             models.Index(fields=("student", "session", "status")),
             models.Index(fields=("provider", "reference")),
+            models.Index(fields=("source_authority", "source_updated_at")),
         ]
 
     def clean(self):
@@ -494,6 +520,63 @@ class PaymentGatewayTransaction(TimeStampedModel):
             raise ValidationError("Selected term does not belong to selected session.")
         if not self.student.has_role(ROLE_STUDENT):
             raise ValidationError("Gateway transaction student must be a student account.")
+
+    def __str__(self):
+        return f"{self.reference} [{self.status}]"
+
+
+class FinanceDeltaSyncCursor(TimeStampedModel):
+    cursor_name = models.CharField(max_length=40, unique=True)
+    last_synced_at = models.DateTimeField(null=True, blank=True)
+    last_reference = models.CharField(max_length=120, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ("cursor_name",)
+
+    def __str__(self):
+        return self.cursor_name
+
+
+class FinanceReconciliationEvent(TimeStampedModel):
+    direction = models.CharField(max_length=24, default="CLOUD_TO_LAN")
+    status = models.CharField(
+        max_length=16,
+        choices=FinanceReconciliationStatus.choices,
+        default=FinanceReconciliationStatus.IMPORTED,
+    )
+    reference = models.CharField(max_length=120)
+    gateway_reference = models.CharField(max_length=180, blank=True)
+    payment = models.ForeignKey(
+        Payment,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reconciliation_events",
+    )
+    gateway_transaction = models.ForeignKey(
+        PaymentGatewayTransaction,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reconciliation_events",
+    )
+    notes = models.TextField(blank=True)
+    payload = models.JSONField(default=dict, blank=True)
+    resolved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="resolved_finance_reconciliation_events",
+    )
+
+    class Meta:
+        ordering = ("-created_at",)
+        indexes = [
+            models.Index(fields=("status", "created_at")),
+            models.Index(fields=("reference",)),
+        ]
 
     def __str__(self):
         return f"{self.reference} [{self.status}]"

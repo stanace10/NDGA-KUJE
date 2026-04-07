@@ -1,8 +1,9 @@
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils import timezone
 
-from apps.academics.models import AcademicClass, AcademicSession, Subject, Term
+from apps.academics.models import AcademicClass, AcademicSession, Subject, TeacherSubjectAssignment, Term
 from apps.accounts.models import User
 from core.models import TimeStampedModel
 
@@ -328,6 +329,281 @@ class LessonPlanDraft(TimeStampedModel):
 
     def __str__(self):
         return f"{self.subject.name} - {self.topic}"
+
+
+class LMSSubmissionStatus(models.TextChoices):
+    DRAFT = "DRAFT", "Draft"
+    SUBMITTED = "SUBMITTED", "Submitted"
+    GRADED = "GRADED", "Graded"
+    REVISION_REQUIRED = "REVISION_REQUIRED", "Revision Required"
+
+
+class LMSClassroom(TimeStampedModel):
+    teacher_assignment = models.OneToOneField(
+        TeacherSubjectAssignment,
+        on_delete=models.CASCADE,
+        related_name="lms_classroom",
+    )
+    title = models.CharField(max_length=180)
+    overview = models.TextField(blank=True)
+    welcome_note = models.TextField(blank=True)
+    is_published = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ("teacher_assignment__academic_class__code", "teacher_assignment__subject__name")
+
+    def clean(self):
+        self.title = (self.title or "").strip()
+        self.overview = (self.overview or "").strip()
+        self.welcome_note = (self.welcome_note or "").strip()
+        if not self.title:
+            self.title = (
+                f"{self.teacher_assignment.academic_class.code} "
+                f"{self.teacher_assignment.subject.name}"
+            )
+
+    def __str__(self):
+        return self.title
+
+
+class LMSModule(TimeStampedModel):
+    classroom = models.ForeignKey(
+        LMSClassroom,
+        on_delete=models.CASCADE,
+        related_name="modules",
+    )
+    title = models.CharField(max_length=180)
+    summary = models.TextField(blank=True)
+    sort_order = models.PositiveIntegerField(default=1)
+    is_published = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ("sort_order", "created_at")
+
+    def clean(self):
+        self.title = (self.title or "").strip()
+        self.summary = (self.summary or "").strip()
+        if not self.title:
+            raise ValidationError("Module title is required.")
+
+    def __str__(self):
+        return f"{self.classroom.title}: {self.title}"
+
+
+class LMSLesson(TimeStampedModel):
+    module = models.ForeignKey(
+        LMSModule,
+        on_delete=models.CASCADE,
+        related_name="lessons",
+    )
+    title = models.CharField(max_length=180)
+    summary = models.TextField(blank=True)
+    content_text = models.TextField(blank=True)
+    resource_file = models.FileField(upload_to="learning/lms_lessons/", blank=True, null=True)
+    external_url = models.URLField(blank=True)
+    estimated_minutes = models.PositiveIntegerField(default=20)
+    sort_order = models.PositiveIntegerField(default=1)
+    is_published = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ("sort_order", "created_at")
+
+    def clean(self):
+        self.title = (self.title or "").strip()
+        self.summary = (self.summary or "").strip()
+        self.content_text = (self.content_text or "").strip()
+        if not self.title:
+            raise ValidationError("Lesson title is required.")
+        has_payload = bool(self.content_text or self.resource_file or (self.external_url or "").strip())
+        if not has_payload:
+            raise ValidationError("Provide lesson text, a file, or an external URL.")
+
+    def __str__(self):
+        return f"{self.module}: {self.title}"
+
+
+class LMSAssignment(TimeStampedModel):
+    classroom = models.ForeignKey(
+        LMSClassroom,
+        on_delete=models.CASCADE,
+        related_name="assignments",
+    )
+    module = models.ForeignKey(
+        LMSModule,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="assignments",
+    )
+    title = models.CharField(max_length=180)
+    instructions = models.TextField()
+    attachment_file = models.FileField(upload_to="learning/lms_assignments/", blank=True, null=True)
+    due_at = models.DateTimeField(null=True, blank=True)
+    max_score = models.DecimalField(max_digits=6, decimal_places=2, default=100)
+    allow_late_submissions = models.BooleanField(default=True)
+    is_published = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ("due_at", "-created_at")
+
+    def clean(self):
+        self.title = (self.title or "").strip()
+        self.instructions = (self.instructions or "").strip()
+        if not self.title:
+            raise ValidationError("Assignment title is required.")
+        if not self.instructions:
+            raise ValidationError("Assignment instructions are required.")
+        if self.max_score <= 0:
+            raise ValidationError("Assignment max score must be greater than zero.")
+        if self.module_id and self.module.classroom_id != self.classroom_id:
+            raise ValidationError("Selected module does not belong to the classroom.")
+
+    def __str__(self):
+        return f"{self.classroom.title}: {self.title}"
+
+
+class LMSLessonProgress(TimeStampedModel):
+    lesson = models.ForeignKey(
+        LMSLesson,
+        on_delete=models.CASCADE,
+        related_name="progress_rows",
+    )
+    student = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="lms_lesson_progress",
+    )
+    is_completed = models.BooleanField(default=False)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    last_opened_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ("-updated_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("lesson", "student"),
+                name="unique_lms_lesson_progress_per_student",
+            )
+        ]
+
+    def clean(self):
+        if self.student_id and hasattr(self.student, "has_role") and not self.student.has_role("STUDENT"):
+            raise ValidationError("Lesson progress can only target student accounts.")
+
+    def __str__(self):
+        return f"{self.student} -> {self.lesson}"
+
+
+class LMSAssignmentSubmission(TimeStampedModel):
+    assignment = models.ForeignKey(
+        LMSAssignment,
+        on_delete=models.CASCADE,
+        related_name="submissions",
+    )
+    student = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="lms_assignment_submissions",
+    )
+    submission_text = models.TextField(blank=True)
+    submission_file = models.FileField(upload_to="learning/lms_submissions/", blank=True, null=True)
+    status = models.CharField(
+        max_length=24,
+        choices=LMSSubmissionStatus.choices,
+        default=LMSSubmissionStatus.DRAFT,
+    )
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    score = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    feedback = models.TextField(blank=True)
+    graded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="graded_lms_submissions",
+    )
+    graded_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ("-updated_at",)
+        constraints = [
+            models.UniqueConstraint(
+                fields=("assignment", "student"),
+                name="unique_lms_submission_per_assignment_student",
+            )
+        ]
+
+    def clean(self):
+        if self.student_id and hasattr(self.student, "has_role") and not self.student.has_role("STUDENT"):
+            raise ValidationError("Assignment submissions can only target student accounts.")
+        self.submission_text = (self.submission_text or "").strip()
+        self.feedback = (self.feedback or "").strip()
+        has_payload = bool(self.submission_text or self.submission_file)
+        if self.status in {LMSSubmissionStatus.SUBMITTED, LMSSubmissionStatus.GRADED, LMSSubmissionStatus.REVISION_REQUIRED} and not has_payload:
+            raise ValidationError("Provide submission text or a file before submitting.")
+        if self.score is not None and self.score < 0:
+            raise ValidationError("Submission score cannot be negative.")
+        if self.score is not None and self.assignment_id and self.score > self.assignment.max_score:
+            raise ValidationError("Submission score cannot exceed the assignment max score.")
+
+    def save(self, *args, **kwargs):
+        if self.status in {LMSSubmissionStatus.SUBMITTED, LMSSubmissionStatus.GRADED, LMSSubmissionStatus.REVISION_REQUIRED} and self.submitted_at is None:
+            self.submitted_at = timezone.now()
+        if self.status in {LMSSubmissionStatus.GRADED, LMSSubmissionStatus.REVISION_REQUIRED} and self.graded_at is None:
+            self.graded_at = timezone.now()
+        if self.status == LMSSubmissionStatus.SUBMITTED:
+            self.score = None
+            self.feedback = ""
+            self.graded_by = None
+            self.graded_at = None
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.student} -> {self.assignment}"
+
+
+class LMSDiscussionComment(TimeStampedModel):
+    classroom = models.ForeignKey(
+        LMSClassroom,
+        on_delete=models.CASCADE,
+        related_name="discussion_comments",
+    )
+    module = models.ForeignKey(
+        LMSModule,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="discussion_comments",
+    )
+    assignment = models.ForeignKey(
+        LMSAssignment,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="discussion_comments",
+    )
+    author = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="lms_discussion_comments",
+    )
+    body = models.TextField()
+    is_staff_note = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ("-created_at",)
+
+    def clean(self):
+        self.body = (self.body or "").strip()
+        if not self.body:
+            raise ValidationError("Comment body is required.")
+        if self.module_id and self.module.classroom_id != self.classroom_id:
+            raise ValidationError("Selected module does not belong to the classroom.")
+        if self.assignment_id and self.assignment.classroom_id != self.classroom_id:
+            raise ValidationError("Selected assignment does not belong to the classroom.")
+
+    def __str__(self):
+        return f"{self.author} -> {self.classroom}"
 
 
 class VaultDocumentCategory(models.TextChoices):

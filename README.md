@@ -26,7 +26,7 @@ It supports:
 - Parents and guardians
 - Subject teachers
 - Form teachers
-- Deans
+- Dean
 - Vice Principal
 - Principal
 - Bursar
@@ -96,8 +96,16 @@ It supports:
 - student AI tutor
 - weekly challenge activities
 
-Important note:
-This is not yet a full traditional LMS with course progression, assignment submission tracking, and classroom discussion threads. It currently includes a light LMS-style learning hub inside the broader portal.
+### 8. LMS Classroom Layer
+- classroom spaces linked to teacher subject assignments
+- module-by-module learning path
+- lesson publishing with notes and attachments
+- assignment publishing with due dates
+- student submission workflow
+- teacher grading and feedback loop
+- lesson completion tracking
+- class discussion/comments
+- offline-first student access for previously visited learning pages
 
 ## Architecture Decision
 
@@ -148,13 +156,29 @@ The portal no longer uses normal automatic web-app sync as an everyday workflow.
 Current model:
 - work is done on LAN
 - cloud serves external viewing and access needs
-- updates from LAN to cloud are pushed manually by IT when required
-- cloud-to-LAN pulls can still be done where operationally necessary
+- approved academic data is published from LAN to cloud in controlled releases
+- cloud finance events can be pulled into LAN in controlled deltas
+- updates happen manually by IT when required
 
 This means:
 - the school database on LAN is treated as the primary operational source
 - cloud can be refreshed on a daily, weekly, or controlled schedule
 - if cloud fails, LAN still holds the live working record base
+
+### Authority Split
+
+- LAN is authoritative for academics, attendance, CBT, operational finance work, and internal records
+- Cloud is authoritative for parent-facing online payment events and selected external profile updates
+- Final published results move up to cloud as release data, not as live draft tables
+- Cloud payment events move down to LAN through protected delta export and reconciliation tools
+
+### Reconciliation and Audit Protection
+
+- Finance delta pull only imports cloud-authoritative payment records
+- LAN never blindly deletes payment records during imports
+- reconciliation events are logged as imported, duplicate, skipped, or conflict
+- result score edits now keep before/after audit metadata for academic integrity
+- manual publication remains versionable and traceable through audit records
 
 ## Role Summary
 
@@ -216,7 +240,16 @@ This means:
 
 ### Finance
 1. Bursar manages charges and payment records on LAN.
-2. Student and parent-facing finance visibility remains available through cloud access as updated.
+2. Parent-facing online payments can originate on cloud.
+3. IT or bursar refreshes cloud payment deltas into LAN when needed.
+4. Student and parent-facing finance visibility remains available through cloud access as updated.
+
+### LMS
+1. Teacher opens a classroom tied to an academic assignment.
+2. Modules, lessons, and assignments are published in sequence.
+3. Students open lessons, mark completion, and submit assignments.
+4. Teacher reviews, grades, and returns feedback.
+5. Classroom discussion stays attached to the learning flow.
 
 ## Technical Shape
 

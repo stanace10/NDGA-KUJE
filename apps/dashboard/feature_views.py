@@ -1,8 +1,9 @@
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Count, Q
+from django.db.models import Count, Prefetch, Q
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
+from django.utils import timezone
 from django.views.generic import TemplateView
 
 from apps.accounts.constants import ROLE_DEAN, ROLE_IT_MANAGER, ROLE_PRINCIPAL, ROLE_VP
@@ -15,15 +16,90 @@ from apps.dashboard.forms import (
     DocumentVaultUploadForm,
     LearningResourceForm,
     LessonPlannerForm,
+    LMSAssignmentForm,
+    LMSAssignmentGradingForm,
+    LMSClassroomForm,
+    LMSDiscussionCommentForm,
+    LMSLessonForm,
+    LMSModuleForm,
+    LMSSubmissionForm,
     StudentClubMembershipForm,
     WeeklyChallengeForm,
     WeeklyChallengeSubmissionForm,
 )
-from apps.dashboard.models import Club, LearningResource, LearningResourceCategory, LessonPlanDraft, PortalDocument, StudentClubMembership, WeeklyChallenge, WeeklyChallengeSubmission
+from apps.dashboard.models import (
+    Club,
+    LearningResource,
+    LearningResourceCategory,
+    LessonPlanDraft,
+    LMSAssignment,
+    LMSAssignmentSubmission,
+    LMSClassroom,
+    LMSDiscussionComment,
+    LMSLesson,
+    LMSLessonProgress,
+    LMSModule,
+    LMSSubmissionStatus,
+    PortalDocument,
+    StudentClubMembership,
+    WeeklyChallenge,
+    WeeklyChallengeSubmission,
+)
 from apps.dashboard.views import PortalPageView, StudentPortalBaseView, StaffPortalBaseView, _current_window, _student_dashboard_payload
 from apps.notifications.services import notify_assignment_deadline
 from apps.pdfs.services import qr_code_data_uri
 from apps.tenancy.utils import build_portal_url
+
+
+def _student_lms_classroom_queryset(*, payload):
+    current_session = payload.get("current_session")
+    current_term = payload.get("current_term")
+    current_enrollment = payload.get("current_enrollment")
+    offered_subjects = payload.get("offered_subjects") or []
+    subject_ids = [row.subject_id for row in offered_subjects]
+
+    classroom_qs = LMSClassroom.objects.filter(
+        is_published=True,
+        teacher_assignment__is_active=True,
+    ).select_related(
+        "teacher_assignment__teacher",
+        "teacher_assignment__academic_class",
+        "teacher_assignment__subject",
+        "teacher_assignment__session",
+        "teacher_assignment__term",
+    )
+    if current_session:
+        classroom_qs = classroom_qs.filter(teacher_assignment__session=current_session)
+    if current_term:
+        classroom_qs = classroom_qs.filter(teacher_assignment__term=current_term)
+    if current_enrollment:
+        cohort_ids = current_enrollment.academic_class.instructional_class.cohort_class_ids()
+        classroom_qs = classroom_qs.filter(teacher_assignment__academic_class_id__in=cohort_ids)
+    else:
+        classroom_qs = classroom_qs.none()
+    if subject_ids:
+        classroom_qs = classroom_qs.filter(teacher_assignment__subject_id__in=subject_ids)
+    else:
+        classroom_qs = classroom_qs.none()
+    return classroom_qs.order_by(
+        "teacher_assignment__academic_class__code",
+        "teacher_assignment__subject__name",
+    ).distinct()
+
+
+def _teacher_lms_classroom_queryset(*, teacher):
+    return LMSClassroom.objects.filter(
+        teacher_assignment__teacher=teacher,
+        teacher_assignment__is_active=True,
+    ).select_related(
+        "teacher_assignment__academic_class",
+        "teacher_assignment__subject",
+        "teacher_assignment__session",
+        "teacher_assignment__term",
+    ).order_by(
+        "teacher_assignment__academic_class__code",
+        "teacher_assignment__subject__name",
+    )
 
 
 class StudentLearningHubView(StudentPortalBaseView):
@@ -132,6 +208,353 @@ class StudentLearningHubView(StudentPortalBaseView):
                 tutor_reply=tutor_reply,
             )
         )
+
+
+class StudentLMSView(StudentPortalBaseView):
+    template_name = "dashboard/student_lms.html"
+    portal_description = "Follow classroom modules, complete lessons, submit work, and read teacher feedback."
+
+    def _selected_classroom(self, classroom_qs):
+        raw_id = (self.request.GET.get("classroom") or self.request.POST.get("classroom_id") or "").strip()
+        if raw_id.isdigit():
+            row = classroom_qs.filter(pk=int(raw_id)).first()
+            if row is not None:
+                return row
+        return classroom_qs.first()
+
+    def _selected_assignment(self, assignment_qs):
+        raw_id = (self.request.GET.get("assignment") or self.request.POST.get("assignment_id") or "").strip()
+        if raw_id.isdigit():
+            row = assignment_qs.filter(pk=int(raw_id)).first()
+            if row is not None:
+                return row
+        return assignment_qs.first()
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        payload = _student_dashboard_payload(self.request, self.request.user)
+        context.update(payload)
+
+        classroom_qs = _student_lms_classroom_queryset(payload=payload)
+        selected_classroom = kwargs.get("selected_classroom") or self._selected_classroom(classroom_qs)
+        assignment_qs = LMSAssignment.objects.none()
+        selected_assignment = None
+        submission_rows = {}
+        progress_rows = {}
+        module_rows = []
+        comment_rows = []
+        completed_lessons = 0
+        total_lessons = 0
+
+        if selected_classroom is not None:
+            module_qs = LMSModule.objects.filter(
+                classroom=selected_classroom,
+                is_published=True,
+            ).prefetch_related(
+                Prefetch(
+                    "lessons",
+                    queryset=LMSLesson.objects.filter(is_published=True).order_by("sort_order", "created_at"),
+                )
+            )
+            module_rows = list(module_qs.order_by("sort_order", "created_at"))
+            lesson_ids = [lesson.id for module in module_rows for lesson in module.lessons.all()]
+            progress_rows = {
+                row.lesson_id: row
+                for row in LMSLessonProgress.objects.filter(
+                    lesson_id__in=lesson_ids,
+                    student=self.request.user,
+                )
+            }
+            total_lessons = len(lesson_ids)
+            completed_lessons = sum(1 for row in progress_rows.values() if row.is_completed)
+            assignment_qs = LMSAssignment.objects.filter(
+                classroom=selected_classroom,
+                is_published=True,
+            ).order_by("due_at", "-created_at")
+            submission_rows = {
+                row.assignment_id: row
+                for row in LMSAssignmentSubmission.objects.filter(
+                    assignment__in=assignment_qs,
+                    student=self.request.user,
+                ).select_related("graded_by")
+            }
+            comment_rows = list(
+                LMSDiscussionComment.objects.filter(classroom=selected_classroom)
+                .select_related("author", "module", "assignment")
+                .order_by("-created_at")[:20]
+            )
+            selected_assignment = kwargs.get("selected_assignment") or self._selected_assignment(assignment_qs)
+
+        context["classroom_rows"] = list(classroom_qs)
+        context["selected_classroom"] = selected_classroom
+        context["module_rows"] = module_rows
+        context["assignment_rows"] = list(assignment_qs)
+        context["selected_assignment"] = selected_assignment
+        context["submission_rows"] = submission_rows
+        context["progress_rows"] = progress_rows
+        context["comment_rows"] = comment_rows
+        context["completed_lessons"] = completed_lessons
+        context["total_lessons"] = total_lessons
+        context["completion_percent"] = int((completed_lessons / total_lessons) * 100) if total_lessons else 0
+        context["submission_form"] = kwargs.get("submission_form") or LMSSubmissionForm(
+            instance=submission_rows.get(getattr(selected_assignment, "id", None))
+        )
+        context["comment_form"] = kwargs.get("comment_form") or LMSDiscussionCommentForm(
+            student=self.request.user,
+            classroom=selected_classroom,
+        )
+        return context
+
+    def post(self, request, *args, **kwargs):
+        payload = _student_dashboard_payload(self.request, self.request.user)
+        classroom_qs = _student_lms_classroom_queryset(payload=payload)
+        selected_classroom = self._selected_classroom(classroom_qs)
+        if selected_classroom is None:
+            messages.error(request, "No classroom is available for your current subjects.")
+            return redirect("dashboard:student-lms")
+
+        action = (request.POST.get("action") or "").strip().lower()
+        redirect_url = f"{reverse('dashboard:student-lms')}?classroom={selected_classroom.id}"
+
+        if action == "mark_lesson_complete":
+            lesson = get_object_or_404(
+                LMSLesson.objects.filter(module__classroom=selected_classroom, is_published=True),
+                pk=request.POST.get("lesson_id"),
+            )
+            progress_row, _created = LMSLessonProgress.objects.get_or_create(
+                lesson=lesson,
+                student=request.user,
+            )
+            progress_row.last_opened_at = timezone.now()
+            progress_row.is_completed = True
+            if progress_row.completed_at is None:
+                progress_row.completed_at = timezone.now()
+            progress_row.save()
+            messages.success(request, "Lesson marked as completed.")
+            return redirect(redirect_url)
+
+        if action == "submit_assignment":
+            assignment = get_object_or_404(
+                LMSAssignment.objects.filter(classroom=selected_classroom, is_published=True),
+                pk=request.POST.get("assignment_id"),
+            )
+            submission = LMSAssignmentSubmission.objects.filter(
+                assignment=assignment,
+                student=request.user,
+            ).first()
+            submission_form = LMSSubmissionForm(request.POST, request.FILES, instance=submission)
+            if not submission_form.is_valid():
+                return self.render_to_response(
+                    self.get_context_data(
+                        selected_classroom=selected_classroom,
+                        selected_assignment=assignment,
+                        submission_form=submission_form,
+                    )
+                )
+            submission_row = submission_form.save(commit=False)
+            submission_row.assignment = assignment
+            submission_row.student = request.user
+            submission_row.status = LMSSubmissionStatus.SUBMITTED
+            submission_row.save()
+            messages.success(request, "Assignment submitted successfully.")
+            return redirect(f"{redirect_url}&assignment={assignment.id}")
+
+        if action == "post_comment":
+            comment_form = LMSDiscussionCommentForm(
+                request.POST,
+                student=request.user,
+                classroom=selected_classroom,
+            )
+            if not comment_form.is_valid():
+                return self.render_to_response(
+                    self.get_context_data(
+                        selected_classroom=selected_classroom,
+                        comment_form=comment_form,
+                    )
+                )
+            comment_row = comment_form.save(commit=False)
+            comment_row.author = request.user
+            comment_row.classroom = selected_classroom
+            comment_row.is_staff_note = False
+            comment_row.save()
+            messages.success(request, "Comment posted.")
+            return redirect(redirect_url)
+
+        messages.error(request, "Unknown LMS action.")
+        return redirect(redirect_url)
+
+
+class TeacherLMSView(StaffPortalBaseView):
+    template_name = "dashboard/staff_lms.html"
+    portal_description = "Build classroom modules, publish lessons, set assignments, and grade submissions."
+
+    def _selected_classroom(self, classroom_qs):
+        raw_id = (self.request.GET.get("classroom") or self.request.POST.get("classroom_id") or "").strip()
+        if raw_id.isdigit():
+            row = classroom_qs.filter(pk=int(raw_id)).first()
+            if row is not None:
+                return row
+        return classroom_qs.first()
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        classroom_qs = _teacher_lms_classroom_queryset(teacher=self.request.user)
+        selected_classroom = kwargs.get("selected_classroom") or self._selected_classroom(classroom_qs)
+
+        module_rows = []
+        assignment_rows = []
+        submission_rows = []
+        comment_rows = []
+        if selected_classroom is not None:
+            module_rows = list(
+                LMSModule.objects.filter(classroom=selected_classroom)
+                .prefetch_related(Prefetch("lessons", queryset=LMSLesson.objects.order_by("sort_order", "created_at")))
+                .order_by("sort_order", "created_at")
+            )
+            assignment_rows = list(
+                LMSAssignment.objects.filter(classroom=selected_classroom)
+                .order_by("due_at", "-created_at")
+            )
+            submission_rows = list(
+                LMSAssignmentSubmission.objects.filter(assignment__classroom=selected_classroom)
+                .select_related("assignment", "student__student_profile", "graded_by")
+                .order_by("status", "-updated_at")[:30]
+            )
+            comment_rows = list(
+                LMSDiscussionComment.objects.filter(classroom=selected_classroom)
+                .select_related("author", "module", "assignment")
+                .order_by("-created_at")[:20]
+            )
+
+        context["classroom_rows"] = list(classroom_qs)
+        context["selected_classroom"] = selected_classroom
+        context["module_rows"] = module_rows
+        context["assignment_rows"] = assignment_rows
+        context["submission_rows"] = submission_rows
+        context["comment_rows"] = comment_rows
+        context["classroom_form"] = kwargs.get("classroom_form") or LMSClassroomForm(teacher=self.request.user)
+        context["module_form"] = kwargs.get("module_form") or LMSModuleForm(
+            teacher=self.request.user,
+            initial={"classroom": getattr(selected_classroom, "pk", None)},
+        )
+        context["lesson_form"] = kwargs.get("lesson_form") or LMSLessonForm(
+            teacher=self.request.user,
+            classroom=selected_classroom,
+        )
+        context["assignment_form"] = kwargs.get("assignment_form") or LMSAssignmentForm(
+            teacher=self.request.user,
+            classroom=selected_classroom,
+        )
+        context["comment_form"] = kwargs.get("comment_form") or LMSDiscussionCommentForm(
+            teacher=self.request.user,
+            classroom=selected_classroom,
+        )
+        context["grading_form_class"] = LMSAssignmentGradingForm
+        return context
+
+    def post(self, request, *args, **kwargs):
+        classroom_qs = _teacher_lms_classroom_queryset(teacher=request.user)
+        selected_classroom = self._selected_classroom(classroom_qs)
+        action = (request.POST.get("action") or "").strip().lower()
+        redirect_url = reverse("dashboard:teacher-lms")
+        if selected_classroom is not None:
+            redirect_url = f"{redirect_url}?classroom={selected_classroom.id}"
+
+        if action == "create_classroom":
+            classroom_form = LMSClassroomForm(request.POST, teacher=request.user)
+            if not classroom_form.is_valid():
+                return self.render_to_response(self.get_context_data(classroom_form=classroom_form))
+            classroom_row = classroom_form.save()
+            messages.success(request, "Classroom created.")
+            return redirect(f"{reverse('dashboard:teacher-lms')}?classroom={classroom_row.id}")
+
+        if selected_classroom is None:
+            messages.error(request, "Create a classroom first before adding LMS content.")
+            return redirect(reverse("dashboard:teacher-lms"))
+
+        if action == "create_module":
+            module_form = LMSModuleForm(request.POST, teacher=request.user)
+            if not module_form.is_valid():
+                return self.render_to_response(
+                    self.get_context_data(
+                        selected_classroom=selected_classroom,
+                        module_form=module_form,
+                    )
+                )
+            module_form.save()
+            messages.success(request, "Module created.")
+            return redirect(redirect_url)
+
+        if action == "create_lesson":
+            lesson_form = LMSLessonForm(request.POST, request.FILES, teacher=request.user, classroom=selected_classroom)
+            if not lesson_form.is_valid():
+                return self.render_to_response(
+                    self.get_context_data(
+                        selected_classroom=selected_classroom,
+                        lesson_form=lesson_form,
+                    )
+                )
+            lesson_form.save()
+            messages.success(request, "Lesson published.")
+            return redirect(redirect_url)
+
+        if action == "create_assignment":
+            assignment_form = LMSAssignmentForm(request.POST, request.FILES, teacher=request.user, classroom=selected_classroom)
+            if not assignment_form.is_valid():
+                return self.render_to_response(
+                    self.get_context_data(
+                        selected_classroom=selected_classroom,
+                        assignment_form=assignment_form,
+                    )
+                )
+            assignment_row = assignment_form.save()
+            if assignment_row.is_published and assignment_row.due_at:
+                notify_assignment_deadline(
+                    academic_class=assignment_row.classroom.teacher_assignment.academic_class,
+                    subject=assignment_row.classroom.teacher_assignment.subject,
+                    topic=assignment_row.title,
+                    due_date=assignment_row.due_at.date(),
+                    session=assignment_row.classroom.teacher_assignment.session,
+                    actor=request.user,
+                    request=request,
+                )
+            messages.success(request, "Assignment published.")
+            return redirect(f"{redirect_url}&assignment={assignment_row.id}")
+
+        if action == "grade_submission":
+            submission = get_object_or_404(
+                LMSAssignmentSubmission.objects.filter(assignment__classroom=selected_classroom),
+                pk=request.POST.get("submission_id"),
+            )
+            grading_form = LMSAssignmentGradingForm(request.POST, instance=submission, assignment=submission.assignment)
+            if not grading_form.is_valid():
+                messages.error(request, "Please correct the grading form and try again.")
+                return redirect(f"{redirect_url}&assignment={submission.assignment_id}")
+            submission_row = grading_form.save(commit=False)
+            submission_row.graded_by = request.user
+            submission_row.save()
+            messages.success(request, "Submission graded.")
+            return redirect(f"{redirect_url}&assignment={submission.assignment_id}")
+
+        if action == "post_comment":
+            comment_form = LMSDiscussionCommentForm(request.POST, teacher=request.user, classroom=selected_classroom)
+            if not comment_form.is_valid():
+                return self.render_to_response(
+                    self.get_context_data(
+                        selected_classroom=selected_classroom,
+                        comment_form=comment_form,
+                    )
+                )
+            comment_row = comment_form.save(commit=False)
+            comment_row.author = request.user
+            comment_row.classroom = selected_classroom
+            comment_row.is_staff_note = True
+            comment_row.save()
+            messages.success(request, "Classroom comment posted.")
+            return redirect(redirect_url)
+
+        messages.error(request, "Unknown LMS action.")
+        return redirect(redirect_url)
 
 
 class StudentDigitalIDView(StudentPortalBaseView):

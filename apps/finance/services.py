@@ -8,6 +8,7 @@ from datetime import date, datetime, timedelta
 from dataclasses import dataclass
 from decimal import Decimal
 from urllib import error as url_error
+from urllib import parse as url_parse
 from urllib import request as url_request
 
 from django.conf import settings
@@ -21,14 +22,18 @@ from django.test import RequestFactory
 from django.urls import reverse
 from django.utils import timezone
 
-from apps.academics.models import StudentClassEnrollment
+from apps.academics.models import AcademicSession, StudentClassEnrollment
 from apps.accounts.models import User
 from apps.audit.models import AuditCategory, AuditStatus
 from apps.audit.services import log_event, log_finance_transaction
 from apps.finance.models import (
     ChargeTargetType,
     Expense,
+    FinanceDataAuthority,
     FinanceInstitutionProfile,
+    FinanceDeltaSyncCursor,
+    FinanceReconciliationEvent,
+    FinanceReconciliationStatus,
     FinanceReminderDispatch,
     InventoryAsset,
     Payment,
@@ -56,6 +61,12 @@ from apps.tenancy.utils import build_portal_url
 
 def _money(value):
     return Decimal(value or 0).quantize(Decimal("0.01"))
+
+
+def _current_finance_authority():
+    from apps.sync.services import current_sync_node_role
+
+    return FinanceDataAuthority.CLOUD if current_sync_node_role() == "CLOUD" else FinanceDataAuthority.LAN
 
 
 def _money_to_minor_units(value):
@@ -328,7 +339,11 @@ def record_manual_payment(
     gateway_reference="",
     note="",
     request=None,
+    source_authority=None,
+    source_updated_at=None,
 ):
+    resolved_authority = source_authority or _current_finance_authority()
+    resolved_source_updated_at = source_updated_at or timezone.now()
     payment = Payment.objects.create(
         student=student,
         session=session,
@@ -339,6 +354,8 @@ def record_manual_payment(
         note=note,
         payment_date=payment_date,
         received_by=received_by if getattr(received_by, "is_authenticated", False) else None,
+        source_authority=resolved_authority,
+        source_updated_at=resolved_source_updated_at,
     )
     payload = build_receipt_payload(payment)
     payload_hash = payload_sha256(payload)
@@ -838,6 +855,8 @@ def initialize_gateway_payment_transaction(
             "init_source": "BURSAR" if initiated_by and initiated_by.has_role("BURSAR") else "STUDENT_OR_SYSTEM",
             "auto_email_link": bool(auto_email_link),
         },
+        source_authority=_current_finance_authority(),
+        source_updated_at=timezone.now(),
     )
 
     if selected_provider == PaymentGatewayProvider.PAYSTACK:
@@ -1058,11 +1077,19 @@ def verify_gateway_payment_transaction(*, gateway_transaction, actor=None, reque
             gateway_reference=transaction_row.reference,
             note="Recorded from live gateway verification.",
             request=request,
+            source_authority=FinanceDataAuthority.CLOUD,
+            source_updated_at=timezone.now(),
         )
+    elif payment.source_authority != FinanceDataAuthority.CLOUD:
+        payment.source_authority = FinanceDataAuthority.CLOUD
+        payment.source_updated_at = timezone.now()
+        payment.save(update_fields=["source_authority", "source_updated_at", "updated_at"])
     transaction_row.status = PaymentGatewayStatus.PAID
     transaction_row.paid_at = timezone.now()
     transaction_row.payment = payment
     transaction_row.failure_reason = ""
+    transaction_row.source_authority = FinanceDataAuthority.CLOUD
+    transaction_row.source_updated_at = timezone.now()
     transaction_row.save(
         update_fields=[
             "status",
@@ -1071,6 +1098,8 @@ def verify_gateway_payment_transaction(*, gateway_transaction, actor=None, reque
             "payment",
             "failure_reason",
             "metadata",
+            "source_authority",
+            "source_updated_at",
             "updated_at",
         ]
     )
@@ -1086,6 +1115,281 @@ def verify_gateway_payment_by_reference(*, reference, actor=None, request=None):
         actor=actor,
         request=request,
     )
+
+
+def _isoformat_or_blank(value):
+    return value.isoformat() if value else ""
+
+
+def finance_payment_delta_payload(*, updated_since=None, limit=250):
+    queryset = PaymentGatewayTransaction.objects.select_related(
+        "student",
+        "session",
+        "term",
+        "payment__receipt",
+    ).filter(
+        payment__isnull=False,
+        source_authority=FinanceDataAuthority.CLOUD,
+    ).order_by("source_updated_at", "updated_at", "reference")
+    if updated_since is not None:
+        queryset = queryset.filter(
+            Q(source_updated_at__gt=updated_since)
+            | Q(updated_at__gt=updated_since)
+            | Q(payment__source_updated_at__gt=updated_since)
+            | Q(payment__updated_at__gt=updated_since)
+        )
+    rows = list(queryset[: max(1, min(int(limit), 500))])
+    items = []
+    latest_ts = updated_since
+    for row in rows:
+        payment = row.payment
+        receipt = getattr(payment, "receipt", None) if payment else None
+        payment_updated_at = payment.source_updated_at or payment.updated_at if payment else None
+        remote_updated_at = max(
+            [value for value in (row.source_updated_at, row.updated_at, payment_updated_at) if value],
+            default=row.updated_at,
+        )
+        items.append(
+            {
+                "reference": row.reference,
+                "provider": row.provider,
+                "status": row.status,
+                "gateway_reference": row.gateway_reference,
+                "amount": str(row.amount),
+                "student_username": row.student.username,
+                "student_email": row.student.email,
+                "session_name": row.session.name,
+                "term_name": row.term.name if row.term_id else "",
+                "remote_updated_at": _isoformat_or_blank(remote_updated_at),
+                "payment": {
+                    "amount": str(payment.amount) if payment else "",
+                    "payment_method": payment.payment_method if payment else "",
+                    "payment_date": payment.payment_date.isoformat() if payment else "",
+                    "note": payment.note if payment else "",
+                    "is_void": bool(payment.is_void) if payment else False,
+                },
+                "receipt": {
+                    "receipt_number": receipt.receipt_number if receipt else "",
+                    "payload_hash": receipt.payload_hash if receipt else "",
+                    "issued_at": _isoformat_or_blank(receipt.issued_at if receipt else None),
+                    "metadata": receipt.metadata if receipt else {},
+                },
+            }
+        )
+        if remote_updated_at and (latest_ts is None or remote_updated_at > latest_ts):
+            latest_ts = remote_updated_at
+    return {
+        "items": items,
+        "latest_timestamp": _isoformat_or_blank(latest_ts),
+        "count": len(items),
+    }
+
+
+def _finance_payment_export_url():
+    configured = (getattr(settings, "FINANCE_CLOUD_EXPORT_ENDPOINT", "") or "").strip()
+    if configured:
+        return configured
+    base = (getattr(settings, "SYNC_CLOUD_ENDPOINT", "") or "").strip()
+    if not base:
+        return ""
+    parsed = url_parse.urlparse(base)
+    return url_parse.urlunparse(parsed._replace(path="/finance/api/manual-export/payments/", query="", params="", fragment=""))
+
+
+def reconcile_cloud_payment_item(*, payload, actor=None, request=None):
+    reference = str(payload.get("reference") or "").strip()
+    if not reference:
+        raise ValidationError("Payment delta item requires a reference.")
+    gateway_reference = str(payload.get("gateway_reference") or reference).strip()
+    student_username = str(payload.get("student_username") or "").strip()
+    session_name = str(payload.get("session_name") or "").strip()
+    term_name = str(payload.get("term_name") or "").strip()
+    payment_payload = dict(payload.get("payment") or {})
+    receipt_payload = dict(payload.get("receipt") or {})
+    remote_updated_raw = str(payload.get("remote_updated_at") or "").strip()
+    remote_updated_at = datetime.fromisoformat(remote_updated_raw) if remote_updated_raw else timezone.now()
+    if timezone.is_naive(remote_updated_at):
+        remote_updated_at = timezone.make_aware(remote_updated_at, timezone.get_current_timezone())
+
+    student = User.objects.filter(username=student_username).first()
+    session = get_setup_state().current_session
+    if session_name:
+        session = AcademicSession.objects.filter(name=session_name).first() or session
+    term = None
+    if session and term_name:
+        term = session.terms.filter(name=term_name).first()
+    if student is None or session is None:
+        event = FinanceReconciliationEvent.objects.create(
+            status=FinanceReconciliationStatus.SKIPPED,
+            reference=reference,
+            gateway_reference=gateway_reference,
+            notes="Student or session was not resolved during finance pull.",
+            payload=payload,
+            resolved_by=actor if getattr(actor, "is_authenticated", False) else None,
+        )
+        return event
+
+    existing_payment = Payment.objects.filter(
+        Q(gateway_reference=gateway_reference) | Q(gateway_reference=reference)
+    ).select_related("receipt").first()
+    if existing_payment and (
+        existing_payment.student_id != student.id
+        or existing_payment.session_id != session.id
+        or _money(existing_payment.amount) != _money(payment_payload.get("amount"))
+    ):
+        return FinanceReconciliationEvent.objects.create(
+            status=FinanceReconciliationStatus.CONFLICT,
+            reference=reference,
+            gateway_reference=gateway_reference,
+            payment=existing_payment,
+            notes="Existing LAN payment conflicts with pulled cloud payment payload.",
+            payload=payload,
+            resolved_by=actor if getattr(actor, "is_authenticated", False) else None,
+        )
+
+    gateway_txn, _created = PaymentGatewayTransaction.objects.get_or_create(
+        reference=reference,
+        defaults={
+            "provider": payload.get("provider") or PaymentGatewayProvider.PAYSTACK,
+            "status": payload.get("status") or PaymentGatewayStatus.PAID,
+            "student": student,
+            "session": session,
+            "term": term,
+            "amount": _money(payload.get("amount")),
+            "gateway_reference": gateway_reference[:180],
+            "source_authority": FinanceDataAuthority.CLOUD,
+            "source_updated_at": remote_updated_at,
+            "verified_at": remote_updated_at,
+            "paid_at": remote_updated_at,
+        },
+    )
+    if gateway_txn.source_updated_at and gateway_txn.source_updated_at >= remote_updated_at and gateway_txn.payment_id:
+        return FinanceReconciliationEvent.objects.create(
+            status=FinanceReconciliationStatus.DUPLICATE,
+            reference=reference,
+            gateway_reference=gateway_reference,
+            gateway_transaction=gateway_txn,
+            payment=gateway_txn.payment,
+            notes="Incoming cloud payment delta is not newer than the current local record.",
+            payload=payload,
+            resolved_by=actor if getattr(actor, "is_authenticated", False) else None,
+        )
+
+    payment = existing_payment
+    if payment is None:
+        payment = Payment.objects.create(
+            student=student,
+            session=session,
+            term=term,
+            amount=_money(payment_payload.get("amount")),
+            payment_method=payment_payload.get("payment_method") or "GATEWAY",
+            gateway_reference=gateway_reference[:120],
+            note=(payment_payload.get("note") or "Imported from cloud payment delta.")[:1000],
+            payment_date=date.fromisoformat(payment_payload.get("payment_date")) if payment_payload.get("payment_date") else timezone.localdate(),
+            received_by=None,
+            is_void=bool(payment_payload.get("is_void")),
+            source_authority=FinanceDataAuthority.CLOUD,
+            source_updated_at=remote_updated_at,
+        )
+    else:
+        payment.source_authority = FinanceDataAuthority.CLOUD
+        payment.source_updated_at = remote_updated_at
+        payment.note = (payment_payload.get("note") or payment.note or "")[:1000]
+        payment.is_void = bool(payment_payload.get("is_void"))
+        payment.save(update_fields=["source_authority", "source_updated_at", "note", "is_void", "updated_at"])
+
+    gateway_txn.provider = payload.get("provider") or gateway_txn.provider
+    gateway_txn.status = payload.get("status") or gateway_txn.status
+    gateway_txn.student = student
+    gateway_txn.session = session
+    gateway_txn.term = term
+    gateway_txn.amount = _money(payload.get("amount"))
+    gateway_txn.gateway_reference = gateway_reference[:180]
+    gateway_txn.payment = payment
+    gateway_txn.verified_at = remote_updated_at
+    gateway_txn.paid_at = remote_updated_at
+    gateway_txn.source_authority = FinanceDataAuthority.CLOUD
+    gateway_txn.source_updated_at = remote_updated_at
+    gateway_txn.save()
+
+    receipt_number = str(receipt_payload.get("receipt_number") or "").strip()
+    if receipt_number and not getattr(payment, "receipt", None):
+        Receipt.objects.create(
+            payment=payment,
+            receipt_number=receipt_number[:40],
+            payload_hash=str(receipt_payload.get("payload_hash") or hashlib.sha256(reference.encode("utf-8")).hexdigest()),
+            issued_at=datetime.fromisoformat(receipt_payload.get("issued_at")) if receipt_payload.get("issued_at") else timezone.now(),
+            generated_by=None,
+            metadata=receipt_payload.get("metadata") or {},
+        )
+
+    event = FinanceReconciliationEvent.objects.create(
+        status=FinanceReconciliationStatus.IMPORTED,
+        reference=reference,
+        gateway_reference=gateway_reference,
+        payment=payment,
+        gateway_transaction=gateway_txn,
+        notes="Cloud payment delta imported into LAN without overwriting unrelated finance records.",
+        payload=payload,
+        resolved_by=actor if getattr(actor, "is_authenticated", False) else None,
+    )
+    log_finance_transaction(
+        actor=actor,
+        request=request,
+        metadata={
+            "action": "FINANCE_PAYMENT_DELTA_IMPORTED",
+            "reference": reference,
+            "payment_id": str(payment.id),
+            "gateway_transaction_id": str(gateway_txn.id),
+            "status": event.status,
+        },
+    )
+    return event
+
+
+def pull_cloud_payment_deltas(*, updated_since=None, actor=None, request=None, persist_cursor=True):
+    endpoint = _finance_payment_export_url()
+    if not endpoint:
+        raise ValidationError("Finance cloud export endpoint is not configured.")
+
+    if updated_since is None and persist_cursor:
+        cursor = FinanceDeltaSyncCursor.objects.filter(cursor_name="CLOUD_PAYMENTS").first()
+        updated_since = getattr(cursor, "last_synced_at", None)
+
+    url = endpoint
+    if updated_since is not None:
+        separator = "&" if "?" in url else "?"
+        url = f"{url}{separator}since={url_parse.quote(updated_since.isoformat())}"
+
+    request_obj = url_request.Request(url, method="GET")
+    token = (getattr(settings, "SYNC_ENDPOINT_AUTH_TOKEN", "") or "").strip()
+    if token:
+        request_obj.add_header("X-NDGA-Manual-Sync-Token", token)
+    try:
+        with url_request.urlopen(request_obj, timeout=20) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except (url_error.URLError, json.JSONDecodeError) as exc:
+        raise ValidationError(f"Unable to pull cloud payment deltas: {exc}") from exc
+
+    events = [reconcile_cloud_payment_item(payload=row, actor=actor, request=request) for row in (payload.get("items") or [])]
+    latest_timestamp_raw = str(payload.get("latest_timestamp") or "").strip()
+    latest_timestamp = datetime.fromisoformat(latest_timestamp_raw) if latest_timestamp_raw else updated_since
+    if latest_timestamp and timezone.is_naive(latest_timestamp):
+        latest_timestamp = timezone.make_aware(latest_timestamp, timezone.get_current_timezone())
+    if persist_cursor:
+        FinanceDeltaSyncCursor.objects.update_or_create(
+            cursor_name="CLOUD_PAYMENTS",
+            defaults={
+                "last_synced_at": latest_timestamp,
+                "last_reference": str(payload.get("items", [{}])[-1].get("reference", "")) if payload.get("items") else "",
+                "metadata": {"count": len(events)},
+            },
+        )
+    return {
+        "count": len(events),
+        "events": events,
+        "latest_timestamp": latest_timestamp,
+    }
 
 
 def dispatch_scheduled_fee_reminders(*, run_date=None, days_ahead=3, actor=None, request=None):

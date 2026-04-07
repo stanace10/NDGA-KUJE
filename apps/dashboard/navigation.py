@@ -430,6 +430,14 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                         matches=("/portal/staff/lesson-planner/",),
                     )
                 )
+                items.append(
+                    _nav_item(
+                        label="Classroom LMS",
+                        url="/portal/staff/lms/",
+                        request_path=request_path,
+                        matches=("/portal/staff/lms/",),
+                    )
+                )
             if ROLE_DEAN in role_codes:
                 items.append(
                     _nav_item(
@@ -524,6 +532,14 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                     url="/portal/staff/lesson-planner/",
                     request_path=request_path,
                     matches=("/portal/staff/lesson-planner/",),
+                )
+            )
+            items.append(
+                _nav_item(
+                    label="Classroom LMS",
+                    url="/portal/staff/lms/",
+                    request_path=request_path,
+                    matches=("/portal/staff/lms/",),
                 )
             )
         if ROLE_DEAN in role_codes:
@@ -965,6 +981,12 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                     url="/portal/student/learning-hub/",
                     request_path=request_path,
                     matches=("/portal/student/learning-hub/",),
+                ),
+                _nav_item(
+                    label="LMS Classroom",
+                    url="/portal/student/lms/",
+                    request_path=request_path,
+                    matches=("/portal/student/lms/",),
                 ),
                 _nav_item(
                     label="Weekly Challenge",

@@ -11,7 +11,24 @@ from apps.accounts.constants import (
     ROLE_VP,
 )
 from apps.accounts.models import User
-from apps.dashboard.models import Club, LearningResource, LessonPlanDraft, PortalDocument, SchoolProfile, StudentClubMembership, WeeklyChallenge, WeeklyChallengeSubmission
+from apps.dashboard.models import (
+    Club,
+    LearningResource,
+    LessonPlanDraft,
+    LMSAssignment,
+    LMSAssignmentSubmission,
+    LMSClassroom,
+    LMSDiscussionComment,
+    LMSLesson,
+    LMSLessonProgress,
+    LMSModule,
+    LMSSubmissionStatus,
+    PortalDocument,
+    SchoolProfile,
+    StudentClubMembership,
+    WeeklyChallenge,
+    WeeklyChallengeSubmission,
+)
 from apps.setup_wizard.services import get_setup_state
 from core.upload_scan import validate_document_upload
 
@@ -336,6 +353,210 @@ class LearningResourceForm(_StyledFormMixin, forms.ModelForm):
             if not assigned:
                 self.add_error("subject", "Select a class and subject combination assigned to you.")
         return cleaned
+
+
+class LMSClassroomForm(_StyledFormMixin, forms.ModelForm):
+    class Meta:
+        model = LMSClassroom
+        fields = ("teacher_assignment", "title", "overview", "welcome_note", "is_published")
+        widgets = {
+            "overview": forms.Textarea(attrs={"rows": 3}),
+            "welcome_note": forms.Textarea(attrs={"rows": 3}),
+        }
+
+    def __init__(self, *args, teacher=None, **kwargs):
+        self.teacher = teacher
+        super().__init__(*args, **kwargs)
+        assignment_qs = TeacherSubjectAssignment.objects.filter(is_active=True).select_related(
+            "academic_class", "subject", "session", "term"
+        )
+        if teacher is not None:
+            assignment_qs = assignment_qs.filter(teacher=teacher)
+        assignment_qs = assignment_qs.exclude(lms_classroom__isnull=False)
+        self.fields["teacher_assignment"].queryset = assignment_qs.order_by(
+            "academic_class__code", "subject__name"
+        )
+        self.fields["teacher_assignment"].label_from_instance = (
+            lambda row: f"{row.academic_class.code} - {row.subject.name} ({row.session.name} {row.term.get_name_display()})"
+        )
+
+
+class LMSModuleForm(_StyledFormMixin, forms.ModelForm):
+    class Meta:
+        model = LMSModule
+        fields = ("classroom", "title", "summary", "sort_order", "is_published")
+        widgets = {"summary": forms.Textarea(attrs={"rows": 3})}
+
+    def __init__(self, *args, teacher=None, **kwargs):
+        self.teacher = teacher
+        super().__init__(*args, **kwargs)
+        classroom_qs = LMSClassroom.objects.select_related(
+            "teacher_assignment__academic_class",
+            "teacher_assignment__subject",
+        )
+        if teacher is not None:
+            classroom_qs = classroom_qs.filter(teacher_assignment__teacher=teacher)
+        self.fields["classroom"].queryset = classroom_qs.order_by(
+            "teacher_assignment__academic_class__code",
+            "teacher_assignment__subject__name",
+        )
+
+
+class LMSLessonForm(_StyledFormMixin, forms.ModelForm):
+    class Meta:
+        model = LMSLesson
+        fields = (
+            "module",
+            "title",
+            "summary",
+            "content_text",
+            "resource_file",
+            "external_url",
+            "estimated_minutes",
+            "sort_order",
+            "is_published",
+        )
+        widgets = {
+            "summary": forms.Textarea(attrs={"rows": 2}),
+            "content_text": forms.Textarea(attrs={"rows": 5}),
+        }
+
+    def __init__(self, *args, teacher=None, classroom=None, **kwargs):
+        self.teacher = teacher
+        self.classroom = classroom
+        super().__init__(*args, **kwargs)
+        module_qs = LMSModule.objects.select_related(
+            "classroom__teacher_assignment__academic_class",
+            "classroom__teacher_assignment__subject",
+        )
+        if teacher is not None:
+            module_qs = module_qs.filter(classroom__teacher_assignment__teacher=teacher)
+        if classroom is not None:
+            module_qs = module_qs.filter(classroom=classroom)
+        self.fields["module"].queryset = module_qs.order_by("classroom__teacher_assignment__academic_class__code", "sort_order")
+
+    def clean_resource_file(self):
+        uploaded = self.cleaned_data.get("resource_file")
+        if uploaded:
+            validate_document_upload(uploaded)
+        return uploaded
+
+
+class LMSAssignmentForm(_StyledFormMixin, forms.ModelForm):
+    class Meta:
+        model = LMSAssignment
+        fields = (
+            "classroom",
+            "module",
+            "title",
+            "instructions",
+            "attachment_file",
+            "due_at",
+            "max_score",
+            "allow_late_submissions",
+            "is_published",
+        )
+        widgets = {
+            "instructions": forms.Textarea(attrs={"rows": 4}),
+            "due_at": forms.DateTimeInput(attrs={"type": "datetime-local"}),
+        }
+
+    def __init__(self, *args, teacher=None, classroom=None, **kwargs):
+        self.teacher = teacher
+        self.classroom = classroom
+        super().__init__(*args, **kwargs)
+        classroom_qs = LMSClassroom.objects.select_related(
+            "teacher_assignment__academic_class",
+            "teacher_assignment__subject",
+        )
+        module_qs = LMSModule.objects.select_related("classroom")
+        if teacher is not None:
+            classroom_qs = classroom_qs.filter(teacher_assignment__teacher=teacher)
+            module_qs = module_qs.filter(classroom__teacher_assignment__teacher=teacher)
+        if classroom is not None:
+            classroom_qs = classroom_qs.filter(pk=classroom.pk)
+            module_qs = module_qs.filter(classroom=classroom)
+            self.initial.setdefault("classroom", classroom.pk)
+        self.fields["classroom"].queryset = classroom_qs.order_by("teacher_assignment__academic_class__code")
+        self.fields["module"].queryset = module_qs.order_by("sort_order", "title")
+        self.fields["module"].required = False
+
+    def clean_attachment_file(self):
+        uploaded = self.cleaned_data.get("attachment_file")
+        if uploaded:
+            validate_document_upload(uploaded)
+        return uploaded
+
+
+class LMSSubmissionForm(_StyledFormMixin, forms.ModelForm):
+    class Meta:
+        model = LMSAssignmentSubmission
+        fields = ("submission_text", "submission_file")
+        widgets = {
+            "submission_text": forms.Textarea(attrs={"rows": 4, "placeholder": "Write your response or short note here."}),
+        }
+
+    def clean_submission_file(self):
+        uploaded = self.cleaned_data.get("submission_file")
+        if uploaded:
+            validate_document_upload(uploaded)
+        return uploaded
+
+
+class LMSAssignmentGradingForm(_StyledFormMixin, forms.ModelForm):
+    class Meta:
+        model = LMSAssignmentSubmission
+        fields = ("score", "feedback", "status")
+        widgets = {
+            "feedback": forms.Textarea(attrs={"rows": 3}),
+        }
+
+    def __init__(self, *args, assignment=None, **kwargs):
+        self.assignment = assignment
+        super().__init__(*args, **kwargs)
+        self.fields["status"].choices = [
+            (LMSSubmissionStatus.GRADED, "Graded"),
+            (LMSSubmissionStatus.REVISION_REQUIRED, "Revision Required"),
+        ]
+        self.fields["score"].required = False
+
+    def clean_score(self):
+        score = self.cleaned_data.get("score")
+        if score is None:
+            return score
+        assignment = self.assignment or getattr(self.instance, "assignment", None)
+        if assignment is not None and score > assignment.max_score:
+            raise forms.ValidationError("Score cannot exceed assignment max score.")
+        return score
+
+
+class LMSDiscussionCommentForm(_StyledFormMixin, forms.ModelForm):
+    class Meta:
+        model = LMSDiscussionComment
+        fields = ("classroom", "module", "assignment", "body")
+        widgets = {"body": forms.Textarea(attrs={"rows": 3, "placeholder": "Add a class comment, question, or reply."})}
+
+    def __init__(self, *args, teacher=None, student=None, classroom=None, **kwargs):
+        self.teacher = teacher
+        self.student = student
+        self.classroom = classroom
+        super().__init__(*args, **kwargs)
+        classroom_qs = LMSClassroom.objects.select_related("teacher_assignment")
+        if teacher is not None:
+            classroom_qs = classroom_qs.filter(teacher_assignment__teacher=teacher)
+        if classroom is not None:
+            classroom_qs = classroom_qs.filter(pk=classroom.pk)
+            self.initial.setdefault("classroom", classroom.pk)
+        self.fields["classroom"].queryset = classroom_qs.order_by("title")
+        module_qs = LMSModule.objects.all()
+        assignment_qs = LMSAssignment.objects.all()
+        if classroom is not None:
+            module_qs = module_qs.filter(classroom=classroom)
+            assignment_qs = assignment_qs.filter(classroom=classroom)
+        self.fields["module"].queryset = module_qs.order_by("sort_order", "title")
+        self.fields["assignment"].queryset = assignment_qs.order_by("title")
+        self.fields["module"].required = False
+        self.fields["assignment"].required = False
 
 
 class DocumentVaultUploadForm(_StyledFormMixin, forms.ModelForm):

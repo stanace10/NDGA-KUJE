@@ -1,12 +1,14 @@
-from django.test import Client, TestCase
+from django.test import Client, RequestFactory, TestCase
 
 from decimal import Decimal
 
 from apps.accounts.constants import ROLE_BURSAR, ROLE_FORM_TEACHER, ROLE_IT_MANAGER, ROLE_PRINCIPAL, ROLE_VP
 from apps.accounts.models import Role, User
 from apps.academics.models import AcademicClass, AcademicSession, FormTeacherAssignment, GradeScale, Subject, TeacherSubjectAssignment, Term
+from apps.audit.models import AuditEvent
 from apps.results.entry_flow import build_posted_score_bundle, row_component_state
 from apps.results.models import ResultSheet, StudentSubjectScore
+from apps.results.views import _log_score_change, _score_snapshot
 from apps.dashboard.models import PrincipalSignature, SchoolProfile
 from apps.results.utils import form_teacher_classes_for_user, teacher_assignments_for_user
 from apps.setup_wizard.models import SetupStateCode, SystemSetupState
@@ -392,3 +394,29 @@ class ResultEntryCBTPolicyTests(TestCase):
         self.assertEqual(bundle["breakdown_updates"]["ca1_objective"], Decimal("0.00"))
         self.assertEqual(bundle["breakdown_updates"]["ca1_theory"], Decimal("0.00"))
         self.assertFalse(cbt_state["ca1"]["locked"])
+
+    def test_score_change_audit_log_tracks_before_and_after_values(self):
+        score = StudentSubjectScore.objects.create(
+            result_sheet=self.sheet,
+            student=self.student,
+            ca1=Decimal("8.00"),
+            objective=Decimal("24.00"),
+            theory=Decimal("16.00"),
+        )
+        before_snapshot = _score_snapshot(score)
+        score.theory = Decimal("19.50")
+        score.save(update_fields=["theory", "updated_at"])
+
+        request = RequestFactory().post("/results/entry/")
+        _log_score_change(
+            actor=self.actor,
+            request=request,
+            score=score,
+            sheet=self.sheet,
+            before_snapshot=before_snapshot,
+        )
+
+        audit_event = AuditEvent.objects.filter(event_type="RESULTS_EDIT").latest("id")
+        self.assertEqual(audit_event.metadata["before"]["theory"], "16.00")
+        self.assertEqual(audit_event.metadata["after"]["theory"], "19.50")
+        self.assertIn("theory", audit_event.metadata["changed_fields"])

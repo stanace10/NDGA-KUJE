@@ -1,0 +1,246 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Classroom LMS{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-[96rem] px-4 py-5 sm:px-6 lg:px-8">
+    <div class="grid gap-5 xl:grid-cols-[330px_minmax(0,1fr)]">
+      <aside class="space-y-5">
+        <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Teacher LMS</p>
+          <h1 class="mt-2 text-2xl font-bold text-slate-900">Create your classrooms</h1>
+          <form method="post" class="mt-4 space-y-3">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="create_classroom">
+            {% for field in classroom_form %}
+              <div>
+                <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}<p class="mt-1 text-xs text-rose-700">{{ field.errors|striptags }}</p>{% endif %}
+              </div>
+            {% endfor %}
+            <button type="submit" class="ndga-btn ndga-btn-primary">Create classroom</button>
+          </form>
+        </article>
+
+        <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 class="text-lg font-semibold text-slate-900">Your classroom list</h2>
+          <div class="mt-4 space-y-3">
+            {% for row in classroom_rows %}
+              <a href="?classroom={{ row.id }}" class="block rounded-2xl border px-4 py-3 transition {% if selected_classroom and row.id == selected_classroom.id %}border-ndga-navy bg-ndga-navy text-white{% else %}border-slate-200 bg-slate-50 hover:border-ndga-navy/40 hover:bg-white{% endif %}">
+                <p class="text-sm font-semibold">{{ row.title }}</p>
+                <p class="mt-1 text-xs {% if selected_classroom and row.id == selected_classroom.id %}text-blue-100{% else %}text-slate-500{% endif %}">
+                  {{ row.teacher_assignment.academic_class.code }} | {{ row.teacher_assignment.subject.name }}
+                </p>
+              </a>
+            {% empty %}
+              <p class="text-sm text-slate-500">No classroom has been created yet.</p>
+            {% endfor %}
+          </div>
+        </article>
+      </aside>
+
+      <div class="space-y-5">
+        {% if selected_classroom %}
+          <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{{ selected_classroom.teacher_assignment.subject.name }}</p>
+                <h2 class="mt-2 text-2xl font-bold text-slate-900">{{ selected_classroom.title }}</h2>
+                {% if selected_classroom.overview %}<p class="mt-2 max-w-3xl text-sm text-slate-600">{{ selected_classroom.overview }}</p>{% endif %}
+              </div>
+              <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                <p class="font-semibold text-slate-900">{{ selected_classroom.teacher_assignment.session.name }}</p>
+                <p>{{ selected_classroom.teacher_assignment.term.get_name_display }}</p>
+              </div>
+            </div>
+          </article>
+
+          <div class="grid gap-5 xl:grid-cols-2">
+            <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h3 class="text-lg font-semibold text-slate-900">Add module</h3>
+              <form method="post" class="mt-4 space-y-3">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="create_module">
+                <input type="hidden" name="classroom_id" value="{{ selected_classroom.id }}">
+                {% for field in module_form %}
+                  <div>
+                    <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.errors %}<p class="mt-1 text-xs text-rose-700">{{ field.errors|striptags }}</p>{% endif %}
+                  </div>
+                {% endfor %}
+                <button type="submit" class="ndga-btn ndga-btn-secondary">Save module</button>
+              </form>
+            </article>
+
+            <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h3 class="text-lg font-semibold text-slate-900">Publish lesson</h3>
+              <form method="post" enctype="multipart/form-data" class="mt-4 space-y-3">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="create_lesson">
+                <input type="hidden" name="classroom_id" value="{{ selected_classroom.id }}">
+                {% for field in lesson_form %}
+                  <div>
+                    <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.errors %}<p class="mt-1 text-xs text-rose-700">{{ field.errors|striptags }}</p>{% endif %}
+                  </div>
+                {% endfor %}
+                <button type="submit" class="ndga-btn ndga-btn-secondary">Publish lesson</button>
+              </form>
+            </article>
+          </div>
+
+          <div class="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
+            <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h3 class="text-lg font-semibold text-slate-900">Publish assignment</h3>
+              <form method="post" enctype="multipart/form-data" class="mt-4 space-y-3">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="create_assignment">
+                <input type="hidden" name="classroom_id" value="{{ selected_classroom.id }}">
+                {% for field in assignment_form %}
+                  <div>
+                    <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.errors %}<p class="mt-1 text-xs text-rose-700">{{ field.errors|striptags }}</p>{% endif %}
+                  </div>
+                {% endfor %}
+                <button type="submit" class="ndga-btn ndga-btn-primary">Publish assignment</button>
+              </form>
+            </article>
+
+            <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h3 class="text-lg font-semibold text-slate-900">Post classroom note</h3>
+              <form method="post" class="mt-4 space-y-3">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="post_comment">
+                <input type="hidden" name="classroom_id" value="{{ selected_classroom.id }}">
+                {% for field in comment_form %}
+                  {% if field.name != "classroom" %}
+                    <div>
+                      <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                      {{ field }}
+                      {% if field.errors %}<p class="mt-1 text-xs text-rose-700">{{ field.errors|striptags }}</p>{% endif %}
+                    </div>
+                  {% endif %}
+                {% endfor %}
+                <button type="submit" class="ndga-btn ndga-btn-secondary">Post note</button>
+              </form>
+            </article>
+          </div>
+
+          <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h3 class="text-lg font-semibold text-slate-900">Module structure</h3>
+            <div class="mt-4 space-y-4">
+              {% for module in module_rows %}
+                <section class="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                  <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Module {{ module.sort_order }}</p>
+                  <h4 class="mt-1 text-lg font-semibold text-slate-900">{{ module.title }}</h4>
+                  {% if module.summary %}<p class="mt-2 text-sm text-slate-600">{{ module.summary }}</p>{% endif %}
+                  <div class="mt-4 grid gap-3 lg:grid-cols-2">
+                    {% for lesson in module.lessons.all %}
+                      <article class="rounded-2xl border border-slate-200 bg-white p-4">
+                        <p class="text-sm font-semibold text-slate-900">{{ lesson.title }}</p>
+                        <p class="mt-1 text-xs text-slate-500">{{ lesson.estimated_minutes }} mins{% if not lesson.is_published %} | Draft{% endif %}</p>
+                        {% if lesson.summary %}<p class="mt-2 text-sm text-slate-600">{{ lesson.summary }}</p>{% endif %}
+                      </article>
+                    {% empty %}
+                      <p class="text-sm text-slate-500 lg:col-span-2">No lessons published in this module yet.</p>
+                    {% endfor %}
+                  </div>
+                </section>
+              {% empty %}
+                <p class="text-sm text-slate-500">No modules created yet.</p>
+              {% endfor %}
+            </div>
+          </article>
+
+          <div class="grid gap-5 xl:grid-cols-2">
+            <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h3 class="text-lg font-semibold text-slate-900">Assignments</h3>
+              <div class="mt-4 space-y-3">
+                {% for row in assignment_rows %}
+                  <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <p class="text-sm font-semibold text-slate-900">{{ row.title }}</p>
+                    <p class="mt-1 text-xs text-slate-500">{% if row.module %}{{ row.module.title }} | {% endif %}{% if row.due_at %}Due {{ row.due_at|date:"M j, Y g:i A" }}{% else %}No due date{% endif %}</p>
+                    <p class="mt-2 whitespace-pre-line text-sm text-slate-600">{{ row.instructions|truncatechars:220 }}</p>
+                  </article>
+                {% empty %}
+                  <p class="text-sm text-slate-500">No assignments published yet.</p>
+                {% endfor %}
+              </div>
+            </article>
+
+            <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h3 class="text-lg font-semibold text-slate-900">Submissions to grade</h3>
+              <div class="mt-4 space-y-4">
+                {% for row in submission_rows %}
+                  <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div class="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p class="text-sm font-semibold text-slate-900">{{ row.assignment.title }}</p>
+                        <p class="mt-1 text-xs text-slate-500">{{ row.student.get_full_name|default:row.student.username }} | {{ row.get_status_display }}</p>
+                      </div>
+                    </div>
+                    {% if row.submission_text %}<p class="mt-3 whitespace-pre-line text-sm text-slate-700">{{ row.submission_text|truncatechars:240 }}</p>{% endif %}
+                    {% if row.submission_file %}<a href="{{ row.submission_file.url }}" class="mt-3 inline-block text-sm font-semibold text-ndga-navy hover:text-ndga-gold">Open uploaded file</a>{% endif %}
+                    <form method="post" class="mt-4 grid gap-3">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="grade_submission">
+                      <input type="hidden" name="classroom_id" value="{{ selected_classroom.id }}">
+                      <input type="hidden" name="submission_id" value="{{ row.id }}">
+                      <div>
+                        <label class="mb-1 block text-sm font-semibold text-slate-700" for="score-{{ row.id }}">Score</label>
+                        <input id="score-{{ row.id }}" type="number" step="0.01" min="0" max="{{ row.assignment.max_score }}" name="score" value="{% if row.score is not None %}{{ row.score }}{% endif %}" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+                      </div>
+                      <div>
+                        <label class="mb-1 block text-sm font-semibold text-slate-700" for="feedback-{{ row.id }}">Feedback</label>
+                        <textarea id="feedback-{{ row.id }}" name="feedback" rows="3" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">{{ row.feedback }}</textarea>
+                      </div>
+                      <div>
+                        <label class="mb-1 block text-sm font-semibold text-slate-700" for="status-{{ row.id }}">Status</label>
+                        <select id="status-{{ row.id }}" name="status" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+                          <option value="GRADED" {% if row.status == "GRADED" %}selected{% endif %}>Graded</option>
+                          <option value="REVISION_REQUIRED" {% if row.status == "REVISION_REQUIRED" %}selected{% endif %}>Revision Required</option>
+                        </select>
+                      </div>
+                      <button type="submit" class="ndga-btn ndga-btn-primary">Save grading</button>
+                    </form>
+                  </article>
+                {% empty %}
+                  <p class="text-sm text-slate-500">No student submissions yet.</p>
+                {% endfor %}
+              </div>
+            </article>
+          </div>
+
+          <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h3 class="text-lg font-semibold text-slate-900">Class discussion</h3>
+            <div class="mt-4 space-y-3">
+              {% for row in comment_rows %}
+                <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p class="text-sm font-semibold text-slate-900">{{ row.author.get_full_name|default:row.author.username }}</p>
+                      <p class="mt-1 text-xs text-slate-500">{{ row.created_at|date:"M j, Y g:i A" }}</p>
+                    </div>
+                    {% if row.is_staff_note %}<span class="rounded-full bg-ndga-navy px-2 py-1 text-xs font-semibold text-white">Teacher note</span>{% endif %}
+                  </div>
+                  <p class="mt-3 whitespace-pre-line text-sm text-slate-700">{{ row.body }}</p>
+                </article>
+              {% empty %}
+                <p class="text-sm text-slate-500">No discussion comments yet.</p>
+              {% endfor %}
+            </div>
+          </article>
+        {% else %}
+          <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 class="text-xl font-semibold text-slate-900">No classroom created yet</h2>
+            <p class="mt-2 text-sm text-slate-600">Create your first classroom from an assigned class-subject window to begin building modules and assignments.</p>
+          </article>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+{% endblock %}

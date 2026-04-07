@@ -13,6 +13,7 @@ from apps.finance.views import (
     BursarSalaryManagementView,
     FinanceSummaryView,
     GatewayPaymentCallbackView,
+    ManualPaymentDeltaExportView,
     PaystackWebhookView,
     RemittaGatewayLaunchView,
     ReceiptPDFDownloadView,
@@ -23,6 +24,7 @@ from apps.finance.views import (
 app_name = "finance"
 
 urlpatterns = [
+    path("api/manual-export/payments/", ManualPaymentDeltaExportView.as_view(), name="manual-payment-delta-export"),
     path("student/overview/", StudentFinanceOverviewView.as_view(), name="student-overview"),
     path("bursar/dashboard/", BursarFinanceDashboardView.as_view(), name="bursar-dashboard"),
     path("bursar/settings/", BursarChargeManagementView.as_view(), name="bursar-settings"),

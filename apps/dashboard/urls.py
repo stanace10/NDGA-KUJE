@@ -7,8 +7,10 @@ from apps.dashboard.feature_views import (
     StudentDocumentVaultView,
     StudentIDVerificationView,
     StudentLearningHubView,
+    StudentLMSView,
     StudentWeeklyChallengeView,
     TeacherLessonPlannerView,
+    TeacherLMSView,
     WeeklyChallengeManagementView,
 )
 from apps.dashboard.views import (
@@ -57,6 +59,7 @@ urlpatterns = [
     path("portal/student/subjects/", StudentSubjectsView.as_view(), name="student-subjects"),
     path("portal/student/transcript/", StudentTranscriptView.as_view(), name="student-transcript"),
     path("portal/student/learning-hub/", StudentLearningHubView.as_view(), name="student-learning-hub"),
+    path("portal/student/lms/", StudentLMSView.as_view(), name="student-lms"),
     path("portal/student/weekly-challenge/", StudentWeeklyChallengeView.as_view(), name="student-weekly-challenge"),
     path("portal/student/id-card/", StudentDigitalIDView.as_view(), name="student-id-card"),
     path("portal/student/documents/", StudentDocumentVaultView.as_view(), name="student-document-vault"),
@@ -64,6 +67,7 @@ urlpatterns = [
     path("portal/staff/", StaffPortalView.as_view(), name="staff-portal"),
     path("portal/staff/profile/", StaffProfileView.as_view(), name="staff-profile"),
     path("portal/staff/lesson-planner/", TeacherLessonPlannerView.as_view(), name="teacher-lesson-planner"),
+    path("portal/staff/lms/", TeacherLMSView.as_view(), name="teacher-lms"),
     path("portal/staff/settings/", StaffSettingsView.as_view(), name="staff-settings"),
     path("portal/it/", ITPortalView.as_view(), name="it-portal"),
     path("portal/it/feature-toggle/", ITFeatureToggleView.as_view(), name="it-feature-toggle"),
