@@ -10,7 +10,7 @@
   <div class="public-container public-hero-content" data-reveal>
     <span class="public-eyebrow">Welcome to Notre Dame Girls' Academy</span>
     <h1>Educating Girls for Life</h1>
-    <p>Notre Dame Girls' Academy, Kuje-Abuja forms confident, competent, and compassionate young women through strong academics, boarding structure, faith, and disciplined care.</p>
+    <p>Notre Dame Girls' Academy, Kuje-Abuja forms confident, competent, and compassionate young women through purposeful learning, Catholic formation, full boarding, and disciplined care.</p>
     <div class="public-hero-actions">
       <a href="/admissions/registration/" class="public-cta magnetic">Apply Now</a>
       <a href="/auth/login/?audience=student" class="public-secondary-cta magnetic">School Portal</a>
@@ -23,11 +23,11 @@
     <div class="public-quickfacts-grid">
       <article class="public-quickfact-card">
         <strong>Catholic girls' boarding school</strong>
-        <p>A calm learning community rooted in discipline, faith, and care.</p>
+        <p>A calm learning community rooted in discipline, faith, pastoral care, and the dignity of the girl child.</p>
       </article>
       <article class="public-quickfact-card">
         <strong>Junior and Senior Secondary</strong>
-        <p>Clear academic progression from foundational learning to exam readiness.</p>
+        <p>Clear academic progression from foundational learning to WAEC and NECO preparation.</p>
       </article>
       <article class="public-quickfact-card">
         <strong>Admissions made clear</strong>
@@ -41,9 +41,9 @@
   <div class="public-container public-split" data-reveal>
     <div class="public-copy">
       <span class="public-eyebrow">{{ home_about.eyebrow }}</span>
-      <h2>An education shaped by faith, discipline, and the dignity of the girl child</h2>
-      <p>Notre Dame Girls' Academy is owned and managed by the Sisters of Notre Dame de Namur and belongs to a wider educational tradition inspired by St. Julie Billiart.</p>
-      <p>The school is committed to academic growth, moral formation, safe boarding life, and the all-round development of every student.</p>
+      <h2>An education shaped by faith, discipline, purpose, and the dignity of the girl child</h2>
+      <p>Notre Dame Girls' Academy is owned and managed by the Sisters of Notre Dame de Namur and belongs to a wider educational tradition inspired by St. Julie Billiart, who urged educators to give children what they need for life.</p>
+      <p>That vision appears in the life of the school through sound academics, Catholic values, safe boarding routine, and the all-round growth of every student.</p>
       <a href="/about/" class="public-text-link">Learn more about NDGA</a>
     </div>
     <div class="public-image-frame">
@@ -58,7 +58,7 @@
       <span class="public-eyebrow">{{ home_principal.eyebrow }}</span>
       <h2>A welcome from the Principal</h2>
       <p>Welcome to Notre Dame Girls' Academy, a Catholic secondary school dedicated to forming confident, competent, and compassionate young women.</p>
-      <p>We partner with parents to nurture Gospel values, sound character, disciplined study habits, and the full potential of every girl entrusted to our care.</p>
+      <p>We partner with parents to nurture Gospel values, disciplined study habits, strong character, and the full potential of every girl entrusted to our care.</p>
       <div class="public-quote-signoff">
         <strong>{{ public_principal_name }}</strong>
         <span>Principal, Notre Dame Girls' Academy</span>
@@ -74,16 +74,16 @@
 <section class="public-section">
   <div class="public-container" data-reveal>
     <div class="public-section-heading">
-      <span class="public-eyebrow">Why NDGA</span>
-      <h2>A school environment families can trust</h2>
+      <span class="public-eyebrow">Notre Dame Hallmarks</span>
+      <h2>The character of the NDGA community</h2>
     </div>
     <div class="public-feature-grid">
-      <article><h3>Academic Excellence</h3><p>Students are guided through a broad curriculum with strong teaching and clear expectations.</p></article>
-      <article><h3>Moral Discipline</h3><p>Order, responsibility, and respect remain visible in school life and boarding routine.</p></article>
-      <article><h3>Spiritual Growth</h3><p>Prayer, worship, retreats, and Catholic values shape the daily life of the school.</p></article>
-      <article><h3>Safe Boarding</h3><p>Girls live and study within a supervised environment built around welfare and care.</p></article>
-      <article><h3>Qualified Teachers</h3><p>Teachers support classroom progress, exam preparation, and close academic follow-up.</p></article>
-      <article><h3>Balanced Development</h3><p>Clubs, sport, music, art, and leadership opportunities remain part of the NDGA experience.</p></article>
+      {% for item in home_hallmarks %}
+        <article>
+          <h3>{{ item.title }}</h3>
+          <p>{{ item.text }}</p>
+        </article>
+      {% endfor %}
     </div>
   </div>
 </section>
@@ -92,10 +92,10 @@
   <div class="public-container" data-reveal>
     <div class="public-section-heading public-section-heading-light">
       <span class="public-eyebrow">Academics</span>
-      <h2>Academic levels, subjects, and support</h2>
+      <h2>Academic levels, subjects, and strong preparation</h2>
     </div>
     <div class="public-card-grid public-card-grid-three">
-      {% for card in home_academics.sections.0.cards|slice:":6" %}
+      {% for card in home_academic_highlights %}
         <article class="public-media-card public-media-card-light">
           <img src="{% static card.image %}" alt="{{ card.title }}">
           <div>
@@ -105,6 +105,10 @@
           </div>
         </article>
       {% endfor %}
+    </div>
+    <div class="public-subject-band">
+      <span>Subjects include English Language, Mathematics, Basic and advanced Sciences, Digital Technologies, Literature, Government, Economics, Financial Accounting, Foods and Nutrition, Garment Making, Technical Drawing, Agriculture, French, and more.</span>
+      <a href="/academics/subjects-departments/" class="public-text-link public-text-link-light">View all subjects</a>
     </div>
   </div>
 </section>
@@ -169,14 +173,14 @@
   <div class="public-container" data-reveal>
     <div class="public-section-heading">
       <span class="public-eyebrow">Life at NDGA</span>
-      <h2>Clubs, sports, worship, and school community</h2>
+      <h2>Boarding, clubs, sports, worship, and school community</h2>
     </div>
     <div class="public-card-grid public-card-grid-three">
       <article class="public-media-card">
         <img src="{% static public_images.socials %}" alt="Clubs and student activities">
         <div>
           <h3>Clubs & Leadership</h3>
-          <p>Science, debating, press, justice and peace, French, gardening, and other student groups.</p>
+          <p>JETS, Literary and Debating, IT, Home Makers, Creative Arts, French, Young Farmers, and other student groups.</p>
           <a href="/academics/co-curricular-activities/">Learn more</a>
         </div>
       </article>
@@ -184,7 +188,7 @@
         <img src="{% static public_images.sports %}" alt="Sports at NDGA">
         <div>
           <h3>Sports & Recreation</h3>
-          <p>Basketball, volleyball, badminton, table tennis, and inter-house activities support balanced growth.</p>
+          <p>Football, basketball, volleyball, badminton, table tennis, athletics, and inter-house activities support balanced growth.</p>
           <a href="/facilities/">See facilities</a>
         </div>
       </article>
@@ -204,7 +208,7 @@
   <div class="public-container" data-reveal>
     <div class="public-section-heading">
       <span class="public-eyebrow">Gallery</span>
-      <h2>Category-based albums, not one crowded image wall</h2>
+      <h2>Selected school moments with room to explore more</h2>
     </div>
     <div class="public-gallery-category-grid">
       {% for category in home_gallery %}
@@ -227,10 +231,10 @@
 <section class="public-section">
   <div class="public-container public-news-layout" data-reveal>
     <div>
-      <div class="public-section-heading">
-        <span class="public-eyebrow">News</span>
-        <h2>Recent updates from the school</h2>
-      </div>
+    <div class="public-section-heading">
+      <span class="public-eyebrow">News</span>
+      <h2>Recent updates from the school</h2>
+    </div>
       <div class="public-stack-cards">
         {% for item in home_news %}
           <article class="public-story-card">
@@ -266,6 +270,20 @@
       <div class="public-inline-cta">
         <a href="/events/" class="public-text-link">View more events</a>
       </div>
+    </div>
+  </div>
+</section>
+
+<section class="public-section public-section-soft">
+  <div class="public-container" data-reveal>
+    <div class="public-section-heading">
+      <span class="public-eyebrow">Confidence & Care</span>
+      <h2>What parents want to know at a glance</h2>
+    </div>
+    <div class="public-credibility-points public-credibility-points-dark">
+      {% for point in credibility_points %}
+        <article>{{ point }}</article>
+      {% endfor %}
     </div>
   </div>
 </section>

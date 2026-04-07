@@ -579,10 +579,12 @@ textarea {
 
 .public-media-card {
   overflow: hidden;
+  transition: transform 0.28s ease, box-shadow 0.28s ease;
 }
 
 .public-media-card img {
   aspect-ratio: 0.95;
+  transition: transform 0.55s ease;
 }
 
 .public-media-card div,
@@ -634,6 +636,7 @@ textarea {
   background: rgba(255,255,255,0.06);
   border-radius: 26px;
   padding: 28px;
+  transition: transform 0.28s ease, box-shadow 0.28s ease, background 0.28s ease;
 }
 
 .public-timeline-card {
@@ -725,6 +728,7 @@ textarea {
 .public-story-card {
   grid-template-columns: 220px 1fr;
   overflow: hidden;
+  transition: transform 0.28s ease, box-shadow 0.28s ease;
 }
 
 .public-story-card img {
@@ -823,6 +827,25 @@ textarea {
 .public-footer-socials {
   display: flex;
   gap: 16px;
+  flex-wrap: wrap;
+}
+
+.public-footer-socials a {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.04);
+  color: rgba(255,255,255,0.86);
+  transition: transform 0.24s ease, background 0.24s ease, border-color 0.24s ease;
+}
+
+.public-footer-socials svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
 }
 
 .public-search,
@@ -1220,6 +1243,15 @@ textarea {
   margin-bottom: -18px;
 }
 
+.public-nav-item.has-dropdown::after {
+  content: "";
+  position: absolute;
+  left: -14px;
+  right: -14px;
+  top: 100%;
+  height: 24px;
+}
+
 .public-nav-item.is-open .public-dropdown-panel,
 .public-nav-item.is-open .public-mega-panel {
   opacity: 1;
@@ -1273,6 +1305,17 @@ textarea {
   backdrop-filter: blur(14px);
   border-radius: 26px;
   padding: 24px;
+  transition: transform 0.28s ease, box-shadow 0.28s ease;
+}
+
+.public-quickfact-card:hover,
+.public-media-card:hover,
+.public-story-card:hover,
+.public-list-panel article:hover,
+.public-faq-list details:hover,
+.public-feature-grid article:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 30px 70px rgba(4, 17, 38, 0.16);
 }
 
 .public-quickfact-card strong,
@@ -1345,6 +1388,11 @@ textarea {
 }
 
 .public-gallery-category-card:hover img {
+  transform: scale(1.04);
+}
+
+.public-media-card:hover img,
+.public-story-card:hover img {
   transform: scale(1.04);
 }
 
@@ -1453,6 +1501,9 @@ textarea {
 .public-footer-grid a:hover,
 .public-footer-socials a:hover {
   color: var(--public-gold);
+  border-color: rgba(212, 175, 55, 0.34);
+  background: rgba(212, 175, 55, 0.12);
+  transform: translateY(-2px);
 }
 
 .public-chatbot-support-row {
@@ -1483,7 +1534,7 @@ textarea {
   position: fixed;
   right: 22px;
   bottom: 112px;
-  width: min(360px, calc(100vw - 28px));
+  width: min(400px, calc(100vw - 28px));
   background: white;
   border-radius: 28px;
   padding: 18px;
@@ -1526,6 +1577,47 @@ textarea {
   gap: 12px;
 }
 
+.public-live-chat-thread {
+  display: grid;
+  gap: 12px;
+  max-height: 260px;
+  overflow: auto;
+  padding: 4px 4px 10px;
+}
+
+.public-live-chat-bubble {
+  max-width: 84%;
+  padding: 14px 16px;
+  border-radius: 22px;
+  display: grid;
+  gap: 6px;
+  line-height: 1.65;
+}
+
+.public-live-chat-bubble strong {
+  font-size: 0.8rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.public-live-chat-bubble p {
+  margin: 0;
+}
+
+.public-live-chat-bubble.is-user {
+  justify-self: start;
+  background: rgba(0, 33, 71, 0.08);
+  color: var(--public-ink);
+  border-bottom-left-radius: 8px;
+}
+
+.public-live-chat-bubble.is-agent {
+  justify-self: end;
+  background: rgba(212, 175, 55, 0.18);
+  color: var(--public-navy-deep);
+  border-bottom-right-radius: 8px;
+}
+
 .public-live-chat-form input,
 .public-live-chat-form textarea {
   width: 100%;
@@ -1542,6 +1634,45 @@ textarea {
   font-size: 0.92rem;
 }
 
+.public-live-chat-links {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.public-live-chat-links a {
+  font-weight: 700;
+  color: var(--public-navy);
+}
+
+.public-subject-band {
+  margin-top: 26px;
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: center;
+  padding: 18px 22px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255,255,255,0.12);
+}
+
+.public-subject-band span {
+  color: rgba(255,255,255,0.78);
+  line-height: 1.75;
+}
+
+.public-text-link-light {
+  color: var(--public-gold);
+  white-space: nowrap;
+}
+
+.public-credibility-points-dark article {
+  background: white;
+  color: var(--public-ink);
+  box-shadow: var(--public-shadow);
+}
+
 @media (max-width: 1180px) {
   .public-nav {
     display: none;
@@ -1553,6 +1684,11 @@ textarea {
 
   .public-header-actions .public-portal-link {
     display: none;
+  }
+
+  .public-subject-band {
+    flex-direction: column;
+    align-items: start;
   }
 
   .public-card-grid-five,

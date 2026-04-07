@@ -16,6 +16,7 @@
   const liveChat = document.querySelector("[data-live-chat]");
   const liveChatForm = document.querySelector("[data-live-chat-form]");
   const liveChatStatus = document.querySelector("[data-live-chat-status]");
+  const liveChatThread = document.querySelector("[data-live-chat-thread]");
 
   const lockBody = (locked) => {
     body.style.overflow = locked ? "hidden" : "";
@@ -198,9 +199,53 @@
   });
   document.querySelector("[data-live-chat-close]")?.addEventListener("click", closeLiveChat);
 
+  const LIVE_CHAT_STORAGE_KEY = "ndga_public_live_chat_messages";
+
+  const appendLiveChatBubble = (text, sender) => {
+    if (!liveChatThread || !text) return;
+    const item = document.createElement("article");
+    item.className = `public-live-chat-bubble is-${sender}`;
+    const title = document.createElement("strong");
+    title.textContent = sender === "user" ? "Visitor" : "NDGA Admissions";
+    const body = document.createElement("p");
+    body.textContent = text;
+    item.append(title, body);
+    liveChatThread.appendChild(item);
+    liveChatThread.scrollTop = liveChatThread.scrollHeight;
+  };
+
+  const saveLiveChatMessages = () => {
+    if (!liveChatThread || !window.sessionStorage) return;
+    const payload = [...liveChatThread.querySelectorAll(".public-live-chat-bubble")].slice(2).map((item) => ({
+      sender: item.classList.contains("is-user") ? "user" : "agent",
+      text: item.querySelector("p")?.textContent || "",
+    }));
+    window.sessionStorage.setItem(LIVE_CHAT_STORAGE_KEY, JSON.stringify(payload));
+  };
+
+  const loadLiveChatMessages = () => {
+    if (!liveChatThread || !window.sessionStorage) return;
+    try {
+      const raw = window.sessionStorage.getItem(LIVE_CHAT_STORAGE_KEY);
+      if (!raw) return;
+      const messages = JSON.parse(raw);
+      messages.forEach((message) => appendLiveChatBubble(message.text, message.sender));
+    } catch (error) {
+      window.sessionStorage.removeItem(LIVE_CHAT_STORAGE_KEY);
+    }
+  };
+
+  loadLiveChatMessages();
+
   liveChatForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!liveChatForm || !liveChatStatus) return;
+    const messageInput = liveChatForm.querySelector("textarea[name='message']");
+    const messageText = messageInput?.value.trim();
+    if (messageText) {
+      appendLiveChatBubble(messageText, "user");
+      saveLiveChatMessages();
+    }
     liveChatStatus.textContent = "Sending...";
     const formData = new FormData(liveChatForm);
     try {
@@ -212,12 +257,24 @@
       const payload = await response.json();
       if (!response.ok || !payload.ok) {
         liveChatStatus.textContent = "Please complete the required fields and try again.";
+        if (liveChatThread) {
+          const bubbles = liveChatThread.querySelectorAll(".public-live-chat-bubble.is-user");
+          bubbles[bubbles.length - 1]?.remove();
+          saveLiveChatMessages();
+        }
         return;
       }
       liveChatForm.reset();
+      appendLiveChatBubble(payload.message || "Your message has been sent to the admissions desk.", "agent");
+      saveLiveChatMessages();
       liveChatStatus.textContent = payload.message || "Your message has been sent.";
     } catch (error) {
       liveChatStatus.textContent = "Unable to send right now. Please try again.";
+      if (liveChatThread) {
+        const bubbles = liveChatThread.querySelectorAll(".public-live-chat-bubble.is-user");
+        bubbles[bubbles.length - 1]?.remove();
+        saveLiveChatMessages();
+      }
     }
   });
 

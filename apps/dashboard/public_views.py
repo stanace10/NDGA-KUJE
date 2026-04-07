@@ -60,8 +60,46 @@ class PublicHomeView(PublicSiteEnabledMixin, TemplateView):
                 "home_life": get_public_page("life-at-ndga"),
                 "home_fees": get_public_page("fees"),
                 "home_facilities": get_public_page("facilities"),
-                "home_gallery": get_public_gallery()[:6],
-                "home_news": get_public_news()[:3],
+                "home_academic_highlights": [
+                    {
+                        "title": "Junior Secondary",
+                        "text": "Strong foundations in English Studies, Mathematics, Intermediate Science, Digital Technologies, citizenship, and disciplined study routine.",
+                        "image": context["public_images"]["computer_lab_junior"],
+                        "href": "/academics/junior-secondary/",
+                    },
+                    {
+                        "title": "Senior Secondary",
+                        "text": "A balanced programme preparing students for WAEC, NECO, leadership, and responsible choices beyond school.",
+                        "image": context["public_images"]["science_lab"],
+                        "href": "/academics/senior-secondary/",
+                    },
+                    {
+                        "title": "Subjects, Exams, and Support",
+                        "text": "Subjects are broad, assessment is structured, and mentoring, revision, and guided follow-up support every girl's progress.",
+                        "image": context["public_images"]["library"],
+                        "href": "/academics/subjects-departments/",
+                    },
+                ],
+                "home_hallmarks": [
+                    {
+                        "title": "A Welcoming Community",
+                        "text": "Girls are known, encouraged, and helped to settle into a calm and friendly school environment.",
+                    },
+                    {
+                        "title": "A Learning Community",
+                        "text": "High expectations, academic follow-up, and celebration of achievement shape the rhythm of school life.",
+                    },
+                    {
+                        "title": "A Caring Community",
+                        "text": "Pastoral attention, boarding supervision, and close staff support remain visible in the daily life of students.",
+                    },
+                    {
+                        "title": "A Worshipping Community",
+                        "text": "Prayer, assemblies, Mass, retreats, and Catholic witness remain part of the formation of every student.",
+                    },
+                ],
+                "home_gallery": get_public_gallery()[:4],
+                "home_news": get_public_news()[:2],
                 "home_events": get_public_events()[:3],
                 "credibility_points": [
                     "Structured boarding routine and supervised student welfare.",
