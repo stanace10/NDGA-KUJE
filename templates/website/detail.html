@@ -2,32 +2,32 @@
 
 {% block public_content %}
   <main>
-    <section class="page-hero reveal">
+    <section class="page-banner reveal">
       <div class="site-shell">
-        <div class="page-hero-panel">
-          <div class="page-hero-copy">
-            <p class="site-eyebrow">{{ detail.eyebrow }}</p>
+        <div class="page-banner-grid">
+          <div class="page-banner-copy">
+            <p class="site-kicker">{{ detail.eyebrow }}</p>
             <h1>{{ detail.title }}</h1>
             <p>{{ detail.summary|default:detail.excerpt }}</p>
-            {% if detail.timing %}<p class="event-meta">{{ detail.timing }}</p>{% endif %}
-            {% if detail.location %}<p class="event-meta">{{ detail.location }}</p>{% endif %}
+            {% if detail.timing %}<p class="updates-meta">{{ detail.timing }}</p>{% endif %}
+            {% if detail.location %}<p class="updates-meta">{{ detail.location }}</p>{% endif %}
           </div>
-          <div class="page-hero-media">
+          <div class="page-banner-media">
             <img src="{{ detail.image }}" alt="{{ detail.title }}">
           </div>
         </div>
       </div>
     </section>
 
-    <section class="site-section reveal">
+    <section class="site-band reveal">
       <div class="site-shell">
-        <div class="detail-layout">
-          <article class="detail-card">
+        <div class="detail-stage">
+          <article class="detail-stage-copy">
             {% for paragraph in detail.body %}
               <p>{{ paragraph }}</p>
             {% endfor %}
             {% if detail.highlights %}
-              <ul class="bullet-list">
+              <ul class="story-list">
                 {% for point in detail.highlights %}
                   <li>{{ point }}</li>
                 {% endfor %}
@@ -35,13 +35,12 @@
             {% endif %}
             <a href="{{ detail.back_url }}" class="site-btn site-btn-outline">{{ detail.back_label }}</a>
           </article>
-          <aside class="detail-card">
-            <h3>Related</h3>
-            <div class="stack-list">
+          <aside class="detail-stage-side">
+            <p class="site-kicker">Related</p>
+            <div class="updates-stack">
               {% for item in detail.related_items %}
-                <a href="{{ item.url }}" class="mini-story">
-                  <img src="{{ item.image }}" alt="{{ item.title }}">
-                  <span>{{ item.title }}</span>
+                <a href="{{ item.url }}" class="updates-compact">
+                  <strong>{{ item.title }}</strong>
                 </a>
               {% endfor %}
             </div>

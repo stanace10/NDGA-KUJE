@@ -2,41 +2,48 @@
 
 {% block public_content %}
   <main>
-    <section class="page-hero reveal">
+    <section class="page-banner reveal">
       <div class="site-shell">
-        <div class="page-hero-panel">
-          <div class="page-hero-copy">
-            <p class="site-eyebrow">{{ page.eyebrow }}</p>
+        <div class="page-banner-grid">
+          <div class="page-banner-copy">
+            <p class="site-kicker">{{ page.eyebrow }}</p>
             <h1>{{ page.title }}</h1>
             <p>{{ page.intro }}</p>
           </div>
-          <div class="page-hero-media">
+          <div class="page-banner-media">
             <img src="{{ page.hero_image }}" alt="{{ page.title }}">
           </div>
         </div>
       </div>
     </section>
 
-    <section class="site-section reveal">
+    <section class="site-band reveal">
       <div class="site-shell">
-        <div class="feature-grid feature-grid-3">
-          {% for item in facilities %}
-            <article class="media-card">
-              <div class="media-card-image">
-                <img src="{{ item.image }}" alt="{{ item.title }}">
-              </div>
-              <div class="media-card-body">
-                <h3>{{ item.title }}</h3>
+        <div class="facility-board">
+          {% for item in facilities|slice:":1" %}
+            <article class="facility-board-feature">
+              <img src="{{ item.image }}" alt="{{ item.title }}">
+              <div class="facility-board-copy">
+                <p class="site-kicker">Featured Space</p>
+                <h2>{{ item.title }}</h2>
                 <p>{{ item.summary }}</p>
-                <ul class="bullet-list compact">
+                <ul class="story-list">
                   {% for point in item.highlights %}
                     <li>{{ point }}</li>
                   {% endfor %}
                 </ul>
-                <a href="{{ item.url }}" class="site-text-link">View facility</a>
+                <a href="{{ item.url }}" class="site-btn site-btn-navy">View Facility</a>
               </div>
             </article>
           {% endfor %}
+          <div class="facility-board-grid">
+            {% for item in facilities|slice:"1:" %}
+              <a href="{{ item.url }}" class="facility-board-item">
+                <h3>{{ item.title }}</h3>
+                <p>{{ item.summary }}</p>
+              </a>
+            {% endfor %}
+          </div>
         </div>
       </div>
     </section>

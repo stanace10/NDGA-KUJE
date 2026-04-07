@@ -2,76 +2,86 @@
 
 {% block public_content %}
   <main>
-    <section class="page-hero reveal">
+    <section class="page-banner reveal">
       <div class="site-shell">
-        <div class="page-hero-panel">
-          <div class="page-hero-copy">
-            <p class="site-eyebrow">{{ page.eyebrow }}</p>
+        <div class="page-banner-grid">
+          <div class="page-banner-copy">
+            <p class="site-kicker">{{ page.eyebrow }}</p>
             <h1>{{ page.title }}</h1>
             <p>{{ page.intro }}</p>
+            <div class="site-inline-actions">
+              <a href="{{ fees_url }}" class="site-btn site-btn-gold">View Fees</a>
+              <a href="{{ public_root_url }}admissions/how-to-apply/" class="site-btn site-btn-outline">How to Apply</a>
+            </div>
           </div>
-          <div class="page-hero-media">
+          <div class="page-banner-media">
             <img src="{{ page.hero_image }}" alt="{{ page.title }}">
           </div>
         </div>
       </div>
     </section>
 
-    <section class="site-section reveal">
+    <section class="site-band reveal">
       <div class="site-shell">
-        <div class="registration-layout">
-          <div>
-            <div class="feature-grid feature-grid-3">
+        <div class="registration-stage">
+          <div class="registration-stage-rail">
+            <div class="reason-stage">
               {% for item in registration_highlights %}
-                <article class="feature-card">
+                <article class="reason-card">
+                  <span class="reason-card-index">0{{ forloop.counter }}</span>
                   <h3>{{ item.title }}</h3>
                   <p>{{ item.text }}</p>
                 </article>
               {% endfor %}
             </div>
-            <div class="content-columns top-gap">
-              <article class="content-column">
-                <p class="site-eyebrow">Class Levels</p>
+
+            <div class="topic-grid">
+              <article class="topic-card">
+                <p class="site-kicker">Class Levels</p>
                 <h3>Available class options</h3>
-                <div class="prompt-row">
+                <div class="filter-strip">
                   {% for item in class_levels %}
-                    <span class="prompt-pill">{{ item }}</span>
+                    <span class="filter-pill filter-pill-static">{{ item }}</span>
                   {% endfor %}
                 </div>
               </article>
-              <article class="content-column">
-                <p class="site-eyebrow">Required Documents</p>
+              <article class="topic-card">
+                <p class="site-kicker">Required Documents</p>
                 <h3>Prepare these before submission</h3>
-                <ul class="bullet-list">
+                <ul class="story-list">
                   {% for item in required_documents %}
                     <li>{{ item }}</li>
                   {% endfor %}
                 </ul>
               </article>
-              <article class="content-column">
-                <p class="site-eyebrow">What Happens Next</p>
-                <h3>After the form is submitted</h3>
-                <ol class="process-grid compact-process">
-                  {% for item in next_steps %}
-                    <li class="process-card">{{ item }}</li>
-                  {% endfor %}
-                </ol>
-              </article>
             </div>
-            <div class="feature-grid feature-grid-3 top-gap">
+
+            <div class="process-stage">
+              <p class="site-kicker">What Happens Next</p>
+              <ol class="step-band">
+                {% for item in next_steps %}
+                  <li>
+                    <span>0{{ forloop.counter }}</span>
+                    <strong>{{ item }}</strong>
+                  </li>
+                {% endfor %}
+              </ol>
+            </div>
+
+            <div class="planning-stage">
               {% for item in registration_support %}
-                <article class="feature-card">
-                  <p class="site-eyebrow">{{ item.title }}</p>
+                <a href="{{ item.url }}" class="planning-sheet">
+                  <p class="planning-sheet-label">Support</p>
+                  <h3>{{ item.title }}</h3>
                   <p>{{ item.text }}</p>
-                  <a href="{{ item.url }}" class="site-text-link">Open page</a>
-                </article>
+                </a>
               {% endfor %}
             </div>
           </div>
 
-          <div class="form-card">
-            <p class="site-eyebrow">Registration Form</p>
-            <h2>Begin the admissions process</h2>
+          <div class="form-stage">
+            <p class="site-kicker">Registration Form</p>
+            <h2>Begin the admissions process.</h2>
             <form method="post" enctype="multipart/form-data" class="site-form">
               {% csrf_token %}
               {% if form.non_field_errors %}

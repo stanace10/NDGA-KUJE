@@ -20,7 +20,7 @@
   <div class="public-site">
     <header class="site-header" id="siteHeader">
       <div class="site-header-bar">
-        <div class="site-shell site-header-shell">
+        <div class="site-shell site-header-inner">
           <a href="{{ public_root_url }}" class="site-brand" aria-label="{{ school_name }} home">
             <img src="{% static 'images/ndga/logo.png' %}" alt="{{ school_name }} logo">
             <span>
@@ -30,114 +30,149 @@
           </a>
 
           <nav class="site-nav-desktop" aria-label="Main navigation">
-            <a href="{{ public_root_url }}"{% if nav_home_active %} class="is-active"{% endif %}>Home</a>
+            <a href="{{ public_root_url }}" class="site-nav-link{% if nav_home_active %} is-active{% endif %}">Home</a>
 
             <div class="site-nav-item{% if nav_about_active %} is-active{% endif %}">
-              <a href="{{ public_root_url }}about/">About</a>
-              <div class="site-nav-panel">
+              <a href="{{ public_root_url }}about/" class="site-nav-link">About</a>
+              <div class="site-nav-dropdown">
                 <a href="{{ public_root_url }}about/">About NDGA</a>
-                <a href="{{ public_root_url }}principal/">Principal's Welcome</a>
+                <a href="{{ public_root_url }}about/mission-vision-values/">Mission, Vision &amp; Values</a>
                 <a href="{{ public_root_url }}about/leadership/">Leadership</a>
-                <a href="{{ public_root_url }}about/mission-vision-values/">Mission, Vision & Values</a>
                 <a href="{{ public_root_url }}about/school-life/">School Life</a>
-                <a href="{{ public_root_url }}about/faith-character-formation/">Faith & Character Formation</a>
               </div>
             </div>
 
             <div class="site-nav-item{% if nav_academics_active %} is-active{% endif %}">
-              <a href="{{ public_root_url }}academics/">Academics</a>
+              <a href="{{ public_root_url }}academics/" class="site-nav-link">Academics</a>
               <div class="site-nav-mega">
-                <div>
+                <div class="site-nav-column">
                   <p class="site-nav-label">Overview</p>
                   <a href="{{ public_root_url }}academics/">Academics Overview</a>
                   <a href="{{ public_root_url }}academics/junior-secondary/">Junior Secondary</a>
                   <a href="{{ public_root_url }}academics/senior-secondary/">Senior Secondary</a>
                 </div>
-                <div>
-                  <p class="site-nav-label">Study Areas</p>
-                  <a href="{{ public_root_url }}academics/subjects-curriculum/">Subjects & Curriculum</a>
-                  <a href="{{ public_root_url }}academics/ict-digital-learning/">ICT & Digital Learning</a>
-                  <a href="{{ public_root_url }}academics/clubs-co-curriculars/">Clubs, Music & Sports</a>
+                <div class="site-nav-column">
+                  <p class="site-nav-label">Learning</p>
+                  <a href="{{ public_root_url }}academics/subjects-curriculum/">Curriculum</a>
+                  <a href="{{ public_root_url }}academics/subjects-curriculum/">Subjects &amp; Departments</a>
+                  <a href="{{ public_root_url }}academics/ict-digital-learning/">ICT / Digital Learning</a>
+                  <a href="{{ public_root_url }}academics/clubs-co-curriculars/">Co-curricular Activities</a>
                 </div>
-                <div class="site-nav-feature">
-                  <img src="{% static 'images/ndga/hero-alt-3.jpg' %}" alt="Students at {{ school_name }}">
+                <div class="site-nav-column">
+                  <p class="site-nav-label">Support</p>
+                  <a href="{{ public_root_url }}academics/">Learning Support</a>
+                  <a href="{{ public_root_url }}academics/senior-secondary/">Examinations / Assessment</a>
+                </div>
+                <article class="site-nav-feature">
+                  <img src="{% static 'images/ndga/hero-alt-3.jpg' %}" alt="Academic life at {{ school_name }}">
                   <div>
                     <p class="site-nav-label">Academic Life</p>
-                    <h3>Strong foundations, guided study, and disciplined growth.</h3>
+                    <h3>Clear teaching, guided study, and room to grow.</h3>
                     <a href="{{ public_root_url }}academics/" class="site-text-link">Explore Academics</a>
                   </div>
-                </div>
+                </article>
               </div>
             </div>
 
             <div class="site-nav-item{% if nav_admissions_active %} is-active{% endif %}">
-              <a href="{{ public_root_url }}admissions/">Admissions</a>
+              <a href="{{ public_root_url }}admissions/" class="site-nav-link">Admissions</a>
               <div class="site-nav-mega">
-                <div>
-                  <p class="site-nav-label">Admissions</p>
+                <div class="site-nav-column">
+                  <p class="site-nav-label">Begin Here</p>
                   <a href="{{ public_root_url }}admissions/">Admissions Overview</a>
                   <a href="{{ public_root_url }}admissions/how-to-apply/">How to Apply</a>
                   <a href="{{ public_root_url }}admissions/registration/">Online Registration</a>
-                  <a href="{{ public_root_url }}admissions/screening/">Entrance Exam / Screening</a>
                 </div>
-                <div>
-                  <p class="site-nav-label">Support</p>
-                  <a href="{{ public_root_url }}fees/">Fees & Charges</a>
-                  <a href="{{ public_root_url }}admissions/hostel-boarding/">Hostel & Boarding</a>
+                <div class="site-nav-column">
+                  <p class="site-nav-label">Planning</p>
+                  <a href="{{ public_root_url }}fees/">Fees &amp; Charges</a>
+                  <a href="{{ public_root_url }}admissions/hostel-boarding/">Hostel / Boarding</a>
+                  <a href="{{ public_root_url }}fees/">Payment Information</a>
                   <a href="{{ public_root_url }}admissions/faqs/">Admission FAQs</a>
-                  <a href="{{ public_root_url }}contact/">Contact Admissions</a>
                 </div>
-                <div class="site-nav-feature">
-                  <img src="{% static 'images/ndga/hero-alt-1.jpg' %}" alt="{{ school_name }} campus">
+                <article class="site-nav-feature site-nav-feature-soft">
+                  <img src="{% static 'images/ndga/hero-alt-1.jpg' %}" alt="Admissions to {{ school_name }}">
                   <div>
                     <p class="site-nav-label">Admissions</p>
-                    <h3>Registration, fees, boarding, and screening guidance in one path.</h3>
+                    <h3>Registration, fees, boarding, and next steps in one place.</h3>
                     <div class="site-inline-actions">
-                      <a href="{{ apply_now_url }}" class="site-btn site-btn-gold">Start Registration</a>
+                      <a href="{{ apply_now_url }}" class="site-btn site-btn-gold">Begin Registration</a>
                       <a href="{{ public_portal_url }}" class="site-btn site-btn-outline">School Portal</a>
                     </div>
                   </div>
-                </div>
+                </article>
               </div>
             </div>
 
             <div class="site-nav-item{% if nav_school_life_active %} is-active{% endif %}">
-              <a href="{{ public_root_url }}gallery/">School Life</a>
-              <div class="site-nav-mega site-nav-mega-life">
-                <div>
-                  <p class="site-nav-label">Explore</p>
-                  <a href="{{ public_root_url }}facilities/">Facilities</a>
-                  <a href="{{ public_root_url }}admissions/hostel-boarding/">Hostel & Boarding</a>
-                  <a href="{{ public_root_url }}gallery/">Gallery</a>
-                </div>
-                <div>
-                  <p class="site-nav-label">Updates</p>
-                  <a href="{{ public_root_url }}news/">News</a>
-                  <a href="{{ public_root_url }}events/">Events</a>
-                  <a href="{{ public_root_url }}contact/">Contact</a>
-                </div>
-                <div class="site-nav-feature">
-                  <img src="{% static 'images/ndga/hero-main.jpg' %}" alt="School life at {{ school_name }}">
-                  <div>
-                    <p class="site-nav-label">Boarding & School Life</p>
-                    <h3>See the spaces, routines, and student life that shape the academy.</h3>
-                    <a href="{{ public_root_url }}gallery/" class="site-text-link">View School Life</a>
-                  </div>
-                </div>
+              <a href="{{ public_root_url }}gallery/" class="site-nav-link">Explore</a>
+              <div class="site-nav-dropdown">
+                <a href="{{ public_root_url }}facilities/">Facilities</a>
+                <a href="{{ public_root_url }}gallery/">Gallery</a>
+                <a href="{{ public_root_url }}news/">News</a>
+                <a href="{{ public_root_url }}events/">Events</a>
+                <a href="{{ public_root_url }}contact/">Contact</a>
               </div>
             </div>
           </nav>
 
-          <div class="site-header-actions">
-            <a href="{{ fees_url }}" class="site-btn site-btn-outline">Fees</a>
-            <a href="{{ apply_now_url }}" class="site-btn site-btn-gold">Apply Now</a>
-            <a href="{{ public_portal_url }}" class="site-btn site-btn-navy">School Portal</a>
+          <div class="site-header-tools">
+            <button type="button" class="site-search-toggle" id="siteSearchToggle" aria-expanded="false" aria-controls="siteSearchPanel" aria-label="Open search">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 4a6.5 6.5 0 1 0 4.03 11.6l4.43 4.44 1.41-1.41-4.44-4.43A6.5 6.5 0 0 0 10.5 4Zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z"/></svg>
+            </button>
           </div>
 
-          <button type="button" class="site-mobile-toggle" id="siteMobileToggle" aria-expanded="false" aria-controls="siteMobileDrawer">Menu</button>
+          <button type="button" class="site-mobile-toggle" id="siteMobileToggle" aria-expanded="false" aria-controls="siteMobileDrawer" aria-label="Open menu">
+            <span></span>
+            <span></span>
+            <span></span>
+          </button>
         </div>
       </div>
     </header>
+
+    <div class="site-search-panel" id="siteSearchPanel" aria-hidden="true">
+      <div class="site-search-backdrop" id="siteSearchBackdrop"></div>
+      <div class="site-search-dialog">
+        <div class="site-search-head">
+          <div>
+            <p class="site-kicker">Search</p>
+            <h2>Find admissions, fees, boarding, and contact details quickly.</h2>
+          </div>
+          <button type="button" class="site-panel-close" id="siteSearchClose">Close</button>
+        </div>
+        <div class="site-search-field">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 4a6.5 6.5 0 1 0 4.03 11.6l4.43 4.44 1.41-1.41-4.44-4.43A6.5 6.5 0 0 0 10.5 4Zm0 2a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9Z"/></svg>
+          <input type="search" id="siteSearchInput" placeholder="Search admissions, fees, hostel, gallery, contact">
+        </div>
+        <div class="site-search-grid">
+          <a href="{{ public_root_url }}admissions/" class="site-search-link" data-search-text="admissions overview how apply boarding screening">
+            <strong>Admissions</strong>
+            <span>Application flow, screening, and follow-up.</span>
+          </a>
+          <a href="{{ public_root_url }}admissions/registration/" class="site-search-link" data-search-text="registration online apply form class documents boarding">
+            <strong>Online Registration</strong>
+            <span>Complete the form and send the required details.</span>
+          </a>
+          <a href="{{ public_root_url }}fees/" class="site-search-link" data-search-text="fees charges payment hostel tuition">
+            <strong>Fees &amp; Charges</strong>
+            <span>Fee structure, payment guidance, and planning notes.</span>
+          </a>
+          <a href="{{ public_root_url }}admissions/hostel-boarding/" class="site-search-link" data-search-text="hostel boarding welfare supervision school life">
+            <strong>Hostel / Boarding</strong>
+            <span>Boarding life, supervision, welfare, and routines.</span>
+          </a>
+          <a href="{{ public_root_url }}academics/" class="site-search-link" data-search-text="academics junior senior curriculum ict clubs">
+            <strong>Academics</strong>
+            <span>Junior and senior secondary learning at NDGA.</span>
+          </a>
+          <a href="{{ public_root_url }}contact/" class="site-search-link" data-search-text="contact phone email address admissions help">
+            <strong>Contact</strong>
+            <span>Phone, email, location, and admissions help.</span>
+          </a>
+        </div>
+      </div>
+    </div>
 
     <aside class="site-mobile-drawer" id="siteMobileDrawer" aria-hidden="true">
       <div class="site-mobile-head">
@@ -148,25 +183,21 @@
             <small>Kuje, Abuja</small>
           </span>
         </a>
-        <button type="button" class="site-mobile-close" id="siteMobileClose">Close</button>
+        <button type="button" class="site-panel-close" id="siteMobileClose">Close</button>
       </div>
-
       <div class="site-mobile-actions">
         <a href="{{ apply_now_url }}" class="site-btn site-btn-gold">Apply Now</a>
-        <a href="{{ public_portal_url }}" class="site-btn site-btn-navy">School Portal</a>
+        <a href="{{ public_portal_url }}" class="site-btn site-btn-outline">School Portal</a>
       </div>
-
       <nav class="site-mobile-nav" aria-label="Mobile navigation">
         <a href="{{ public_root_url }}">Home</a>
         <details{% if nav_about_active %} open{% endif %}>
           <summary>About</summary>
           <div class="site-mobile-subnav">
             <a href="{{ public_root_url }}about/">About NDGA</a>
-            <a href="{{ public_root_url }}principal/">Principal's Welcome</a>
+            <a href="{{ public_root_url }}about/mission-vision-values/">Mission, Vision &amp; Values</a>
             <a href="{{ public_root_url }}about/leadership/">Leadership</a>
-            <a href="{{ public_root_url }}about/mission-vision-values/">Mission, Vision & Values</a>
             <a href="{{ public_root_url }}about/school-life/">School Life</a>
-            <a href="{{ public_root_url }}about/faith-character-formation/">Faith & Character Formation</a>
           </div>
         </details>
         <details{% if nav_academics_active %} open{% endif %}>
@@ -175,9 +206,9 @@
             <a href="{{ public_root_url }}academics/">Academics Overview</a>
             <a href="{{ public_root_url }}academics/junior-secondary/">Junior Secondary</a>
             <a href="{{ public_root_url }}academics/senior-secondary/">Senior Secondary</a>
-            <a href="{{ public_root_url }}academics/subjects-curriculum/">Subjects & Curriculum</a>
-            <a href="{{ public_root_url }}academics/ict-digital-learning/">ICT & Digital Learning</a>
-            <a href="{{ public_root_url }}academics/clubs-co-curriculars/">Clubs, Music & Sports</a>
+            <a href="{{ public_root_url }}academics/subjects-curriculum/">Curriculum</a>
+            <a href="{{ public_root_url }}academics/ict-digital-learning/">ICT / Digital Learning</a>
+            <a href="{{ public_root_url }}academics/clubs-co-curriculars/">Co-curricular Activities</a>
           </div>
         </details>
         <details{% if nav_admissions_active %} open{% endif %}>
@@ -186,14 +217,13 @@
             <a href="{{ public_root_url }}admissions/">Admissions Overview</a>
             <a href="{{ public_root_url }}admissions/how-to-apply/">How to Apply</a>
             <a href="{{ public_root_url }}admissions/registration/">Online Registration</a>
-            <a href="{{ public_root_url }}admissions/screening/">Entrance Exam / Screening</a>
-            <a href="{{ public_root_url }}fees/">Fees & Charges</a>
-            <a href="{{ public_root_url }}admissions/hostel-boarding/">Hostel & Boarding</a>
+            <a href="{{ public_root_url }}fees/">Fees &amp; Charges</a>
+            <a href="{{ public_root_url }}admissions/hostel-boarding/">Hostel / Boarding</a>
             <a href="{{ public_root_url }}admissions/faqs/">Admission FAQs</a>
           </div>
         </details>
         <details{% if nav_school_life_active %} open{% endif %}>
-          <summary>School Life</summary>
+          <summary>Explore</summary>
           <div class="site-mobile-subnav">
             <a href="{{ public_root_url }}facilities/">Facilities</a>
             <a href="{{ public_root_url }}gallery/">Gallery</a>
@@ -204,14 +234,13 @@
         </details>
       </nav>
     </aside>
-
     <div class="site-mobile-backdrop" id="siteMobileBackdrop"></div>
 
     {% if messages %}
-      <div class="site-messages">
+      <div class="site-flash-wrap">
         <div class="site-shell">
           {% for message in messages %}
-            <div class="site-message">{{ message }}</div>
+            <div class="site-flash">{{ message }}</div>
           {% endfor %}
         </div>
       </div>
@@ -220,23 +249,23 @@
     {% block public_content %}{% endblock %}
 
     <button type="button" class="site-assistant-toggle" id="siteAssistantToggle" aria-expanded="false" aria-controls="siteAssistantPanel">
-      Admissions Help
+      <span>Admissions Assistant</span>
     </button>
 
     <aside class="site-assistant" id="siteAssistantPanel" aria-hidden="true" data-assistant-panel>
       <div class="site-assistant-head">
         <div>
-          <p class="site-eyebrow">Need Help?</p>
-          <h2>Admissions assistant</h2>
+          <p class="site-kicker">Need Help?</p>
+          <h2>Ask about admissions, fees, hostel, screening, or portal help.</h2>
         </div>
-        <button type="button" class="site-assistant-close" id="siteAssistantClose">Close</button>
+        <button type="button" class="site-panel-close" id="siteAssistantClose">Close</button>
       </div>
       <div class="assistant-chip-row">
         {% for topic in assistant_topics %}
           <button type="button" class="assistant-chip{% if topic.slug == assistant_default_topic %} is-active{% endif %}" data-assistant-target="{{ topic.slug }}">{{ topic.prompt }}</button>
         {% endfor %}
       </div>
-      <div class="assistant-response-wrap">
+      <div class="assistant-stage">
         {% for topic in assistant_topics %}
           <article class="assistant-response{% if topic.slug == assistant_default_topic %} is-active{% endif %}" data-assistant-response="{{ topic.slug }}">
             <h3>{{ topic.title }}</h3>
@@ -245,6 +274,14 @@
           </article>
         {% endfor %}
       </div>
+      <div class="assistant-ask">
+        <label for="assistantPrompt">Type a question</label>
+        <div class="assistant-ask-row">
+          <input type="text" id="assistantPrompt" placeholder="Ask about fees, boarding, screening, portal">
+          <button type="button" class="site-btn site-btn-gold" id="assistantAskButton">Ask</button>
+        </div>
+        <p class="assistant-helper" id="assistantHelper">Quick answers point you to the right page. Final approved figures and dates come from the school.</p>
+      </div>
       <div class="site-assistant-actions">
         <a href="{{ whatsapp_url }}" class="site-btn site-btn-gold" target="_blank" rel="noopener">WhatsApp</a>
         <a href="tel:{{ contact_phone }}" class="site-btn site-btn-outline">Call School</a>
@@ -252,53 +289,63 @@
     </aside>
 
     <footer class="site-footer">
-      <div class="site-shell">
-        <div class="site-footer-callout">
+      <div class="site-footer-top">
+        <div class="site-shell site-footer-top-inner">
           <div>
-            <p class="site-eyebrow">Admissions</p>
-            <h2>Begin with registration, review the fees, and contact the school when you need guidance.</h2>
+            <p class="site-kicker site-kicker-gold">Admissions</p>
+            <h2>Apply, review fees, or contact the admissions office directly.</h2>
           </div>
           <div class="site-inline-actions">
             <a href="{{ apply_now_url }}" class="site-btn site-btn-gold">Apply Now</a>
-            <a href="{{ contact_url }}" class="site-btn site-btn-outline-light">Contact Us</a>
+            <a href="{{ public_root_url }}fees/" class="site-btn site-btn-outline-light">View Fees</a>
+            <a href="{{ public_root_url }}contact/" class="site-btn site-btn-outline-light">Contact Admissions</a>
           </div>
         </div>
-
+      </div>
+      <div class="site-shell site-footer-main">
+        <div class="site-footer-brand">
+          <img src="{% static 'images/ndga/logo.png' %}" alt="{{ school_name }} logo">
+          <div>
+            <h2>{{ school_name }}</h2>
+            <p>Catholic girls' boarding school in Kuje, Abuja, with clear academics, visible boarding life, guided admissions, and direct contact routes.</p>
+          </div>
+        </div>
         <div class="site-footer-grid">
           <div>
-            <div class="site-footer-brand">
-              <img src="{% static 'images/ndga/logo.png' %}" alt="{{ school_name }} logo">
-              <div>
-                <p class="site-footer-title">{{ school_name }}</p>
-                <p class="site-footer-copy">Catholic girls' boarding school in Kuje, Abuja, with strong academics, daily structure, faith-rooted formation, and close student care.</p>
-              </div>
-            </div>
-          </div>
-          <div>
-            <p class="site-footer-heading">About</p>
+            <p class="site-footer-label">About</p>
             <div class="site-footer-links">
               <a href="{{ public_root_url }}about/">About NDGA</a>
-              <a href="{{ public_root_url }}principal/">Principal's Welcome</a>
+              <a href="{{ public_root_url }}about/mission-vision-values/">Mission, Vision &amp; Values</a>
               <a href="{{ public_root_url }}about/leadership/">Leadership</a>
               <a href="{{ public_root_url }}about/school-life/">School Life</a>
             </div>
           </div>
           <div>
-            <p class="site-footer-heading">Admissions</p>
+            <p class="site-footer-label">Academics</p>
             <div class="site-footer-links">
-              <a href="{{ public_root_url }}admissions/">Admissions Overview</a>
-              <a href="{{ public_root_url }}admissions/registration/">Online Registration</a>
-              <a href="{{ public_root_url }}fees/">Fees & Charges</a>
-              <a href="{{ public_root_url }}admissions/hostel-boarding/">Hostel & Boarding</a>
+              <a href="{{ public_root_url }}academics/">Academics Overview</a>
+              <a href="{{ public_root_url }}academics/junior-secondary/">Junior Secondary</a>
+              <a href="{{ public_root_url }}academics/senior-secondary/">Senior Secondary</a>
+              <a href="{{ public_root_url }}academics/subjects-curriculum/">Curriculum</a>
             </div>
           </div>
           <div>
-            <p class="site-footer-heading">Contact</p>
+            <p class="site-footer-label">Admissions</p>
             <div class="site-footer-links">
+              <a href="{{ public_root_url }}admissions/">Admissions Overview</a>
+              <a href="{{ public_root_url }}admissions/registration/">Online Registration</a>
+              <a href="{{ public_root_url }}fees/">Fees &amp; Charges</a>
+              <a href="{{ public_root_url }}admissions/hostel-boarding/">Hostel / Boarding</a>
+              <a href="{{ public_portal_url }}">School Portal</a>
+            </div>
+          </div>
+          <div>
+            <p class="site-footer-label">Contact</p>
+            <div class="site-footer-links">
+              <a href="{{ map_url }}" target="_blank" rel="noopener">{{ school_address }}</a>
               <a href="tel:{{ contact_phone }}">{{ contact_phone }}</a>
               <a href="tel:{{ secondary_phone }}">{{ secondary_phone }}</a>
               <a href="mailto:{{ contact_email }}">{{ contact_email }}</a>
-              <a href="{{ map_url }}" target="_blank" rel="noopener">{{ school_address }}</a>
             </div>
           </div>
         </div>

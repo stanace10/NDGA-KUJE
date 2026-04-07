@@ -2,62 +2,65 @@
 
 {% block public_content %}
   <main>
-    <section class="page-hero reveal">
+    <section class="page-banner reveal">
       <div class="site-shell">
-        <div class="page-hero-panel">
-          <div class="page-hero-copy">
-            <p class="site-eyebrow">{{ page.eyebrow }}</p>
+        <div class="page-banner-grid">
+          <div class="page-banner-copy">
+            <p class="site-kicker">{{ page.eyebrow }}</p>
             <h1>{{ page.title }}</h1>
             <p>{{ page.intro }}</p>
+            <div class="site-inline-actions">
+              <a href="{{ apply_now_url }}" class="site-btn site-btn-gold">Apply Now</a>
+              <a href="{{ map_url }}" class="site-btn site-btn-outline" target="_blank" rel="noopener">Get Directions</a>
+            </div>
           </div>
-          <div class="page-hero-media">
+          <div class="page-banner-media">
             <img src="{{ page.hero_image }}" alt="{{ page.title }}">
           </div>
         </div>
       </div>
     </section>
 
-    <section class="site-section reveal">
+    <section class="site-band reveal">
       <div class="site-shell">
-        <div class="contact-layout">
-          <div>
-            <div class="feature-grid feature-grid-2">
+        <div class="contact-stage">
+          <div class="contact-stage-rail">
+            <div class="contact-card-grid">
               {% for item in contact_cards %}
-                <article class="feature-card">
-                  <p class="site-eyebrow">{{ item.title }}</p>
-                  <h3><a href="{{ item.url }}" class="site-text-link">{{ item.value }}</a></h3>
+                <article class="contact-card">
+                  <p class="site-kicker">{{ item.title }}</p>
+                  <h3><a href="{{ item.url }}">{{ item.value }}</a></h3>
                   <p>{{ item.note }}</p>
                 </article>
               {% endfor %}
             </div>
-            <div class="helper-box">
-              <p class="site-eyebrow">Quick Help</p>
-              <h2>Need help with admissions, fees, boarding, or screening?</h2>
-              <div class="prompt-row">
+
+            <div class="contact-help-band">
+              <p class="site-kicker">Quick Help</p>
+              <h2>Use the right route for admissions, hostel, fees, screening, or portal support.</h2>
+              <div class="filter-strip">
                 {% for item in contact_prompts %}
-                  <span class="prompt-pill">{{ item }}</span>
+                  <span class="filter-pill filter-pill-static">{{ item }}</span>
                 {% endfor %}
               </div>
             </div>
-            <div class="content-columns top-gap">
-              <article class="content-column">
-                <p class="site-eyebrow">Office Hours</p>
-                <h3>When to reach the school</h3>
-                <ul class="bullet-list">
+
+            <div class="topic-grid">
+              <article class="topic-card">
+                <h3>Office Hours</h3>
+                <ul class="story-list">
                   {% for item in office_hours %}
                     <li>{{ item }}</li>
                   {% endfor %}
                 </ul>
-                <a href="{{ map_url }}" class="site-text-link" target="_blank" rel="noopener">Open directions</a>
               </article>
-              <article class="content-column">
-                <p class="site-eyebrow">Support Routes</p>
-                <h3>Open the right page quickly</h3>
-                <div class="stack-list">
+              <article class="topic-card">
+                <h3>Support Routes</h3>
+                <div class="updates-stack">
                   {% for item in support_routes %}
-                    <a href="{{ item.url }}" class="mini-story mini-story-link">
-                      <span>{{ item.title }}</span>
-                      <small>{{ item.text }}</small>
+                    <a href="{{ item.url }}" class="updates-compact">
+                      <strong>{{ item.title }}</strong>
+                      <span>{{ item.text }}</span>
                     </a>
                   {% endfor %}
                 </div>
@@ -65,9 +68,9 @@
             </div>
           </div>
 
-          <div class="form-card">
-            <p class="site-eyebrow">Send a Message</p>
-            <h2>Contact the school</h2>
+          <div class="form-stage">
+            <p class="site-kicker">Send an Enquiry</p>
+            <h2>Contact the school directly.</h2>
             <form method="post" class="site-form">
               {% csrf_token %}
               {% if form.non_field_errors %}

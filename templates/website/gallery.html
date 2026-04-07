@@ -2,35 +2,34 @@
 
 {% block public_content %}
   <main>
-    <section class="page-hero reveal">
+    <section class="page-banner reveal">
       <div class="site-shell">
-        <div class="page-hero-panel">
-          <div class="page-hero-copy">
-            <p class="site-eyebrow">{{ page.eyebrow }}</p>
+        <div class="page-banner-grid">
+          <div class="page-banner-copy">
+            <p class="site-kicker">{{ page.eyebrow }}</p>
             <h1>{{ page.title }}</h1>
             <p>{{ page.intro }}</p>
           </div>
-          <div class="page-hero-media">
+          <div class="page-banner-media">
             <img src="{{ page.hero_image }}" alt="{{ page.title }}">
           </div>
         </div>
       </div>
     </section>
 
-    <section class="site-section reveal">
+    <section class="site-band reveal">
       <div class="site-shell">
-        <div class="filter-row">
+        <div class="filter-strip">
           <a href="{{ public_root_url }}gallery/" class="filter-pill{% if not active_category %} is-active{% endif %}">All</a>
           {% for item in gallery_categories %}
             <a href="{{ item.url }}" class="filter-pill{% if active_category == item.slug %} is-active{% endif %}">{{ item.title }}</a>
           {% endfor %}
         </div>
-        <div class="gallery-grid">
+        <div class="mosaic-stage">
           {% for item in gallery_images %}
-            <button type="button" class="gallery-card" data-lightbox-image="{{ item.image }}" data-lightbox-title="{{ item.title }}" data-lightbox-caption="{{ item.caption }}">
+            <button type="button" class="mosaic-card{% if forloop.first or forloop.counter == 4 or forloop.counter == 6 %} mosaic-card-tall{% endif %} gallery-card" data-lightbox-image="{{ item.image }}" data-lightbox-title="{{ item.title }}" data-lightbox-caption="{{ item.caption }}">
               <img src="{{ item.image }}" alt="{{ item.title }}" loading="lazy">
-              <span class="gallery-card-title">{{ item.title }}</span>
-              <span class="gallery-card-caption">{{ item.caption }}</span>
+              <span>{{ item.title }}</span>
             </button>
           {% endfor %}
         </div>
@@ -38,7 +37,7 @@
     </section>
 
     <div class="lightbox" id="siteLightbox" aria-hidden="true">
-      <button type="button" class="lightbox-close" id="siteLightboxClose">Close</button>
+      <button type="button" class="site-panel-close lightbox-close" id="siteLightboxClose">Close</button>
       <div class="lightbox-inner">
         <img src="" alt="" id="siteLightboxImage">
         <div class="lightbox-copy">
