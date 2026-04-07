@@ -2,6 +2,7 @@ import base64
 import binascii
 import uuid
 from datetime import timedelta
+from pathlib import Path
 
 from django.conf import settings
 from django.contrib import messages
@@ -116,6 +117,21 @@ def _calculate_age(date_of_birth):
     if (today.month, today.day) < (date_of_birth.month, date_of_birth.day):
         years -= 1
     return max(years, 0)
+
+
+def _portal_file_url(file_field):
+    if not file_field:
+        return ""
+    name = (getattr(file_field, "name", "") or "").lstrip("/")
+    if name:
+        candidate = Path(settings.MEDIA_ROOT) / Path(name)
+        if candidate.exists():
+            version = int(candidate.stat().st_mtime)
+            return f"/media/{name}?v={version}".replace("\\", "/")
+    try:
+        return file_field.url
+    except Exception:
+        return ""
 
 
 def _term_sort_key(term: Term):
@@ -242,8 +258,8 @@ def _portal_focus_notes(*, portal_key: str, role_codes: set[str]):
         ]
     if portal_key == "vp":
         return [
-            "Dashboard focuses on staff/student management, media broadcasts, and result publishing.",
-            "Form teacher duties remain limited to assigned classes through the staff portal.",
+            "Dashboard focuses on oversight, approvals, attendance, and performance for assigned classes.",
+            "If VP is also a form teacher, the assigned base class covers all active class arms under that level.",
         ]
     if portal_key == "principal":
         return [
@@ -801,7 +817,7 @@ def _staff_dashboard_payload(user):
         role_panels.append(
             {
                 "title": "Form Teacher",
-                "subtitle": "Attendance ownership and cumulative class compilation.",
+                "subtitle": "Attendance ownership, class performance, and your assigned teaching workflow.",
                 "items": [
                     {
                         "label": "Attendance",
@@ -810,16 +826,16 @@ def _staff_dashboard_payload(user):
                         "metric": form_class_count,
                     },
                     {
-                        "label": "Grade Cumulative",
-                        "url": "/results/form/compilation/",
-                        "description": "Review student cumulative/average flow and compile for final approval.",
-                        "metric": form_compile_ready_count,
-                    },
-                    {
                         "label": "Own Subjects",
                         "url": "/results/grade-entry/",
                         "description": "Enter scores only for subjects directly assigned to you.",
                         "metric": own_submit_ready_count + own_submitted_count,
+                    },
+                    {
+                        "label": "Performance Report",
+                        "url": "/results/report/performance/",
+                        "description": "Review class performance and filter down to subjects you teach.",
+                        "metric": form_class_count,
                     },
                 ],
             }
@@ -1229,9 +1245,9 @@ class PortalPageView(LoginRequiredMixin, TemplateView):
             user_identifier = staff_profile.staff_id
 
         if student_profile and student_profile.profile_photo:
-            portal_profile_photo_url = student_profile.profile_photo.url
+            portal_profile_photo_url = _portal_file_url(student_profile.profile_photo)
         elif staff_profile and staff_profile.profile_photo:
-            portal_profile_photo_url = staff_profile.profile_photo.url
+            portal_profile_photo_url = _portal_file_url(staff_profile.profile_photo)
 
         nav_items_for_actions = build_portal_navigation(
             portal_key=portal_key,
@@ -2083,6 +2099,7 @@ class PortalRootView(View):
         portal_key = getattr(request, "portal_key", "landing")
         host_root_map = {
             "landing": LandingPageView.as_view(),
+            "portal": LandingPageView.as_view(),
             "student": StudentPortalView.as_view(),
             "staff": StaffPortalView.as_view(),
             "it": ITPortalView.as_view(),
@@ -2094,6 +2111,20 @@ class PortalRootView(View):
         }
         view = host_root_map.get(portal_key, LandingPageView.as_view())
         return view(request, *args, **kwargs)
+
+
+class LegacyCalendarRedirectView(LoginRequiredMixin, View):
+    def get(self, request, *args, **kwargs):
+        if any(request.user.has_role(code) for code in {ROLE_IT_MANAGER, ROLE_VP, ROLE_PRINCIPAL}):
+            return redirect("attendance:calendar-manage")
+        return redirect("dashboard:landing")
+
+
+class LegacyNoticeRedirectView(LoginRequiredMixin, View):
+    def get(self, request, *args, **kwargs):
+        if any(request.user.has_role(code) for code in {ROLE_IT_MANAGER, ROLE_VP, ROLE_PRINCIPAL, ROLE_DEAN}):
+            return redirect("notifications:media-center")
+        return redirect("notifications:center")
 
 
 def health_check(_request):

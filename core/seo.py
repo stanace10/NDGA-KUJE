@@ -6,7 +6,6 @@ from django.http import HttpResponse
 from django.templatetags.static import static
 from django.urls import reverse
 
-from apps.dashboard.public_site import PUBLIC_INDEXABLE_PATHS
 from apps.tenancy.utils import build_portal_url, current_portal_key
 
 DEFAULT_SITE_NAME = "NDGA AI Enterprise Platform"
@@ -15,16 +14,19 @@ DEFAULT_DESCRIPTION = (
     "Governance-first school management, CBT, elections, finance, sync, and "
     "academic operations for Notre Dame Girls Academy, Kuje Abuja."
 )
+INDEXABLE_PATHS = {"/"}
+
+
 def _landing_url(request, path="/"):
     return build_portal_url(request, "landing", path)
 
 
-def _is_public_indexable(request):
+def _is_indexable(request):
     return (
         request.method == "GET"
         and not getattr(request.user, "is_authenticated", False)
         and current_portal_key(request) == "landing"
-        and request.path in PUBLIC_INDEXABLE_PATHS
+        and request.path in INDEXABLE_PATHS
     )
 
 
@@ -35,7 +37,7 @@ def build_seo_context(request):
     site_name = getattr(settings, "SEO_SITE_NAME", DEFAULT_SITE_NAME)
     organization_name = getattr(settings, "SEO_ORGANIZATION_NAME", DEFAULT_ORGANIZATION_NAME)
     description = getattr(settings, "SEO_DEFAULT_DESCRIPTION", DEFAULT_DESCRIPTION)
-    is_public_indexable = _is_public_indexable(request)
+    is_indexable = _is_indexable(request)
     page_url = request.build_absolute_uri()
     schema_payload = [
         {
@@ -65,11 +67,11 @@ def build_seo_context(request):
         "seo_site_name": site_name,
         "seo_default_title": site_name,
         "seo_default_description": description,
-        "seo_robots_content": "index, follow" if is_public_indexable else "noindex, nofollow",
+        "seo_robots_content": "index, follow" if is_indexable else "noindex, nofollow",
         "seo_canonical_url": page_url,
         "seo_image_url": share_image_url,
         "seo_url": page_url,
-        "seo_is_public_indexable": is_public_indexable,
+        "seo_is_public_indexable": is_indexable,
         "seo_google_site_verification": getattr(settings, "GOOGLE_SITE_VERIFICATION", ""),
         "seo_google_analytics_id": getattr(settings, "GOOGLE_ANALYTICS_ID", ""),
         "seo_google_ads_id": getattr(settings, "GOOGLE_ADS_ID", ""),
@@ -104,7 +106,7 @@ def robots_txt(request):
 def sitemap_xml(request):
     today = date.today().isoformat()
     urls = []
-    for path in sorted(PUBLIC_INDEXABLE_PATHS):
+    for path in sorted(INDEXABLE_PATHS):
         priority = "1.0" if path == "/" else "0.8"
         changefreq = "daily" if path == "/" else "weekly"
         urls.append(
