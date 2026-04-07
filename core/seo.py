@@ -8,11 +8,11 @@ from django.urls import reverse
 
 from apps.tenancy.utils import build_portal_url, current_portal_key
 
-DEFAULT_SITE_NAME = "NDGA AI Enterprise Platform"
+DEFAULT_SITE_NAME = "NDGA Portal"
 DEFAULT_ORGANIZATION_NAME = "Notre Dame Girls Academy"
 DEFAULT_DESCRIPTION = (
-    "Governance-first school management, CBT, elections, finance, sync, and "
-    "academic operations for Notre Dame Girls Academy, Kuje Abuja."
+    "Portal access for students, staff, academic records, finance, CBT, and "
+    "school operations at Notre Dame Girls Academy, Kuje Abuja."
 )
 INDEXABLE_PATHS = {"/"}
 

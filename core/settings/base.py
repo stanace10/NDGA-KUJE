@@ -25,6 +25,10 @@ env = environ.Env(
     PAYSTACK_SECRET_KEY=(str, ""),
     PAYSTACK_WEBHOOK_SECRET=(str, ""),
     PAYSTACK_API_BASE_URL=(str, "https://api.paystack.co"),
+    FLUTTERWAVE_PUBLIC_KEY=(str, ""),
+    FLUTTERWAVE_SECRET_KEY=(str, ""),
+    FLUTTERWAVE_ENCRYPTION_KEY=(str, ""),
+    FLUTTERWAVE_API_BASE_URL=(str, "https://api.flutterwave.com/v3"),
     REMITTA_MERCHANT_ID=(str, ""),
     REMITTA_SERVICE_TYPE_ID=(str, ""),
     REMITTA_API_KEY=(str, ""),
@@ -106,9 +110,9 @@ env = environ.Env(
     GOOGLE_ANALYTICS_ID=(str, ""),
     GOOGLE_ADS_ID=(str, ""),
     GOOGLE_ADSENSE_CLIENT_ID=(str, ""),
-    SEO_SITE_NAME=(str, "NDGA AI Enterprise Platform"),
+    SEO_SITE_NAME=(str, "NDGA Portal"),
     SEO_ORGANIZATION_NAME=(str, "Notre Dame Girls Academy"),
-    SEO_DEFAULT_DESCRIPTION=(str, "Governance-first school management, CBT, elections, finance, sync, and academic operations for Notre Dame Girls Academy, Kuje Abuja."),
+    SEO_DEFAULT_DESCRIPTION=(str, "Portal access for students, staff, academic records, finance, CBT, and school operations at Notre Dame Girls Academy, Kuje Abuja."),
     AI_PROVIDER_ORDER=(str, "openai,groq,gemini,huggingface"),
     GROQ_API_KEY=(str, ""),
     GROQ_MODEL=(str, "llama-3.1-8b-instant"),
@@ -179,6 +183,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django_hosts.middleware.HostsRequestMiddleware",
+    "core.security.LocalNetworkHostCompatibilityMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -392,6 +397,7 @@ SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin"
 PARENT_HOST = NDGA_BASE_DOMAIN
 PORTAL_SUBDOMAINS = {
     "landing": env("NDGA_LANDING_HOST", default=NDGA_BASE_DOMAIN),
+    "portal": env("NDGA_PORTAL_HOST", default=f"portal.{NDGA_BASE_DOMAIN}"),
     "student": env("NDGA_STUDENT_HOST", default=f"student.{NDGA_BASE_DOMAIN}"),
     "staff": env("NDGA_STAFF_HOST", default=f"staff.{NDGA_BASE_DOMAIN}"),
     "it": env("NDGA_IT_HOST", default=f"it.{NDGA_BASE_DOMAIN}"),
@@ -414,6 +420,10 @@ PAYSTACK_PUBLIC_KEY = env("PAYSTACK_PUBLIC_KEY", default="")
 PAYSTACK_SECRET_KEY = env("PAYSTACK_SECRET_KEY", default="")
 PAYSTACK_WEBHOOK_SECRET = env("PAYSTACK_WEBHOOK_SECRET", default="")
 PAYSTACK_API_BASE_URL = env("PAYSTACK_API_BASE_URL", default="https://api.paystack.co")
+FLUTTERWAVE_PUBLIC_KEY = env("FLUTTERWAVE_PUBLIC_KEY", default="")
+FLUTTERWAVE_SECRET_KEY = env("FLUTTERWAVE_SECRET_KEY", default="")
+FLUTTERWAVE_ENCRYPTION_KEY = env("FLUTTERWAVE_ENCRYPTION_KEY", default="")
+FLUTTERWAVE_API_BASE_URL = env("FLUTTERWAVE_API_BASE_URL", default="https://api.flutterwave.com/v3")
 REMITTA_MERCHANT_ID = env("REMITTA_MERCHANT_ID", default="")
 REMITTA_SERVICE_TYPE_ID = env("REMITTA_SERVICE_TYPE_ID", default="")
 REMITTA_API_KEY = env("REMITTA_API_KEY", default="")
