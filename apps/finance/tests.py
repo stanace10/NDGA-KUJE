@@ -753,7 +753,7 @@ class FinanceDeltaExportTests(TestCase):
             HTTP_X_NDGA_MANUAL_SYNC_TOKEN="manual-sync-token",
         )
         self.assertEqual(response.status_code, 200)
-        payload = response.json()
+        payload = finance_sync_decode_transport(response.content)
         self.assertEqual(payload["count"], 1)
         self.assertEqual(payload["items"][0]["gateway_reference"], "GATEWAY-REF-1")
 
