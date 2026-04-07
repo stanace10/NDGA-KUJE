@@ -12,6 +12,7 @@ from apps.finance.views import (
     BursarStudentFinanceDetailView,
     BursarSalaryManagementView,
     FinanceSummaryView,
+    FlutterwaveWebhookView,
     GatewayPaymentCallbackView,
     ManualPaymentDeltaExportView,
     PaystackWebhookView,
@@ -43,6 +44,7 @@ urlpatterns = [
     path("gateway/launch/remitta/<str:reference>/", RemittaGatewayLaunchView.as_view(), name="gateway-remitta-launch"),
     path("gateway/callback/", GatewayPaymentCallbackView.as_view(), name="gateway-callback"),
     path("gateway/webhook/paystack/", PaystackWebhookView.as_view(), name="gateway-paystack-webhook"),
+    path("gateway/webhook/flutterwave/", FlutterwaveWebhookView.as_view(), name="gateway-flutterwave-webhook"),
     path("receipts/<uuid:receipt_id>/download/", ReceiptPDFDownloadView.as_view(), name="receipt-download"),
     path("receipts/verify/<uuid:receipt_id>/", ReceiptVerificationView.as_view(), name="receipt-verify"),
 ]

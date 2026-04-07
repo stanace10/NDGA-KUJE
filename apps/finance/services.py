@@ -1196,6 +1196,30 @@ def _finance_payment_export_url():
     return url_parse.urlunparse(parsed._replace(path="/finance/api/manual-export/payments/", query="", params="", fragment=""))
 
 
+def finance_sync_signing_secrets():
+    secrets = []
+    primary = (getattr(settings, "SYNC_PAYLOAD_SIGNING_SECRET", "") or "").strip()
+    if primary:
+        secrets.append(primary)
+    fallback_to_token = (getattr(settings, "SYNC_ENDPOINT_AUTH_TOKEN", "") or "").strip()
+    if fallback_to_token and fallback_to_token not in secrets:
+        secrets.append(fallback_to_token)
+    for item in getattr(settings, "SYNC_PAYLOAD_SIGNING_SECRET_FALLBACKS", []) or []:
+        token = (item or "").strip()
+        if token and token not in secrets:
+            secrets.append(token)
+    return secrets
+
+
+def finance_sync_payload_signature(raw_body):
+    if isinstance(raw_body, str):
+        raw_body = raw_body.encode("utf-8")
+    secret = next(iter(finance_sync_signing_secrets()), "")
+    if not secret:
+        return ""
+    return hmac.new(secret.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()
+
+
 def reconcile_cloud_payment_item(*, payload, actor=None, request=None):
     reference = str(payload.get("reference") or "").strip()
     if not reference:
@@ -1367,7 +1391,20 @@ def pull_cloud_payment_deltas(*, updated_since=None, actor=None, request=None, p
         request_obj.add_header("X-NDGA-Manual-Sync-Token", token)
     try:
         with url_request.urlopen(request_obj, timeout=20) as response:
-            payload = json.loads(response.read().decode("utf-8"))
+            raw_body = response.read()
+            if finance_sync_signing_secrets():
+                expected_signature = (response.headers.get("X-NDGA-Payload-Signature") or "").strip().lower()
+                if not expected_signature:
+                    raise ValidationError("Cloud export signature header is missing.")
+                if not any(
+                    hmac.compare_digest(
+                        hmac.new(secret.encode("utf-8"), raw_body, hashlib.sha256).hexdigest(),
+                        expected_signature,
+                    )
+                    for secret in finance_sync_signing_secrets()
+                ):
+                    raise ValidationError("Cloud export signature verification failed.")
+            payload = json.loads(raw_body.decode("utf-8"))
     except (url_error.URLError, json.JSONDecodeError) as exc:
         raise ValidationError(f"Unable to pull cloud payment deltas: {exc}") from exc
 

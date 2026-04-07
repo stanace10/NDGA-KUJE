@@ -24,9 +24,12 @@ env = environ.Env(
     PAYSTACK_PUBLIC_KEY=(str, ""),
     PAYSTACK_SECRET_KEY=(str, ""),
     PAYSTACK_WEBHOOK_SECRET=(str, ""),
+    PAYSTACK_WEBHOOK_ALLOWED_IPS=(str, ""),
     PAYSTACK_API_BASE_URL=(str, "https://api.paystack.co"),
     FLUTTERWAVE_PUBLIC_KEY=(str, ""),
     FLUTTERWAVE_SECRET_KEY=(str, ""),
+    FLUTTERWAVE_WEBHOOK_SECRET_HASH=(str, ""),
+    FLUTTERWAVE_WEBHOOK_ALLOWED_IPS=(str, ""),
     FLUTTERWAVE_ENCRYPTION_KEY=(str, ""),
     FLUTTERWAVE_API_BASE_URL=(str, "https://api.flutterwave.com/v3"),
     REMITTA_MERCHANT_ID=(str, ""),
@@ -49,6 +52,10 @@ env = environ.Env(
     SYNC_LOCAL_NODE_ID=(str, "ndga-cbt-local-node"),
     SYNC_CLOUD_ENDPOINT=(str, ""),
     SYNC_ENDPOINT_AUTH_TOKEN=(str, ""),
+    SYNC_ENDPOINT_AUTH_TOKEN_FALLBACKS=(str, ""),
+    SYNC_ENDPOINT_ALLOWED_IPS=(str, ""),
+    SYNC_PAYLOAD_SIGNING_SECRET=(str, ""),
+    SYNC_PAYLOAD_SIGNING_SECRET_FALLBACKS=(str, ""),
     SYNC_MAX_RETRIES=(int, 8),
     SYNC_RETRY_BASE_SECONDS=(int, 20),
     SYNC_RETRY_MAX_SECONDS=(int, 1800),
@@ -420,9 +427,20 @@ PAYMENT_GATEWAY_PROVIDER = env("PAYMENT_GATEWAY_PROVIDER", default="PAYSTACK")
 PAYSTACK_PUBLIC_KEY = env("PAYSTACK_PUBLIC_KEY", default="")
 PAYSTACK_SECRET_KEY = env("PAYSTACK_SECRET_KEY", default="")
 PAYSTACK_WEBHOOK_SECRET = env("PAYSTACK_WEBHOOK_SECRET", default="")
+PAYSTACK_WEBHOOK_ALLOWED_IPS = [
+    item.strip()
+    for item in env("PAYSTACK_WEBHOOK_ALLOWED_IPS", default="").split(",")
+    if item.strip()
+]
 PAYSTACK_API_BASE_URL = env("PAYSTACK_API_BASE_URL", default="https://api.paystack.co")
 FLUTTERWAVE_PUBLIC_KEY = env("FLUTTERWAVE_PUBLIC_KEY", default="")
 FLUTTERWAVE_SECRET_KEY = env("FLUTTERWAVE_SECRET_KEY", default="")
+FLUTTERWAVE_WEBHOOK_SECRET_HASH = env("FLUTTERWAVE_WEBHOOK_SECRET_HASH", default="")
+FLUTTERWAVE_WEBHOOK_ALLOWED_IPS = [
+    item.strip()
+    for item in env("FLUTTERWAVE_WEBHOOK_ALLOWED_IPS", default="").split(",")
+    if item.strip()
+]
 FLUTTERWAVE_ENCRYPTION_KEY = env("FLUTTERWAVE_ENCRYPTION_KEY", default="")
 FLUTTERWAVE_API_BASE_URL = env("FLUTTERWAVE_API_BASE_URL", default="https://api.flutterwave.com/v3")
 REMITTA_MERCHANT_ID = env("REMITTA_MERCHANT_ID", default="")
@@ -459,6 +477,22 @@ SYNC_LOCAL_NODE_ENABLED = env.bool("SYNC_LOCAL_NODE_ENABLED", default=True)
 SYNC_LOCAL_NODE_ID = env("SYNC_LOCAL_NODE_ID", default="ndga-cbt-local-node")
 SYNC_CLOUD_ENDPOINT = env("SYNC_CLOUD_ENDPOINT", default="")
 SYNC_ENDPOINT_AUTH_TOKEN = env("SYNC_ENDPOINT_AUTH_TOKEN", default="")
+SYNC_ENDPOINT_AUTH_TOKEN_FALLBACKS = [
+    item.strip()
+    for item in env("SYNC_ENDPOINT_AUTH_TOKEN_FALLBACKS", default="").split(",")
+    if item.strip()
+]
+SYNC_ENDPOINT_ALLOWED_IPS = [
+    item.strip()
+    for item in env("SYNC_ENDPOINT_ALLOWED_IPS", default="").split(",")
+    if item.strip()
+]
+SYNC_PAYLOAD_SIGNING_SECRET = env("SYNC_PAYLOAD_SIGNING_SECRET", default="")
+SYNC_PAYLOAD_SIGNING_SECRET_FALLBACKS = [
+    item.strip()
+    for item in env("SYNC_PAYLOAD_SIGNING_SECRET_FALLBACKS", default="").split(",")
+    if item.strip()
+]
 SYNC_MAX_RETRIES = env.int("SYNC_MAX_RETRIES", default=8)
 SYNC_RETRY_BASE_SECONDS = env.int("SYNC_RETRY_BASE_SECONDS", default=20)
 SYNC_RETRY_MAX_SECONDS = env.int("SYNC_RETRY_MAX_SECONDS", default=1800)

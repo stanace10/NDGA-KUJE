@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import ipaddress
 import json
 from datetime import date, datetime
 from decimal import Decimal
@@ -25,7 +26,8 @@ from apps.accounts.constants import ROLE_BURSAR, ROLE_PRINCIPAL, ROLE_STUDENT, R
 from apps.accounts.models import User
 from apps.accounts.permissions import has_any_role
 from apps.academics.models import AcademicClass, AcademicSession, StudentClassEnrollment, Term
-from apps.audit.services import log_finance_transaction
+from apps.audit.models import AuditStatus
+from apps.audit.services import get_client_ip, log_event, log_finance_transaction
 from apps.finance.forms import (
     BursarMessageForm,
     ExpenseForm,
@@ -62,6 +64,7 @@ from apps.finance.services import (
     finance_payment_delta_payload,
     finance_profile,
     evaluate_receipt_integrity,
+    finance_sync_payload_signature,
     gateway_is_enabled,
     gateway_provider_label,
     generate_receipt_pdf,
@@ -112,11 +115,70 @@ def _portal_media_url(file_field):
 
 
 def _manual_sync_token_valid(request):
-    expected = (getattr(settings, "SYNC_ENDPOINT_AUTH_TOKEN", "") or "").strip()
-    if not expected:
+    accepted_tokens = []
+    primary = (getattr(settings, "SYNC_ENDPOINT_AUTH_TOKEN", "") or "").strip()
+    if primary:
+        accepted_tokens.append(primary)
+    for item in getattr(settings, "SYNC_ENDPOINT_AUTH_TOKEN_FALLBACKS", []) or []:
+        token = (item or "").strip()
+        if token and token not in accepted_tokens:
+            accepted_tokens.append(token)
+    if not accepted_tokens:
         return False
     provided = (request.headers.get("X-NDGA-Manual-Sync-Token") or request.GET.get("token") or "").strip()
-    return bool(provided) and hmac.compare_digest(provided, expected)
+    return bool(provided) and any(
+        hmac.compare_digest(provided, expected)
+        for expected in accepted_tokens
+    )
+
+
+def _request_ip_allowed(request, setting_name):
+    allowed = getattr(settings, setting_name, []) or []
+    if not allowed:
+        return True
+    raw_ip = (get_client_ip(request) or "").strip()
+    if not raw_ip:
+        return False
+    try:
+        request_ip = ipaddress.ip_address(raw_ip)
+    except ValueError:
+        return False
+    for item in allowed:
+        candidate = (item or "").strip()
+        if not candidate:
+            continue
+        try:
+            if "/" in candidate:
+                if request_ip in ipaddress.ip_network(candidate, strict=False):
+                    return True
+            elif request_ip == ipaddress.ip_address(candidate):
+                return True
+        except ValueError:
+            continue
+    return False
+
+
+def _log_security_rejection(*, request, event_type, message, metadata=None):
+    log_event(
+        category="SYSTEM",
+        event_type=event_type,
+        status=AuditStatus.DENIED,
+        actor=request.user if getattr(request.user, "is_authenticated", False) else None,
+        request=request,
+        message=message,
+        metadata=metadata or {},
+    )
+
+
+def _json_response_with_signature(payload, *, status=200):
+    raw = json.dumps(payload).encode("utf-8")
+    response = HttpResponse(raw, status=status, content_type="application/json")
+    signature = finance_sync_payload_signature(raw)
+    if signature:
+        response["X-NDGA-Payload-Signature"] = signature
+    response["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response["Pragma"] = "no-cache"
+    return response
 
 
 class FinancePortalAccessMixin(LoginRequiredMixin, UserPassesTestMixin):
@@ -136,7 +198,21 @@ class FinancePortalAccessMixin(LoginRequiredMixin, UserPassesTestMixin):
 
 class ManualPaymentDeltaExportView(View):
     def get(self, request, *args, **kwargs):
+        if not _request_ip_allowed(request, "SYNC_ENDPOINT_ALLOWED_IPS"):
+            _log_security_rejection(
+                request=request,
+                event_type="MANUAL_SYNC_IP_DENIED",
+                message="Manual finance export rejected due to IP allow-list mismatch.",
+                metadata={"path": request.path},
+            )
+            return JsonResponse({"detail": "Forbidden"}, status=403)
         if not _manual_sync_token_valid(request):
+            _log_security_rejection(
+                request=request,
+                event_type="MANUAL_SYNC_TOKEN_DENIED",
+                message="Manual finance export rejected due to invalid sync token.",
+                metadata={"path": request.path},
+            )
             return JsonResponse({"detail": "Unauthorized"}, status=403)
         since_raw = (request.GET.get("since") or "").strip()
         since = None
@@ -148,7 +224,51 @@ class ManualPaymentDeltaExportView(View):
             except ValueError:
                 return JsonResponse({"detail": "Invalid since timestamp."}, status=400)
         payload = finance_payment_delta_payload(updated_since=since)
-        return JsonResponse(payload)
+        return _json_response_with_signature(payload)
+
+
+class FlutterwaveWebhookView(View):
+    def post(self, request, *args, **kwargs):
+        if not _request_ip_allowed(request, "FLUTTERWAVE_WEBHOOK_ALLOWED_IPS"):
+            _log_security_rejection(
+                request=request,
+                event_type="FLUTTERWAVE_WEBHOOK_IP_DENIED",
+                message="Flutterwave webhook rejected due to IP allow-list mismatch.",
+                metadata={"path": request.path},
+            )
+            return HttpResponse("forbidden", status=403)
+
+        expected_hash = (getattr(settings, "FLUTTERWAVE_WEBHOOK_SECRET_HASH", "") or "").strip()
+        if expected_hash:
+            incoming = (request.META.get("HTTP_VERIF_HASH") or "").strip()
+            if not incoming or not hmac.compare_digest(incoming, expected_hash):
+                _log_security_rejection(
+                    request=request,
+                    event_type="FLUTTERWAVE_WEBHOOK_SIGNATURE_DENIED",
+                    message="Flutterwave webhook rejected due to invalid secret hash.",
+                    metadata={"path": request.path},
+                )
+                return HttpResponse("invalid-signature", status=400)
+        try:
+            payload = json.loads(request.body.decode("utf-8"))
+        except json.JSONDecodeError:
+            return HttpResponse("invalid-json", status=400)
+
+        data = payload.get("data") or {}
+        payment_status = str(data.get("status") or payload.get("status") or "").strip().lower()
+        reference = (
+            data.get("tx_ref")
+            or data.get("reference")
+            or payload.get("tx_ref")
+            or payload.get("reference")
+            or ""
+        ).strip()
+        if payment_status in {"successful", "success"} and reference:
+            try:
+                verify_gateway_payment_by_reference(reference=reference, actor=None, request=None)
+            except ValidationError:
+                pass
+        return HttpResponse("ok", status=200)
 
 
 class BursarAccessMixin(FinancePortalAccessMixin):
@@ -1687,11 +1807,25 @@ class GatewayPaymentCallbackView(TemplateView):
 @method_decorator(csrf_exempt, name="dispatch")
 class PaystackWebhookView(View):
     def post(self, request, *args, **kwargs):
+        if not _request_ip_allowed(request, "PAYSTACK_WEBHOOK_ALLOWED_IPS"):
+            _log_security_rejection(
+                request=request,
+                event_type="PAYSTACK_WEBHOOK_IP_DENIED",
+                message="Paystack webhook rejected due to IP allow-list mismatch.",
+                metadata={"path": request.path},
+            )
+            return HttpResponse("forbidden", status=403)
         secret = (getattr(settings, "PAYSTACK_WEBHOOK_SECRET", "") or getattr(settings, "PAYSTACK_SECRET_KEY", "")).strip()
         if secret:
             expected = hmac.new(secret.encode("utf-8"), request.body, hashlib.sha512).hexdigest()
             incoming = (request.META.get("HTTP_X_PAYSTACK_SIGNATURE") or "").strip()
             if not incoming or not hmac.compare_digest(expected, incoming):
+                _log_security_rejection(
+                    request=request,
+                    event_type="PAYSTACK_WEBHOOK_SIGNATURE_DENIED",
+                    message="Paystack webhook rejected due to invalid signature.",
+                    metadata={"path": request.path},
+                )
                 return HttpResponse("invalid-signature", status=400)
         try:
             payload = json.loads(request.body.decode("utf-8"))

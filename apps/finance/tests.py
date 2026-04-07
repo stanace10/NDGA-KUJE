@@ -1,3 +1,6 @@
+import hashlib
+import hmac
+import json
 from datetime import timedelta
 from decimal import Decimal
 from unittest.mock import patch
@@ -752,3 +755,114 @@ class FinanceDeltaExportTests(TestCase):
         payload = response.json()
         self.assertEqual(payload["count"], 1)
         self.assertEqual(payload["items"][0]["gateway_reference"], "GATEWAY-REF-1")
+
+    @override_settings(
+        SYNC_ENDPOINT_AUTH_TOKEN="current-token",
+        SYNC_ENDPOINT_AUTH_TOKEN_FALLBACKS=["old-token"],
+    )
+    def test_manual_payment_delta_export_accepts_rotated_fallback_token(self):
+        client = Client(HTTP_HOST="ndgakuje.org")
+        response = client.get(
+            "/finance/api/manual-export/payments/",
+            HTTP_X_NDGA_MANUAL_SYNC_TOKEN="old-token",
+        )
+        self.assertEqual(response.status_code, 200)
+
+    @override_settings(
+        SYNC_ENDPOINT_AUTH_TOKEN="manual-sync-token",
+        SYNC_ENDPOINT_ALLOWED_IPS=["127.0.0.1/32"],
+    )
+    def test_manual_payment_delta_export_blocks_disallowed_ip(self):
+        client = Client(HTTP_HOST="ndgakuje.org", REMOTE_ADDR="10.10.10.10")
+        response = client.get(
+            "/finance/api/manual-export/payments/",
+            HTTP_X_NDGA_MANUAL_SYNC_TOKEN="manual-sync-token",
+        )
+        self.assertEqual(response.status_code, 403)
+
+    @override_settings(SYNC_ENDPOINT_AUTH_TOKEN="manual-sync-token")
+    def test_manual_payment_delta_export_includes_payload_signature_header(self):
+        client = Client(HTTP_HOST="ndgakuje.org")
+        response = client.get(
+            "/finance/api/manual-export/payments/",
+            HTTP_X_NDGA_MANUAL_SYNC_TOKEN="manual-sync-token",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(bool(response["X-NDGA-Payload-Signature"]))
+
+
+@override_settings(
+    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+    NOTIFICATIONS_EMAIL_PROVIDER="console",
+    PAYSTACK_WEBHOOK_SECRET="paystack-secret",
+    FLUTTERWAVE_WEBHOOK_SECRET_HASH="flutterwave-secret",
+)
+class FinanceWebhookSecurityTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        student_role = Role.objects.get(code=ROLE_STUDENT)
+        cls.student = User.objects.create_user(
+            username="finance-webhook-student",
+            password="Password123!",
+            primary_role=student_role,
+            must_change_password=False,
+            email="student-webhook@ndga.test",
+        )
+        cls.session = AcademicSession.objects.create(name="2027/2028")
+        cls.term = Term.objects.create(session=cls.session, name="SECOND")
+        cls.gateway_transaction = PaymentGatewayTransaction.objects.create(
+            reference="NDGA-WEBHOOK-1",
+            provider=PaymentGatewayProvider.PAYSTACK,
+            status=PaymentGatewayStatus.INITIALIZED,
+            student=cls.student,
+            session=cls.session,
+            term=cls.term,
+            amount=Decimal("20000.00"),
+        )
+
+    def test_paystack_webhook_rejects_invalid_signature(self):
+        client = Client(HTTP_HOST="ndgakuje.org")
+        response = client.post(
+            "/finance/gateway/webhook/paystack/",
+            data=json.dumps({"event": "charge.success", "data": {"reference": "NDGA-WEBHOOK-1"}}),
+            content_type="application/json",
+            HTTP_X_PAYSTACK_SIGNATURE="bad-signature",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    @patch("apps.finance.views.verify_gateway_payment_by_reference")
+    def test_paystack_webhook_accepts_valid_signature(self, mocked_verify):
+        payload = {"event": "charge.success", "data": {"reference": "NDGA-WEBHOOK-1"}}
+        raw_body = json.dumps(payload).encode("utf-8")
+        signature = hmac.new(b"paystack-secret", raw_body, hashlib.sha512).hexdigest()
+        client = Client(HTTP_HOST="ndgakuje.org")
+        response = client.post(
+            "/finance/gateway/webhook/paystack/",
+            data=raw_body,
+            content_type="application/json",
+            HTTP_X_PAYSTACK_SIGNATURE=signature,
+        )
+        self.assertEqual(response.status_code, 200)
+        mocked_verify.assert_called_once()
+
+    def test_flutterwave_webhook_rejects_invalid_secret_hash(self):
+        client = Client(HTTP_HOST="ndgakuje.org")
+        response = client.post(
+            "/finance/gateway/webhook/flutterwave/",
+            data=json.dumps({"data": {"status": "successful", "tx_ref": "NDGA-WEBHOOK-1"}}),
+            content_type="application/json",
+            HTTP_VERIF_HASH="wrong-hash",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    @patch("apps.finance.views.verify_gateway_payment_by_reference")
+    def test_flutterwave_webhook_accepts_valid_secret_hash(self, mocked_verify):
+        client = Client(HTTP_HOST="ndgakuje.org")
+        response = client.post(
+            "/finance/gateway/webhook/flutterwave/",
+            data=json.dumps({"data": {"status": "successful", "tx_ref": "NDGA-WEBHOOK-1"}}),
+            content_type="application/json",
+            HTTP_VERIF_HASH="flutterwave-secret",
+        )
+        self.assertEqual(response.status_code, 200)
+        mocked_verify.assert_called_once_with(reference="NDGA-WEBHOOK-1", actor=None, request=None)
