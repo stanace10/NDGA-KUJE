@@ -1,0 +1,53 @@
+{% extends "website/base_public.html" %}
+{% load static %}
+
+{% block content %}
+<section class="public-page-hero" style="background-image:url('{% static gallery_category.image %}')">
+  <div class="public-page-hero-overlay"></div>
+  <div class="public-container public-page-hero-content" data-reveal>
+    <span class="public-eyebrow">Gallery</span>
+    <h1>{{ gallery_category.title }}</h1>
+    <p>{{ gallery_category.summary }}</p>
+  </div>
+</section>
+
+<section class="public-section">
+  <div class="public-container" data-reveal>
+    <div class="public-gallery-grid">
+      {% for image in gallery_category.images %}
+        <button type="button" class="public-gallery-tile {% if forloop.first %}is-large{% elif forloop.counter == 4 %}is-tall{% endif %}" data-lightbox-image="{% static image %}" data-lightbox-title="{{ gallery_category.title }}">
+          <img src="{% static image %}" alt="{{ gallery_category.title }}">
+          <span>{{ gallery_category.title }}</span>
+        </button>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="public-section public-section-soft">
+  <div class="public-container" data-reveal>
+    <div class="public-section-heading">
+      <span class="public-eyebrow">More Albums</span>
+      <h2>Explore another side of NDGA</h2>
+    </div>
+    <div class="public-gallery-category-grid">
+      {% for item in related_gallery_categories %}
+        <a href="/gallery/{{ item.slug }}/" class="public-gallery-category-card">
+          <img src="{% static item.image %}" alt="{{ item.title }}">
+          <div>
+            <span>Gallery</span>
+            <h3>{{ item.title }}</h3>
+            <p>{{ item.summary }}</p>
+          </div>
+        </a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<div class="public-lightbox" data-lightbox>
+  <button type="button" class="public-lightbox-close" data-lightbox-close aria-label="Close image">×</button>
+  <img src="" alt="" data-lightbox-target>
+  <p data-lightbox-caption></p>
+</div>
+{% endblock %}

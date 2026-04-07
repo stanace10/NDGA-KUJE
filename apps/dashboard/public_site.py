@@ -4,21 +4,38 @@ from copy import deepcopy
 
 
 PUBLIC_IMAGE = {
-    "hero": "images/ndga/hero-alt-3.jpg",
-    "hero_alt": "images/ndga/hero-main.jpg",
-    "hero_music": "images/ndga/hero-alt-1.jpg",
-    "hero_students": "images/ndga/hero-alt-2.jpg",
-    "principal": "images/ndga/principal.jpg",
+    "hero": "images/public/facility-campus-view.jpeg",
+    "hero_alt": "images/public/campus-life-1.jpg",
+    "hero_music": "images/public/social-clubs-1.jpg",
+    "hero_students": "images/public/campus-life-2.jpg",
+    "hero_video": "videos/ndga-campus.mp4",
+    "principal": "images/public/principal-portrait.jpeg",
     "logo": "images/ndga/logo.png",
-    "campus": "images/public/campus-entrance.jpeg",
-    "computer_lab": "images/public/computer-lab-senior.jpg",
-    "hostel": "images/public/hostel-life.jpg",
-    "sports": "images/public/sports-court.jpg",
-    "science_lab": "images/public/biology-lab.jpg",
-    "library": "images/public/library.jpg",
-    "assembly": "images/public/assembly.jpg",
+    "campus": "images/public/facility-entrance.jpeg",
+    "campus_view": "images/public/facility-campus-view.jpeg",
+    "campus_refectory": "images/public/facility-refectory.jpeg",
     "campus_block": "images/public/campus-block.jpg",
-    "socials": "images/public/socials.jpg",
+    "campus-life-1": "images/public/campus-life-1.jpg",
+    "campus-life-2": "images/public/campus-life-2.jpg",
+    "computer_lab": "images/public/academics-computer-senior.jpg",
+    "computer_lab_junior": "images/public/academics-computer-junior.jpg",
+    "hostel": "images/public/boarding-hostel-1.jpeg",
+    "hostel_alt": "images/public/boarding-hostel-2.jpeg",
+    "hostel_alt_two": "images/public/boarding-hostel-3.jpeg",
+    "sports": "images/public/sports-1.jpeg",
+    "sports_alt": "images/public/sports-2.jpeg",
+    "sports_alt_two": "images/public/sports-3.jpeg",
+    "science_lab": "images/public/academics-chemistry-lab.jpg",
+    "physics_lab": "images/public/academics-physics-lab.jpg",
+    "math_lab": "images/public/academics-math-lab.jpg",
+    "library": "images/public/academics-library-main.jpg",
+    "assembly": "images/public/faith-assembly-1.jpeg",
+    "assembly_alt": "images/public/faith-assembly-2.jpeg",
+    "socials": "images/public/social-clubs-1.jpg",
+    "socials_alt": "images/public/social-clubs-2.jpg",
+    "socials_alt_two": "images/public/social-clubs-3.jpg",
+    "pioneers": "images/public/events-pioneers-1.jpg",
+    "pioneers_alt": "images/public/events-pioneers-2.jpg",
 }
 
 PUBLIC_CONTACT = {
@@ -26,8 +43,8 @@ PUBLIC_CONTACT = {
     "phone_primary": "+234 902 940 5413",
     "phone_secondary": "+234 813 341 3127",
     "email": "office@ndgakuje.org",
-    "address": "After SS Simon and Jude Minor Seminary, Kuchiyako, Kuje-Abuja",
-    "maps_url": "https://maps.google.com/?q=Kuchiyako%2C+Kuje%2C+Abuja",
+    "address": "Just after SS Simon and Jude Minor Seminary, Kuchiyako, Kuje-Abuja",
+    "maps_url": "https://maps.app.goo.gl/t7Zx37KFpbYVZqtP6",
     "whatsapp_url": "https://wa.me/2349029405413",
 }
 
@@ -43,7 +60,7 @@ PUBLIC_CLASS_OPTIONS = [
 PUBLIC_NAVIGATION = [
     {"label": "Home", "url": "/"},
     {
-        "label": "About Us",
+        "label": "About",
         "url": "/about/",
         "children": [
             {"label": "About NDGA", "url": "/about/"},
@@ -96,9 +113,9 @@ PUBLIC_NAVIGATION = [
         "url": "/admissions/",
         "mega": True,
         "featured": {
-            "title": "Admissions made clear from enquiry to enrolment.",
-            "text": "Families can review requirements, prepare documents, and begin registration online.",
-            "image": PUBLIC_IMAGE["campus"],
+            "title": "Admissions are structured, guided, and easy to follow.",
+            "text": "Families can review the process, screening subjects, boarding guidance, and registration steps clearly.",
+            "image": PUBLIC_IMAGE["campus_view"],
             "cta_label": "Begin Registration",
             "cta_url": "/admissions/registration/",
             "secondary_label": "School Portal",
@@ -126,97 +143,188 @@ PUBLIC_NAVIGATION = [
         ],
     },
     {
-        "label": "Life at NDGA",
+        "label": "Explore",
         "url": "/life-at-ndga/",
         "children": [
             {"label": "Life at NDGA", "url": "/life-at-ndga/"},
             {"label": "Facilities", "url": "/facilities/"},
             {"label": "Gallery", "url": "/gallery/"},
+            {"label": "News", "url": "/news/"},
+            {"label": "Events", "url": "/events/"},
             {"label": "Hostel / Boarding", "url": "/hostel-boarding/"},
-            {"label": "Events", "url": "/events/"},
+            {"label": "Contact", "url": "/contact/"},
         ],
     },
-    {
-        "label": "News",
-        "url": "/news/",
-        "children": [
-            {"label": "Latest News", "url": "/news/"},
-            {"label": "Events", "url": "/events/"},
-            {"label": "Admissions Updates", "url": "/news/admissions-guidance/"},
-        ],
-    },
-    {"label": "Contact", "url": "/contact/"},
 ]
 
 PUBLIC_NEWS = [
     {
-        "slug": "admissions-guidance",
-        "category": "Admissions",
-        "title": "Preparing for entrance screening at NDGA",
-        "summary": "Families should complete registration early, gather school records, and watch for screening communication from the admissions office.",
+        "slug": "third-term-resumption-2026",
+        "category": "School Calendar",
+        "date": "April 18, 2026",
+        "title": "Third term for the 2025/2026 session resumes on April 18, 2026",
+        "summary": "Families are encouraged to prepare uniforms, academic materials, and boarding essentials ahead of resumption.",
         "body": [
-            "The admissions office guides families through registration, document review, screening, and final communication. Parents are advised to complete the online form early so the school can review records in good time.",
-            "Applicants are expected to submit recent school records and prepare for English Language, Mathematics, and General Paper. Screening dates are communicated after the application stage is complete.",
+            "The second term has now been concluded, and the school is preparing to receive students for the third term of the 2025/2026 academic session on Friday, April 18, 2026.",
+            "Parents and guardians are encouraged to confirm student travel arrangements, personal supplies, and all resumption requirements early so that students can settle back into school routine smoothly.",
         ],
-        "image": PUBLIC_IMAGE["hero_students"],
+        "image": PUBLIC_IMAGE["campus_view"],
     },
     {
-        "slug": "boarding-life-overview",
-        "category": "Boarding",
-        "title": "A closer look at boarding life and student care",
-        "summary": "Boarding at NDGA is structured around supervision, study routine, student welfare, and a calm environment for growth.",
-        "body": [
-            "The boarding programme is designed for girls who need a safe and supervised environment that supports learning, discipline, and healthy routine.",
-            "Students benefit from guided prep periods, pastoral care, house supervision, and a school culture that values respect, responsibility, and community life.",
-        ],
-        "image": PUBLIC_IMAGE["hostel"],
-    },
-    {
-        "slug": "science-and-digital-learning",
+        "slug": "waec-preparation-2026",
         "category": "Academics",
-        "title": "Science, ICT, and hands-on learning at NDGA",
-        "summary": "Laboratories, digital learning spaces, and subject support help students learn with confidence and clarity.",
+        "date": "April 7, 2026",
+        "title": "Preparing our students for WAEC with focus, structure, and guided revision",
+        "summary": "Revision support, supervised study, and subject-based guidance continue to shape exam preparation for senior students.",
         "body": [
-            "Science and ICT are taught as practical learning areas, not only as theory. Students are introduced to laboratory work, computer use, guided research, and responsible digital practice.",
-            "This supports academic preparation while building confidence in communication, problem-solving, and independent study.",
+            "Senior students are being prepared through subject revision, guided assessment practice, and close follow-up from teachers as they approach public examinations.",
+            "The school's academic culture places emphasis on clarity, routine, and steady preparation so that students approach WAEC and related examinations with confidence and discipline.",
         ],
         "image": PUBLIC_IMAGE["science_lab"],
+    },
+    {
+        "slug": "easter-message-2026",
+        "category": "Community",
+        "date": "April 5, 2026",
+        "title": "A joyful Easter message to the NDGA family",
+        "summary": "The school community marked Easter with gratitude, reflection, and renewed hope for the term ahead.",
+        "body": [
+            "As the Easter season concludes, the school gives thanks for the grace of the season and prays for peace, strength, and joy in every family connected to NDGA.",
+            "The values of hope, sacrifice, service, and renewal continue to guide the spiritual and community life of the school.",
+        ],
+        "image": PUBLIC_IMAGE["assembly"],
+    },
+    {
+        "slug": "girls-education-leadership",
+        "category": "Girls' Education",
+        "date": "April 2, 2026",
+        "title": "Why focused girls' education matters for leadership and lifelong confidence",
+        "summary": "An all-girls learning environment gives students room to grow in voice, leadership, and responsible independence.",
+        "body": [
+            "Notre Dame Girls' Academy remains committed to the education of the girl child through a learning environment where students are encouraged to think clearly, speak confidently, and lead responsibly.",
+            "The school's boarding structure, academic discipline, and co-curricular opportunities are all designed to help girls grow in knowledge, character, service, and self-belief.",
+        ],
+        "image": PUBLIC_IMAGE["socials_alt"],
     },
 ]
 
 PUBLIC_EVENTS = [
     {
-        "slug": "entrance-screening-windows",
-        "title": "Entrance screening windows",
-        "summary": "Entrance examinations and screening are usually organised in March, May, July, and August, subject to school confirmation.",
-        "meta": "Admissions",
+        "slug": "third-term-resumption",
+        "title": "Third term resumption",
+        "summary": "Students resume for the third term of the 2025/2026 session on Friday, April 18, 2026.",
+        "meta": "School Calendar",
+        "date": "April 18, 2026",
         "location": "Notre Dame Girls' Academy, Kuje-Abuja",
     },
     {
-        "slug": "orientation-and-resumption",
-        "title": "Orientation and resumption preparation",
-        "summary": "New families receive orientation guidance on school routine, boarding expectations, uniforms, and required materials before resumption.",
-        "meta": "Student Life",
-        "location": "Main campus",
+        "slug": "entrance-exam-cycle",
+        "title": "Entrance examination windows",
+        "summary": "Entrance examinations are planned across March, May, July, and August, subject to school confirmation for each cycle.",
+        "meta": "Admissions",
+        "date": "March, May, July, August",
+        "location": "Admissions Office",
     },
     {
-        "slug": "faith-and-community-life",
-        "title": "Faith and community life calendar",
-        "summary": "Assemblies, faith formation, school gatherings, and community activities remain part of the school year.",
-        "meta": "School Life",
+        "slug": "orientation-weekend",
+        "title": "New family orientation and onboarding guidance",
+        "summary": "Families receive guidance on boarding routine, required items, communication, and school expectations before full resumption.",
+        "meta": "Orientation",
+        "date": "Before resumption",
         "location": "Campus",
     },
 ]
 
 PUBLIC_GALLERY = [
-    {"title": "Music & Arts", "image": PUBLIC_IMAGE["hero_music"], "category": "Creative Life"},
-    {"title": "Campus Approach", "image": PUBLIC_IMAGE["campus"], "category": "Campus"},
-    {"title": "ICT / CBT Lab", "image": PUBLIC_IMAGE["computer_lab"], "category": "Academics"},
-    {"title": "Boarding", "image": PUBLIC_IMAGE["hostel"], "category": "Hostel"},
-    {"title": "Sports", "image": PUBLIC_IMAGE["sports"], "category": "Sports"},
-    {"title": "Science Lab", "image": PUBLIC_IMAGE["science_lab"], "category": "Facilities"},
-    {"title": "Library", "image": PUBLIC_IMAGE["library"], "category": "Facilities"},
-    {"title": "Assembly", "image": PUBLIC_IMAGE["assembly"], "category": "School Life"},
+    {
+        "slug": "campus-facilities",
+        "title": "Campus & Facilities",
+        "summary": "Academic blocks, refectory spaces, walkways, and the wider school environment.",
+        "image": PUBLIC_IMAGE["campus_view"],
+        "images": [
+            PUBLIC_IMAGE["campus"],
+            PUBLIC_IMAGE["campus_view"],
+            PUBLIC_IMAGE["campus_refectory"],
+            PUBLIC_IMAGE["campus_block"],
+        ],
+    },
+    {
+        "slug": "classroom-learning",
+        "title": "Classroom Learning",
+        "summary": "Focused teaching spaces for junior and senior secondary students.",
+        "image": PUBLIC_IMAGE["computer_lab_junior"],
+        "images": [
+            PUBLIC_IMAGE["computer_lab_junior"],
+            PUBLIC_IMAGE["computer_lab"],
+            PUBLIC_IMAGE["campus-life-1"],
+            PUBLIC_IMAGE["campus-life-2"],
+        ],
+    },
+    {
+        "slug": "science-ict",
+        "title": "Science & ICT",
+        "summary": "Laboratory learning, digital skills, and practical exposure.",
+        "image": PUBLIC_IMAGE["science_lab"],
+        "images": [
+            PUBLIC_IMAGE["science_lab"],
+            PUBLIC_IMAGE["physics_lab"],
+            PUBLIC_IMAGE["math_lab"],
+            PUBLIC_IMAGE["library"],
+        ],
+    },
+    {
+        "slug": "boarding-life",
+        "title": "Boarding Life",
+        "summary": "A supervised hostel environment that supports study, rest, and student welfare.",
+        "image": PUBLIC_IMAGE["hostel"],
+        "images": [
+            PUBLIC_IMAGE["hostel"],
+            PUBLIC_IMAGE["hostel_alt"],
+            PUBLIC_IMAGE["hostel_alt_two"],
+        ],
+    },
+    {
+        "slug": "sports-games",
+        "title": "Sports & Games",
+        "summary": "Basketball, volleyball, table tennis, and healthy student activity.",
+        "image": PUBLIC_IMAGE["sports"],
+        "images": [
+            PUBLIC_IMAGE["sports"],
+            PUBLIC_IMAGE["sports_alt"],
+            PUBLIC_IMAGE["sports_alt_two"],
+        ],
+    },
+    {
+        "slug": "clubs-activities",
+        "title": "Clubs & Activities",
+        "summary": "Student participation in creative, social, and leadership life.",
+        "image": PUBLIC_IMAGE["socials"],
+        "images": [
+            PUBLIC_IMAGE["socials"],
+            PUBLIC_IMAGE["socials_alt"],
+            PUBLIC_IMAGE["socials_alt_two"],
+        ],
+    },
+    {
+        "slug": "faith-formation",
+        "title": "Faith & Formation",
+        "summary": "Assemblies, prayer, worship, and reflective school life.",
+        "image": PUBLIC_IMAGE["assembly"],
+        "images": [
+            PUBLIC_IMAGE["assembly"],
+            PUBLIC_IMAGE["assembly_alt"],
+        ],
+    },
+    {
+        "slug": "events-celebrations",
+        "title": "Events & Celebrations",
+        "summary": "Milestones, school gatherings, and moments from the NDGA community.",
+        "image": PUBLIC_IMAGE["pioneers"],
+        "images": [
+            PUBLIC_IMAGE["pioneers"],
+            PUBLIC_IMAGE["pioneers_alt"],
+        ],
+    },
 ]
 
 PUBLIC_FAQS = [
@@ -356,18 +464,19 @@ PUBLIC_PAGE_CONTENT = {
     "academics": {
         "title": "Academics",
         "eyebrow": "Academics",
-        "description": "Strong foundations, guided learning, digital readiness, and broad student development from junior to senior secondary.",
+        "description": "A broad academic programme shaped by discipline, strong teaching, practical learning, and preparation for life after school.",
         "hero_image": PUBLIC_IMAGE["computer_lab"],
         "sections": [
             {
                 "layout": "cards",
-                "title": "Academic pathways and support",
+                "title": "Academic pathways and teaching areas",
                 "cards": [
-                    {"title": "Junior Secondary", "text": "Building strong foundations in literacy, numeracy, science, communication, and study habits.", "image": PUBLIC_IMAGE["hero_students"], "href": "/academics/junior-secondary/"},
-                    {"title": "Senior Secondary", "text": "Supporting deeper subject focus, examination readiness, leadership, and future preparation.", "image": PUBLIC_IMAGE["hero_alt"], "href": "/academics/senior-secondary/"},
-                    {"title": "Curriculum", "text": "A structured curriculum with classroom teaching, practical work, reading culture, and guided assessment.", "image": PUBLIC_IMAGE["science_lab"], "href": "/academics/curriculum/"},
-                    {"title": "ICT / Digital Learning", "text": "Introducing students to computer use, research, digital responsibility, and CBT readiness.", "image": PUBLIC_IMAGE["computer_lab"], "href": "/academics/ict-digital-learning/"},
-                    {"title": "Co-curricular Activities", "text": "Music, clubs, sports, and social formation remain part of education at NDGA.", "image": PUBLIC_IMAGE["hero_music"], "href": "/academics/co-curricular-activities/"},
+                    {"title": "Junior Secondary", "text": "Strong foundations in language, numeracy, science, civic awareness, and disciplined study habits.", "image": PUBLIC_IMAGE["computer_lab_junior"], "href": "/academics/junior-secondary/"},
+                    {"title": "Senior Secondary", "text": "Clear subject direction, guided exam preparation, and support for future academic choices.", "image": PUBLIC_IMAGE["science_lab"], "href": "/academics/senior-secondary/"},
+                    {"title": "Curriculum", "text": "Formal and informal learning work together through classroom teaching, assemblies, clubs, and student formation.", "image": PUBLIC_IMAGE["physics_lab"], "href": "/academics/curriculum/"},
+                    {"title": "Subjects Offered", "text": "A wide subject base including sciences, humanities, business, languages, ICT, and creative studies.", "image": PUBLIC_IMAGE["math_lab"], "href": "/academics/subjects-departments/"},
+                    {"title": "ICT & Digital Learning", "text": "Computer use, CBT readiness, research, and responsible technology practice.", "image": PUBLIC_IMAGE["computer_lab"], "href": "/academics/ict-digital-learning/"},
+                    {"title": "Clubs & Activities", "text": "Debating, science, music, press, French, justice and peace, gardening, and more.", "image": PUBLIC_IMAGE["socials"], "href": "/academics/co-curricular-activities/"},
                 ],
             }
         ],
@@ -375,18 +484,18 @@ PUBLIC_PAGE_CONTENT = {
     "junior-secondary": {
         "title": "Junior Secondary",
         "eyebrow": "Academic Levels",
-        "description": "Junior secondary builds confident learners through clear routines and strong foundational teaching.",
+        "description": "Junior secondary builds academic confidence through clear routine, strong teaching, and close attention to learning habits.",
         "hero_image": PUBLIC_IMAGE["hero_students"],
         "sections": [
             {
-                "layout": "list",
-                "title": "Junior secondary focus",
-                "items": [
-                    "English Studies and communication skills",
-                    "Mathematics and logical thinking",
-                    "Basic Science and practical introduction",
-                    "Social Studies and human development",
-                    "ICT, study habits, and classroom discipline",
+                "layout": "cards",
+                "title": "Junior school learning focus",
+                "cards": [
+                    {"title": "Language & Communication", "text": "English Studies, French, reading culture, writing, and classroom discussion."},
+                    {"title": "Numeracy & Logic", "text": "Mathematics and the habits of careful problem-solving."},
+                    {"title": "Science Foundations", "text": "Basic Science, introductory practical learning, and observation skills."},
+                    {"title": "Citizenship & Formation", "text": "Social Studies, History, CRS, civic learning, and responsible conduct."},
+                    {"title": "Skills & Creativity", "text": "Business Studies, Home Economics, Cultural and Creative Arts, and digital literacy."},
                 ],
             }
         ],
@@ -394,17 +503,17 @@ PUBLIC_PAGE_CONTENT = {
     "senior-secondary": {
         "title": "Senior Secondary",
         "eyebrow": "Academic Levels",
-        "description": "Senior secondary prepares students for stronger subject focus, responsible leadership, and life beyond school.",
+        "description": "Senior secondary prepares students for public examinations, stronger subject depth, and leadership with responsibility.",
         "hero_image": PUBLIC_IMAGE["science_lab"],
         "sections": [
             {
-                "layout": "list",
-                "title": "Senior secondary focus",
-                "items": [
-                    "Focused subject preparation and guided academic support",
-                    "Exam readiness and disciplined study structure",
-                    "Leadership opportunities and student responsibility",
-                    "Preparation for higher studies and informed decision-making",
+                "layout": "cards",
+                "title": "Senior school priorities",
+                "cards": [
+                    {"title": "Exam Preparation", "text": "WAEC and senior school readiness through revision structure, assessment, and subject follow-up."},
+                    {"title": "Subject Depth", "text": "Students build stronger knowledge through science, arts, business, and practical learning pathways."},
+                    {"title": "Independent Study", "text": "Prep routine, reading, revision, and closer responsibility for academic progress."},
+                    {"title": "Leadership & Service", "text": "Students are encouraged to lead, serve, and participate responsibly in school life."},
                 ],
             }
         ],
@@ -412,19 +521,17 @@ PUBLIC_PAGE_CONTENT = {
     "curriculum": {
         "title": "Curriculum",
         "eyebrow": "Curriculum",
-        "description": "The curriculum at NDGA combines core classroom instruction with practical learning and responsible study culture.",
+        "description": "The curriculum combines classroom teaching, practical learning, faith formation, assemblies, clubs, and the broader experience of school life.",
         "hero_image": PUBLIC_IMAGE["science_lab"],
         "sections": [
             {
                 "layout": "cards",
-                "title": "Main subject groups",
+                "title": "How learning is organised at NDGA",
                 "cards": [
-                    {"title": "English Studies", "text": "Reading, writing, grammar, comprehension, and communication."},
-                    {"title": "Mathematics", "text": "Numeracy, reasoning, and problem-solving."},
-                    {"title": "Sciences", "text": "Basic Science, Biology, Chemistry, Physics, and related practical learning."},
-                    {"title": "Arts & Humanities", "text": "Social Studies, Religious and Moral Instruction, History, and related fields."},
-                    {"title": "Business & Commercial", "text": "Subject options that prepare students for broader academic and practical competence."},
-                    {"title": "ICT", "text": "Digital literacy, research, productivity tools, and CBT familiarity."},
+                    {"title": "Formal Curriculum", "text": "National curriculum coverage for junior and senior secondary subjects with assessment and classroom structure."},
+                    {"title": "Practical Learning", "text": "Laboratories, ICT spaces, reading support, music, art, and sports enrich academic work."},
+                    {"title": "Moral & Spiritual Formation", "text": "Religious studies, assemblies, retreats, and daily school culture form part of student growth."},
+                    {"title": "Informal Curriculum", "text": "Assemblies, student leadership, peer learning, clubs, and school values support education for life."},
                 ],
             }
         ],
@@ -432,19 +539,43 @@ PUBLIC_PAGE_CONTENT = {
     "subjects-departments": {
         "title": "Subjects & Departments",
         "eyebrow": "Departments",
-        "description": "Subject teaching at NDGA is organised to give students clarity, progression, and support.",
+        "description": "NDGA offers a broad range of subjects across junior and senior secondary levels so that students grow in knowledge, practical skill, and academic readiness.",
         "hero_image": PUBLIC_IMAGE["science_lab"],
         "sections": [
             {
-                "layout": "list",
-                "title": "Departments and learning areas",
-                "items": [
-                    "Languages and Communication",
-                    "Mathematics and Quantitative Thinking",
-                    "Science and Practical Learning",
-                    "Social Sciences, Arts, and Humanities",
-                    "ICT and Digital Learning",
-                    "Creative and Co-curricular Development",
+                "layout": "cards",
+                "title": "Subject groups",
+                "cards": [
+                    {
+                        "title": "Languages & Communication",
+                        "text": "Language development, communication, reading, and writing.",
+                        "items": ["English Language", "Literature", "French", "A major Nigerian Language"],
+                    },
+                    {
+                        "title": "Science & Practical Learning",
+                        "text": "Core and advanced science learning with laboratory support.",
+                        "items": ["Basic Science", "Biology", "Chemistry", "Physics", "Agricultural Science", "Fisheries"],
+                    },
+                    {
+                        "title": "Mathematics & Technical",
+                        "text": "Reasoning, problem-solving, and technical thinking.",
+                        "items": ["Mathematics", "Further Mathematics", "Basic Technology", "Technical Drawing", "Data Processing"],
+                    },
+                    {
+                        "title": "Humanities & Social Studies",
+                        "text": "Citizenship, social awareness, and reflective learning.",
+                        "items": ["Social Studies", "History", "Government", "Civic Education", "Christian Religious Studies"],
+                    },
+                    {
+                        "title": "Business & Home Studies",
+                        "text": "Commercial and life skills that support practical competence.",
+                        "items": ["Business Studies", "Commerce", "Economics", "Financial Accounting", "Home Economics", "Foods & Nutrition", "Catering Craft"],
+                    },
+                    {
+                        "title": "Creative & Personal Development",
+                        "text": "Expression, wellbeing, and all-round growth.",
+                        "items": ["Cultural & Creative Arts", "Music", "Art", "Physical & Health Education", "Garment Making"],
+                    },
                 ],
             }
         ],
@@ -469,16 +600,17 @@ PUBLIC_PAGE_CONTENT = {
     "co-curricular-activities": {
         "title": "Co-curricular Activities",
         "eyebrow": "Beyond the Classroom",
-        "description": "Clubs, sports, music, and school activities help students grow in confidence, teamwork, and expression.",
+        "description": "School clubs, arts, music, sport, and leadership roles help students build confidence, friendship, service, and expression.",
         "hero_image": PUBLIC_IMAGE["sports"],
         "sections": [
             {
                 "layout": "cards",
-                "title": "Activities that support the whole student",
+                "title": "Clubs, arts, sports, and formation",
                 "cards": [
-                    {"title": "Clubs", "text": "Students explore interests, service, leadership, and collaboration."},
-                    {"title": "Music & Creative Arts", "text": "Creative spaces help students express talent and confidence."},
-                    {"title": "Sports", "text": "Basketball, volleyball, table tennis, and physical activity support fitness and teamwork."},
+                    {"title": "School Clubs", "text": "Students join clubs that extend interest, leadership, service, and friendship.", "items": ["Creative Writing", "Science Club", "Math Club", "Debating", "Press", "French Club", "Gardening", "Justice and Peace"]},
+                    {"title": "Religious Societies", "text": "Students grow in faith through guided participation and spiritual formation.", "items": ["Sacred Heart of Jesus", "Legion of Mary", "Small Christian Community", "Catechism Classes"]},
+                    {"title": "Music, Drama & Art", "text": "Creative spaces build confidence, voice, imagination, and disciplined practice."},
+                    {"title": "Sports & Recreation", "text": "Basketball, volleyball, table tennis, badminton, and inter-house competition support healthy student development."},
                 ],
             }
         ],
@@ -522,7 +654,7 @@ PUBLIC_PAGE_CONTENT = {
     "admissions": {
         "title": "Admissions",
         "eyebrow": "Admissions",
-        "description": "A clear admissions path for families seeking disciplined boarding education, sound academics, and moral formation.",
+        "description": "A clear admissions path for families seeking strong academics, disciplined boarding life, and a Catholic girls' school environment.",
         "hero_image": PUBLIC_IMAGE["campus"],
         "sections": [
             {
@@ -530,14 +662,14 @@ PUBLIC_PAGE_CONTENT = {
                 "title": "Admission process",
                 "timeline": [
                     {"title": "Register online", "text": "Complete applicant and parent details and upload key records."},
-                    {"title": "Review fees and payment guidance", "text": "Admissions guidance includes prescribed fees and next payment steps."},
-                    {"title": "Screening or entrance examination", "text": "Applicants are scheduled after review and school communication."},
+                    {"title": "Review fees and payment guidance", "text": "Families receive the approved fee path and payment guidance from the school."},
+                    {"title": "Entrance examination or screening", "text": "Applicants are assessed in line with the school's admission process."},
                     {"title": "Admission review and activation", "text": "Successful applicants receive confirmation and next steps."},
                 ],
             },
             {
                 "layout": "cards",
-                "title": "Screening subjects",
+                "title": "Entrance examination subjects",
                 "cards": [
                     {"title": "English Language / Verbal", "text": "Reading, comprehension, language, and basic verbal reasoning."},
                     {"title": "Mathematics / Quantitative", "text": "Number sense, reasoning, and applied problem-solving."},
@@ -549,17 +681,18 @@ PUBLIC_PAGE_CONTENT = {
     "how-to-apply": {
         "title": "How to Apply",
         "eyebrow": "Admissions Guide",
-        "description": "A simple guide to preparing, registering, and following through with the admissions process.",
+        "description": "A simple guide to preparing, registering, sitting for screening, and completing admission requirements.",
         "hero_image": PUBLIC_IMAGE["campus"],
         "sections": [
             {
-                "layout": "list",
-                "title": "Before you begin",
-                "items": [
-                    "Choose the intended class level.",
-                    "Prepare passport photograph, birth certificate, and recent school result.",
-                    "Keep parent or guardian contact details ready.",
-                    "Submit the online registration form and watch for admissions communication.",
+                "layout": "timeline",
+                "title": "How families move through admissions",
+                "timeline": [
+                    {"title": "Choose the class level", "text": "Applications are open for JSS1, JSS2, SS1, and SS2 where spaces are available."},
+                    {"title": "Prepare the required documents", "text": "Recent school result, birth certificate, and passport photograph should be ready."},
+                    {"title": "Complete the online registration", "text": "Submit the form with parent or guardian details and student information."},
+                    {"title": "Sit for screening", "text": "Applicants take the written examination and any required interview stage."},
+                    {"title": "Confirm admission", "text": "Successful candidates complete the acceptance and fee process."},
                 ],
             }
         ],
@@ -574,17 +707,31 @@ PUBLIC_PAGE_CONTENT = {
     "fees": {
         "title": "Fees & Charges",
         "eyebrow": "Fees",
-        "description": "Review the main payment areas families should plan for before admission is completed.",
+        "description": "Families should be able to understand how fees are organised by class, boarding status, and other approved charges.",
         "hero_image": PUBLIC_IMAGE["campus_block"],
         "sections": [
             {
+                "layout": "table",
+                "title": "Class-by-class fee structure",
+                "intro": "The school organises fees by class level so families can plan with clarity. The latest approved figure for each row is issued directly by the admissions office and bursary.",
+                "columns": ["Class", "Tuition / School Fees", "Boarding / Hostel", "Other Charges"],
+                "rows": [
+                    ["JSS1", "Available from admissions office", "Available from admissions office", "Registration, uniforms, and approved extras where applicable"],
+                    ["JSS2", "Available from admissions office", "Available from admissions office", "Class-based approved charges where applicable"],
+                    ["JSS3", "Available from admissions office", "Available from admissions office", "Class-based approved charges where applicable"],
+                    ["SS1", "Available from admissions office", "Available from admissions office", "Exam and approved class charges where applicable"],
+                    ["SS2", "Available from admissions office", "Available from admissions office", "Exam and approved class charges where applicable"],
+                    ["SS3", "Available from admissions office", "Available from admissions office", "Exam and approved class charges where applicable"],
+                ],
+            },
+            {
                 "layout": "cards",
-                "title": "Fee visibility for families",
+                "title": "Fee guidance",
                 "cards": [
-                    {"title": "School Fees", "text": "Tuition and core school charges are communicated clearly during admissions and payment guidance."},
-                    {"title": "Hostel / Boarding", "text": "Boarding-related charges are separated so families can plan accurately."},
-                    {"title": "Other Charges", "text": "Where applicable, registration, examinations, uniforms, and related items are clarified."},
-                    {"title": "Payment Information", "text": "Approved payment channels and next steps are shared during the admission process."},
+                    {"title": "School Fees", "text": "Core tuition and class charges are issued by level for each student group."},
+                    {"title": "Boarding", "text": "Boarding and hostel fees are shown separately from other school charges."},
+                    {"title": "Other Approved Charges", "text": "Uniforms, examinations, and related approved items are clarified during admissions."},
+                    {"title": "Payment Information", "text": "Payment guidance is shared through approved school channels and follow-up communication."},
                 ],
             }
         ],
@@ -592,17 +739,27 @@ PUBLIC_PAGE_CONTENT = {
     "hostel-boarding": {
         "title": "Hostel & Boarding",
         "eyebrow": "Boarding",
-        "description": "Boarding at NDGA is designed around routine, supervision, welfare, and a calm environment for study.",
+        "description": "Boarding at NDGA is built around routine, supervision, student welfare, and a calm atmosphere for study and formation.",
         "hero_image": PUBLIC_IMAGE["hostel"],
         "sections": [
             {
                 "layout": "split",
-                "title": "A boarding environment built for care and order",
+                "title": "A supervised boarding environment for girls",
                 "body": [
-                    "Boarding students live within a supervised environment that supports routine, study, rest, and student welfare.",
-                    "The aim is to provide a safe setting where girls can grow in responsibility, community life, and disciplined study habits.",
+                    "The school is committed to boarding life that supports routine, study, prayer, rest, and healthy community living. Girls are assigned within a structured house and supervision system.",
+                    "The hostel is organised to support welfare, communication with home, orderly daily living, and the personal growth of students within a calm school atmosphere.",
                 ],
-                "image": PUBLIC_IMAGE["hostel"],
+                "image": PUBLIC_IMAGE["hostel_alt"],
+            },
+            {
+                "layout": "cards",
+                "title": "What families expect from boarding",
+                "cards": [
+                    {"title": "Student Welfare", "text": "Close supervision, routines, and attention to wellbeing."},
+                    {"title": "Study Support", "text": "Evening prep and a culture of responsible academic routine."},
+                    {"title": "Communication", "text": "The school keeps close contact with parents and guardians."},
+                    {"title": "Boarding Facilities", "text": "Spacious hostel accommodation, ventilation, and regular water supply."},
+                ],
             }
         ],
     },
@@ -640,16 +797,17 @@ PUBLIC_PAGE_CONTENT = {
     "life-at-ndga": {
         "title": "Life at NDGA",
         "eyebrow": "School Life",
-        "description": "Boarding, sports, clubs, worship, assemblies, and community routines all shape the experience at NDGA.",
+        "description": "Boarding, worship, sports, clubs, leadership, and community life shape how girls grow at NDGA.",
         "hero_image": PUBLIC_IMAGE["socials"],
         "sections": [
             {
                 "layout": "cards",
-                "title": "What school life looks like",
+                "title": "Life beyond the classroom",
                 "cards": [
-                    {"title": "Boarding Life", "text": "Structured supervision, study time, and pastoral support.", "image": PUBLIC_IMAGE["hostel"], "href": "/hostel-boarding/"},
-                    {"title": "Facilities", "text": "Labs, library, classrooms, sports areas, and boarding spaces.", "image": PUBLIC_IMAGE["campus_block"], "href": "/facilities/"},
-                    {"title": "Gallery", "text": "A closer look at the school in pictures.", "image": PUBLIC_IMAGE["hero_music"], "href": "/gallery/"},
+                    {"title": "Boarding Life", "text": "House life, prep, rest, welfare, and daily routine.", "image": PUBLIC_IMAGE["hostel"], "href": "/hostel-boarding/"},
+                    {"title": "Spiritual Life", "text": "Assemblies, worship, retreats, liturgy, and faith formation remain central.", "image": PUBLIC_IMAGE["assembly"], "href": "/about/school-life/"},
+                    {"title": "Clubs & Leadership", "text": "Students grow through clubs, service, responsibility, and peer interaction.", "image": PUBLIC_IMAGE["socials"], "href": "/academics/co-curricular-activities/"},
+                    {"title": "Sports & Recreation", "text": "Basketball, volleyball, badminton, table tennis, and inter-house competition.", "image": PUBLIC_IMAGE["sports"], "href": "/facilities/"},
                 ],
             }
         ],
@@ -657,19 +815,19 @@ PUBLIC_PAGE_CONTENT = {
     "facilities": {
         "title": "Facilities",
         "eyebrow": "Facilities",
-        "description": "The physical spaces at NDGA support learning, student life, and everyday discipline.",
+        "description": "The school environment is designed to support learning, practical work, boarding life, reading, recreation, and orderly daily routine.",
         "hero_image": PUBLIC_IMAGE["campus_block"],
         "sections": [
             {
                 "layout": "cards",
                 "title": "Spaces designed to support school life",
                 "cards": [
-                    {"title": "Science Laboratories", "text": "Practical learning spaces for science subjects.", "image": PUBLIC_IMAGE["science_lab"]},
-                    {"title": "ICT / CBT Lab", "text": "Computer spaces for digital learning and assessment.", "image": PUBLIC_IMAGE["computer_lab"]},
-                    {"title": "Library", "text": "A calm reading environment for research and revision.", "image": PUBLIC_IMAGE["library"]},
-                    {"title": "Sports Spaces", "text": "Physical activity areas that encourage fitness and teamwork.", "image": PUBLIC_IMAGE["sports"]},
-                    {"title": "Hostel", "text": "Boarding facilities designed for safe student welfare and routine.", "image": PUBLIC_IMAGE["hostel"]},
-                    {"title": "Campus Environment", "text": "Open spaces and school buildings that support order and calm.", "image": PUBLIC_IMAGE["campus"]},
+                    {"title": "Science Laboratories", "text": "Laboratories for science and practical learning.", "image": PUBLIC_IMAGE["science_lab"]},
+                    {"title": "ICT / CBT Lab", "text": "Computer learning and CBT-ready digital spaces.", "image": PUBLIC_IMAGE["computer_lab"]},
+                    {"title": "Library", "text": "A reading and study space that supports revision and quiet work.", "image": PUBLIC_IMAGE["library"]},
+                    {"title": "Sports Areas", "text": "Spaces for basketball, volleyball, badminton, and student recreation.", "image": PUBLIC_IMAGE["sports"]},
+                    {"title": "Hostel & Boarding Areas", "text": "Student accommodation and welfare spaces within the boarding routine.", "image": PUBLIC_IMAGE["hostel_alt"]},
+                    {"title": "Refectory & Campus", "text": "Shared spaces and physical environment that support daily school life.", "image": PUBLIC_IMAGE["campus_refectory"]},
                 ],
             }
         ],
@@ -677,21 +835,36 @@ PUBLIC_PAGE_CONTENT = {
     "gallery": {
         "title": "Gallery",
         "eyebrow": "Gallery",
-        "description": "A visual look at academics, boarding, campus life, facilities, sports, and student activities.",
-        "hero_image": PUBLIC_IMAGE["hero_music"],
-        "sections": [],
+        "description": "Explore NDGA through category-based albums covering academics, facilities, boarding, school life, sports, and community moments.",
+        "hero_image": PUBLIC_IMAGE["pioneers"],
+        "sections": [
+            {
+                "layout": "list",
+                "title": "Gallery categories",
+                "items": [
+                    "Campus & Facilities",
+                    "Classroom Learning",
+                    "Science & ICT",
+                    "Boarding Life",
+                    "Sports & Games",
+                    "Clubs & Activities",
+                    "Faith & Formation",
+                    "Events & Celebrations",
+                ],
+            }
+        ],
     },
     "news": {
         "title": "News",
         "eyebrow": "News",
-        "description": "School updates, admissions guidance, boarding highlights, and stories from NDGA life.",
+        "description": "A curated stream of school notices, admissions updates, girls' education perspectives, and community highlights.",
         "hero_image": PUBLIC_IMAGE["assembly"],
         "sections": [],
     },
     "events": {
         "title": "Events",
         "eyebrow": "Events",
-        "description": "Important admissions windows, orientation planning, and school calendar highlights.",
+        "description": "Key dates for admissions, resumption, orientation, and the school calendar.",
         "hero_image": PUBLIC_IMAGE["assembly"],
         "sections": [],
     },
@@ -714,9 +887,11 @@ PUBLIC_SEARCH_LINKS = [
     {"label": "How to Apply", "url": "/admissions/how-to-apply/", "group": "Admissions"},
     {"label": "Online Registration", "url": "/admissions/registration/", "group": "Admissions"},
     {"label": "Fees & Charges", "url": "/fees/", "group": "Admissions"},
-    {"label": "Hostel & Boarding", "url": "/hostel-boarding/", "group": "School Life"},
-    {"label": "Facilities", "url": "/facilities/", "group": "School Life"},
-    {"label": "Gallery", "url": "/gallery/", "group": "School Life"},
+    {"label": "Hostel & Boarding", "url": "/hostel-boarding/", "group": "Explore"},
+    {"label": "Facilities", "url": "/facilities/", "group": "Explore"},
+    {"label": "Gallery", "url": "/gallery/", "group": "Explore"},
+    {"label": "Campus & Facilities Album", "url": "/gallery/campus-facilities/", "group": "Gallery"},
+    {"label": "Science & ICT Album", "url": "/gallery/science-ict/", "group": "Gallery"},
     {"label": "News", "url": "/news/", "group": "News"},
     {"label": "Events", "url": "/events/", "group": "News"},
     {"label": "Contact", "url": "/contact/", "group": "Contact"},
@@ -748,6 +923,14 @@ PUBLIC_INDEXABLE_PATHS = {
     "/life-at-ndga/",
     "/facilities/",
     "/gallery/",
+    "/gallery/campus-facilities/",
+    "/gallery/classroom-learning/",
+    "/gallery/science-ict/",
+    "/gallery/boarding-life/",
+    "/gallery/sports-games/",
+    "/gallery/clubs-activities/",
+    "/gallery/faith-formation/",
+    "/gallery/events-celebrations/",
     "/news/",
     "/events/",
     "/contact/",
@@ -798,6 +981,13 @@ def get_public_gallery():
     return deepcopy(PUBLIC_GALLERY)
 
 
+def get_public_gallery_category(slug: str):
+    for item in PUBLIC_GALLERY:
+        if item["slug"] == slug:
+            return deepcopy(item)
+    return None
+
+
 def get_public_site_context(*, school_profile=None):
     principal_name = ""
     if school_profile is not None:
@@ -817,4 +1007,5 @@ def get_public_site_context(*, school_profile=None):
         "public_apply_url": "/admissions/registration/",
         "public_portal_url": "/auth/login/?audience=student",
         "public_portal_text": "School Portal",
+        "public_live_chat_url": "/live-chat/",
     }

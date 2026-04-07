@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from django.http import Http404
+from django.http import Http404, JsonResponse
 from django.shortcuts import redirect
+from django.views import View
 from django.views.generic import TemplateView
 
 from apps.dashboard.forms import PublicAdmissionRegistrationForm, PublicContactForm
@@ -10,6 +11,7 @@ from apps.dashboard.public_site import (
     PUBLIC_INDEXABLE_PATHS,
     get_public_events,
     get_public_gallery,
+    get_public_gallery_category,
     get_public_news,
     get_public_news_item,
     get_public_page,
@@ -109,6 +111,29 @@ class PublicContentPageView(PublicSiteEnabledMixin, TemplateView):
         return context
 
 
+class PublicGalleryCategoryView(PublicSiteEnabledMixin, TemplateView):
+    template_name = "website/gallery_category.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        category = get_public_gallery_category(kwargs["slug"])
+        if category is None:
+            raise Http404()
+        context.update(self.base_context())
+        context.update(
+            {
+                "page_key": "gallery",
+                "page_title": category["title"],
+                "page_description": category["summary"],
+                "gallery_category": category,
+                "related_gallery_categories": [
+                    row for row in get_public_gallery() if row["slug"] != category["slug"]
+                ][:4],
+            }
+        )
+        return context
+
+
 class PublicNewsDetailView(PublicSiteEnabledMixin, TemplateView):
     template_name = "website/news_detail.html"
 
@@ -197,3 +222,26 @@ class PublicRegistrationView(PublicSiteEnabledMixin, TemplateView):
             form.save()
             return redirect(f"{request.path}?submitted=1")
         return self.render_to_response(self.get_context_data(form=form))
+
+
+class PublicLiveChatCreateView(PublicSiteEnabledMixin, View):
+    def post(self, request, *args, **kwargs):
+        form = PublicContactForm(
+            {
+                "contact_name": request.POST.get("contact_name", "").strip(),
+                "contact_email": request.POST.get("contact_email", "").strip(),
+                "contact_phone": request.POST.get("contact_phone", "").strip(),
+                "category": "Live Chat",
+                "subject": "Website Live Chat",
+                "message": request.POST.get("message", "").strip(),
+            }
+        )
+        if form.is_valid():
+            form.save()
+            return JsonResponse(
+                {
+                    "ok": True,
+                    "message": "Your message has been sent to the admissions desk.",
+                }
+            )
+        return JsonResponse({"ok": False, "errors": form.errors.get_json_data()}, status=400)

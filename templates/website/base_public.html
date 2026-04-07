@@ -46,7 +46,7 @@
 
         <nav class="public-nav" aria-label="Primary">
           {% for item in public_navigation %}
-            <div class="public-nav-item {% if item.children or item.mega %}has-dropdown{% endif %}">
+            <div class="public-nav-item {% if item.children or item.mega %}has-dropdown{% endif %}" {% if item.children or item.mega %}data-nav-item{% endif %}>
               <a href="{{ item.url }}" class="public-nav-link">{{ item.label }}</a>
               {% if item.children %}
                 <div class="public-dropdown-panel">
@@ -87,7 +87,6 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 4a6.5 6.5 0 1 0 4.03 11.6l4.43 4.42 1.06-1.06-4.42-4.43A6.5 6.5 0 0 0 10.5 4Zm0 1.5a5 5 0 1 1 0 10 5 5 0 0 1 0-10Z"/></svg>
           </button>
           <a href="{{ public_portal_url }}" class="public-portal-link">{{ public_portal_text }}</a>
-          <a href="{{ public_apply_url }}" class="public-cta magnetic">Apply Now</a>
           <button type="button" class="public-menu-button" data-mobile-menu-open aria-label="Open menu">
             <span></span><span></span><span></span>
           </button>
@@ -136,29 +135,40 @@
     </main>
 
     <footer class="public-footer">
-      <div class="public-footer-grid">
-        <div>
-          <div class="public-footer-brand">
-            <img src="{% static public_images.logo %}" alt="NDGA logo">
-            <div>
-              <strong>{{ public_contact.school_name }}</strong>
-              <p>Forming young women in learning, discipline, faith, and responsible living.</p>
-            </div>
+      <div class="public-container public-footer-top">
+        <div class="public-footer-brand">
+          <img src="{% static public_images.logo %}" alt="NDGA logo">
+          <div>
+            <strong>{{ public_contact.school_name }}</strong>
+            <p>Educating girls for life through strong academics, boarding structure, faith formation, and disciplined student growth.</p>
           </div>
         </div>
+        <div class="public-footer-cta-group">
+          <a href="{{ public_apply_url }}" class="public-cta magnetic">Apply Now</a>
+          <a href="/fees/" class="public-secondary-cta magnetic">View Fees</a>
+        </div>
+      </div>
+      <div class="public-container public-footer-grid">
         <div>
-          <h3>Quick Links</h3>
+          <h3>School</h3>
           <a href="/about/">About NDGA</a>
-          <a href="/academics/">Academics</a>
+          <a href="/principal/">Principal's Welcome</a>
+          <a href="/about/mission-vision-values/">Mission, Vision & Values</a>
           <a href="/life-at-ndga/">Life at NDGA</a>
-          <a href="/news/">News</a>
+        </div>
+        <div>
+          <h3>Academics</h3>
+          <a href="/academics/">Academics Overview</a>
+          <a href="/academics/subjects-departments/">Subjects Offered</a>
+          <a href="/academics/co-curricular-activities/">Clubs & Activities</a>
+          <a href="/academics/examinations-assessment/">Assessment</a>
         </div>
         <div>
           <h3>Admissions</h3>
           <a href="/admissions/">Admissions Overview</a>
           <a href="/admissions/how-to-apply/">How to Apply</a>
           <a href="/admissions/registration/">Online Registration</a>
-          <a href="/fees/">Fees & Charges</a>
+          <a href="/hostel-boarding/">Hostel & Boarding</a>
         </div>
         <div>
           <h3>Contact</h3>
@@ -166,16 +176,16 @@
           <a href="tel:{{ public_contact.phone_primary|cut:' ' }}">{{ public_contact.phone_primary }}</a>
           <a href="tel:{{ public_contact.phone_secondary|cut:' ' }}">{{ public_contact.phone_secondary }}</a>
           <a href="mailto:{{ public_contact.email }}">{{ public_contact.email }}</a>
+          <a href="{{ public_contact.maps_url }}" target="_blank" rel="noreferrer">Open Map</a>
         </div>
       </div>
-      <div class="public-footer-bottom">
+      <div class="public-container public-footer-bottom">
         <p>Copyright © {% now "Y" %} NDGA</p>
         <div class="public-footer-socials">
-          <a href="{{ public_contact.whatsapp_url }}" target="_blank" rel="noreferrer">WhatsApp</a>
           <a href="{{ public_contact.maps_url }}" target="_blank" rel="noreferrer">Map</a>
+          <a href="{{ public_contact.whatsapp_url }}" target="_blank" rel="noreferrer">WhatsApp</a>
           <a href="{{ public_portal_url }}">Portal</a>
         </div>
-        <p>Built by Frosty Tech</p>
       </div>
     </footer>
   </div>
@@ -224,7 +234,29 @@
       <input type="text" placeholder="Ask a question">
       <button type="submit">Send</button>
     </form>
-    <a href="{{ public_contact.whatsapp_url }}" class="public-chatbot-support" target="_blank" rel="noreferrer">Speak to IT Manager</a>
+    <div class="public-chatbot-support-row">
+      <button type="button" class="public-chatbot-support" data-live-chat-open>Start Live Chat</button>
+      <a href="{{ public_contact.whatsapp_url }}" class="public-chatbot-support is-secondary" target="_blank" rel="noreferrer">WhatsApp</a>
+    </div>
+  </section>
+
+  <section class="public-live-chat" data-live-chat>
+    <header>
+      <div>
+        <strong>Live Chat</strong>
+        <p>Send a direct message to the admissions desk.</p>
+      </div>
+      <button type="button" data-live-chat-close aria-label="Close live chat">×</button>
+    </header>
+    <form class="public-live-chat-form" data-live-chat-form method="post" action="{{ public_live_chat_url }}">
+      {% csrf_token %}
+      <input type="text" name="contact_name" placeholder="Your name" required>
+      <input type="email" name="contact_email" placeholder="Email address">
+      <input type="tel" name="contact_phone" placeholder="Phone number">
+      <textarea name="message" rows="4" placeholder="Type your message here" required></textarea>
+      <button type="submit" class="public-cta">Send Message</button>
+      <p class="public-live-chat-status" data-live-chat-status></p>
+    </form>
   </section>
 
   <script src="{% static 'js/public-website.js' %}"></script>

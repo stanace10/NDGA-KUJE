@@ -5,7 +5,7 @@
 <section class="public-page-hero" style="background-image:url('{% static article.image %}')">
   <div class="public-page-hero-overlay"></div>
   <div class="public-container public-page-hero-content" data-reveal>
-    <span class="public-eyebrow">{{ article.category }}</span>
+    <span class="public-eyebrow">{{ article.category }}{% if article.date %} · {{ article.date }}{% endif %}</span>
     <h1>{{ article.title }}</h1>
     <p>{{ article.summary }}</p>
   </div>
@@ -19,7 +19,7 @@
       {% endfor %}
       <div class="public-button-row">
         <a href="/admissions/registration/" class="public-cta magnetic">Start Registration</a>
-        <a href="/contact/" class="public-secondary-cta magnetic">Contact Admissions</a>
+        <a href="/news/" class="public-secondary-cta magnetic">View More News</a>
       </div>
     </article>
     <aside class="public-related-card">

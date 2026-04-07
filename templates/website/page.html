@@ -11,15 +11,19 @@
   </div>
 </section>
 
-{% if gallery_items %}
+{% if gallery_items and page_key == 'gallery' %}
   <section class="public-section">
     <div class="public-container" data-reveal>
-      <div class="public-gallery-grid">
+      <div class="public-gallery-category-grid">
         {% for item in gallery_items %}
-          <button type="button" class="public-gallery-tile {% if forloop.first %}is-large{% elif forloop.counter == 5 %}is-tall{% endif %}" data-lightbox-image="{% static item.image %}" data-lightbox-title="{{ item.title }}">
+          <a href="/gallery/{{ item.slug }}/" class="public-gallery-category-card">
             <img src="{% static item.image %}" alt="{{ item.title }}">
-            <span>{{ item.title }}</span>
-          </button>
+            <div>
+              <span>Gallery</span>
+              <h3>{{ item.title }}</h3>
+              <p>{{ item.summary }}</p>
+            </div>
+          </a>
         {% endfor %}
       </div>
     </div>
@@ -33,7 +37,7 @@
         <article class="public-story-card">
           <img src="{% static item.image %}" alt="{{ item.title }}">
           <div>
-            <span>{{ item.category }}</span>
+            <span>{{ item.category }}{% if item.date %} · {{ item.date }}{% endif %}</span>
             <h3>{{ item.title }}</h3>
             <p>{{ item.summary }}</p>
             <a href="/news/{{ item.slug }}/">Read more</a>
@@ -49,7 +53,7 @@
     <div class="public-container public-event-list" data-reveal>
       {% for item in event_items %}
         <article>
-          <strong>{{ item.meta }}</strong>
+          <strong>{{ item.meta }}{% if item.date %} · {{ item.date }}{% endif %}</strong>
           <h3>{{ item.title }}</h3>
           <p>{{ item.summary }}</p>
           <span>{{ item.location }}</span>
@@ -93,6 +97,13 @@
               <div>
                 <h3>{{ card.title }}</h3>
                 <p>{{ card.text }}</p>
+                {% if card.items %}
+                  <ul class="public-card-list">
+                    {% for item in card.items %}
+                      <li>{{ item }}</li>
+                    {% endfor %}
+                  </ul>
+                {% endif %}
                 {% if card.href %}<a href="{{ card.href }}">Explore</a>{% endif %}
               </div>
             </article>
@@ -135,6 +146,31 @@
             </details>
           {% endfor %}
         </div>
+      {% elif section.layout == "table" %}
+        <div class="public-section-heading">
+          <h2>{{ section.title }}</h2>
+          {% if section.intro %}<p>{{ section.intro }}</p>{% endif %}
+        </div>
+        <div class="public-table-wrap">
+          <table class="public-data-table">
+            <thead>
+              <tr>
+                {% for column in section.columns %}
+                  <th>{{ column }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in section.rows %}
+                <tr>
+                  {% for cell in row %}
+                    <td>{{ cell }}</td>
+                  {% endfor %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
       {% endif %}
     </div>
   </section>
@@ -152,12 +188,4 @@
     </div>
   </div>
 </section>
-
-{% if gallery_items %}
-  <div class="public-lightbox" data-lightbox>
-    <button type="button" class="public-lightbox-close" data-lightbox-close aria-label="Close image">×</button>
-    <img src="" alt="" data-lightbox-target>
-    <p data-lightbox-caption></p>
-  </div>
-{% endif %}
 {% endblock %}

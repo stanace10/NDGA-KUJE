@@ -16,6 +16,8 @@ from apps.dashboard.feature_views import (
 from apps.dashboard.public_views import (
     PublicContactView,
     PublicContentPageView,
+    PublicGalleryCategoryView,
+    PublicLiveChatCreateView,
     PublicNewsDetailView,
     PublicRegistrationView,
 )
@@ -127,10 +129,12 @@ urlpatterns = [
     path("life-at-ndga/", PublicContentPageView.as_view(page_slug="life-at-ndga"), name="public-life"),
     path("facilities/", PublicContentPageView.as_view(page_slug="facilities"), name="public-facilities"),
     path("gallery/", PublicContentPageView.as_view(page_slug="gallery"), name="public-gallery"),
+    path("gallery/<slug:slug>/", PublicGalleryCategoryView.as_view(), name="public-gallery-category"),
     path("news/", PublicContentPageView.as_view(page_slug="news"), name="public-news"),
     path("news/<slug:slug>/", PublicNewsDetailView.as_view(), name="public-news-detail"),
     path("events/", PublicContentPageView.as_view(page_slug="events"), name="public-events"),
     path("contact/", PublicContactView.as_view(), name="public-contact"),
+    path("live-chat/", PublicLiveChatCreateView.as_view(), name="public-live-chat"),
     path("calendar/", LegacyCalendarRedirectView.as_view(), name="legacy-calendar"),
     path("notice/", LegacyNoticeRedirectView.as_view(), name="legacy-notice"),
     path("health/", health_check, name="health-check"),
