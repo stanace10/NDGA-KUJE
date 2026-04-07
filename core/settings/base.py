@@ -121,6 +121,7 @@ env = environ.Env(
     GOOGLE_ANALYTICS_ID=(str, ""),
     GOOGLE_ADS_ID=(str, ""),
     GOOGLE_ADSENSE_CLIENT_ID=(str, ""),
+    PUBLIC_WEBSITE_ENABLED=(bool, False),
     SEO_SITE_NAME=(str, "NDGA Portal"),
     SEO_ORGANIZATION_NAME=(str, "Notre Dame Girls Academy"),
     SEO_DEFAULT_DESCRIPTION=(str, "Portal access for students, staff, academic records, finance, CBT, and school operations at Notre Dame Girls Academy, Kuje Abuja."),
@@ -372,6 +373,7 @@ RESULTS_POLICY = {
 IT_BOOTSTRAP_USERNAME = env("IT_BOOTSTRAP_USERNAME", default="admin@ndgakuje.org")
 NDGA_BASE_DOMAIN = env("NDGA_BASE_DOMAIN", default="ndgakuje.org")
 NDGA_LOCAL_SIMPLE_HOST_MODE = env.bool("NDGA_LOCAL_SIMPLE_HOST_MODE", default=False)
+PUBLIC_WEBSITE_ENABLED = env.bool("PUBLIC_WEBSITE_ENABLED", default=False)
 if NDGA_LOCAL_SIMPLE_HOST_MODE and "*" not in ALLOWED_HOSTS:
     ALLOWED_HOSTS = ["*"]
 

@@ -1,0 +1,76 @@
+{% extends "website/base_public.html" %}
+{% load static %}
+
+{% block content %}
+<section class="public-page-hero" style="background-image:url('{% static public_images.hero_students %}')">
+  <div class="public-page-hero-overlay"></div>
+  <div class="public-container public-page-hero-content" data-reveal>
+    <span class="public-eyebrow">Admissions Form</span>
+    <h1>Online Registration</h1>
+    <p>Complete the admission form, choose the intended class, indicate boarding preference, and upload the required school records.</p>
+  </div>
+</section>
+
+<section class="public-section">
+  <div class="public-container public-registration-layout" data-reveal>
+    <aside class="public-registration-sidebar">
+      <span class="public-eyebrow">Steps</span>
+      <h2>Admissions journey</h2>
+      <ol>
+        {% for step in registration_steps %}
+          <li>{{ step }}</li>
+        {% endfor %}
+      </ol>
+      <div class="public-registration-note">
+        <strong>Required documents</strong>
+        {% for item in required_documents %}
+          <span>{{ item }}</span>
+        {% endfor %}
+      </div>
+    </aside>
+
+    <div class="public-form-panel">
+      {% if submitted %}
+        <div class="public-success-banner">Registration submitted successfully. The admissions office will review the details and communicate the next step.</div>
+      {% endif %}
+      <form method="post" enctype="multipart/form-data" class="public-form-grid" data-multi-step-form>
+        {% csrf_token %}
+        <div class="public-form-step is-active" data-form-step="1">
+          <div>{{ form.applicant_name.label_tag }}{{ form.applicant_name }}</div>
+          <div>{{ form.applicant_date_of_birth.label_tag }}{{ form.applicant_date_of_birth }}</div>
+          <div>{{ form.intended_class.label_tag }}{{ form.intended_class }}</div>
+          <div>{{ form.boarding_option.label_tag }}{{ form.boarding_option }}</div>
+        </div>
+        <div class="public-form-step" data-form-step="2">
+          <div>{{ form.guardian_name.label_tag }}{{ form.guardian_name }}</div>
+          <div>{{ form.guardian_email.label_tag }}{{ form.guardian_email }}</div>
+          <div>{{ form.guardian_phone.label_tag }}{{ form.guardian_phone }}</div>
+          <div class="is-full">{{ form.residential_address.label_tag }}{{ form.residential_address }}</div>
+          <div class="is-full">{{ form.previous_school.label_tag }}{{ form.previous_school }}</div>
+        </div>
+        <div class="public-form-step" data-form-step="3">
+          <div>{{ form.passport_photo.label_tag }}{{ form.passport_photo }}</div>
+          <div>{{ form.birth_certificate.label_tag }}{{ form.birth_certificate }}</div>
+          <div>{{ form.school_result.label_tag }}{{ form.school_result }}</div>
+          <div class="is-full">{{ form.medical_notes.label_tag }}{{ form.medical_notes }}</div>
+        </div>
+        <div class="public-form-step" data-form-step="4">
+          <div class="is-full public-review-panel">
+            <h2>Before you submit</h2>
+            <p>Make sure the applicant name, class level, boarding option, and contact details are correct. Admissions communication will be sent through the parent or guardian information provided.</p>
+            <p>After registration, the school communicates the next step for screening or entrance examination and payment guidance.</p>
+          </div>
+        </div>
+        {% if form.errors %}
+          <div class="public-form-errors is-full">{{ form.errors }}</div>
+        {% endif %}
+        <div class="is-full public-form-actions">
+          <button type="button" class="public-secondary-cta" data-step-back>Back</button>
+          <button type="button" class="public-secondary-cta" data-step-next>Continue</button>
+          <button type="submit" class="public-cta magnetic" data-step-submit>Submit Registration</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</section>
+{% endblock %}

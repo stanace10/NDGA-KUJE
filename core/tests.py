@@ -1,4 +1,5 @@
 from django.test import TestCase
+from django.test import override_settings
 from django.urls import reverse
 
 
@@ -26,4 +27,14 @@ class SeoSurfaceTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], "application/xml; charset=utf-8")
         self.assertContains(response, "<urlset")
-        self.assertContains(response, "http://testserver/")
+        self.assertRegex(
+            response.content.decode(),
+            r"<loc>https?://[^<]+/</loc>",
+        )
+
+    @override_settings(PUBLIC_WEBSITE_ENABLED=True)
+    def test_public_sitemap_lists_inner_public_pages_when_enabled(self):
+        response = self.client.get(reverse("sitemap-xml"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "http://ndgakuje.org/about/")
+        self.assertContains(response, "http://ndgakuje.org/admissions/registration/")

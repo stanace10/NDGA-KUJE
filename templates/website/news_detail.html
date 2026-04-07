@@ -1,0 +1,37 @@
+{% extends "website/base_public.html" %}
+{% load static %}
+
+{% block content %}
+<section class="public-page-hero" style="background-image:url('{% static article.image %}')">
+  <div class="public-page-hero-overlay"></div>
+  <div class="public-container public-page-hero-content" data-reveal>
+    <span class="public-eyebrow">{{ article.category }}</span>
+    <h1>{{ article.title }}</h1>
+    <p>{{ article.summary }}</p>
+  </div>
+</section>
+
+<section class="public-section">
+  <div class="public-container public-article-layout" data-reveal>
+    <article class="public-article-card">
+      {% for paragraph in article.body %}
+        <p>{{ paragraph }}</p>
+      {% endfor %}
+      <div class="public-button-row">
+        <a href="/admissions/registration/" class="public-cta magnetic">Start Registration</a>
+        <a href="/contact/" class="public-secondary-cta magnetic">Contact Admissions</a>
+      </div>
+    </article>
+    <aside class="public-related-card">
+      <span class="public-eyebrow">More from NDGA</span>
+      <h2>Related updates</h2>
+      {% for item in related_articles %}
+        <a href="/news/{{ item.slug }}/">
+          <strong>{{ item.title }}</strong>
+          <span>{{ item.category }}</span>
+        </a>
+      {% endfor %}
+    </aside>
+  </div>
+</section>
+{% endblock %}

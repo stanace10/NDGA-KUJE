@@ -2146,6 +2146,13 @@ class PortalSummaryFragmentView(LoginRequiredMixin, TemplateView):
 class PortalRootView(View):
     def get(self, request, *args, **kwargs):
         portal_key = getattr(request, "portal_key", "landing")
+        if portal_key == "landing":
+            from apps.dashboard.public_site import public_site_enabled
+
+            if public_site_enabled():
+                from apps.dashboard.public_views import PublicHomeView
+
+                return PublicHomeView.as_view()(request, *args, **kwargs)
         host_root_map = {
             "landing": LandingPageView.as_view(),
             "portal": LandingPageView.as_view(),

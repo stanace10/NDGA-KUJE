@@ -13,6 +13,12 @@ from apps.dashboard.feature_views import (
     TeacherLMSView,
     WeeklyChallengeManagementView,
 )
+from apps.dashboard.public_views import (
+    PublicContactView,
+    PublicContentPageView,
+    PublicNewsDetailView,
+    PublicRegistrationView,
+)
 from apps.dashboard.views import (
     AccountSecuritySettingsView,
     BursarPortalView,
@@ -49,6 +55,82 @@ app_name = "dashboard"
 
 urlpatterns = [
     path("", PortalRootView.as_view(), name="landing"),
+    path("about/", PublicContentPageView.as_view(page_slug="about"), name="public-about"),
+    path("principal/", PublicContentPageView.as_view(page_slug="principal"), name="public-principal"),
+    path(
+        "about/mission-vision-values/",
+        PublicContentPageView.as_view(page_slug="mission-vision-values"),
+        name="public-mission-vision-values",
+    ),
+    path("about/leadership/", PublicContentPageView.as_view(page_slug="leadership"), name="public-leadership"),
+    path("about/school-life/", PublicContentPageView.as_view(page_slug="school-life"), name="public-school-life"),
+    path("academics/", PublicContentPageView.as_view(page_slug="academics"), name="public-academics"),
+    path(
+        "academics/junior-secondary/",
+        PublicContentPageView.as_view(page_slug="junior-secondary"),
+        name="public-junior-secondary",
+    ),
+    path(
+        "academics/senior-secondary/",
+        PublicContentPageView.as_view(page_slug="senior-secondary"),
+        name="public-senior-secondary",
+    ),
+    path("academics/curriculum/", PublicContentPageView.as_view(page_slug="curriculum"), name="public-curriculum"),
+    path(
+        "academics/subjects-departments/",
+        PublicContentPageView.as_view(page_slug="subjects-departments"),
+        name="public-subjects-departments",
+    ),
+    path(
+        "academics/ict-digital-learning/",
+        PublicContentPageView.as_view(page_slug="ict-digital-learning"),
+        name="public-ict-digital-learning",
+    ),
+    path(
+        "academics/co-curricular-activities/",
+        PublicContentPageView.as_view(page_slug="co-curricular-activities"),
+        name="public-co-curricular-activities",
+    ),
+    path(
+        "academics/learning-support/",
+        PublicContentPageView.as_view(page_slug="learning-support"),
+        name="public-learning-support",
+    ),
+    path(
+        "academics/examinations-assessment/",
+        PublicContentPageView.as_view(page_slug="examinations-assessment"),
+        name="public-examinations-assessment",
+    ),
+    path("admissions/", PublicContentPageView.as_view(page_slug="admissions"), name="public-admissions"),
+    path(
+        "admissions/how-to-apply/",
+        PublicContentPageView.as_view(page_slug="how-to-apply"),
+        name="public-how-to-apply",
+    ),
+    path("admissions/registration/", PublicRegistrationView.as_view(), name="public-registration"),
+    path("fees/", PublicContentPageView.as_view(page_slug="fees"), name="public-fees"),
+    path(
+        "hostel-boarding/",
+        PublicContentPageView.as_view(page_slug="hostel-boarding"),
+        name="public-hostel-boarding",
+    ),
+    path(
+        "admissions/payment-information/",
+        PublicContentPageView.as_view(page_slug="payment-information"),
+        name="public-payment-information",
+    ),
+    path(
+        "admissions/admission-faqs/",
+        PublicContentPageView.as_view(page_slug="admission-faqs"),
+        name="public-admission-faqs",
+    ),
+    path("life-at-ndga/", PublicContentPageView.as_view(page_slug="life-at-ndga"), name="public-life"),
+    path("facilities/", PublicContentPageView.as_view(page_slug="facilities"), name="public-facilities"),
+    path("gallery/", PublicContentPageView.as_view(page_slug="gallery"), name="public-gallery"),
+    path("news/", PublicContentPageView.as_view(page_slug="news"), name="public-news"),
+    path("news/<slug:slug>/", PublicNewsDetailView.as_view(), name="public-news-detail"),
+    path("events/", PublicContentPageView.as_view(page_slug="events"), name="public-events"),
+    path("contact/", PublicContactView.as_view(), name="public-contact"),
     path("calendar/", LegacyCalendarRedirectView.as_view(), name="legacy-calendar"),
     path("notice/", LegacyNoticeRedirectView.as_view(), name="legacy-notice"),
     path("health/", health_check, name="health-check"),

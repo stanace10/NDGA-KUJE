@@ -9,6 +9,7 @@ from apps.tenancy.utils import build_portal_url, current_portal_key
 
 
 @override_settings(
+    PUBLIC_WEBSITE_ENABLED=False,
     ALLOWED_HOSTS=[
         "localhost",
         "127.0.0.1",

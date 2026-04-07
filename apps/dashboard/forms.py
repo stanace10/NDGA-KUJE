@@ -24,13 +24,15 @@ from apps.dashboard.models import (
     LMSModule,
     LMSSubmissionStatus,
     PortalDocument,
+    PublicSiteSubmission,
+    PublicSubmissionType,
     SchoolProfile,
     StudentClubMembership,
     WeeklyChallenge,
     WeeklyChallengeSubmission,
 )
 from apps.setup_wizard.services import get_setup_state
-from core.upload_scan import validate_document_upload
+from core.upload_scan import validate_document_upload, validate_image_upload
 
 
 class _StyledFormMixin:
@@ -185,6 +187,140 @@ class SchoolProfileForm(_StyledFormMixin, forms.ModelForm):
         self.fields["school_stamp"].widget.attrs.setdefault(
             "accept", "image/png,image/jpeg,image/jpg,image/svg+xml"
         )
+
+
+class PublicContactForm(_StyledFormMixin, forms.ModelForm):
+    class Meta:
+        model = PublicSiteSubmission
+        fields = (
+            "contact_name",
+            "contact_email",
+            "contact_phone",
+            "category",
+            "subject",
+            "message",
+        )
+        widgets = {
+            "message": forms.Textarea(attrs={"rows": 5}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.instance.submission_type = PublicSubmissionType.CONTACT
+        self.fields["contact_name"].label = "Full Name"
+        self.fields["contact_email"].required = False
+        self.fields["contact_phone"].required = False
+        self.fields["category"].widget = forms.Select(
+            choices=[
+                ("General Enquiry", "General Enquiry"),
+                ("Admissions", "Admissions"),
+                ("Boarding", "Boarding"),
+                ("Fees", "Fees"),
+                ("Portal Support", "Portal Support"),
+            ],
+            attrs={"class": "w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"},
+        )
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        instance.submission_type = PublicSubmissionType.CONTACT
+        if commit:
+            instance.save()
+        return instance
+
+
+class PublicAdmissionRegistrationForm(_StyledFormMixin, forms.ModelForm):
+    intended_class = forms.ChoiceField(
+        choices=[
+            ("JSS1", "JSS1"),
+            ("JSS2", "JSS2"),
+            ("JSS3", "JSS3"),
+            ("SS1", "SS1"),
+            ("SS2", "SS2"),
+            ("SS3", "SS3"),
+        ]
+    )
+    boarding_option = forms.ChoiceField(
+        choices=[
+            ("BOARDING", "Boarding"),
+            ("DAY", "Day"),
+        ]
+    )
+
+    class Meta:
+        model = PublicSiteSubmission
+        fields = (
+            "applicant_name",
+            "applicant_date_of_birth",
+            "intended_class",
+            "guardian_name",
+            "guardian_email",
+            "guardian_phone",
+            "residential_address",
+            "previous_school",
+            "boarding_option",
+            "medical_notes",
+            "passport_photo",
+            "birth_certificate",
+            "school_result",
+        )
+        widgets = {
+            "applicant_date_of_birth": forms.DateInput(attrs={"type": "date"}),
+            "residential_address": forms.Textarea(attrs={"rows": 4}),
+            "medical_notes": forms.Textarea(attrs={"rows": 4}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.instance.submission_type = PublicSubmissionType.ADMISSION
+        self.fields["guardian_email"].required = False
+        self.fields["previous_school"].required = False
+        self.fields["medical_notes"].required = False
+        self.fields["passport_photo"].required = False
+        self.fields["birth_certificate"].required = False
+        self.fields["school_result"].required = False
+        self.fields["passport_photo"].widget.attrs.setdefault(
+            "accept", "image/png,image/jpeg,image/jpg"
+        )
+        self.fields["birth_certificate"].widget.attrs.setdefault(
+            "accept", ".pdf,.jpg,.jpeg,.png"
+        )
+        self.fields["school_result"].widget.attrs.setdefault(
+            "accept", ".pdf,.jpg,.jpeg,.png"
+        )
+
+    def clean_passport_photo(self):
+        uploaded = self.cleaned_data.get("passport_photo")
+        if uploaded:
+            validate_image_upload(uploaded)
+        return uploaded
+
+    def clean_birth_certificate(self):
+        uploaded = self.cleaned_data.get("birth_certificate")
+        if uploaded:
+            validate_document_upload(uploaded)
+        return uploaded
+
+    def clean_school_result(self):
+        uploaded = self.cleaned_data.get("school_result")
+        if uploaded:
+            validate_document_upload(uploaded)
+        return uploaded
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        instance.submission_type = PublicSubmissionType.ADMISSION
+        instance.contact_name = instance.guardian_name
+        instance.contact_email = instance.guardian_email
+        instance.contact_phone = instance.guardian_phone
+        instance.subject = f"Admission Registration - {instance.intended_class}"
+        instance.category = "Admissions"
+        instance.message = (
+            "Online registration submitted through the public admissions form."
+        )
+        if commit:
+            instance.save()
+        return instance
 
 
 class ClubForm(_StyledFormMixin, forms.ModelForm):

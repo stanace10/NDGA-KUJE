@@ -31,6 +31,8 @@ from apps.dashboard.models import (
     LMSModule,
     PortalDocument,
     PrincipalSignature,
+    PublicSiteSubmission,
+    PublicSubmissionType,
     WeeklyChallenge,
     WeeklyChallengeSubmission,
 )
@@ -963,4 +965,60 @@ class LearningHubPortalFeatureTests(TestCase):
         submission = WeeklyChallengeSubmission.objects.get(challenge=challenge, student=self.student)
         self.assertTrue(submission.is_correct)
         self.assertEqual(submission.awarded_points, challenge.reward_points)
+
+
+@override_settings(
+    PUBLIC_WEBSITE_ENABLED=True,
+    ALLOWED_HOSTS=["testserver", "ndgakuje.org", ".ndgakuje.org", "localhost", "127.0.0.1"],
+)
+class PublicWebsiteLanViewTests(TestCase):
+    def test_public_homepage_renders_new_website(self):
+        response = Client(HTTP_HOST="ndgakuje.org").get("/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Educating Girls for Life")
+        self.assertContains(response, "Life at NDGA")
+
+    def test_public_about_page_renders(self):
+        response = Client(HTTP_HOST="ndgakuje.org").get("/about/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "About Notre Dame Girls")
+
+    def test_contact_submission_is_saved(self):
+        client = Client(HTTP_HOST="ndgakuje.org")
+        response = client.post(
+            "/contact/",
+            {
+                "contact_name": "Amina Bello",
+                "contact_email": "amina@example.com",
+                "contact_phone": "08000000000",
+                "category": "Admissions",
+                "subject": "Need admission guidance",
+                "message": "Please share the next step for registration.",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        submission = PublicSiteSubmission.objects.get(submission_type=PublicSubmissionType.CONTACT)
+        self.assertEqual(submission.contact_name, "Amina Bello")
+
+    def test_registration_submission_is_saved(self):
+        client = Client(HTTP_HOST="ndgakuje.org")
+        response = client.post(
+            "/admissions/registration/",
+            {
+                "applicant_name": "Mary James",
+                "applicant_date_of_birth": "2013-05-17",
+                "intended_class": "JSS1",
+                "guardian_name": "Grace James",
+                "guardian_email": "grace@example.com",
+                "guardian_phone": "08011111111",
+                "residential_address": "Kuje, Abuja",
+                "previous_school": "Good Shepherd School",
+                "boarding_option": "BOARDING",
+                "medical_notes": "",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        submission = PublicSiteSubmission.objects.get(submission_type=PublicSubmissionType.ADMISSION)
+        self.assertEqual(submission.applicant_name, "Mary James")
+        self.assertEqual(submission.intended_class, "JSS1")
 

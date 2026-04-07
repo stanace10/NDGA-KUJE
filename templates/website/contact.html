@@ -1,0 +1,73 @@
+{% extends "website/base_public.html" %}
+{% load static %}
+
+{% block content %}
+<section class="public-page-hero" style="background-image:url('{% static public_images.campus %}')">
+  <div class="public-page-hero-overlay"></div>
+  <div class="public-container public-page-hero-content" data-reveal>
+    <span class="public-eyebrow">Contact</span>
+    <h1>We are here to help with admissions and school enquiries.</h1>
+    <p>Send an enquiry, call the school, or use the admissions assistant for quick guidance.</p>
+  </div>
+</section>
+
+<section class="public-section">
+  <div class="public-container" data-reveal>
+    {% if submitted %}
+      <div class="public-success-banner">Your enquiry has been received. The school will follow up through the contact details you provided.</div>
+    {% endif %}
+    <div class="public-contact-grid">
+      <div class="public-contact-card">
+        <span class="public-eyebrow">Phone</span>
+        <h2>{{ public_contact.phone_primary }}</h2>
+        <p>{{ public_contact.phone_secondary }}</p>
+      </div>
+      <div class="public-contact-card">
+        <span class="public-eyebrow">Email</span>
+        <h2>{{ public_contact.email }}</h2>
+        <p>Admissions and general enquiries.</p>
+      </div>
+      <div class="public-contact-card">
+        <span class="public-eyebrow">Location</span>
+        <h2>Kuchiyako, Kuje-Abuja</h2>
+        <p>{{ public_contact.address }}</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="public-section public-section-soft">
+  <div class="public-container public-contact-layout" data-reveal>
+    <div class="public-form-panel">
+      <span class="public-eyebrow">Enquiry Form</span>
+      <h2>Send a message to the school</h2>
+      <form method="post" class="public-form-grid">
+        {% csrf_token %}
+        <div>{{ form.contact_name.label_tag }}{{ form.contact_name }}</div>
+        <div>{{ form.contact_email.label_tag }}{{ form.contact_email }}</div>
+        <div>{{ form.contact_phone.label_tag }}{{ form.contact_phone }}</div>
+        <div>{{ form.category.label_tag }}{{ form.category }}</div>
+        <div class="is-full">{{ form.subject.label_tag }}{{ form.subject }}</div>
+        <div class="is-full">{{ form.message.label_tag }}{{ form.message }}</div>
+        {% if form.errors %}
+          <div class="public-form-errors is-full">{{ form.errors }}</div>
+        {% endif %}
+        <div class="is-full">
+          <button type="submit" class="public-cta magnetic">Send Enquiry</button>
+        </div>
+      </form>
+    </div>
+    <div class="public-support-panel">
+      <span class="public-eyebrow">Quick Help</span>
+      <h2>Need quick guidance?</h2>
+      <div class="public-support-links">
+        <a href="/admissions/">Admissions</a>
+        <a href="/fees/">Fees</a>
+        <a href="/hostel-boarding/">Boarding</a>
+        <a href="{{ public_contact.maps_url }}" target="_blank" rel="noreferrer">Open directions</a>
+        <a href="{{ public_contact.whatsapp_url }}" target="_blank" rel="noreferrer">Chat on WhatsApp</a>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

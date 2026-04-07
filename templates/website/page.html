@@ -1,0 +1,163 @@
+{% extends "website/base_public.html" %}
+{% load static %}
+
+{% block content %}
+<section class="public-page-hero" style="background-image:url('{% static public_page.hero_image %}')">
+  <div class="public-page-hero-overlay"></div>
+  <div class="public-container public-page-hero-content" data-reveal>
+    <span class="public-eyebrow">{{ public_page.eyebrow }}</span>
+    <h1>{{ public_page.title }}</h1>
+    <p>{{ public_page.description }}</p>
+  </div>
+</section>
+
+{% if gallery_items %}
+  <section class="public-section">
+    <div class="public-container" data-reveal>
+      <div class="public-gallery-grid">
+        {% for item in gallery_items %}
+          <button type="button" class="public-gallery-tile {% if forloop.first %}is-large{% elif forloop.counter == 5 %}is-tall{% endif %}" data-lightbox-image="{% static item.image %}" data-lightbox-title="{{ item.title }}">
+            <img src="{% static item.image %}" alt="{{ item.title }}">
+            <span>{{ item.title }}</span>
+          </button>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+{% endif %}
+
+{% if news_items %}
+  <section class="public-section">
+    <div class="public-container public-stack-cards" data-reveal>
+      {% for item in news_items %}
+        <article class="public-story-card">
+          <img src="{% static item.image %}" alt="{{ item.title }}">
+          <div>
+            <span>{{ item.category }}</span>
+            <h3>{{ item.title }}</h3>
+            <p>{{ item.summary }}</p>
+            <a href="/news/{{ item.slug }}/">Read more</a>
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+  </section>
+{% endif %}
+
+{% if event_items %}
+  <section class="public-section">
+    <div class="public-container public-event-list" data-reveal>
+      {% for item in event_items %}
+        <article>
+          <strong>{{ item.meta }}</strong>
+          <h3>{{ item.title }}</h3>
+          <p>{{ item.summary }}</p>
+          <span>{{ item.location }}</span>
+        </article>
+      {% endfor %}
+    </div>
+  </section>
+{% endif %}
+
+{% for section in public_page.sections %}
+  <section class="public-section {% if section.layout == 'cards' %}public-section-soft{% endif %}">
+    <div class="public-container" data-reveal>
+      {% if section.layout == "split" %}
+        <div class="public-split">
+          <div class="public-copy">
+            {% if section.eyebrow %}<span class="public-eyebrow">{{ section.eyebrow }}</span>{% endif %}
+            <h2>{{ section.title }}</h2>
+            {% for paragraph in section.body %}
+              <p>{{ paragraph }}</p>
+            {% endfor %}
+            {% if section.quote_author %}
+              <div class="public-quote-signoff">
+                <strong>{{ section.quote_author }}</strong>
+                <span>{{ section.quote_role }}</span>
+              </div>
+            {% endif %}
+          </div>
+          <div class="public-image-frame">
+            <img src="{% static section.image %}" alt="{{ section.title }}">
+          </div>
+        </div>
+      {% elif section.layout == "cards" %}
+        <div class="public-section-heading">
+          {% if section.eyebrow %}<span class="public-eyebrow">{{ section.eyebrow }}</span>{% endif %}
+          <h2>{{ section.title }}</h2>
+        </div>
+        <div class="public-card-grid public-card-grid-three">
+          {% for card in section.cards %}
+            <article class="public-media-card">
+              {% if card.image %}<img src="{% static card.image %}" alt="{{ card.title }}">{% endif %}
+              <div>
+                <h3>{{ card.title }}</h3>
+                <p>{{ card.text }}</p>
+                {% if card.href %}<a href="{{ card.href }}">Explore</a>{% endif %}
+              </div>
+            </article>
+          {% endfor %}
+        </div>
+      {% elif section.layout == "list" %}
+        <div class="public-section-heading">
+          {% if section.eyebrow %}<span class="public-eyebrow">{{ section.eyebrow }}</span>{% endif %}
+          <h2>{{ section.title }}</h2>
+        </div>
+        <div class="public-list-panel">
+          {% for item in section.items %}
+            <article>{{ item }}</article>
+          {% endfor %}
+        </div>
+      {% elif section.layout == "timeline" %}
+        <div class="public-section-heading">
+          <h2>{{ section.title }}</h2>
+        </div>
+        <div class="public-timeline-card">
+          {% for step in section.timeline %}
+            <div class="public-timeline-step">
+              <strong>0{{ forloop.counter }}</strong>
+              <div>
+                <h3>{{ step.title }}</h3>
+                <p>{{ step.text }}</p>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% elif section.layout == "faq" %}
+        <div class="public-section-heading">
+          <h2>{{ section.title }}</h2>
+        </div>
+        <div class="public-faq-list">
+          {% for faq in section.faqs %}
+            <details>
+              <summary>{{ faq.question }}</summary>
+              <p>{{ faq.answer }}</p>
+            </details>
+          {% endfor %}
+        </div>
+      {% endif %}
+    </div>
+  </section>
+{% endfor %}
+
+<section class="public-final-cta">
+  <div class="public-container public-final-cta-inner" data-reveal>
+    <div>
+      <span class="public-eyebrow">Admissions</span>
+      <h2>Need help with admission, fees, or boarding guidance?</h2>
+    </div>
+    <div class="public-button-row">
+      <a href="/admissions/registration/" class="public-cta magnetic">Apply Now</a>
+      <a href="/contact/" class="public-secondary-cta magnetic">Contact Admissions</a>
+    </div>
+  </div>
+</section>
+
+{% if gallery_items %}
+  <div class="public-lightbox" data-lightbox>
+    <button type="button" class="public-lightbox-close" data-lightbox-close aria-label="Close image">×</button>
+    <img src="" alt="" data-lightbox-target>
+    <p data-lightbox-caption></p>
+  </div>
+{% endif %}
+{% endblock %}

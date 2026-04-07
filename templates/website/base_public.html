@@ -1,0 +1,233 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ page_title|default:seo_default_title }}{% endblock %}</title>
+  <meta name="description" content="{% block meta_description %}{{ page_description|default:seo_default_description }}{% endblock %}">
+  <meta name="robots" content="{{ seo_robots_content }}">
+  <link rel="canonical" href="{{ seo_canonical_url }}">
+  <link rel="sitemap" type="application/xml" title="Sitemap" href="{{ seo_sitemap_url }}">
+  <link rel="icon" type="image/x-icon" href="{% static 'favicon.ico' %}">
+  <link rel="icon" type="image/png" sizes="32x32" href="{% static 'favicon-32x32.png' %}">
+  <link rel="icon" type="image/png" sizes="16x16" href="{% static 'favicon-16x16.png' %}">
+  <link rel="apple-touch-icon" href="{% static 'apple-touch-icon.png' %}">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="{{ seo_site_name }}">
+  <meta property="og:title" content="{% block og_title %}{{ page_title|default:seo_default_title }}{% endblock %}">
+  <meta property="og:description" content="{% block og_description %}{{ page_description|default:seo_default_description }}{% endblock %}">
+  <meta property="og:url" content="{{ seo_url }}">
+  <meta property="og:image" content="{{ seo_image_url }}">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{% block twitter_title %}{{ page_title|default:seo_default_title }}{% endblock %}">
+  <meta name="twitter:description" content="{% block twitter_description %}{{ page_description|default:seo_default_description }}{% endblock %}">
+  <meta name="twitter:image" content="{{ seo_image_url }}">
+  {% if seo_schema_json and seo_is_public_indexable %}
+    <script type="application/ld+json">{{ seo_schema_json|safe }}</script>
+  {% endif %}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/public-website.css' %}">
+  {% block extra_head %}{% endblock %}
+</head>
+<body class="public-body {% if page_key == 'home' %}public-body-home{% endif %}">
+  <div class="site-shell">
+    <header class="public-header {% if page_key == 'home' %}is-home{% endif %}" data-public-header>
+      <div class="public-header-inner">
+        <a href="/" class="public-brand" aria-label="Notre Dame Girls' Academy home">
+          <img src="{% static public_images.logo %}" alt="Notre Dame Girls' Academy logo">
+          <div>
+            <span class="public-brand-kicker">Notre Dame Girls' Academy</span>
+            <span class="public-brand-text">Kuje-Abuja</span>
+          </div>
+        </a>
+
+        <nav class="public-nav" aria-label="Primary">
+          {% for item in public_navigation %}
+            <div class="public-nav-item {% if item.children or item.mega %}has-dropdown{% endif %}">
+              <a href="{{ item.url }}" class="public-nav-link">{{ item.label }}</a>
+              {% if item.children %}
+                <div class="public-dropdown-panel">
+                  <div class="public-dropdown-links">
+                    {% for child in item.children %}
+                      <a href="{{ child.url }}">{{ child.label }}</a>
+                    {% endfor %}
+                  </div>
+                </div>
+              {% elif item.mega %}
+                <div class="public-mega-panel">
+                  <div class="public-mega-grid">
+                    {% for column in item.columns %}
+                      <div class="public-mega-column">
+                        <p>{{ column.title }}</p>
+                        {% for child in column.items %}
+                          <a href="{{ child.url }}">{{ child.label }}</a>
+                        {% endfor %}
+                      </div>
+                    {% endfor %}
+                    <a href="{{ item.featured.cta_url }}" class="public-mega-feature">
+                      <img src="{% static item.featured.image %}" alt="{{ item.featured.title }}">
+                      <div>
+                        <span>{{ item.featured.title }}</span>
+                        <p>{{ item.featured.text }}</p>
+                        <strong>{{ item.featured.cta_label }}</strong>
+                      </div>
+                    </a>
+                  </div>
+                </div>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </nav>
+
+        <div class="public-header-actions">
+          <button type="button" class="public-icon-button" data-search-open aria-label="Open site search">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 4a6.5 6.5 0 1 0 4.03 11.6l4.43 4.42 1.06-1.06-4.42-4.43A6.5 6.5 0 0 0 10.5 4Zm0 1.5a5 5 0 1 1 0 10 5 5 0 0 1 0-10Z"/></svg>
+          </button>
+          <a href="{{ public_portal_url }}" class="public-portal-link">{{ public_portal_text }}</a>
+          <a href="{{ public_apply_url }}" class="public-cta magnetic">Apply Now</a>
+          <button type="button" class="public-menu-button" data-mobile-menu-open aria-label="Open menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <div class="public-mobile-backdrop" data-mobile-backdrop></div>
+    <aside class="public-mobile-drawer" data-mobile-drawer aria-label="Mobile menu">
+      <div class="public-mobile-top">
+        <strong>NDGA</strong>
+        <button type="button" data-mobile-menu-close aria-label="Close menu">Close</button>
+      </div>
+      <nav class="public-mobile-nav">
+        {% for item in public_navigation %}
+          <details {% if page_key == 'home' and item.label == 'Home' %}open{% endif %}>
+            <summary>
+              <span>{{ item.label }}</span>
+              {% if item.children or item.mega %}<span>+</span>{% endif %}
+            </summary>
+            <div class="public-mobile-links">
+              <a href="{{ item.url }}">{{ item.label }}</a>
+              {% if item.children %}
+                {% for child in item.children %}
+                  <a href="{{ child.url }}">{{ child.label }}</a>
+                {% endfor %}
+              {% elif item.mega %}
+                {% for column in item.columns %}
+                  {% for child in column.items %}
+                    <a href="{{ child.url }}">{{ child.label }}</a>
+                  {% endfor %}
+                {% endfor %}
+              {% endif %}
+            </div>
+          </details>
+        {% endfor %}
+      </nav>
+      <div class="public-mobile-actions">
+        <a href="{{ public_apply_url }}" class="public-cta">Apply Now</a>
+        <a href="{{ public_portal_url }}" class="public-secondary-cta">School Portal</a>
+      </div>
+    </aside>
+
+    <main>
+      {% block content %}{% endblock %}
+    </main>
+
+    <footer class="public-footer">
+      <div class="public-footer-grid">
+        <div>
+          <div class="public-footer-brand">
+            <img src="{% static public_images.logo %}" alt="NDGA logo">
+            <div>
+              <strong>{{ public_contact.school_name }}</strong>
+              <p>Forming young women in learning, discipline, faith, and responsible living.</p>
+            </div>
+          </div>
+        </div>
+        <div>
+          <h3>Quick Links</h3>
+          <a href="/about/">About NDGA</a>
+          <a href="/academics/">Academics</a>
+          <a href="/life-at-ndga/">Life at NDGA</a>
+          <a href="/news/">News</a>
+        </div>
+        <div>
+          <h3>Admissions</h3>
+          <a href="/admissions/">Admissions Overview</a>
+          <a href="/admissions/how-to-apply/">How to Apply</a>
+          <a href="/admissions/registration/">Online Registration</a>
+          <a href="/fees/">Fees & Charges</a>
+        </div>
+        <div>
+          <h3>Contact</h3>
+          <p>{{ public_contact.address }}</p>
+          <a href="tel:{{ public_contact.phone_primary|cut:' ' }}">{{ public_contact.phone_primary }}</a>
+          <a href="tel:{{ public_contact.phone_secondary|cut:' ' }}">{{ public_contact.phone_secondary }}</a>
+          <a href="mailto:{{ public_contact.email }}">{{ public_contact.email }}</a>
+        </div>
+      </div>
+      <div class="public-footer-bottom">
+        <p>Copyright © {% now "Y" %} NDGA</p>
+        <div class="public-footer-socials">
+          <a href="{{ public_contact.whatsapp_url }}" target="_blank" rel="noreferrer">WhatsApp</a>
+          <a href="{{ public_contact.maps_url }}" target="_blank" rel="noreferrer">Map</a>
+          <a href="{{ public_portal_url }}">Portal</a>
+        </div>
+        <p>Built by Frosty Tech</p>
+      </div>
+    </footer>
+  </div>
+
+  <div class="public-search" data-search-modal>
+    <div class="public-search-dialog">
+      <div class="public-search-top">
+        <h2>Find a page</h2>
+        <button type="button" data-search-close>Close</button>
+      </div>
+      <input type="search" placeholder="Search admissions, fees, boarding, academics..." data-search-input>
+      <div class="public-search-results" data-search-results>
+        {% for link in public_search_links %}
+          <a href="{{ link.url }}" data-search-item>
+            <span>{{ link.label }}</span>
+            <small>{{ link.group }}</small>
+          </a>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <button type="button" class="public-chatbot-trigger" data-chatbot-open aria-label="Open Smart Julie">
+    <span>SND</span>
+  </button>
+  <section class="public-chatbot" data-chatbot>
+    <header>
+      <div>
+        <strong>Smart Julie</strong>
+        <p>Hello! I am Julie. How can I help you join the NDGA family today?</p>
+      </div>
+      <button type="button" data-chatbot-close aria-label="Close chat">×</button>
+    </header>
+    <div class="public-chatbot-suggestions">
+      {% block chatbot_suggestions %}
+        <button type="button" data-chatbot-chip="How do I apply?">How do I apply?</button>
+        <button type="button" data-chatbot-chip="Tell me about exams">Entrance Exams</button>
+        <button type="button" data-chatbot-chip="Tell me about boarding">Boarding</button>
+        <button type="button" data-chatbot-chip="How do I contact admissions?">Admissions Contact</button>
+      {% endblock %}
+    </div>
+    <div class="public-chatbot-log" data-chatbot-log>
+      <article class="is-bot">Admissions, boarding, exams, directions, and contact support are all available here.</article>
+    </div>
+    <form class="public-chatbot-form" data-chatbot-form>
+      <input type="text" placeholder="Ask a question">
+      <button type="submit">Send</button>
+    </form>
+    <a href="{{ public_contact.whatsapp_url }}" class="public-chatbot-support" target="_blank" rel="noreferrer">Speak to IT Manager</a>
+  </section>
+
+  <script src="{% static 'js/public-website.js' %}"></script>
+  {% block extra_js %}{% endblock %}
+</body>
+</html>
