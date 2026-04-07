@@ -856,7 +856,9 @@ def process_sync_queue_batch(limit=50):
 
 
 def trigger_auto_sync_if_connected():
-    if not bool(getattr(settings, "SYNC_AUTO_ON_REQUEST", True)):
+    if bool(getattr(settings, "SYNC_MANUAL_MODE", True)):
+        return {"triggered": False, "reason": "manual_only"}
+    if not bool(getattr(settings, "SYNC_AUTO_ON_REQUEST", False)):
         return {"triggered": False, "reason": "disabled"}
     if not _cloud_endpoint():
         return {"triggered": False, "reason": "cloud_not_configured"}
@@ -954,12 +956,14 @@ def tone_css_map():
 
 
 def build_runtime_status_payload():
-    auto_sync_result = trigger_auto_sync_if_connected()
     status = get_runtime_status()
     style = tone_css_map().get(status["tone"], tone_css_map()["red"])
     status["dot_class"] = style["dot"]
     status["chip_class"] = style["chip"]
-    status["auto_sync"] = auto_sync_result
+    status["auto_sync"] = {
+        "triggered": False,
+        "reason": "manual_only",
+    }
     return status
 
 

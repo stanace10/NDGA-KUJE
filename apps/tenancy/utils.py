@@ -19,7 +19,6 @@ _LOCAL_SIMPLE_PORTAL_ROOTS = {
     "election": "/portal/election/",
 }
 _LOCAL_SIMPLE_PATH_PORTAL_HINTS = (
-    ("/sync/", "it"),
     ("/audit/", "it"),
     ("/setup/", "it"),
     ("/auth/it/", "it"),
@@ -67,7 +66,6 @@ CLOUD_LAN_ONLY_OPERATION_PREFIXES = (
     "/results/vp/",
     "/results/principal/",
     "/results/timeline/",
-    "/sync/dashboard/",
     "/cbt/",
     "/elections/",
     "/finance/bursar/settings/",

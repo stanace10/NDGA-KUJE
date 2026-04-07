@@ -194,14 +194,6 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
             )
             items.append(
                 _nav_item(
-                    label="Sync Queue",
-                    url="/sync/dashboard/",
-                    request_path=request_path,
-                    matches=("/sync/",),
-                )
-            )
-            items.append(
-                _nav_item(
                     label="Audit Logs",
                     url="/audit/events/",
                     request_path=request_path,
@@ -320,14 +312,6 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                 url="/results/settings/",
                 request_path=request_path,
                 matches=("/results/settings/",),
-            )
-        )
-        items.append(
-            _nav_item(
-                label="Sync Queue",
-                url="/sync/dashboard/",
-                request_path=request_path,
-                matches=("/sync/",),
             )
         )
         items.append(
@@ -1185,14 +1169,6 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                         url="/cbt/it/lockdown/",
                         request_path=request_path,
                         matches=("/cbt/it/lockdown/",),
-                    )
-                )
-                items.append(
-                    _nav_item(
-                        label="Sync Queue",
-                        url="/sync/dashboard/",
-                        request_path=request_path,
-                        matches=("/sync/",),
                     )
                 )
         items.append(_nav_item(label="Logout", url="/auth/logout/", request_path=request_path, matches=("/auth/logout/",)))

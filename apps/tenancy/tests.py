@@ -310,7 +310,7 @@ class StageTwoHostRoutingTests(TestCase):
         SYNC_NODE_ROLE="CLOUD",
         CLOUD_STAFF_OPERATIONS_LAN_ONLY=True,
     )
-    def test_cloud_it_keeps_sync_tools_but_blocks_provisioning(self):
+    def test_cloud_it_blocks_provisioning_and_removed_sync_dashboard_stays_unavailable(self):
         client = Client(HTTP_HOST="localhost:8000")
         client.force_login(self.it_user)
 
@@ -319,8 +319,7 @@ class StageTwoHostRoutingTests(TestCase):
         self.assertIn("school LAN", blocked.content.decode())
 
         blocked_sync = client.get("/sync/dashboard/")
-        self.assertEqual(blocked_sync.status_code, 403)
-        self.assertIn("school LAN", blocked_sync.content.decode())
+        self.assertEqual(blocked_sync.status_code, 404)
     def test_staff_login_page_copy_is_staff_only(self):
         client = Client(HTTP_HOST="staff.ndgakuje.org")
         response = client.get("/auth/login/?audience=staff")

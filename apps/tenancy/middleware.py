@@ -133,7 +133,6 @@ class PortalAccessMiddleware:
             ROLE_IT_MANAGER,
             ROLE_PRINCIPAL,
         },
-        "/sync/": {ROLE_IT_MANAGER, ROLE_PRINCIPAL},
         "/elections/it/manage/": {ROLE_IT_MANAGER},
         "/elections/vote/": PORTAL_ROLE_ACCESS["election"],
         "/elections/analytics/": {ROLE_IT_MANAGER, ROLE_PRINCIPAL},
@@ -242,7 +241,7 @@ class PortalAccessMiddleware:
             ),
             "allowed_summary": (
                 "Still available here: profile updates, account security, notifications, "
-                "messaging, student access, payment callbacks, and sync review tools."
+                "messaging, student access, and payment callbacks."
             ),
             "current_node_label": "Cloud",
         }

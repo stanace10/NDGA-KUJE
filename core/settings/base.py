@@ -56,17 +56,17 @@ env = environ.Env(
     SYNC_CONNECTIVITY_CACHE_TTL_SECONDS=(int, 5),
     SYNC_NODE_ROLE=(str, "CLOUD"),
     SYNC_ENFORCE_ACTIVE_SESSION_AUTHORITY=(bool, True),
-    SYNC_MANUAL_MODE=(bool, False),
-    SYNC_AUTO_ON_REQUEST=(bool, True),
+    SYNC_MANUAL_MODE=(bool, True),
+    SYNC_AUTO_ON_REQUEST=(bool, False),
     SYNC_AUTO_MIN_INTERVAL_SECONDS=(int, 5),
     SYNC_AUTO_BATCH_LIMIT=(int, 60),
-    SYNC_PROCESS_BEAT_ENABLED=(bool, True),
+    SYNC_PROCESS_BEAT_ENABLED=(bool, False),
     SYNC_PROCESS_BEAT_INTERVAL_SECONDS=(int, 5),
     SYNC_PULL_ENABLED=(bool, True),
     SYNC_PULL_BATCH_LIMIT=(int, 200),
     SYNC_PULL_MAX_PAGES_PER_RUN=(int, 4),
     SYNC_PULL_TIMEOUT_SECONDS=(int, 5),
-    SYNC_PULL_BEAT_ENABLED=(bool, True),
+    SYNC_PULL_BEAT_ENABLED=(bool, False),
     SYNC_PULL_BEAT_INTERVAL_SECONDS=(int, 5),
     LAN_RUNTIME_RESTRICT_PORTALS=(bool, False),
     CLOUD_STAFF_OPERATIONS_LAN_ONLY=(bool, False),
@@ -478,16 +478,16 @@ SYNC_ENFORCE_ACTIVE_SESSION_AUTHORITY = env.bool(
     "SYNC_ENFORCE_ACTIVE_SESSION_AUTHORITY",
     default=True,
 )
-SYNC_MANUAL_MODE = env.bool("SYNC_MANUAL_MODE", default=False)
+SYNC_MANUAL_MODE = env.bool("SYNC_MANUAL_MODE", default=True)
 SYNC_AUTO_ON_REQUEST = env.bool(
     "SYNC_AUTO_ON_REQUEST",
-    default=(False if SYNC_MANUAL_MODE else _local_sync_auto_on_request_default),
+    default=False,
 )
 SYNC_AUTO_MIN_INTERVAL_SECONDS = env.int("SYNC_AUTO_MIN_INTERVAL_SECONDS", default=5)
 SYNC_AUTO_BATCH_LIMIT = env.int("SYNC_AUTO_BATCH_LIMIT", default=60)
 SYNC_PROCESS_BEAT_ENABLED = env.bool(
     "SYNC_PROCESS_BEAT_ENABLED",
-    default=(not SYNC_MANUAL_MODE),
+    default=False,
 )
 SYNC_PROCESS_BEAT_INTERVAL_SECONDS = env.int("SYNC_PROCESS_BEAT_INTERVAL_SECONDS", default=5)
 SYNC_PULL_ENABLED = env.bool("SYNC_PULL_ENABLED", default=True)
@@ -496,7 +496,7 @@ SYNC_PULL_MAX_PAGES_PER_RUN = env.int("SYNC_PULL_MAX_PAGES_PER_RUN", default=4)
 SYNC_PULL_TIMEOUT_SECONDS = env.int("SYNC_PULL_TIMEOUT_SECONDS", default=5)
 SYNC_PULL_BEAT_ENABLED = env.bool(
     "SYNC_PULL_BEAT_ENABLED",
-    default=(not SYNC_MANUAL_MODE),
+    default=False,
 )
 SYNC_PULL_BEAT_INTERVAL_SECONDS = env.int("SYNC_PULL_BEAT_INTERVAL_SECONDS", default=5)
 LAN_RUNTIME_RESTRICT_PORTALS = env.bool(
@@ -602,17 +602,6 @@ RATE_LIMIT_RULES = (
     {
         "name": "session_term_controls",
         "path_prefix": "/setup/session-term/",
-        "methods": ("POST",),
-        "scope": "user_or_ip",
-        "limit": env.int("RATE_LIMIT_SENSITIVE_LIMIT", default=60),
-        "window_seconds": env.int(
-            "RATE_LIMIT_SENSITIVE_WINDOW_SECONDS",
-            default=300,
-        ),
-    },
-    {
-        "name": "sync_controls",
-        "path_prefix": "/sync/dashboard/",
         "methods": ("POST",),
         "scope": "user_or_ip",
         "limit": env.int("RATE_LIMIT_SENSITIVE_LIMIT", default=60),

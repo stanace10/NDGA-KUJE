@@ -232,7 +232,7 @@ def _portal_action_description(label: str):
     if "audit" in text:
         return "Open audit logs and compliance events."
     if "sync" in text:
-        return "Open sync queue and connectivity status."
+        return "Manual push and recovery actions are handled by IT when needed."
     if "election" in text or "vote" in text:
         return "Open election workflow and live analytics."
     if "challenge" in text or "teaser" in text:
@@ -1797,7 +1797,7 @@ class ITPortalView(PortalPageView):
         if _cloud_staff_admin_lan_only(self.request.user):
             context["portal_description"] = (
                 "Cloud access is limited to viewing system information, audit visibility, and account security. "
-                "Provisioning, sync controls, CBT, elections, and setup run on the school LAN."
+                "Provisioning, CBT, elections, records, and setup run on the school LAN."
             )
         context["portal_priority_actions"] = _build_portal_priority_actions(
             portal_key=context["portal_key"],
