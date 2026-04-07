@@ -56,6 +56,9 @@ env = environ.Env(
     SYNC_ENDPOINT_ALLOWED_IPS=(str, ""),
     SYNC_PAYLOAD_SIGNING_SECRET=(str, ""),
     SYNC_PAYLOAD_SIGNING_SECRET_FALLBACKS=(str, ""),
+    SYNC_PAYLOAD_ENCRYPTION_ENABLED=(bool, False),
+    SYNC_PAYLOAD_ENCRYPTION_KEY=(str, ""),
+    SYNC_PAYLOAD_ENCRYPTION_KEY_FALLBACKS=(str, ""),
     SYNC_MAX_RETRIES=(int, 8),
     SYNC_RETRY_BASE_SECONDS=(int, 20),
     SYNC_RETRY_MAX_SECONDS=(int, 1800),
@@ -491,6 +494,16 @@ SYNC_PAYLOAD_SIGNING_SECRET = env("SYNC_PAYLOAD_SIGNING_SECRET", default="")
 SYNC_PAYLOAD_SIGNING_SECRET_FALLBACKS = [
     item.strip()
     for item in env("SYNC_PAYLOAD_SIGNING_SECRET_FALLBACKS", default="").split(",")
+    if item.strip()
+]
+SYNC_PAYLOAD_ENCRYPTION_ENABLED = env.bool(
+    "SYNC_PAYLOAD_ENCRYPTION_ENABLED",
+    default=False,
+)
+SYNC_PAYLOAD_ENCRYPTION_KEY = env("SYNC_PAYLOAD_ENCRYPTION_KEY", default="")
+SYNC_PAYLOAD_ENCRYPTION_KEY_FALLBACKS = [
+    item.strip()
+    for item in env("SYNC_PAYLOAD_ENCRYPTION_KEY_FALLBACKS", default="").split(",")
     if item.strip()
 ]
 SYNC_MAX_RETRIES = env.int("SYNC_MAX_RETRIES", default=8)

@@ -42,6 +42,7 @@ from apps.finance.services import (
     debtor_rows,
     dispatch_scheduled_fee_reminders,
     finance_payment_delta_payload,
+    finance_sync_decode_transport,
     finance_summary_metrics,
     initialize_gateway_payment_transaction,
     monthly_cashflow_series,
@@ -789,6 +790,25 @@ class FinanceDeltaExportTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertTrue(bool(response["X-NDGA-Payload-Signature"]))
+
+    @override_settings(
+        SYNC_ENDPOINT_AUTH_TOKEN="manual-sync-token",
+        SYNC_PAYLOAD_ENCRYPTION_ENABLED=True,
+        SYNC_PAYLOAD_ENCRYPTION_KEY="MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
+    )
+    def test_manual_payment_delta_export_can_encrypt_payload(self):
+        client = Client(HTTP_HOST="ndgakuje.org")
+        response = client.get(
+            "/finance/api/manual-export/payments/",
+            HTTP_X_NDGA_MANUAL_SYNC_TOKEN="manual-sync-token",
+        )
+        self.assertEqual(response.status_code, 200)
+        raw_payload = json.loads(response.content.decode("utf-8"))
+        self.assertTrue(raw_payload["encrypted"])
+
+        decrypted = finance_sync_decode_transport(response.content)
+        self.assertEqual(decrypted["count"], 1)
+        self.assertEqual(decrypted["items"][0]["reference"], "NDGA-DELTA-1")
 
 
 @override_settings(

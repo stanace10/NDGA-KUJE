@@ -292,6 +292,7 @@ The next public website will be rebuilt separately from scratch. This repository
 
 - `docs/OPS_RUNTIME_AND_RESTORE_DRILLS.md`
 - `docs/MOBILE_WORKFLOW_ACCEPTANCE.md`
+- `docs/SECURITY_EDGE_AND_DEPLOYMENT.md`
 
 ## Short Summary For Non-Technical Readers
 

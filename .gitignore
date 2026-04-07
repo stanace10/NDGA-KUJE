@@ -18,6 +18,9 @@ backups/**
 !backups/manifests/.gitkeep
 
 README copy.md
+deploy_*.tar
+deploy_*.tar.gz
+ndga-deploy-bundle.tar.gz
 
 NDGA_result_preview.pdf
 NDGA_result_preview.png

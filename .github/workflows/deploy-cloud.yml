@@ -9,15 +9,43 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     env:
       EC2_HOST: ${{ secrets.EC2_HOST }}
       EC2_USER: ${{ secrets.EC2_USER }}
       EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
       EC2_PORT: ${{ secrets.EC2_PORT }}
+      REMOTE_BUNDLE_PATH: /tmp/ndga-deploy-bundle.tar.gz
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Skip deploy when EC2 secrets are missing
         if: ${{ env.EC2_HOST == '' || env.EC2_USER == '' || env.EC2_SSH_KEY == '' }}
         run: echo "EC2 deploy secrets are not configured; skipping cloud deployment."
+
+      - name: Build deploy bundle
+        if: ${{ env.EC2_HOST != '' && env.EC2_USER != '' && env.EC2_SSH_KEY != '' }}
+        run: |
+          tar \
+            --exclude-vcs \
+            --exclude=.venv \
+            --exclude=media \
+            --exclude=staticfiles \
+            --exclude=backups/postgres \
+            -czf ndga-deploy-bundle.tar.gz .
+
+      - name: Copy deploy bundle to EC2
+        if: ${{ env.EC2_HOST != '' && env.EC2_USER != '' && env.EC2_SSH_KEY != '' }}
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ env.EC2_HOST }}
+          username: ${{ env.EC2_USER }}
+          key: ${{ env.EC2_SSH_KEY }}
+          port: ${{ env.EC2_PORT || '22' }}
+          source: ndga-deploy-bundle.tar.gz
+          target: /tmp
 
       - name: Deploy to EC2 over SSH
         if: ${{ env.EC2_HOST != '' && env.EC2_USER != '' && env.EC2_SSH_KEY != '' }}
@@ -38,5 +66,7 @@ jobs:
               echo "NDGA repo directory not found on server"
               exit 1
             fi
-            chmod +x scripts/auto_deploy.sh
-            ./scripts/auto_deploy.sh
+            tar -xf /tmp/ndga-deploy-bundle.tar.gz -C . scripts/deploy_bundle.sh
+            sed -i 's/\r$//' scripts/deploy_bundle.sh
+            chmod +x scripts/deploy_bundle.sh
+            scripts/deploy_bundle.sh /tmp/ndga-deploy-bundle.tar.gz

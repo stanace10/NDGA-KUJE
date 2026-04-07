@@ -641,6 +641,12 @@ def _student_dashboard_payload(request, user):
             "badge": "Learn",
         },
         {
+            "label": "Classroom LMS",
+            "description": "Open your subject classrooms, complete modules, and submit assignments.",
+            "url": reverse("dashboard:student-lms"),
+            "badge": "LMS",
+        },
+        {
             "label": "Weekly Challenge",
             "description": "Attempt the current brain teaser for your class and track reward points.",
             "url": reverse("dashboard:student-weekly-challenge"),
@@ -816,6 +822,18 @@ def _staff_dashboard_payload(user):
                         "label": "Result Entry",
                         "url": "/results/grade-entry/",
                         "description": "Enter CA and exam scores for assigned classes/subjects.",
+                        "metric": assignment_count,
+                    },
+                    {
+                        "label": "Classroom LMS",
+                        "url": "/portal/staff/lms/",
+                        "description": "Create classrooms, publish lessons, set assignments, and grade submissions.",
+                        "metric": assignment_count,
+                    },
+                    {
+                        "label": "Lesson Planner",
+                        "url": "/portal/staff/lesson-planner/",
+                        "description": "Draft lesson flow, class activity, and assignments before publishing.",
                         "metric": assignment_count,
                     },
                 ],

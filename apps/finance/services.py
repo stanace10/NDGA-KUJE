@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-import json
+import base64
 import hashlib
 import hmac
+import json
+import os
 import uuid
 from datetime import date, datetime, timedelta
 from dataclasses import dataclass
@@ -21,6 +23,7 @@ from django.template.loader import render_to_string
 from django.test import RequestFactory
 from django.urls import reverse
 from django.utils import timezone
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from apps.academics.models import AcademicSession, StudentClassEnrollment
 from apps.accounts.models import User
@@ -1211,6 +1214,38 @@ def finance_sync_signing_secrets():
     return secrets
 
 
+def _decode_sync_secret_bytes(raw_value):
+    value = (raw_value or "").strip()
+    if not value:
+        return b""
+    for candidate in (value, value + "=" * (-len(value) % 4)):
+        try:
+            decoded = base64.urlsafe_b64decode(candidate.encode("utf-8"))
+        except Exception:  # noqa: BLE001
+            continue
+        if decoded:
+            return decoded
+    try:
+        return bytes.fromhex(value)
+    except ValueError:
+        return value.encode("utf-8")
+
+
+def finance_sync_encryption_keys():
+    keys = []
+    candidates = [
+        getattr(settings, "SYNC_PAYLOAD_ENCRYPTION_KEY", ""),
+        *list(getattr(settings, "SYNC_PAYLOAD_ENCRYPTION_KEY_FALLBACKS", []) or []),
+    ]
+    for candidate in candidates:
+        raw = _decode_sync_secret_bytes(candidate)
+        if len(raw) != 32:
+            continue
+        if raw not in keys:
+            keys.append(raw)
+    return keys
+
+
 def finance_sync_payload_signature(raw_body):
     if isinstance(raw_body, str):
         raw_body = raw_body.encode("utf-8")
@@ -1218,6 +1253,62 @@ def finance_sync_payload_signature(raw_body):
     if not secret:
         return ""
     return hmac.new(secret.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()
+
+
+def finance_sync_transport_payload(payload):
+    raw_body = json.dumps(payload).encode("utf-8")
+    encryption_enabled = bool(getattr(settings, "SYNC_PAYLOAD_ENCRYPTION_ENABLED", False))
+    encryption_key = next(iter(finance_sync_encryption_keys()), b"")
+    if not encryption_enabled or not encryption_key:
+        return raw_body
+
+    nonce = os.urandom(12)
+    cipher = AESGCM(encryption_key)
+    ciphertext = cipher.encrypt(nonce, raw_body, None)
+    envelope = {
+        "encrypted": True,
+        "alg": "AES-256-GCM",
+        "kid": hashlib.sha256(encryption_key).hexdigest()[:16],
+        "nonce": base64.urlsafe_b64encode(nonce).decode("utf-8"),
+        "ciphertext": base64.urlsafe_b64encode(ciphertext).decode("utf-8"),
+        "issued_at": timezone.now().isoformat(),
+    }
+    return json.dumps(envelope).encode("utf-8")
+
+
+def finance_sync_decode_transport(raw_body):
+    if isinstance(raw_body, str):
+        raw_body = raw_body.encode("utf-8")
+    try:
+        payload = json.loads(raw_body.decode("utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValidationError("Finance sync payload is not valid JSON.") from exc
+    if not isinstance(payload, dict) or not payload.get("encrypted"):
+        return payload
+
+    if payload.get("alg") != "AES-256-GCM":
+        raise ValidationError("Unsupported finance sync payload algorithm.")
+
+    ciphertext_raw = payload.get("ciphertext") or ""
+    nonce_raw = payload.get("nonce") or ""
+    if not ciphertext_raw or not nonce_raw:
+        raise ValidationError("Encrypted finance sync payload is incomplete.")
+
+    ciphertext = _decode_sync_secret_bytes(ciphertext_raw)
+    nonce = _decode_sync_secret_bytes(nonce_raw)
+    if not ciphertext or not nonce:
+        raise ValidationError("Encrypted finance sync payload is malformed.")
+
+    for key in finance_sync_encryption_keys():
+        try:
+            decrypted = AESGCM(key).decrypt(nonce, ciphertext, None)
+        except Exception:  # noqa: BLE001
+            continue
+        try:
+            return json.loads(decrypted.decode("utf-8"))
+        except json.JSONDecodeError as exc:
+            raise ValidationError("Decrypted finance sync payload is not valid JSON.") from exc
+    raise ValidationError("Unable to decrypt finance sync payload with configured AES keys.")
 
 
 def reconcile_cloud_payment_item(*, payload, actor=None, request=None):
@@ -1404,8 +1495,8 @@ def pull_cloud_payment_deltas(*, updated_since=None, actor=None, request=None, p
                     for secret in finance_sync_signing_secrets()
                 ):
                     raise ValidationError("Cloud export signature verification failed.")
-            payload = json.loads(raw_body.decode("utf-8"))
-    except (url_error.URLError, json.JSONDecodeError) as exc:
+            payload = finance_sync_decode_transport(raw_body)
+    except (url_error.URLError, json.JSONDecodeError, ValidationError) as exc:
         raise ValidationError(f"Unable to pull cloud payment deltas: {exc}") from exc
 
     events = [reconcile_cloud_payment_item(payload=row, actor=actor, request=request) for row in (payload.get("items") or [])]

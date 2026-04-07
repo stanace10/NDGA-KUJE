@@ -65,6 +65,7 @@ from apps.finance.services import (
     finance_profile,
     evaluate_receipt_integrity,
     finance_sync_payload_signature,
+    finance_sync_transport_payload,
     gateway_is_enabled,
     gateway_provider_label,
     generate_receipt_pdf,
@@ -171,7 +172,7 @@ def _log_security_rejection(*, request, event_type, message, metadata=None):
 
 
 def _json_response_with_signature(payload, *, status=200):
-    raw = json.dumps(payload).encode("utf-8")
+    raw = finance_sync_transport_payload(payload)
     response = HttpResponse(raw, status=status, content_type="application/json")
     signature = finance_sync_payload_signature(raw)
     if signature:
