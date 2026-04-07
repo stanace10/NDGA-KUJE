@@ -1,204 +1,22 @@
 import json
 
-from django.contrib import messages
-from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.core.paginator import Paginator
 from django.db.models import Count
 from django.http import HttpResponse, JsonResponse
-from django.shortcuts import redirect
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
-from django.views.generic import TemplateView
 
-from apps.accounts.permissions import SCOPE_MANAGE_SYNC, has_scope
-from apps.audit.models import AuditCategory, AuditStatus
-from apps.audit.services import log_event
 from apps.sync.content_sync import build_cbt_content_feed
-from apps.sync.forms import SyncDashboardFilterForm, SyncImportForm
 from apps.sync.inbound_sync import ingest_remote_outbox_event
-from apps.sync.models import SyncQueue, SyncQueueEvent, SyncQueueStatus, SyncTransferBatch
+from apps.sync.models import SyncQueue, SyncQueueStatus
 from apps.sync.services import (
     build_outbox_feed,
     build_runtime_status_payload,
-    export_sync_queue_snapshot,
-    import_sync_queue_snapshot,
-    process_sync_queue_batch,
-    sync_policy_for_operation,
-    sync_policy_rows,
 )
-
-
-class SyncDashboardAccessMixin(LoginRequiredMixin, UserPassesTestMixin):
-    def test_func(self):
-        return has_scope(self.request.user, SCOPE_MANAGE_SYNC)
-
-
-class SyncDashboardView(SyncDashboardAccessMixin, TemplateView):
-    template_name = "sync/dashboard.html"
-    page_size = 25
-
-    def _filter_form(self):
-        return SyncDashboardFilterForm(
-            data=self.request.GET or None,
-            operation_choices=SyncQueue._meta.get_field("operation_type").choices,
-            status_choices=SyncQueue._meta.get_field("status").choices,
-        )
-
-    def _queue_queryset(self):
-        queryset = SyncQueue.objects.order_by("-created_at")
-        form = self._filter_form()
-        if form.is_valid():
-            operation = (form.cleaned_data.get("operation_type") or "").strip()
-            status = (form.cleaned_data.get("status") or "").strip()
-            if operation:
-                queryset = queryset.filter(operation_type=operation)
-            if status:
-                queryset = queryset.filter(status=status)
-        return queryset, form
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        queryset, filter_form = self._queue_queryset()
-        page_obj = Paginator(queryset, self.page_size).get_page(self.request.GET.get("page", 1))
-        queue_ids = [row.id for row in page_obj.object_list]
-        timeline_map = {}
-        if queue_ids:
-            for event in SyncQueueEvent.objects.filter(queue_row_id__in=queue_ids).order_by(
-                "queue_row_id",
-                "created_at",
-                "id",
-            ):
-                timeline_map.setdefault(event.queue_row_id, []).append(event)
-            for row in page_obj.object_list:
-                row.timeline_preview = timeline_map.get(row.id, [])[-4:]
-                row.sync_policy = sync_policy_for_operation(row.operation_type)
-        counts = {
-            row["status"]: row["count"]
-            for row in SyncQueue.objects.values("status").annotate(count=Count("id"))
-        }
-        context["runtime_status"] = build_runtime_status_payload()
-        context["page_obj"] = page_obj
-        context["filter_form"] = kwargs.get("filter_form") or filter_form
-        context["import_form"] = kwargs.get("import_form") or SyncImportForm()
-        context["status_counts"] = counts
-        context["auto_sync_interval_seconds"] = int(
-            getattr(settings, "SYNC_AUTO_MIN_INTERVAL_SECONDS", 1)
-        )
-        context["recent_batches"] = SyncTransferBatch.objects.select_related("performed_by").order_by(
-            "-created_at"
-        )[:20]
-        context["sync_policy_rows"] = sync_policy_rows()
-        return context
-
-    def post(self, request, *args, **kwargs):
-        action = (request.POST.get("action") or "").strip().lower()
-
-        if action == "run_sync":
-            summary = process_sync_queue_batch(limit=80)
-            log_event(
-                category=AuditCategory.SYSTEM,
-                event_type="SYNC_QUEUE_RUN",
-                status=AuditStatus.SUCCESS,
-                actor=request.user,
-                request=request,
-                metadata=summary,
-            )
-            messages.success(
-                request,
-                (
-                    "Sync cycle complete. "
-                    f"Claimed {summary['claimed']} | Synced {summary['synced']} | "
-                    f"Retry {summary['retry']} | Failed {summary['failed']} | Conflict {summary['conflict']}."
-                ),
-            )
-            return redirect("sync:dashboard")
-
-        if action == "retry_failed":
-            updated = SyncQueue.objects.filter(status=SyncQueueStatus.FAILED).update(
-                status=SyncQueueStatus.RETRY,
-                next_retry_at=timezone.now(),
-                last_error="",
-            )
-            log_event(
-                category=AuditCategory.SYSTEM,
-                event_type="SYNC_RETRY_FAILED_RESET",
-                status=AuditStatus.SUCCESS,
-                actor=request.user,
-                request=request,
-                metadata={"updated": updated},
-            )
-            if updated:
-                messages.success(request, f"{updated} failed queue item(s) moved back to retry.")
-            else:
-                messages.info(request, "No failed queue items available to retry.")
-            return redirect("sync:dashboard")
-
-        if action == "export":
-            export_payload = export_sync_queue_snapshot(actor=request.user)
-            log_event(
-                category=AuditCategory.SYSTEM,
-                event_type="SYNC_EXPORT_CREATED",
-                status=AuditStatus.SUCCESS,
-                actor=request.user,
-                request=request,
-                metadata={
-                    "file_name": export_payload["file_name"],
-                    "item_count": export_payload["item_count"],
-                    "checksum": export_payload["checksum"],
-                },
-            )
-            response = HttpResponse(
-                export_payload["json_text"],
-                content_type="application/json",
-            )
-            response["Content-Disposition"] = (
-                f'attachment; filename="{export_payload["file_name"]}"'
-            )
-            return response
-
-        if action == "import":
-            import_form = SyncImportForm(request.POST, request.FILES)
-            if not import_form.is_valid():
-                flat_errors = []
-                for errors in import_form.errors.values():
-                    flat_errors.extend(errors)
-                messages.error(
-                    request,
-                    "; ".join(flat_errors) if flat_errors else "Upload a valid file snapshot.",
-                )
-                return self.render_to_response(self.get_context_data(import_form=import_form))
-            file_obj = import_form.cleaned_data["snapshot_file"]
-            try:
-                raw_json = file_obj.read().decode("utf-8")
-            except Exception:
-                messages.error(request, "Could not decode the uploaded file.")
-                return self.render_to_response(self.get_context_data(import_form=import_form))
-            try:
-                summary = import_sync_queue_snapshot(raw_json=raw_json, actor=request.user)
-            except ValidationError as exc:
-                messages.error(request, "; ".join(exc.messages))
-                return self.render_to_response(self.get_context_data(import_form=import_form))
-            log_event(
-                category=AuditCategory.SYSTEM,
-                event_type="SYNC_IMPORT_COMPLETED",
-                status=AuditStatus.SUCCESS,
-                actor=request.user,
-                request=request,
-                metadata=summary,
-            )
-            messages.success(
-                request,
-                f"Snapshot import complete. Imported {summary['imported']} and skipped {summary['skipped']}.",
-            )
-            return redirect("sync:dashboard")
-
-        messages.error(request, "Invalid sync action.")
-        return redirect("sync:dashboard")
-
+from core.ops import collect_ops_runtime_snapshot
 
 class SyncAPITokenMixin:
     def _expected_token(self):
@@ -235,11 +53,31 @@ class SyncAPIStatusView(SyncAPIBaseView):
         return HttpResponse(status=204)
 
     def get(self, request, *args, **kwargs):
+        runtime_status = build_runtime_status_payload()
+        status_counts = {
+            row["status"]: row["count"]
+            for row in SyncQueue.objects.values("status").annotate(count=Count("id"))
+        }
+        ops_snapshot = collect_ops_runtime_snapshot()
         return JsonResponse(
             {
                 "ok": True,
                 "service": "ndga-sync-api",
                 "timestamp": timezone.now().isoformat(),
+                "runtime_status": runtime_status,
+                "status_counts": {
+                    "PENDING": status_counts.get(SyncQueueStatus.PENDING, 0),
+                    "RETRY": status_counts.get(SyncQueueStatus.RETRY, 0),
+                    "FAILED": status_counts.get(SyncQueueStatus.FAILED, 0),
+                    "SYNCED": status_counts.get(SyncQueueStatus.SYNCED, 0),
+                    "CONFLICT": status_counts.get(SyncQueueStatus.CONFLICT, 0),
+                },
+                "ops_snapshot": {
+                    "status": ops_snapshot.get("status"),
+                    "sync": ops_snapshot.get("sync", {}),
+                    "celery": ops_snapshot.get("celery", {}),
+                    "cbt": ops_snapshot.get("cbt", {}),
+                },
             }
         )
 

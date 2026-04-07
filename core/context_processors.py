@@ -6,7 +6,6 @@ from apps.dashboard.navigation import PORTAL_TITLES, build_portal_navigation
 from apps.notifications.models import Notification
 from apps.setup_wizard.feature_flags import get_runtime_feature_flags
 from apps.setup_wizard.services import get_setup_state
-from apps.sync.services import build_runtime_status_payload
 from apps.tenancy.utils import (
     build_portal_url,
     cloud_staff_operations_lan_only_enabled,
@@ -47,20 +46,6 @@ def _minimal_cbt_runtime_context(request, portal_key):
         "setup_current_term": None,
         "show_setup_banner": False,
         "notification_unread_count": 0,
-        "sync_runtime_status": {
-            "code": "LOCAL_MODE",
-            "label": "Local Mode",
-            "tone": "blue",
-            "pending_count": 0,
-            "local_node_id": "",
-            "cloud_configured": False,
-            "cloud_connected": False,
-            "offline_mode_enabled": bool(settings.FEATURE_FLAGS.get("OFFLINE_MODE_ENABLED", False)),
-            "latest_synced_at": None,
-            "dot_class": "bg-sky-500",
-            "chip_class": "border-sky-200 bg-sky-50 text-sky-800",
-        },
-        "portal_mode_chips": [],
         "lan_runtime_restricted": False,
         "show_portal_shell": False,
         "portal_nav_items": [],
@@ -68,59 +53,6 @@ def _minimal_cbt_runtime_context(request, portal_key):
         "portal_shell_title": "NDGA CBT",
         **seo_context,
     }
-
-
-def _mode_chips(*, feature_flags, sync_runtime_status, portal_key):
-    cbt_enabled = feature_flags.get("CBT_ENABLED", False)
-    election_enabled = feature_flags.get("ELECTION_ENABLED", False)
-    offline_enabled = feature_flags.get("OFFLINE_MODE_ENABLED", False)
-
-    chips = [
-        {
-            "label": "Offline",
-            "value": "ON" if offline_enabled else "OFF",
-            "chip_class": (
-                "border-sky-200 bg-sky-50 text-sky-800"
-                if offline_enabled
-                else "border-slate-200 bg-slate-100 text-slate-600"
-            ),
-        },
-        {
-            "label": "Network",
-            "value": sync_runtime_status.get("label", "Unknown"),
-            "chip_class": sync_runtime_status.get(
-                "chip_class",
-                "border-slate-200 bg-slate-100 text-slate-600",
-            ),
-        },
-    ]
-    if portal_key != "student":
-        chips.insert(
-            0,
-            {
-                "label": "Election",
-                "value": "ON" if election_enabled else "OFF",
-                "chip_class": (
-                    "border-emerald-200 bg-emerald-50 text-emerald-800"
-                    if election_enabled
-                    else "border-slate-200 bg-slate-100 text-slate-600"
-                ),
-            },
-        )
-        chips.insert(
-            0,
-            {
-                "label": "CBT",
-                "value": "ON" if cbt_enabled else "OFF",
-                "chip_class": (
-                    "border-emerald-200 bg-emerald-50 text-emerald-800"
-                    if cbt_enabled
-                    else "border-slate-200 bg-slate-100 text-slate-600"
-                ),
-            },
-        )
-    return chips
-
 
 def platform_context(request):
     portal_key = current_portal_key(request)
@@ -176,24 +108,6 @@ def platform_context(request):
             ).count()
         except (OperationalError, ProgrammingError):
             notification_unread_count = 0
-    sync_runtime_status = {
-        "code": "DISCONNECTED",
-        "label": "Disconnected",
-        "tone": "red",
-        "pending_count": 0,
-        "local_node_id": "",
-        "cloud_configured": False,
-        "cloud_connected": False,
-        "offline_mode_enabled": False,
-        "latest_synced_at": None,
-        "dot_class": "bg-rose-500",
-        "chip_class": "border-rose-200 bg-rose-50 text-rose-800",
-    }
-    try:
-        sync_runtime_status = build_runtime_status_payload()
-    except (OperationalError, ProgrammingError):
-        pass
-
     portal_nav_items = _portal_nav_items(
         request=request,
         portal_key=portal_key,
@@ -216,12 +130,6 @@ def platform_context(request):
         "setup_current_term": setup_current_term,
         "show_setup_banner": show_setup_banner,
         "notification_unread_count": notification_unread_count,
-        "sync_runtime_status": sync_runtime_status,
-        "portal_mode_chips": _mode_chips(
-            feature_flags=runtime_feature_flags,
-            sync_runtime_status=sync_runtime_status,
-            portal_key=portal_key,
-        ),
         "lan_runtime_restricted": lan_runtime_restricted,
         "cloud_staff_operations_lan_only": cloud_staff_operations_lan_only,
         "show_portal_shell": _show_portal_shell(request, portal_key),

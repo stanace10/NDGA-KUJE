@@ -237,7 +237,7 @@ class PortalAccessMiddleware:
             "restriction_heading": "This action can only be completed on the school LAN.",
             "restriction_message": (
                 "Staff and admin operational work now runs from the school network so results, "
-                "attendance, finance records, CBT activity, and approvals stay aligned before sync."
+                "attendance, finance records, CBT activity, and approvals stay aligned on the school LAN."
             ),
             "allowed_summary": (
                 "Still available here: profile updates, account security, notifications, "
@@ -267,7 +267,7 @@ class PortalAccessMiddleware:
             ),
             "allowed_summary": (
                 "Allowed on this LAN: CBT runtime and activation, election runtime and setup, "
-                "and sync operations."
+                "and the approved local workflows for this node."
             ),
             "current_node_label": "LAN",
         }

@@ -464,7 +464,6 @@ SYNC_RETRY_BASE_SECONDS = env.int("SYNC_RETRY_BASE_SECONDS", default=20)
 SYNC_RETRY_MAX_SECONDS = env.int("SYNC_RETRY_MAX_SECONDS", default=1800)
 _local_sync_connectivity_timeout_default = 1 if NDGA_LOCAL_SIMPLE_HOST_MODE else 2
 _local_sync_connectivity_cache_ttl_default = 60 if NDGA_LOCAL_SIMPLE_HOST_MODE else 5
-_local_sync_auto_on_request_default = not NDGA_LOCAL_SIMPLE_HOST_MODE
 SYNC_CONNECTIVITY_TIMEOUT_SECONDS = env.int(
     "SYNC_CONNECTIVITY_TIMEOUT_SECONDS",
     default=_local_sync_connectivity_timeout_default,
