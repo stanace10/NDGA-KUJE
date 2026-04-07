@@ -30,6 +30,7 @@ from apps.accounts.permissions import has_any_role
 from apps.accounts.models import User
 from apps.academics.models import (
     AcademicClass,
+    FormTeacherAssignment,
     GradeScale,
     StudentClassEnrollment,
     StudentSubjectEnrollment,
@@ -45,7 +46,7 @@ from apps.cbt.models import (
     SimulationWrapper,
 )
 from apps.notifications.models import NotificationCategory
-from apps.notifications.services import create_notification, normalize_whatsapp_phone, notify_results_published, send_email_event, send_whatsapp_event
+from apps.notifications.services import create_notification, extract_whatsapp_phones, notify_results_published, send_email_event, send_whatsapp_event
 from apps.notifications.whatsapp_adapters import get_whatsapp_provider
 from apps.pdfs.services import can_staff_download_term_report
 from apps.results.entry_flow import (
@@ -68,6 +69,7 @@ from apps.results.models import (
     ResultSheet,
     ResultSheetStatus,
     ResultSubmission,
+    StudentResultManagementStatus,
     StudentSubjectScore,
 )
 from apps.results.services import compute_grade_payload
@@ -95,10 +97,12 @@ from apps.dashboard.intelligence import build_student_academic_analytics
 from apps.results.analytics import (
     active_result_pin_for_student,
     build_award_listing,
+    build_class_performance_snapshot,
     build_result_upload_statistics,
     build_student_performance_report,
     build_teacher_ranking,
 )
+from apps.tenancy.utils import cloud_staff_operations_lan_only_enabled, user_has_lan_only_operation_roles
 from apps.results.insights import build_result_comment_bundle
 from apps.tenancy.utils import build_portal_url
 
@@ -163,6 +167,30 @@ def _selected_report_class(request):
     if not raw_class_id.isdigit():
         return None
     return _report_class_options().filter(pk=int(raw_class_id)).first()
+
+
+def _report_level_options():
+    return AcademicClass.objects.filter(is_active=True, base_class__isnull=True).order_by("code")
+
+
+def _report_arm_options():
+    return AcademicClass.objects.filter(is_active=True, base_class__isnull=False).select_related("base_class").order_by(
+        "base_class__code", "arm_name", "code"
+    )
+
+
+def _selected_report_level(request):
+    raw_level_id = (request.GET.get("level_id") or "").strip()
+    if not raw_level_id.isdigit():
+        return None
+    return _report_level_options().filter(pk=int(raw_level_id)).first()
+
+
+def _selected_report_arm(request):
+    raw_arm_id = (request.GET.get("arm_id") or "").strip()
+    if not raw_arm_id.isdigit():
+        return None
+    return _report_arm_options().filter(pk=int(raw_arm_id)).first()
 
 
 RESULT_SHARE_ROLES = {
@@ -268,19 +296,23 @@ def _build_result_share_message(*, student, compilation, portal_url, pin_state):
     school_profile = SchoolProfile.load()
     class_label = compilation.academic_class.display_name or compilation.academic_class.code
     student_name = student.get_full_name() or student.username
+    login_url = "https://student.ndgakuje.org/auth/login/?audience=student"
     lines = [
-        school_profile.school_name or "Notre Dame Girls Academy",
         (
-            f"{student_name}'s {compilation.term.get_name_display()} result for "
-            f"{compilation.session.name} is now available."
+            f"The {compilation.term.get_name_display()} result for {student_name} "
+            f"for the {compilation.session.name} academic session is now available."
         ),
+        f"Ward Name: {student_name}",
         f"Class: {class_label}",
-        f"Portal: {portal_url}",
+        f"Student portal login: {login_url}",
+        f"Result link: {portal_url}",
+        "Official report and performance PDFs are available in the portal.",
     ]
     if pin_state.get("label") == "Issued":
-        lines.append("Use the already issued result access PIN if the portal prompts for it.")
+        lines.append("Please use the issued result access PIN if the portal prompts for it.")
     elif pin_state.get("label") == "Missing":
         lines.append("Result access PIN is enabled, but no PIN has been issued yet.")
+    lines.append("Thank you for your continued support of your child's learning.")
     return "\n".join(lines)
 
 
@@ -289,7 +321,8 @@ def _build_result_share_row(*, request, record):
     compilation = record.compilation
     profile = getattr(student, "student_profile", None)
     guardian_phone = getattr(profile, "guardian_phone", "") if profile else ""
-    whatsapp_phone = normalize_whatsapp_phone(guardian_phone)
+    whatsapp_numbers = extract_whatsapp_phones(guardian_phone)
+    whatsapp_phone = whatsapp_numbers[0] if whatsapp_numbers else ""
     pin_state = _result_pin_state(student=student, compilation=compilation)
     portal_url = _student_result_center_url(request=request, compilation=compilation)
     share_message = _build_result_share_message(
@@ -310,6 +343,7 @@ def _build_result_share_row(*, request, record):
         "guardian_email": getattr(profile, "guardian_email", "") if profile else "",
         "guardian_phone": guardian_phone,
         "whatsapp_phone": whatsapp_phone,
+        "whatsapp_numbers": whatsapp_numbers,
         "email_targets": _guardian_email_list(student),
         "pin_state": pin_state,
         "portal_url": portal_url,
@@ -361,6 +395,52 @@ def _reject_allowed_for_actor(*, actor, compilation):
             ClassCompilationStatus.PUBLISHED,
         }
     return compilation.status == ClassCompilationStatus.SUBMITTED_TO_VP
+
+
+def _ensure_class_compilation_rows(*, session, term, class_qs):
+    if not session or not term:
+        return {}
+    class_list = list(class_qs)
+    if not class_list:
+        return {}
+    existing = {
+        row.academic_class_id: row
+        for row in ClassResultCompilation.objects.select_related(
+            "academic_class",
+            "session",
+            "term",
+            "form_teacher",
+            "vp_actor",
+            "principal_override_actor",
+        ).filter(
+            session=session,
+            term=term,
+            academic_class_id__in=[row.id for row in class_list],
+        )
+    }
+    missing = [row for row in class_list if row.id not in existing]
+    if missing:
+        assignment_map = {
+            row.academic_class_id: row
+            for row in FormTeacherAssignment.objects.select_related("teacher").filter(
+                session=session,
+                is_active=True,
+                academic_class_id__in=[row.id for row in missing],
+            )
+        }
+        for academic_class in missing:
+            assignment = assignment_map.get(academic_class.id)
+            compilation, _created = ClassResultCompilation.objects.get_or_create(
+                academic_class=academic_class,
+                session=session,
+                term=term,
+                defaults={
+                    "form_teacher": assignment.teacher if assignment else None,
+                    "status": ClassCompilationStatus.DRAFT,
+                },
+            )
+            existing[academic_class.id] = compilation
+    return existing
 
 
 def _subject_rows_for_student(*, compilation, student):
@@ -430,6 +510,11 @@ def _student_result_payload_for_compilation(*, compilation, student):
         predicted_score=(analytics.get("prediction") or {}).get("score"),
         risk_label=(analytics.get("risk") or {}).get("label"),
     )
+    principal_comment = (
+        (getattr(record, "principal_comment", "") or "").strip()
+        or (getattr(compilation, "decision_comment", "") or "").strip()
+        or comment_bundle["principal_comment"]
+    )
     return {
         "student": student,
         "student_number": profile.student_number if profile else student.username,
@@ -443,7 +528,11 @@ def _student_result_payload_for_compilation(*, compilation, student):
         "average_score": average_score,
         "attendance_percentage": _score_decimal(record.attendance_percentage if record else 0),
         "behavior_rating": record.behavior_rating if record else 3,
+        "behavior_rows": _behavior_metric_rows(record) if record else [],
         "teacher_comment": record.teacher_comment if record else "",
+        "principal_comment": principal_comment,
+        "management_status": record.get_management_status_display() if record else "Pending Review",
+        "management_comment": getattr(record, "management_comment", "") if record else "",
         "analytics": analytics,
         "comment_bundle": comment_bundle,
     }
@@ -492,6 +581,21 @@ def _behavior_metric_fields():
         .values_list("code", "label")
     )
     return rows or list(DEFAULT_BEHAVIOR_METRIC_FIELDS)
+
+
+def _behavior_metric_rows(record):
+    breakdown = getattr(record, "behavior_breakdown", {}) or {}
+    rows = []
+    for code, label in _behavior_metric_fields():
+        value = breakdown.get(code)
+        rows.append(
+            {
+                "code": code,
+                "label": label,
+                "value": value if value not in (None, "") else "-",
+            }
+        )
+    return rows
 
 
 def _default_behavior_breakdown(*, seed=3):
@@ -1417,7 +1521,7 @@ class FormCompilationView(ResultsAccessMixin, TemplateView):
                 pending_subjects.append(subject_assignment.subject.name)
 
         enrollments = StudentClassEnrollment.objects.select_related("student", "student__student_profile").filter(
-            academic_class=selected_assignment.academic_class,
+            academic_class_id__in=_cohort_class_ids(selected_assignment.academic_class),
             session=selected_assignment.session,
             is_active=True,
         )
@@ -1482,6 +1586,11 @@ class FormCompilationView(ResultsAccessMixin, TemplateView):
                     "cumulative_total": cumulative_total,
                     "average_score": average_score,
                     "attendance_percentage": attendance_percentage,
+                    "management_status": (
+                        record.get_management_status_display()
+                        if getattr(record, "pk", None)
+                        else StudentResultManagementStatus.PENDING.label
+                    ),
                     "detail_url": reverse(
                         "results:form-compilation-student-detail",
                         kwargs={
@@ -1638,7 +1747,7 @@ class FormCompilationStudentDetailView(ResultsAccessMixin, TemplateView):
         )
         self.enrollment = get_object_or_404(
             StudentClassEnrollment.objects.select_related("student", "student__student_profile"),
-            academic_class=self.class_assignment.academic_class,
+            academic_class_id__in=_cohort_class_ids(self.class_assignment.academic_class),
             session=self.class_assignment.session,
             student_id=kwargs["student_id"],
             is_active=True,
@@ -1834,6 +1943,7 @@ class FormCompilationStudentDetailView(ResultsAccessMixin, TemplateView):
         context["student_analytics"] = student_analytics
         context["comment_bundle"] = comment_bundle
         context["suggested_comment"] = comment_bundle["teacher_comment"]
+        context["teacher_suggestions"] = comment_bundle.get("teacher_suggestions", [])
         behavior_breakdown = _normalize_behavior_breakdown(
             self.record.behavior_breakdown,
             seed=self.record.behavior_rating,
@@ -1898,25 +2008,35 @@ class FormCompilationStudentDetailView(ResultsAccessMixin, TemplateView):
             behavior_breakdown = _default_behavior_breakdown(seed=behavior)
         comment = (request.POST.get("teacher_comment") or "").strip()
         if action == "use_suggestion":
-            summary = self._summary(self._subject_rows())
-            student_analytics = build_student_academic_analytics(
-                student=self.student,
-                current_session=self.compilation.session,
-                current_term=self.compilation.term,
-            )
-            comment = _generate_comment_suggestion(
-                average_score=summary["average_score"],
-                fail_count=summary["fail_count"],
-                attendance_percentage=self.record.attendance_percentage,
-                student_name=self.student.get_full_name() or self.student.username,
-                weak_subjects=[row["subject"] for row in student_analytics.get("weak_subjects", [])],
-                predicted_score=(student_analytics.get("prediction") or {}).get("score"),
-                risk_label=(student_analytics.get("risk") or {}).get("label"),
-            )
+            selected_suggestion = (request.POST.get("selected_suggestion") or "").strip()
+            if selected_suggestion:
+                comment = selected_suggestion
+            else:
+                summary = self._summary(self._subject_rows())
+                student_analytics = build_student_academic_analytics(
+                    student=self.student,
+                    current_session=self.compilation.session,
+                    current_term=self.compilation.term,
+                )
+                comment = _generate_comment_suggestion(
+                    average_score=summary["average_score"],
+                    fail_count=summary["fail_count"],
+                    attendance_percentage=self.record.attendance_percentage,
+                    student_name=self.student.get_full_name() or self.student.username,
+                    weak_subjects=[row["subject"] for row in student_analytics.get("weak_subjects", [])],
+                    predicted_score=(student_analytics.get("prediction") or {}).get("score"),
+                    risk_label=(student_analytics.get("risk") or {}).get("label"),
+                )
+        elif action == "apply_teacher_suggestion":
+            comment = (request.POST.get("selected_suggestion") or "").strip() or comment
 
         self.record.behavior_rating = behavior
         self.record.behavior_breakdown = behavior_breakdown
         self.record.teacher_comment = comment
+        if self.record.management_status == StudentResultManagementStatus.REJECTED:
+            self.record.management_status = StudentResultManagementStatus.PENDING
+            self.record.management_comment = ""
+            self.record.management_actor = None
         self.record.club_membership = (request.POST.get("club_membership") or "").strip()
         self.record.office_held = (request.POST.get("office_held") or "").strip()
         self.record.notable_contribution = (request.POST.get("notable_contribution") or "").strip()
@@ -1981,34 +2101,33 @@ class ResultApprovalClassListView(ResultsAccessMixin, TemplateView):
         if not session or not term:
             return []
         search_query = (self.request.GET.get("q") or "").strip()
-        class_qs = AcademicClass.objects.filter(is_active=True).order_by("code")
+        class_qs = AcademicClass.objects.filter(
+            is_active=True,
+            base_class__isnull=True,
+        ).order_by("code")
         if search_query:
             class_qs = class_qs.filter(
                 Q(code__icontains=search_query) | Q(display_name__icontains=search_query)
             )
-        compilations = {
-            row.academic_class_id: row for row in self._compilation_queryset()
-        }
-        student_counts = {
-            row["academic_class_id"]: int(row["count"])
-            for row in (
-                StudentClassEnrollment.objects.filter(
-                    session=session,
-                    is_active=True,
-                    academic_class_id__in=class_qs.values_list("id", flat=True),
-                )
-                .values("academic_class_id")
-                .annotate(count=Count("id"))
-            )
-        }
+        class_rows = list(class_qs)
+        compilations = _ensure_class_compilation_rows(
+            session=session,
+            term=term,
+            class_qs=class_rows,
+        )
         rows = []
-        for academic_class in class_qs:
+        for academic_class in class_rows:
             compilation = compilations.get(academic_class.id)
+            student_count = StudentClassEnrollment.objects.filter(
+                session=session,
+                is_active=True,
+                academic_class_id__in=academic_class.cohort_class_ids(),
+            ).count()
             rows.append(
                 {
                     "academic_class": academic_class,
                     "compilation": compilation,
-                    "student_count": student_counts.get(academic_class.id, 0),
+                    "student_count": student_count,
                     "status_label": (
                         compilation.get_status_display() if compilation else "Not Submitted"
                     ),
@@ -2195,7 +2314,7 @@ class ResultApprovalClassDetailView(ResultsAccessMixin, TemplateView):
             "student",
             "student__student_profile",
         ).filter(
-            academic_class=self.compilation.academic_class,
+            academic_class_id__in=_cohort_class_ids(self.compilation.academic_class),
             session=self.compilation.session,
             is_active=True,
         )
@@ -2238,6 +2357,11 @@ class ResultApprovalClassDetailView(ResultsAccessMixin, TemplateView):
                     "average_score": _average_to_decimal(total_score, subject_count),
                     "attendance_percentage": _score_decimal(record.attendance_percentage if record else 0),
                     "behavior_rating": record.behavior_rating if record else 3,
+                    "management_status": (
+                        record.get_management_status_display()
+                        if record
+                        else StudentResultManagementStatus.PENDING.label
+                    ),
                     "detail_url": reverse(
                         "results:approval-student-detail",
                         kwargs={
@@ -2252,7 +2376,115 @@ class ResultApprovalClassDetailView(ResultsAccessMixin, TemplateView):
         context["student_rows"] = student_rows
         context["search_query"] = search_query
         context["back_url"] = reverse("results:approval-class-list")
+        context["can_publish"] = _publish_allowed_for_actor(actor=self.request.user, compilation=self.compilation)
+        context["can_reject"] = _reject_allowed_for_actor(actor=self.request.user, compilation=self.compilation)
+        context["rejected_student_count"] = self.compilation.student_records.filter(
+            management_status=StudentResultManagementStatus.REJECTED
+        ).count()
+        context["reviewed_student_count"] = self.compilation.student_records.filter(
+            management_status=StudentResultManagementStatus.REVIEWED
+        ).count()
         return context
+
+    def post(self, request, *args, **kwargs):
+        if not session_is_open_for_edits(self.compilation.session):
+            messages.error(request, "This session is closed. Result management is read-only.")
+            return redirect("results:approval-class-detail", compilation_id=self.compilation.id)
+
+        action = (request.POST.get("action") or "").strip().lower()
+        if action not in {"publish_class", "reject_class"}:
+            messages.error(request, "Invalid class management action.")
+            return redirect("results:approval-class-detail", compilation_id=self.compilation.id)
+
+        principal_override = request.user.has_role(ROLE_PRINCIPAL)
+        sheets_qs = ResultSheet.objects.filter(
+            academic_class=_instructional_class(self.compilation.academic_class),
+            session=self.compilation.session,
+            term=self.compilation.term,
+        )
+
+        if action == "publish_class":
+            if not _publish_allowed_for_actor(actor=request.user, compilation=self.compilation):
+                messages.error(request, "This class is not ready for publishing yet.")
+                return redirect("results:approval-class-detail", compilation_id=self.compilation.id)
+            if self.compilation.student_records.filter(
+                management_status=StudentResultManagementStatus.REJECTED
+            ).exists():
+                messages.error(request, "Resolve rejected student records before publishing this class.")
+                return redirect("results:approval-class-detail", compilation_id=self.compilation.id)
+
+            publish_comment = (request.POST.get("publish_comment") or "").strip()
+            with transaction.atomic():
+                mark_compilation_published(
+                    self.compilation,
+                    request.user,
+                    principal_override=principal_override,
+                    comment=publish_comment,
+                )
+                transition_class_sheet_set(
+                    sheets_qs=(
+                        sheets_qs.exclude(status=ResultSheetStatus.PUBLISHED)
+                        if principal_override
+                        else sheets_qs.filter(status=ResultSheetStatus.SUBMITTED_TO_VP)
+                    ),
+                    to_status=ResultSheetStatus.PUBLISHED,
+                    actor=request.user,
+                    action="PRINCIPAL_OVERRIDE_PUBLISH" if principal_override else "VP_PUBLISH",
+                    comment=publish_comment or "Published from result management.",
+                )
+                log_results_approval(
+                    actor=request.user,
+                    request=request,
+                    metadata={
+                        "action": "PRINCIPAL_OVERRIDE_PUBLISH" if principal_override else "VP_PUBLISH",
+                        "compilation_id": str(self.compilation.id),
+                        "class_id": str(self.compilation.academic_class_id),
+                    },
+                )
+                notify_results_published(
+                    compilation=self.compilation,
+                    actor=request.user,
+                    request=request,
+                )
+            messages.success(request, "Class results published.")
+            return redirect("results:approval-class-detail", compilation_id=self.compilation.id)
+
+        if not _reject_allowed_for_actor(actor=request.user, compilation=self.compilation):
+            messages.error(request, "This class cannot be rejected in its current state.")
+            return redirect("results:approval-class-detail", compilation_id=self.compilation.id)
+        reject_comment = (
+            (request.POST.get("reject_comment") or "").strip()
+            or "Returned for correction from result management."
+        )
+        with transaction.atomic():
+            mark_compilation_rejected_by_vp(
+                self.compilation,
+                request.user,
+                reject_comment,
+                principal_override=principal_override,
+            )
+            transition_class_sheet_set(
+                sheets_qs=(
+                    sheets_qs.exclude(status=ResultSheetStatus.REJECTED_BY_VP)
+                    if principal_override
+                    else sheets_qs.filter(status=ResultSheetStatus.SUBMITTED_TO_VP)
+                ),
+                to_status=ResultSheetStatus.REJECTED_BY_VP,
+                actor=request.user,
+                action="PRINCIPAL_OVERRIDE_REJECT" if principal_override else "VP_REJECT",
+                comment=reject_comment,
+            )
+            log_results_approval(
+                actor=request.user,
+                request=request,
+                metadata={
+                    "action": "PRINCIPAL_OVERRIDE_REJECT" if principal_override else "VP_REJECT",
+                    "compilation_id": str(self.compilation.id),
+                    "class_id": str(self.compilation.academic_class_id),
+                },
+            )
+        messages.success(request, "Class returned for correction.")
+        return redirect("results:approval-class-detail", compilation_id=self.compilation.id)
 
 
 class ResultApprovalStudentDetailView(ResultsAccessMixin, TemplateView):
@@ -2274,7 +2506,7 @@ class ResultApprovalStudentDetailView(ResultsAccessMixin, TemplateView):
             "student",
             "student__student_profile",
         ).filter(
-            academic_class=self.compilation.academic_class,
+            academic_class_id__in=_cohort_class_ids(self.compilation.academic_class),
             session=self.compilation.session,
             student_id=kwargs["student_id"],
             is_active=True,
@@ -2296,20 +2528,104 @@ class ResultApprovalStudentDetailView(ResultsAccessMixin, TemplateView):
                     compilation_id=self.compilation.id,
                 )
             self.student = record.student
+        self.record, _ = ClassResultStudentRecord.objects.get_or_create(
+            compilation=self.compilation,
+            student=self.student,
+            defaults={
+                "behavior_rating": 3,
+                "behavior_breakdown": _default_behavior_breakdown(seed=3),
+            },
+        )
         return super().dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["compilation"] = self.compilation
-        context["payload"] = _student_result_payload_for_compilation(
+        payload = _student_result_payload_for_compilation(
             compilation=self.compilation,
             student=self.student,
         )
+        context["compilation"] = self.compilation
+        context["payload"] = payload
+        context["record"] = self.record
+        context["principal_suggestion"] = payload["comment_bundle"]["principal_comment"]
+        context["principal_suggestions"] = payload["comment_bundle"].get("principal_suggestions", [])
         context["back_url"] = reverse(
             "results:approval-class-detail",
             kwargs={"compilation_id": self.compilation.id},
         )
         return context
+
+    def post(self, request, *args, **kwargs):
+        if not session_is_open_for_edits(self.compilation.session):
+            messages.error(request, "This session is closed. Result management is read-only.")
+            return redirect(
+                "results:approval-student-detail",
+                compilation_id=self.compilation.id,
+                student_id=self.student.id,
+            )
+
+        action = (request.POST.get("action") or "").strip().lower()
+        principal_comment = (request.POST.get("principal_comment") or "").strip()
+        review_comment = (request.POST.get("review_comment") or "").strip()
+        payload = _student_result_payload_for_compilation(
+            compilation=self.compilation,
+            student=self.student,
+        )
+        if action == "use_principal_suggestion":
+            principal_comment = (
+                (request.POST.get("selected_principal_suggestion") or "").strip()
+                or payload["comment_bundle"]["principal_comment"]
+            )
+            action = "save_principal_comment"
+        elif action == "apply_principal_suggestion":
+            principal_comment = (request.POST.get("selected_principal_suggestion") or "").strip() or principal_comment
+            action = "save_principal_comment"
+
+        if action == "save_principal_comment":
+            self.record.principal_comment = principal_comment
+            self.record.management_status = StudentResultManagementStatus.REVIEWED
+            self.record.management_comment = ""
+            self.record.management_actor = request.user
+            self.record.save(
+                update_fields=[
+                    "principal_comment",
+                    "management_status",
+                    "management_comment",
+                    "management_actor",
+                    "updated_at",
+                ]
+            )
+            messages.success(request, "Principal comment saved.")
+        elif action == "reject_student":
+            if not review_comment:
+                messages.error(request, "Rejection note is required before returning this student record.")
+                return redirect(
+                    "results:approval-student-detail",
+                    compilation_id=self.compilation.id,
+                    student_id=self.student.id,
+                )
+            self.record.principal_comment = principal_comment
+            self.record.management_status = StudentResultManagementStatus.REJECTED
+            self.record.management_comment = review_comment
+            self.record.management_actor = request.user
+            self.record.save(
+                update_fields=[
+                    "principal_comment",
+                    "management_status",
+                    "management_comment",
+                    "management_actor",
+                    "updated_at",
+                ]
+            )
+            messages.success(request, "Student result returned for correction.")
+        else:
+            messages.error(request, "Invalid student management action.")
+
+        return redirect(
+            "results:approval-student-detail",
+            compilation_id=self.compilation.id,
+            student_id=self.student.id,
+        )
 
 
 class VPReviewListView(ResultsAccessMixin, TemplateView):
@@ -2380,13 +2696,18 @@ class VPReviewDetailView(ResultsAccessMixin, TemplateView):
             if self.compilation.status != ClassCompilationStatus.SUBMITTED_TO_VP:
                 messages.error(request, "Only submitted compilations can be published.")
                 return redirect("results:vp-review-detail", compilation_id=self.compilation.id)
-            mark_compilation_published(self.compilation, request.user)
+            form = ResultActionForm(request.POST)
+            if not form.is_valid():
+                messages.error(request, "Unable to read publish comment.")
+                return redirect("results:vp-review-detail", compilation_id=self.compilation.id)
+            publish_comment = form.cleaned_data["comment"]
+            mark_compilation_published(self.compilation, request.user, comment=publish_comment)
             transition_class_sheet_set(
                 sheets_qs=sheets_qs.filter(status=ResultSheetStatus.SUBMITTED_TO_VP),
                 to_status=ResultSheetStatus.PUBLISHED,
                 actor=request.user,
                 action="VP_PUBLISH",
-                comment="Published by VP.",
+                comment=publish_comment or "Published by VP.",
             )
             log_results_approval(
                 actor=request.user,
@@ -2497,13 +2818,23 @@ class PrincipalOverrideView(ResultsAccessMixin, TemplateView):
                     "Override publish requires submitted or rejected compilation state.",
                 )
                 return redirect("results:principal-override", compilation_id=self.compilation.id)
-            mark_compilation_published(self.compilation, request.user, principal_override=True)
+            form = ResultActionForm(request.POST)
+            if not form.is_valid():
+                messages.error(request, "Unable to read publish comment.")
+                return redirect("results:principal-override", compilation_id=self.compilation.id)
+            publish_comment = form.cleaned_data["comment"]
+            mark_compilation_published(
+                self.compilation,
+                request.user,
+                principal_override=True,
+                comment=publish_comment,
+            )
             transition_class_sheet_set(
                 sheets_qs=sheets_qs.exclude(status=ResultSheetStatus.PUBLISHED),
                 to_status=ResultSheetStatus.PUBLISHED,
                 actor=request.user,
                 action="PRINCIPAL_OVERRIDE_PUBLISH",
-                comment="Principal override publish.",
+                comment=publish_comment or "Principal override publish.",
             )
             log_results_approval(
                 actor=request.user,
@@ -2916,17 +3247,40 @@ class PerformanceReportView(ResultReportAccessMixin, TemplateView):
 
         leadership_roles = {ROLE_IT_MANAGER, ROLE_DEAN, ROLE_VP, ROLE_PRINCIPAL, ROLE_BURSAR}
         if has_any_role(self.request.user, leadership_roles):
-            class_options = list(_report_class_options())
+            allowed_classes = list(_report_class_options())
         else:
             class_ids_qs = form_teacher_classes_for_user(self.request.user, session=session).values_list(
                 "academic_class_id", flat=True
             ) if session else []
-            class_options = list(_report_class_options().filter(id__in=class_ids_qs))
-        class_ids = {row.id for row in class_options}
+            allowed_classes = list(_report_class_options().filter(id__in=class_ids_qs))
+        allowed_class_ids = {row.id for row in allowed_classes}
 
-        selected_class = _selected_report_class(self.request)
-        if selected_class is not None and class_ids and selected_class.id not in class_ids:
-            selected_class = None
+        level_options = [row for row in allowed_classes if not row.base_class_id]
+        arm_options = [row for row in allowed_classes if row.base_class_id]
+        accessible_level_ids = {row.id for row in level_options}
+        accessible_arm_ids = {row.id for row in arm_options}
+
+        selected_level = _selected_report_level(self.request)
+        if selected_level is not None and accessible_level_ids and selected_level.id not in accessible_level_ids:
+            selected_level = None
+
+        selected_arm = _selected_report_arm(self.request)
+        if selected_arm is not None and accessible_arm_ids and selected_arm.id not in accessible_arm_ids:
+            selected_arm = None
+
+        if selected_level is None and selected_arm is None:
+            if level_options:
+                selected_level = level_options[0]
+            elif arm_options:
+                selected_arm = arm_options[0]
+
+        if selected_arm is not None:
+            selected_level = selected_arm.base_class
+
+        filtered_arm_options = [
+            row for row in arm_options if selected_level is None or row.base_class_id == selected_level.id
+        ]
+        selected_class = selected_arm or selected_level
 
         student_qs = User.objects.select_related("student_profile").filter(primary_role__code="STUDENT")
         if student_query:
@@ -2938,52 +3292,74 @@ class PerformanceReportView(ResultReportAccessMixin, TemplateView):
             )
         if session is not None and term is not None:
             student_qs = student_qs.filter(
-                class_result_records__compilation__session=session,
-                class_result_records__compilation__term=term,
+                student_subject_scores__result_sheet__session=session,
+                student_subject_scores__result_sheet__term=term,
             ).distinct()
-        if selected_class is not None:
+        if selected_arm is not None:
             student_qs = student_qs.filter(
                 class_enrollments__session=session,
-                class_enrollments__academic_class_id__in=selected_class.cohort_class_ids(),
+                class_enrollments__academic_class_id=selected_arm.id,
                 class_enrollments__is_active=True,
             ).distinct()
-        elif class_ids and not has_any_role(self.request.user, leadership_roles):
+        elif selected_level is not None:
             student_qs = student_qs.filter(
                 class_enrollments__session=session,
-                class_enrollments__academic_class_id__in=class_ids,
+                class_enrollments__academic_class_id__in=selected_level.cohort_class_ids(),
+                class_enrollments__is_active=True,
+            ).distinct()
+        elif allowed_class_ids and not has_any_role(self.request.user, leadership_roles):
+            student_qs = student_qs.filter(
+                class_enrollments__session=session,
+                class_enrollments__academic_class_id__in=allowed_class_ids,
                 class_enrollments__is_active=True,
             ).distinct()
 
         selected_student = None
         if student_id.isdigit():
             selected_student = student_qs.filter(id=int(student_id)).first()
-        if selected_student is None:
-            selected_student = student_qs.order_by("student_profile__student_number", "username").first()
         report = (
             build_student_performance_report(student=selected_student, session=session, term=term)
             if selected_student is not None
             else {"available": False}
         )
+        class_performance = build_class_performance_snapshot(
+            session=session,
+            term=term,
+            academic_class=selected_class,
+        )
 
         context["current_session"] = session
         context["current_term"] = term
         context["student_query"] = student_query
-        context["class_options"] = class_options
+        context["level_options"] = level_options
+        context["arm_options"] = filtered_arm_options
+        context["selected_level"] = selected_level
+        context["selected_arm"] = selected_arm
         context["selected_class"] = selected_class
         context["student_rows"] = list(student_qs.order_by("student_profile__student_number", "username")[:50])
         context["selected_student"] = selected_student
         context["report"] = report
+        context["class_performance"] = class_performance
         context["term_report_pdf_url"] = ""
         context["performance_pdf_url"] = ""
         context["send_results_url"] = reverse("results:send-results") if not self.request.user.has_role(ROLE_DEAN) else ""
-        if report.get("available") and can_staff_download_term_report(user=self.request.user, compilation=report["compilation"]):
-            context["term_report_pdf_url"] = reverse(
-                "pdfs:staff-term-report-download",
-                kwargs={"compilation_id": report["compilation"].id, "student_id": selected_student.id},
-            )
+        if cloud_staff_operations_lan_only_enabled() and user_has_lan_only_operation_roles(self.request.user):
+            context["send_results_url"] = ""
+        compilation = report.get("compilation")
+        if (
+            report.get("available")
+            and compilation is not None
+            and getattr(compilation, "pk", None)
+            and can_staff_download_term_report(user=self.request.user, compilation=compilation)
+        ):
+            if compilation.status == ClassCompilationStatus.PUBLISHED:
+                context["term_report_pdf_url"] = reverse(
+                    "pdfs:staff-term-report-download",
+                    kwargs={"compilation_id": compilation.id, "student_id": selected_student.id},
+                )
             context["performance_pdf_url"] = reverse(
                 "pdfs:staff-performance-analysis-download",
-                kwargs={"compilation_id": report["compilation"].id, "student_id": selected_student.id},
+                kwargs={"compilation_id": compilation.id, "student_id": selected_student.id},
             )
         return context
 
@@ -3104,11 +3480,11 @@ class SendResultsView(ResultReportAccessMixin, TemplateView):
                 messages.error(request, f"Email dispatch failed for {row['student_name']}.")
                 return self._filtered_redirect(request)
         else:
-            if not row["whatsapp_phone"]:
+            if not row["whatsapp_numbers"]:
                 messages.error(request, "No guardian WhatsApp number is available for this record.")
                 return self._filtered_redirect(request)
             result = send_whatsapp_event(
-                to_numbers=[row["whatsapp_phone"]],
+                to_numbers=row["whatsapp_numbers"],
                 body_text=body_text,
                 actor=request.user,
                 request=request,

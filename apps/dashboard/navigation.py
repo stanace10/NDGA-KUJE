@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 from typing import Iterable
-from django.conf import settings
-
 from apps.accounts.constants import (
     ROLE_DEAN,
     ROLE_FORM_TEACHER,
@@ -12,9 +10,15 @@ from apps.accounts.constants import (
     ROLE_SUBJECT_TEACHER,
     ROLE_VP,
 )
+from apps.tenancy.utils import (
+    cloud_staff_operations_lan_only_enabled,
+    lan_runtime_restrictions_enabled,
+    user_has_lan_only_operation_roles,
+)
 
 
 PORTAL_TITLES = {
+    "portal": "Portal Access",
     "student": "Student Portal",
     "staff": "Staff Portal",
     "it": "IT Manager Portal",
@@ -107,21 +111,71 @@ def _default_icon_for_label(label: str):
 
 def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_path: str, setup_is_ready: bool):
     items = []
-    lan_runtime_restricted = bool(
-        getattr(settings, "LAN_RUNTIME_RESTRICT_PORTALS", False)
-        and (getattr(settings, "SYNC_NODE_ROLE", "CLOUD") or "CLOUD").strip().upper() == "LAN"
+    lan_runtime_restricted = lan_runtime_restrictions_enabled()
+    cloud_staff_admin_restricted = (
+        cloud_staff_operations_lan_only_enabled() and user_has_lan_only_operation_roles(role_codes)
     )
 
     if portal_key == "it":
-        items.append(
-            _nav_item(
-                label="Dashboard",
-                url="/portal/it/",
-                request_path=request_path,
-                matches=("/", "/portal/it/$"),
+        if cloud_staff_admin_restricted:
+            items.append(
+                _nav_item(
+                    label="Dashboard",
+                    url="/portal/it/",
+                    request_path=request_path,
+                    matches=("/", "/portal/it/$"),
+                )
             )
-        )
+            items.append(
+                _nav_item(
+                    label="Audit Logs",
+                    url="/audit/events/",
+                    request_path=request_path,
+                    matches=("/audit/events/",),
+                )
+            )
+            items.append(
+                _nav_item(
+                    label="Notifications",
+                    url="/notifications/center/",
+                    request_path=request_path,
+                    matches=("/notifications/",),
+                )
+            )
+            items.append(
+                _nav_item(
+                    label="Account Security",
+                    url="/portal/account/security/",
+                    request_path=request_path,
+                    matches=("/portal/account/security/",),
+                )
+            )
+            items.append(
+                _nav_item(
+                    label="Logout",
+                    url="/auth/logout/",
+                    request_path=request_path,
+                    matches=("/auth/logout/",),
+                )
+            )
+            return items
         if lan_runtime_restricted:
+            items.append(
+                _nav_item(
+                    label="Dashboard",
+                    url="/portal/it/",
+                    request_path=request_path,
+                    matches=("/", "/portal/it/$"),
+                )
+            )
+            items.append(
+                _nav_item(
+                    label="Messaging Center",
+                    url="/notifications/media/",
+                    request_path=request_path,
+                    matches=("/notifications/media/",),
+                )
+            )
             items.append(
                 _nav_item(
                     label="CBT Setup",
@@ -148,6 +202,30 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
             )
             items.append(
                 _nav_item(
+                    label="Audit Logs",
+                    url="/audit/events/",
+                    request_path=request_path,
+                    matches=("/audit/events/",),
+                )
+            )
+            items.append(
+                _nav_item(
+                    label="Notifications",
+                    url="/notifications/center/",
+                    request_path=request_path,
+                    matches=("/notifications/",),
+                )
+            )
+            items.append(
+                _nav_item(
+                    label="Account Security",
+                    url="/portal/account/security/",
+                    request_path=request_path,
+                    matches=("/portal/account/security/",),
+                )
+            )
+            items.append(
+                _nav_item(
                     label="Logout",
                     url="/auth/logout/",
                     request_path=request_path,
@@ -155,104 +233,62 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                 )
             )
             return items
-        if not lan_runtime_restricted:
-            items.append(
-                _nav_item(
-                    label="Academics",
-                    url="/academics/it/",
-                    request_path=request_path,
-                    matches=("/academics/it/",),
-                )
+        items.append(
+            _nav_item(
+                label="Dashboard",
+                url="/portal/it/",
+                request_path=request_path,
+                matches=("/", "/portal/it/$"),
             )
-        if not lan_runtime_restricted:
-            items.append(
-                _nav_item(
-                    label="Staff Management",
-                    url="/auth/it/user-provisioning/staff/directory/",
-                    request_path=request_path,
-                    matches=(
-                        "/auth/it/user-provisioning/staff/directory/",
-                        "/auth/it/user-provisioning/staff/",
-                        "/auth/it/staff/",
-                    ),
-                )
+        )
+        items.append(
+            _nav_item(
+                label="Staff Management",
+                url="/auth/it/user-provisioning/staff/directory/",
+                request_path=request_path,
+                matches=(
+                    "/auth/it/user-provisioning/staff/directory/",
+                    "/auth/it/user-provisioning/staff/",
+                    "/auth/it/staff/",
+                ),
             )
-            items.append(
-                _nav_item(
-                    label="Student Management",
-                    url="/auth/it/user-provisioning/students/directory/",
-                    request_path=request_path,
-                    matches=(
-                        "/auth/it/user-provisioning/students/directory/",
-                        "/auth/it/user-provisioning/students/",
-                        "/auth/it/student/",
-                    ),
-                )
+        )
+        items.append(
+            _nav_item(
+                label="Student Management",
+                url="/auth/it/user-provisioning/students/directory/",
+                request_path=request_path,
+                matches=(
+                    "/auth/it/user-provisioning/students/directory/",
+                    "/auth/it/user-provisioning/students/",
+                    "/auth/it/student/",
+                ),
             )
-            items.append(
-                _nav_item(
-                    label="Results Approval",
-                    url="/results/approval/",
-                    request_path=request_path,
-                    matches=("/results/approval/",),
-                )
+        )
+        items.append(
+            _nav_item(
+                label="Result Management",
+                url="/results/approval/",
+                request_path=request_path,
+                matches=("/results/approval/",),
             )
-            items.append(
-                _nav_item(
-                    label="Result Settings",
-                    url="/results/settings/",
-                    request_path=request_path,
-                    matches=("/results/settings/",),
-                )
+        )
+        items.append(
+            _nav_item(
+                label="Performance Report",
+                url="/results/report/performance/",
+                request_path=request_path,
+                matches=("/results/report/",),
             )
-            items.append(
-                _nav_item(
-                    label="Performance Report",
-                    url="/results/report/performance/",
-                    request_path=request_path,
-                    matches=("/results/report/",),
-                )
+        )
+        items.append(
+            _nav_item(
+                label="Messaging Center",
+                url="/notifications/media/",
+                request_path=request_path,
+                matches=("/notifications/media/",),
             )
-            items.append(
-                _nav_item(
-                    label="Award Listing",
-                    url="/results/report/award-listing/",
-                    request_path=request_path,
-                    matches=("/results/report/",),
-                )
-            )
-            items.append(
-                _nav_item(
-                    label="Teacher Ranking",
-                    url="/results/report/teacher-ranking/",
-                    request_path=request_path,
-                    matches=("/results/report/",),
-                )
-            )
-            items.append(
-                _nav_item(
-                    label="Upload Statistics",
-                    url="/results/report/upload-statistics/",
-                    request_path=request_path,
-                    matches=("/results/report/",),
-                )
-            )
-            items.append(
-                _nav_item(
-                    label="Access PIN",
-                    url="/results/report/access-pins/",
-                    request_path=request_path,
-                    matches=("/results/report/",),
-                )
-            )
-            items.append(
-                _nav_item(
-                    label="Send Results",
-                    url="/results/report/send-results/",
-                    request_path=request_path,
-                    matches=("/results/report/",),
-                )
-            )
+        )
         items.append(
             _nav_item(
                 label="CBT Setup",
@@ -270,15 +306,22 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
             )
         )
         settings_url = "/setup/wizard/" if not setup_is_ready else "/setup/session-term/"
-        if not lan_runtime_restricted:
-            items.append(
-                _nav_item(
-                    label="Session & Calendar",
-                    url=settings_url,
-                    request_path=request_path,
-                    matches=("/setup/", "/attendance/calendar/"),
-                )
+        items.append(
+            _nav_item(
+                label="Session & Calendar",
+                url=settings_url,
+                request_path=request_path,
+                matches=("/setup/", "/attendance/calendar/"),
             )
+        )
+        items.append(
+            _nav_item(
+                label="School Settings",
+                url="/results/settings/",
+                request_path=request_path,
+                matches=("/results/settings/",),
+            )
+        )
         items.append(
             _nav_item(
                 label="Sync Queue",
@@ -305,62 +348,6 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
         )
         items.append(
             _nav_item(
-                label="Messaging Center",
-                url="/notifications/media/",
-                request_path=request_path,
-                matches=("/notifications/media/",),
-            )
-        )
-        items.append(
-            _nav_item(
-                label="Calendar",
-                url="/calendar/",
-                request_path=request_path,
-                matches=("/calendar/",),
-            )
-        )
-        items.append(
-            _nav_item(
-                label="Notice Board",
-                url="/notice/",
-                request_path=request_path,
-                matches=("/notice/",),
-            )
-        )
-        items.append(
-            _nav_item(
-                label="Document Vault",
-                url="/portal/it/documents/",
-                request_path=request_path,
-                matches=("/portal/it/documents/",),
-            )
-        )
-        items.append(
-            _nav_item(
-                label="Weekly Challenge",
-                url="/portal/it/weekly-challenge/",
-                request_path=request_path,
-                matches=("/portal/it/weekly-challenge/",),
-            )
-        )
-        items.append(
-            _nav_item(
-                label="Clubs & Societies",
-                url="/portal/clubs/",
-                request_path=request_path,
-                matches=("/portal/clubs/",),
-            )
-        )
-        items.append(
-            _nav_item(
-                label="Backup",
-                url="/setup/backup/",
-                request_path=request_path,
-                matches=("/setup/backup/",),
-            )
-        )
-        items.append(
-            _nav_item(
                 label="Account Security",
                 url="/portal/account/security/",
                 request_path=request_path,
@@ -378,26 +365,140 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
         return items
 
     if portal_key == "staff":
-        if lan_runtime_restricted:
-            items.extend(
-                [
-                    _nav_item(label="Dashboard", url="/", request_path=request_path, matches=("/", "/portal/staff/$")),
-                    _nav_item(
-                        label="Election Center",
-                        url="/elections/",
-                        request_path=request_path,
-                        matches=("/elections/",),
-                    ),
-                    _nav_item(
-                        label="Notifications",
-                        url="/notifications/center/",
-                        request_path=request_path,
-                        matches=("/notifications/",),
-                    ),
-                    _nav_item(label="Logout", url="/auth/logout/", request_path=request_path, matches=("/auth/logout/",)),
-                ]
+        if cloud_staff_admin_restricted:
+            items.append(_nav_item(label="Dashboard", url="/", request_path=request_path, matches=("/", "/portal/staff/$")))
+            items.append(
+                _nav_item(
+                    label="Profile",
+                    url="/portal/staff/profile/",
+                    request_path=request_path,
+                    matches=("/portal/staff/profile/",),
+                )
             )
+            if role_codes & {ROLE_DEAN, ROLE_FORM_TEACHER}:
+                items.append(
+                    _nav_item(
+                        label="Performance Report",
+                        url="/results/report/performance/",
+                        request_path=request_path,
+                        matches=("/results/report/",),
+                    )
+                )
+            items.append(
+                _nav_item(
+                    label="Settings",
+                    url="/portal/staff/settings/",
+                    request_path=request_path,
+                    matches=("/portal/staff/settings/",),
+                )
+            )
+            items.append(
+                _nav_item(
+                    label="Notifications",
+                    url="/notifications/center/",
+                    request_path=request_path,
+                    matches=("/notifications/",),
+                )
+            )
+            items.append(_nav_item(label="Logout", url="/auth/logout/", request_path=request_path, matches=("/auth/logout/",)))
             return items
+        if lan_runtime_restricted:
+            items.append(_nav_item(label="Dashboard", url="/", request_path=request_path, matches=("/", "/portal/staff/$")))
+            items.append(
+                _nav_item(
+                    label="Profile",
+                    url="/portal/staff/profile/",
+                    request_path=request_path,
+                    matches=("/portal/staff/profile/",),
+                )
+            )
+            if ROLE_FORM_TEACHER in role_codes:
+                items.append(
+                    _nav_item(
+                        label="Attendance",
+                        url="/attendance/form/mark/",
+                        request_path=request_path,
+                        matches=("/attendance/form/",),
+                    )
+                )
+            if role_codes & {ROLE_SUBJECT_TEACHER, ROLE_DEAN, ROLE_FORM_TEACHER}:
+                items.append(
+                    _nav_item(
+                        label="Result Entry",
+                        url="/results/grade-entry/?view=scores",
+                        request_path=request_path,
+                        matches=("/results/grade-entry/",),
+                    )
+                )
+                items.append(
+                    _nav_item(
+                        label="CBT Entry",
+                        url="/cbt/authoring/",
+                        request_path=request_path,
+                        matches=("/cbt/authoring/", "/cbt/authoring"),
+                    )
+                )
+                items.append(
+                    _nav_item(
+                        label="Lesson Planner",
+                        url="/portal/staff/lesson-planner/",
+                        request_path=request_path,
+                        matches=("/portal/staff/lesson-planner/",),
+                    )
+                )
+            if ROLE_DEAN in role_codes:
+                items.append(
+                    _nav_item(
+                        label="Academic Approval",
+                        url="/results/dean/review/results/",
+                        request_path=request_path,
+                        matches=("/results/dean/", "/cbt/dean/"),
+                    )
+                )
+            if role_codes & {ROLE_DEAN, ROLE_FORM_TEACHER}:
+                items.append(
+                    _nav_item(
+                        label="Performance Report",
+                        url="/results/report/performance/",
+                        request_path=request_path,
+                        matches=("/results/report/",),
+                    )
+                )
+            if ROLE_DEAN in role_codes:
+                items.append(
+                    _nav_item(
+                        label="Messaging Center",
+                        url="/notifications/media/",
+                        request_path=request_path,
+                        matches=("/notifications/media/",),
+                    )
+                )
+            items.append(
+                _nav_item(
+                    label="Settings",
+                    url="/portal/staff/settings/",
+                    request_path=request_path,
+                    matches=("/portal/staff/settings/",),
+                )
+            )
+            items.append(
+                _nav_item(
+                    label="Notifications",
+                    url="/notifications/center/",
+                    request_path=request_path,
+                    matches=("/notifications/",),
+                )
+            )
+            items.append(_nav_item(label="Logout", url="/auth/logout/", request_path=request_path, matches=("/auth/logout/",)))
+            return items
+        compact_teaching_menu = bool(
+            ROLE_FORM_TEACHER in role_codes
+            and ROLE_SUBJECT_TEACHER in role_codes
+            and ROLE_DEAN not in role_codes
+            and ROLE_VP not in role_codes
+            and ROLE_PRINCIPAL not in role_codes
+            and ROLE_IT_MANAGER not in role_codes
+        )
         items.append(_nav_item(label="Dashboard", url="/", request_path=request_path, matches=("/", "/portal/staff/$")))
         items.append(
             _nav_item(
@@ -414,14 +515,6 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                     url="/attendance/form/mark/",
                     request_path=request_path,
                     matches=("/attendance/form/",),
-                )
-            )
-            items.append(
-                _nav_item(
-                    label="Grade Cumulative",
-                    url="/results/form/compilation/?view=compile",
-                    request_path=request_path,
-                    matches=("/results/form/",),
                 )
             )
         if role_codes & {ROLE_SUBJECT_TEACHER, ROLE_DEAN, ROLE_FORM_TEACHER}:
@@ -481,13 +574,13 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                     matches=("/results/report/",),
                 )
             )
-        if role_codes & {ROLE_FORM_TEACHER}:
+        if ROLE_DEAN in role_codes:
             items.append(
                 _nav_item(
-                    label="Send Results",
-                    url="/results/report/send-results/",
+                    label="Messaging Center",
+                    url="/notifications/media/",
                     request_path=request_path,
-                    matches=("/results/report/",),
+                    matches=("/notifications/media/",),
                 )
             )
         items.append(
@@ -510,21 +603,103 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
         return items
 
     if portal_key == "vp":
+        if cloud_staff_admin_restricted:
+            items.extend(
+                [
+                    _nav_item(label="Dashboard", url="/", request_path=request_path, matches=("/", "/portal/vp/$")),
+                    _nav_item(
+                        label="Profile",
+                        url="/portal/staff/profile/",
+                        request_path=request_path,
+                        matches=("/portal/staff/profile/",),
+                    ),
+                    _nav_item(
+                        label="Performance Report",
+                        url="/results/report/performance/",
+                        request_path=request_path,
+                        matches=("/results/report/",),
+                    ),
+                    _nav_item(
+                        label="Notifications",
+                        url="/notifications/center/",
+                        request_path=request_path,
+                        matches=("/notifications/",),
+                    ),
+                    _nav_item(
+                        label="Settings",
+                        url="/portal/staff/settings/",
+                        request_path=request_path,
+                        matches=("/portal/staff/settings/",),
+                    ),
+                    _nav_item(label="Logout", url="/auth/logout/", request_path=request_path, matches=("/auth/logout/",)),
+                ]
+            )
+            return items
         if lan_runtime_restricted:
             items.extend(
                 [
                     _nav_item(label="Dashboard", url="/", request_path=request_path, matches=("/", "/portal/vp/$")),
                     _nav_item(
-                        label="Election Center",
-                        url="/elections/",
+                        label="Profile",
+                        url="/portal/staff/profile/",
                         request_path=request_path,
-                        matches=("/elections/",),
+                        matches=("/portal/staff/profile/",),
                     ),
                     _nav_item(
-                        label="Account Security",
-                        url="/portal/account/security/",
+                        label="Class Management",
+                        url="/attendance/form/classes/",
                         request_path=request_path,
-                        matches=("/portal/account/security/",),
+                        matches=("/attendance/form/",),
+                    ),
+                    _nav_item(
+                        label="Staff Management",
+                        url="/auth/it/user-provisioning/staff/directory/",
+                        request_path=request_path,
+                        matches=(
+                            "/auth/it/user-provisioning/staff/directory/",
+                            "/auth/it/user-provisioning/staff/",
+                            "/auth/it/staff/",
+                        ),
+                    ),
+                    _nav_item(
+                        label="Student Management",
+                        url="/auth/it/user-provisioning/students/directory/",
+                        request_path=request_path,
+                        matches=(
+                            "/auth/it/user-provisioning/students/directory/",
+                            "/auth/it/user-provisioning/students/",
+                            "/auth/it/student/",
+                        ),
+                    ),
+                    _nav_item(
+                        label="Result Management",
+                        url="/results/approval/",
+                        request_path=request_path,
+                        matches=("/results/approval/",),
+                    ),
+                    _nav_item(
+                        label="Messaging Center",
+                        url="/notifications/media/",
+                        request_path=request_path,
+                        matches=("/notifications/media/",),
+                    ),
+                    _nav_item(
+                        label="Performance Report",
+                        url="/results/report/performance/",
+                        request_path=request_path,
+                        matches=("/results/report/",),
+                    ),
+                    _nav_item(
+                        label="Notifications",
+                        url="/notifications/center/",
+                        request_path=request_path,
+                        matches=("/notifications/",),
+                    ),
+                    _nav_item(
+                        label="Settings",
+                        url="/portal/staff/settings/",
+                        request_path=request_path,
+                        matches=("/portal/staff/settings/",),
                     ),
                     _nav_item(label="Logout", url="/auth/logout/", request_path=request_path, matches=("/auth/logout/",)),
                 ]
@@ -533,6 +708,18 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
         items.extend(
             [
                 _nav_item(label="Dashboard", url="/", request_path=request_path, matches=("/", "/portal/vp/$")),
+                _nav_item(
+                    label="Profile",
+                    url="/portal/staff/profile/",
+                    request_path=request_path,
+                    matches=("/portal/staff/profile/",),
+                ),
+                _nav_item(
+                    label="Class Management",
+                    url="/attendance/form/classes/",
+                    request_path=request_path,
+                    matches=("/attendance/form/",),
+                ),
                 _nav_item(
                     label="Staff Management",
                     url="/auth/it/user-provisioning/staff/directory/",
@@ -554,34 +741,10 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                     ),
                 ),
                 _nav_item(
-                    label="Results Approval",
+                    label="Result Management",
                     url="/results/approval/",
                     request_path=request_path,
                     matches=("/results/approval/",),
-                ),
-                _nav_item(
-                    label="Performance Report",
-                    url="/results/report/performance/",
-                    request_path=request_path,
-                    matches=("/results/report/",),
-                ),
-                _nav_item(
-                    label="Award Listing",
-                    url="/results/report/award-listing/",
-                    request_path=request_path,
-                    matches=("/results/report/",),
-                ),
-                _nav_item(
-                    label="Upload Statistics",
-                    url="/results/report/upload-statistics/",
-                    request_path=request_path,
-                    matches=("/results/report/",),
-                ),
-                _nav_item(
-                    label="Send Results",
-                    url="/results/report/send-results/",
-                    request_path=request_path,
-                    matches=("/results/report/",),
                 ),
                 _nav_item(
                     label="Messaging Center",
@@ -590,22 +753,22 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                     matches=("/notifications/media/",),
                 ),
                 _nav_item(
-                    label="Calendar",
-                    url="/calendar/",
+                    label="Performance Report",
+                    url="/results/report/performance/",
                     request_path=request_path,
-                    matches=("/calendar/",),
+                    matches=("/results/report/",),
                 ),
                 _nav_item(
-                    label="Notice Board",
-                    url="/notice/",
+                    label="Notifications",
+                    url="/notifications/center/",
                     request_path=request_path,
-                    matches=("/notice/",),
+                    matches=("/notifications/",),
                 ),
                 _nav_item(
-                    label="Account Security",
-                    url="/portal/account/security/",
+                    label="Settings",
+                    url="/portal/staff/settings/",
                     request_path=request_path,
-                    matches=("/portal/account/security/",),
+                    matches=("/portal/staff/settings/",),
                 ),
                 _nav_item(label="Logout", url="/auth/logout/", request_path=request_path, matches=("/auth/logout/",)),
             ]
@@ -614,6 +777,43 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
 
 
     if portal_key == "principal":
+        if cloud_staff_admin_restricted:
+            items.extend(
+                [
+                    _nav_item(
+                        label="Dashboard",
+                        url="/",
+                        request_path=request_path,
+                        matches=("/", "/portal/principal/$"),
+                    ),
+                    _nav_item(
+                        label="Performance Report",
+                        url="/results/report/performance/",
+                        request_path=request_path,
+                        matches=("/results/report/",),
+                    ),
+                    _nav_item(
+                        label="Notifications",
+                        url="/notifications/center/",
+                        request_path=request_path,
+                        matches=("/notifications/",),
+                    ),
+                    _nav_item(
+                        label="Account Security",
+                        url="/portal/account/security/",
+                        request_path=request_path,
+                        matches=("/portal/account/security/",),
+                    ),
+                    _nav_item(
+                        label="Settings",
+                        url="/portal/principal/settings/",
+                        request_path=request_path,
+                        matches=("/portal/principal/settings/",),
+                    ),
+                    _nav_item(label="Logout", url="/auth/logout/", request_path=request_path, matches=("/auth/logout/",)),
+                ]
+            )
+            return items
         if lan_runtime_restricted:
             items.extend(
                 [
@@ -668,7 +868,7 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                     ),
                 ),
                 _nav_item(
-                    label="Results Approval",
+                    label="Result Management",
                     url="/results/approval/",
                     request_path=request_path,
                     matches=("/results/approval/",),
@@ -676,36 +876,6 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                 _nav_item(
                     label="Performance Report",
                     url="/results/report/performance/",
-                    request_path=request_path,
-                    matches=("/results/report/",),
-                ),
-                _nav_item(
-                    label="Award Listing",
-                    url="/results/report/award-listing/",
-                    request_path=request_path,
-                    matches=("/results/report/",),
-                ),
-                _nav_item(
-                    label="Teacher Ranking",
-                    url="/results/report/teacher-ranking/",
-                    request_path=request_path,
-                    matches=("/results/report/",),
-                ),
-                _nav_item(
-                    label="Upload Statistics",
-                    url="/results/report/upload-statistics/",
-                    request_path=request_path,
-                    matches=("/results/report/",),
-                ),
-                _nav_item(
-                    label="Access PIN",
-                    url="/results/report/access-pins/",
-                    request_path=request_path,
-                    matches=("/results/report/",),
-                ),
-                _nav_item(
-                    label="Send Results",
-                    url="/results/report/send-results/",
                     request_path=request_path,
                     matches=("/results/report/",),
                 ),
@@ -720,18 +890,6 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                     url="/notifications/media/",
                     request_path=request_path,
                     matches=("/notifications/media/",),
-                ),
-                _nav_item(
-                    label="Calendar",
-                    url="/calendar/",
-                    request_path=request_path,
-                    matches=("/calendar/",),
-                ),
-                _nav_item(
-                    label="Notice Board",
-                    url="/notice/",
-                    request_path=request_path,
-                    matches=("/notice/",),
                 ),
                 _nav_item(
                     label="Account Security",
@@ -866,6 +1024,31 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
         return items
 
     if portal_key == "bursar":
+        if cloud_staff_admin_restricted:
+            items.extend(
+                [
+                    _nav_item(
+                        label="Dashboard",
+                        url="/finance/bursar/dashboard/",
+                        request_path=request_path,
+                        matches=("/", "/portal/bursar/$", "/finance/bursar/dashboard/"),
+                    ),
+                    _nav_item(
+                        label="Notifications",
+                        url="/notifications/center/",
+                        request_path=request_path,
+                        matches=("/notifications/",),
+                    ),
+                    _nav_item(
+                        label="Account Security",
+                        url="/portal/account/security/",
+                        request_path=request_path,
+                        matches=("/portal/account/security/",),
+                    ),
+                    _nav_item(label="Logout", url="/auth/logout/", request_path=request_path, matches=("/auth/logout/",)),
+                ]
+            )
+            return items
         items.extend(
             [
                 _nav_item(
@@ -915,30 +1098,6 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                     url="/results/report/performance/",
                     request_path=request_path,
                     matches=("/results/report/",),
-                ),
-                _nav_item(
-                    label="Award Listing",
-                    url="/results/report/award-listing/",
-                    request_path=request_path,
-                    matches=("/results/report/",),
-                ),
-                _nav_item(
-                    label="Send Results",
-                    url="/results/report/send-results/",
-                    request_path=request_path,
-                    matches=("/results/report/",),
-                ),
-                _nav_item(
-                    label="Calendar",
-                    url="/calendar/",
-                    request_path=request_path,
-                    matches=("/calendar/",),
-                ),
-                _nav_item(
-                    label="Notice Board",
-                    url="/notice/",
-                    request_path=request_path,
-                    matches=("/notice/",),
                 ),
                 _nav_item(
                     label="Account Security",

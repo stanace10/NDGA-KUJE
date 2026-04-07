@@ -7,8 +7,67 @@ from apps.notifications.models import Notification
 from apps.setup_wizard.feature_flags import get_runtime_feature_flags
 from apps.setup_wizard.services import get_setup_state
 from apps.sync.services import build_runtime_status_payload
-from apps.tenancy.utils import build_portal_url, current_portal_key
+from apps.tenancy.utils import (
+    build_portal_url,
+    cloud_staff_operations_lan_only_enabled,
+    current_portal_key,
+    lan_runtime_restrictions_enabled,
+)
 from core.seo import build_seo_context
+
+
+def _minimal_cbt_runtime_context(request, portal_key):
+    seo_context = {
+        "seo_default_title": "NDGA CBT",
+        "seo_default_description": "NDGA CBT runtime",
+        "seo_robots_content": "noindex, nofollow",
+        "seo_site_name": "Notre Dame Girls Academy",
+        "seo_canonical_url": "",
+        "seo_sitemap_url": "",
+        "seo_url": "",
+        "seo_image_url": "",
+        "seo_google_site_verification": "",
+        "seo_schema_json": "",
+        "seo_is_public_indexable": False,
+        "seo_google_analytics_id": "",
+        "seo_google_ads_id": "",
+        "seo_google_adsense_client_id": "",
+    }
+    return {
+        "feature_flags": settings.FEATURE_FLAGS,
+        "portal_subdomains": settings.PORTAL_SUBDOMAINS,
+        "portal_root_urls": {},
+        "portal_login_urls": {},
+        "current_portal_key": portal_key,
+        "ndga_base_domain": settings.NDGA_BASE_DOMAIN,
+        "setup_state": None,
+        "setup_state_code": "READY",
+        "setup_is_ready": True,
+        "setup_current_session": None,
+        "setup_current_term": None,
+        "show_setup_banner": False,
+        "notification_unread_count": 0,
+        "sync_runtime_status": {
+            "code": "LOCAL_MODE",
+            "label": "Local Mode",
+            "tone": "blue",
+            "pending_count": 0,
+            "local_node_id": "",
+            "cloud_configured": False,
+            "cloud_connected": False,
+            "offline_mode_enabled": bool(settings.FEATURE_FLAGS.get("OFFLINE_MODE_ENABLED", False)),
+            "latest_synced_at": None,
+            "dot_class": "bg-sky-500",
+            "chip_class": "border-sky-200 bg-sky-50 text-sky-800",
+        },
+        "portal_mode_chips": [],
+        "lan_runtime_restricted": False,
+        "show_portal_shell": False,
+        "portal_nav_items": [],
+        "portal_nav_sections": [],
+        "portal_shell_title": "NDGA CBT",
+        **seo_context,
+    }
 
 
 def _mode_chips(*, feature_flags, sync_runtime_status, portal_key):
@@ -65,10 +124,11 @@ def _mode_chips(*, feature_flags, sync_runtime_status, portal_key):
 
 def platform_context(request):
     portal_key = current_portal_key(request)
-    lan_runtime_restricted = bool(
-        getattr(settings, "LAN_RUNTIME_RESTRICT_PORTALS", False)
-        and (getattr(settings, "SYNC_NODE_ROLE", "CLOUD") or "CLOUD").strip().upper() == "LAN"
-    )
+    request_path = getattr(request, "path", "") or ""
+    if request_path.startswith("/cbt/attempts/"):
+        return _minimal_cbt_runtime_context(request, portal_key)
+    lan_runtime_restricted = lan_runtime_restrictions_enabled()
+    cloud_staff_operations_lan_only = cloud_staff_operations_lan_only_enabled()
     runtime_feature_flags = get_runtime_feature_flags()
     portal_root_urls = {
         key: build_portal_url(request, key, "/")
@@ -163,6 +223,7 @@ def platform_context(request):
             portal_key=portal_key,
         ),
         "lan_runtime_restricted": lan_runtime_restricted,
+        "cloud_staff_operations_lan_only": cloud_staff_operations_lan_only,
         "show_portal_shell": _show_portal_shell(request, portal_key),
         "portal_nav_items": portal_nav_items,
         "portal_nav_sections": _portal_nav_sections(portal_nav_items),
@@ -174,7 +235,7 @@ def platform_context(request):
 def _show_portal_shell(request, portal_key):
     if not getattr(request.user, "is_authenticated", False):
         return False
-    if portal_key == "landing":
+    if portal_key in {"landing", "portal"}:
         return False
     if request.path.startswith("/auth/login/"):
         return False

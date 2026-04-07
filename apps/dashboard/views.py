@@ -63,7 +63,11 @@ from apps.attendance.services import (
 from apps.setup_wizard.services import get_setup_state, setup_is_ready
 from apps.setup_wizard.feature_flags import FLAG_FIELD_MAP, get_runtime_feature_flags
 from apps.setup_wizard.models import RuntimeFeatureFlags
-from apps.tenancy.utils import current_portal_key
+from apps.tenancy.utils import (
+    cloud_staff_operations_lan_only_enabled,
+    current_portal_key,
+    user_has_lan_only_operation_roles,
+)
 from apps.dashboard.forms import (
     PrincipalSignatureForm,
     PrivilegedSecuritySettingsForm,
@@ -117,6 +121,10 @@ def _calculate_age(date_of_birth):
     if (today.month, today.day) < (date_of_birth.month, date_of_birth.day):
         years -= 1
     return max(years, 0)
+
+
+def _cloud_staff_admin_lan_only(user):
+    return cloud_staff_operations_lan_only_enabled() and user_has_lan_only_operation_roles(user)
 
 
 def _portal_file_url(file_field):
@@ -700,6 +708,7 @@ def _student_dashboard_payload(request, user):
 def _staff_dashboard_payload(user):
     current_session, current_term = _current_window()
     role_codes = user.get_all_role_codes()
+    cloud_staff_admin_lan_only = _cloud_staff_admin_lan_only(user)
     visible_class_total = _class_list_total()
 
     assignment_qs = TeacherSubjectAssignment.objects.filter(teacher=user, is_active=True)
@@ -791,7 +800,7 @@ def _staff_dashboard_payload(user):
     ).count()
 
     role_panels = []
-    if role_codes & {ROLE_SUBJECT_TEACHER, ROLE_DEAN, ROLE_FORM_TEACHER}:
+    if not cloud_staff_admin_lan_only and role_codes & {ROLE_SUBJECT_TEACHER, ROLE_DEAN, ROLE_FORM_TEACHER}:
         role_panels.append(
             {
                 "title": "Subject Teacher",
@@ -813,7 +822,7 @@ def _staff_dashboard_payload(user):
             }
         )
 
-    if ROLE_FORM_TEACHER in role_codes:
+    if not cloud_staff_admin_lan_only and ROLE_FORM_TEACHER in role_codes:
         role_panels.append(
             {
                 "title": "Form Teacher",
@@ -841,7 +850,7 @@ def _staff_dashboard_payload(user):
             }
         )
 
-    if ROLE_DEAN in role_codes:
+    if not cloud_staff_admin_lan_only and ROLE_DEAN in role_codes:
         role_panels.append(
             {
                 "title": "Academic Approval",
@@ -863,7 +872,7 @@ def _staff_dashboard_payload(user):
             }
         )
 
-    if ROLE_VP in role_codes:
+    if not cloud_staff_admin_lan_only and ROLE_VP in role_codes:
         role_panels.append(
             {
                 "title": "Vice Principal",
@@ -891,7 +900,7 @@ def _staff_dashboard_payload(user):
             }
         )
 
-    if ROLE_PRINCIPAL in role_codes:
+    if not cloud_staff_admin_lan_only and ROLE_PRINCIPAL in role_codes:
         role_panels.append(
             {
                 "title": "Principal",
@@ -1585,6 +1594,11 @@ class StaffPortalView(PortalPageView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context.update(_staff_dashboard_payload(self.request.user))
+        if _cloud_staff_admin_lan_only(self.request.user):
+            context["portal_description"] = (
+                "Cloud access remains available for profile updates and viewing school information. "
+                "Operational work runs on the school LAN."
+            )
         context["portal_priority_actions"] = _build_portal_priority_actions(
             portal_key=context["portal_key"],
             portal_action_items=context.get("portal_action_items", []),
@@ -1780,6 +1794,11 @@ class ITPortalView(PortalPageView):
         }
         context["it_enrollment_snapshot"] = _it_enrollment_snapshot(current_session=current_session)
         context["runtime_flags"] = runtime_flags
+        if _cloud_staff_admin_lan_only(self.request.user):
+            context["portal_description"] = (
+                "Cloud access is limited to viewing system information, audit visibility, and account security. "
+                "Provisioning, sync controls, CBT, elections, and setup run on the school LAN."
+            )
         context["portal_priority_actions"] = _build_portal_priority_actions(
             portal_key=context["portal_key"],
             portal_action_items=context.get("portal_action_items", []),
@@ -1803,16 +1822,22 @@ class VPPortalView(PortalPageView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context.update(_leadership_dashboard_payload(self.request))
+        cloud_staff_admin_lan_only = _cloud_staff_admin_lan_only(self.request.user)
         context["show_finance_summary"] = False
         context["show_election_summary"] = False
         context["finance_metrics"] = None
         context["students_page_url"] = reverse("dashboard:vp-students-biodata")
         context["staff_page_url"] = reverse("dashboard:vp-staff-biodata")
         context["election_page_url"] = ""
-        context["results_approval_url"] = reverse("results:approval-class-list")
-        context["staff_management_url"] = reverse("accounts:it-staff-directory")
-        context["student_management_url"] = reverse("accounts:it-student-directory")
-        context["media_center_url"] = reverse("notifications:media-center")
+        context["results_approval_url"] = "" if cloud_staff_admin_lan_only else reverse("results:approval-class-list")
+        context["staff_management_url"] = "" if cloud_staff_admin_lan_only else reverse("accounts:it-staff-directory")
+        context["student_management_url"] = "" if cloud_staff_admin_lan_only else reverse("accounts:it-student-directory")
+        context["media_center_url"] = "" if cloud_staff_admin_lan_only else reverse("notifications:media-center")
+        if cloud_staff_admin_lan_only:
+            context["portal_description"] = (
+                "Cloud access remains available for oversight review and profile updates. "
+                "Operational management runs on the school LAN."
+            )
         return context
 
 
@@ -1824,10 +1849,11 @@ class PrincipalPortalView(PortalPageView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context.update(_leadership_dashboard_payload(self.request))
+        cloud_staff_admin_lan_only = _cloud_staff_admin_lan_only(self.request.user)
         current_session, current_term = _current_window()
-        context["show_finance_summary"] = bool(current_session)
-        context["show_election_summary"] = True
-        if current_session:
+        context["show_finance_summary"] = bool(current_session) and not cloud_staff_admin_lan_only
+        context["show_election_summary"] = not cloud_staff_admin_lan_only
+        if current_session and not cloud_staff_admin_lan_only:
             from apps.finance.services import finance_summary_metrics
 
             context["finance_metrics"] = finance_summary_metrics(
@@ -1838,12 +1864,17 @@ class PrincipalPortalView(PortalPageView):
             context["finance_metrics"] = None
         context["students_page_url"] = reverse("dashboard:principal-students-biodata")
         context["staff_page_url"] = reverse("dashboard:principal-staff-biodata")
-        context["election_page_url"] = reverse("dashboard:principal-election-live")
-        context["results_approval_url"] = reverse("results:approval-class-list")
-        context["staff_management_url"] = reverse("accounts:it-staff-directory")
-        context["student_management_url"] = reverse("accounts:it-student-directory")
-        context["finance_summary_url"] = reverse("finance:summary")
-        context["media_center_url"] = reverse("notifications:media-center")
+        context["election_page_url"] = "" if cloud_staff_admin_lan_only else reverse("dashboard:principal-election-live")
+        context["results_approval_url"] = "" if cloud_staff_admin_lan_only else reverse("results:approval-class-list")
+        context["staff_management_url"] = "" if cloud_staff_admin_lan_only else reverse("accounts:it-staff-directory")
+        context["student_management_url"] = "" if cloud_staff_admin_lan_only else reverse("accounts:it-student-directory")
+        context["finance_summary_url"] = "" if cloud_staff_admin_lan_only else reverse("finance:summary")
+        context["media_center_url"] = "" if cloud_staff_admin_lan_only else reverse("notifications:media-center")
+        if cloud_staff_admin_lan_only:
+            context["portal_description"] = (
+                "Cloud access remains available for oversight review and profile updates. "
+                "Operational management runs on the school LAN."
+            )
         return context
 
 

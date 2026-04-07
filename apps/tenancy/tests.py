@@ -17,7 +17,7 @@ from apps.tenancy.utils import build_portal_url, current_portal_key
         "testserver",
         "ndgakuje.org",
         ".ndgakuje.org",
-        ".ndga.local",
+        ".ndgakuje.local",
     ],
     CSRF_TRUSTED_ORIGINS=[
         "http://localhost:8000",
@@ -112,6 +112,12 @@ class StageTwoHostRoutingTests(TestCase):
 
     def test_private_ip_student_cbt_runtime_uses_cbt_portal(self):
         request = RequestFactory().get("/cbt/exams/available/", HTTP_HOST="172.20.10.3")
+        request.user = self.student
+        self.assertEqual(current_portal_key(request), "cbt")
+
+    @override_settings(NDGA_LOCAL_SIMPLE_HOST_MODE=True)
+    def test_local_cbt_subdomain_root_uses_cbt_portal(self):
+        request = RequestFactory().get("/", HTTP_HOST="cbt.ndgakuje.local")
         request.user = self.student
         self.assertEqual(current_portal_key(request), "cbt")
 
@@ -264,6 +270,57 @@ class StageTwoHostRoutingTests(TestCase):
         self.assertNotContains(response, "Staff Management")
         self.assertContains(response, "CBT Setup")
         self.assertContains(response, "Election Setup")
+
+    @override_settings(
+        NDGA_LOCAL_SIMPLE_HOST_MODE=True,
+        SYNC_NODE_ROLE="CLOUD",
+        CLOUD_STAFF_OPERATIONS_LAN_ONLY=True,
+    )
+    def test_cloud_staff_operations_require_school_lan_but_profile_stays_available(self):
+        client = Client(HTTP_HOST="localhost:8000")
+        client.force_login(self.teacher_user)
+
+        blocked = client.get("/results/grade-entry/")
+        self.assertEqual(blocked.status_code, 403)
+        self.assertIn("school LAN", blocked.content.decode())
+
+        allowed = client.get("/portal/staff/profile/")
+        self.assertEqual(allowed.status_code, 200)
+        self.assertContains(allowed, "Staff Profile")
+
+    @override_settings(
+        NDGA_LOCAL_SIMPLE_HOST_MODE=True,
+        SYNC_NODE_ROLE="CLOUD",
+        CLOUD_STAFF_OPERATIONS_LAN_ONLY=True,
+    )
+    def test_cloud_staff_navigation_hides_lan_only_actions(self):
+        client = Client(HTTP_HOST="localhost:8000")
+        client.force_login(self.teacher_user)
+
+        response = client.get("/portal/staff/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Result Entry")
+        self.assertNotContains(response, "CBT Entry")
+        self.assertContains(response, "Profile")
+        self.assertContains(response, "Settings")
+
+    @override_settings(
+        NDGA_LOCAL_SIMPLE_HOST_MODE=True,
+        SYNC_NODE_ROLE="CLOUD",
+        CLOUD_STAFF_OPERATIONS_LAN_ONLY=True,
+    )
+    def test_cloud_it_keeps_sync_tools_but_blocks_provisioning(self):
+        client = Client(HTTP_HOST="localhost:8000")
+        client.force_login(self.it_user)
+
+        blocked = client.get("/auth/it/user-provisioning/students/directory/")
+        self.assertEqual(blocked.status_code, 403)
+        self.assertIn("school LAN", blocked.content.decode())
+
+        blocked_sync = client.get("/sync/dashboard/")
+        self.assertEqual(blocked_sync.status_code, 403)
+        self.assertIn("school LAN", blocked_sync.content.decode())
     def test_staff_login_page_copy_is_staff_only(self):
         client = Client(HTTP_HOST="staff.ndgakuje.org")
         response = client.get("/auth/login/?audience=staff")

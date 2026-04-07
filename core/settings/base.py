@@ -69,6 +69,7 @@ env = environ.Env(
     SYNC_PULL_BEAT_ENABLED=(bool, True),
     SYNC_PULL_BEAT_INTERVAL_SECONDS=(int, 5),
     LAN_RUNTIME_RESTRICT_PORTALS=(bool, False),
+    CLOUD_STAFF_OPERATIONS_LAN_ONLY=(bool, False),
     MONITOR_CELERY_QUEUE_NAMES=(str, "celery"),
     BACKUP_PG_ENABLED=(bool, False),
     BACKUP_PG_OUTPUT_DIR=(str, "backups/postgres"),
@@ -502,8 +503,13 @@ LAN_RUNTIME_RESTRICT_PORTALS = env.bool(
     "LAN_RUNTIME_RESTRICT_PORTALS",
     default=False,
 )
+CLOUD_STAFF_OPERATIONS_LAN_ONLY = env.bool(
+    "CLOUD_STAFF_OPERATIONS_LAN_ONLY",
+    default=(SYNC_NODE_ROLE == "CLOUD"),
+)
 if "test" in sys.argv:
     LAN_RUNTIME_RESTRICT_PORTALS = False
+    CLOUD_STAFF_OPERATIONS_LAN_ONLY = False
 MONITOR_CELERY_QUEUE_NAMES = [
     item.strip()
     for item in env("MONITOR_CELERY_QUEUE_NAMES", default="celery").split(",")

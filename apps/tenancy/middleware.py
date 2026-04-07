@@ -19,7 +19,14 @@ from apps.accounts.services import resolve_role_home_url
 from apps.audit.services import log_permission_denied_redirect
 from apps.setup_wizard.feature_flags import get_feature_flag
 from apps.setup_wizard.services import setup_is_ready
-from apps.tenancy.utils import build_portal_url, current_portal_key
+from apps.tenancy.utils import (
+    build_portal_url,
+    cloud_staff_operations_lan_only_enabled,
+    current_portal_key,
+    lan_runtime_restrictions_enabled,
+    path_is_cloud_lan_only_operation,
+    user_has_lan_only_operation_roles,
+)
 
 
 class PortalAccessMiddleware:
@@ -178,6 +185,10 @@ class PortalAccessMiddleware:
         if request.path.startswith(self.AUTH_BYPASS_PREFIXES):
             return self.get_response(request)
 
+        response = self._enforce_cloud_operation_restrictions(request)
+        if response is not None:
+            return response
+
         response = self._enforce_lan_runtime_restrictions(request)
         if response is not None:
             return response
@@ -213,14 +224,32 @@ class PortalAccessMiddleware:
 
         return self.get_response(request)
 
-    def _lan_restrictions_enabled(self):
-        return bool(
-            getattr(settings, "LAN_RUNTIME_RESTRICT_PORTALS", False)
-            and (getattr(settings, "SYNC_NODE_ROLE", "CLOUD") or "CLOUD").strip().upper() == "LAN"
-        )
+    def _enforce_cloud_operation_restrictions(self, request):
+        if not cloud_staff_operations_lan_only_enabled():
+            return None
+        if not getattr(request.user, "is_authenticated", False):
+            return None
+        if not user_has_lan_only_operation_roles(request.user):
+            return None
+        if not path_is_cloud_lan_only_operation(request.path):
+            return None
+        context = {
+            "restriction_title": "School LAN Only",
+            "restriction_heading": "This action can only be completed on the school LAN.",
+            "restriction_message": (
+                "Staff and admin operational work now runs from the school network so results, "
+                "attendance, finance records, CBT activity, and approvals stay aligned before sync."
+            ),
+            "allowed_summary": (
+                "Still available here: profile updates, account security, notifications, "
+                "messaging, student access, payment callbacks, and sync review tools."
+            ),
+            "current_node_label": "Cloud",
+        }
+        return render(request, "dashboard/lan_restricted.html", context=context, status=403)
 
     def _enforce_lan_runtime_restrictions(self, request):
-        if not self._lan_restrictions_enabled():
+        if not lan_runtime_restrictions_enabled():
             return None
         if request.path.startswith(self.PUBLIC_PATH_PREFIXES):
             return None
@@ -231,9 +260,17 @@ class PortalAccessMiddleware:
         if request.path.startswith(tuple(prefix for prefix in self.LAN_ONLY_ALLOWED_PREFIXES if prefix != "/")):
             return None
         context = {
-            "portal_key": request.portal_key,
-            "portal_label": "LAN Operations",
-            "cloud_label": "Cloud",
+            "restriction_title": "LAN Limited Mode",
+            "restriction_heading": "This LAN is reserved for CBT and election operations.",
+            "restriction_message": (
+                "Other portals remain available on cloud while this LAN stays focused on local "
+                "exam and election workloads."
+            ),
+            "allowed_summary": (
+                "Allowed on this LAN: CBT runtime and activation, election runtime and setup, "
+                "and sync operations."
+            ),
+            "current_node_label": "LAN",
         }
         return render(request, "dashboard/lan_restricted.html", context=context, status=403)
 
