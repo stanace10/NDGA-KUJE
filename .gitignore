@@ -1,4 +1,6 @@
 .env
+.env.lan
+.env.cloud
 .venv/
 .vscode/
 .postgres/

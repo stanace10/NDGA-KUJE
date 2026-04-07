@@ -4,6 +4,7 @@ This runbook covers the non-app hardening steps for the NDGA portal and the curr
 
 ## Current Hardening In Repo
 
+- `.env.lan` and `.env.cloud` are now treated as local-only secret files and should not be committed.
 - Payment webhooks now require signature checks.
 - Manual finance delta export now supports token validation, IP allow-list checks, payload signing, and optional AES-256-GCM encryption.
 - Cloud deployment no longer depends on a clean `git pull` on EC2. GitHub Actions now ships a deploy bundle directly to the server.
@@ -53,6 +54,8 @@ Required environment variables:
 
 - `SYNC_PAYLOAD_ENCRYPTION_ENABLED=True`
 - `SYNC_PAYLOAD_ENCRYPTION_KEY=<32-byte base64url key>`
+
+These values belong in the local env files on LAN and cloud, not in git.
 
 Optional rotation:
 
