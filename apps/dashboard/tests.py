@@ -6,8 +6,9 @@ from unittest.mock import patch
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.test import Client, TestCase, override_settings
+from django.utils import timezone
 
-from apps.accounts.constants import ROLE_IT_MANAGER, ROLE_PRINCIPAL, ROLE_STUDENT, ROLE_SUBJECT_TEACHER
+from apps.accounts.constants import ROLE_BURSAR, ROLE_IT_MANAGER, ROLE_PRINCIPAL, ROLE_STUDENT, ROLE_SUBJECT_TEACHER
 from apps.accounts.models import Role, StudentProfile, User
 from apps.academics.models import (
     AcademicClass,
@@ -31,6 +32,8 @@ from apps.dashboard.models import (
     LMSModule,
     PortalDocument,
     PrincipalSignature,
+    PublicAdmissionPaymentStatus,
+    PublicAdmissionWorkflowStatus,
     PublicSiteSubmission,
     PublicSubmissionType,
     WeeklyChallenge,
@@ -1021,4 +1024,119 @@ class PublicWebsiteLanViewTests(TestCase):
         submission = PublicSiteSubmission.objects.get(submission_type=PublicSubmissionType.ADMISSION)
         self.assertEqual(submission.applicant_name, "Mary James")
         self.assertEqual(submission.intended_class, "JSS1")
+
+    def test_live_chat_requires_email_and_returns_ticket_reference(self):
+        client = Client(HTTP_HOST="ndgakuje.org")
+        missing_email = client.post(
+            "/live-chat/",
+            {
+                "contact_name": "Visitor",
+                "contact_phone": "08022222222",
+                "message": "I need help with admission screening.",
+            },
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(missing_email.status_code, 400)
+        self.assertIn("contact_email", missing_email.json()["errors"])
+
+        response = client.post(
+            "/live-chat/",
+            {
+                "contact_name": "Visitor",
+                "contact_email": "visitor@example.com",
+                "contact_phone": "08022222222",
+                "message": "I need help with admission screening.",
+            },
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["ok"])
+        self.assertTrue(payload["ticket_reference"].startswith("NDGA-CHAT-"))
+
+
+@override_settings(
+    NDGA_LOCAL_SIMPLE_HOST_MODE=True,
+    ALLOWED_HOSTS=["localhost", "127.0.0.1", "testserver", "ndgakuje.org", ".ndgakuje.org"],
+)
+class AdmissionsWorkflowTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        student_role, _ = Role.objects.get_or_create(code=ROLE_STUDENT, defaults={"name": "Student"})
+        it_role, _ = Role.objects.get_or_create(code=ROLE_IT_MANAGER, defaults={"name": "IT Manager"})
+        bursar_role, _ = Role.objects.get_or_create(code=ROLE_BURSAR, defaults={"name": "Bursar"})
+        cls.it_user = User.objects.create_user(
+            username="it-admissions",
+            password="Password123!",
+            primary_role=it_role,
+            must_change_password=False,
+        )
+        cls.bursar = User.objects.create_user(
+            username="bursar-admissions",
+            password="Password123!",
+            primary_role=bursar_role,
+            must_change_password=False,
+        )
+        cls.session = AcademicSession.objects.create(name="2026/2027")
+        cls.term = Term.objects.create(session=cls.session, name="FIRST")
+        AcademicClass.objects.create(code="JS1", display_name="JS1")
+        setup_state = SystemSetupState.get_solo()
+        setup_state.state = SetupStateCode.IT_READY
+        setup_state.current_session = cls.session
+        setup_state.current_term = cls.term
+        setup_state.finalized_at = timezone.now()
+        setup_state.save(
+            update_fields=["state", "current_session", "current_term", "finalized_at", "updated_at"]
+        )
+        cls.submission = PublicSiteSubmission.objects.create(
+            submission_type=PublicSubmissionType.ADMISSION,
+            contact_name="Grace James",
+            contact_email="grace@example.com",
+            contact_phone="08011111111",
+            applicant_name="Mary James",
+            applicant_date_of_birth=date(2013, 5, 17),
+            intended_class="JSS1",
+            guardian_name="Grace James",
+            guardian_email="grace@example.com",
+            guardian_phone="08011111111",
+            residential_address="Kuje, Abuja",
+            previous_school="Good Shepherd",
+            boarding_option="BOARDING",
+        )
+
+    def test_bursar_can_mark_applicant_form_fee_paid(self):
+        client = Client(HTTP_HOST="localhost:8000")
+        client.force_login(self.bursar)
+        response = client.post(
+            "/portal/bursar/admissions/",
+            {
+                "action": "mark_paid",
+                "submission_id": self.submission.id,
+                "application_fee_amount": "15000",
+                "application_fee_reference": "FORM-001",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.submission.refresh_from_db()
+        self.assertEqual(self.submission.payment_status, PublicAdmissionPaymentStatus.PAID)
+        self.assertEqual(self.submission.admissions_status, PublicAdmissionWorkflowStatus.PENDING)
+        self.assertEqual(str(self.submission.application_fee_amount), "15000.00")
+
+    def test_it_can_approve_applicant_and_generate_student_number(self):
+        client = Client(HTTP_HOST="localhost:8000")
+        client.force_login(self.it_user)
+        response = client.post(
+            "/portal/it/admissions/",
+            {
+                "action": "approve",
+                "submission_id": self.submission.id,
+                "approval_notes": "Passed screening.",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.submission.refresh_from_db()
+        self.assertEqual(self.submission.admissions_status, PublicAdmissionWorkflowStatus.APPROVED)
+        self.assertTrue(self.submission.generated_admission_number.startswith("NDGAK/"))
+        self.assertIsNotNone(self.submission.linked_student)
+        self.assertTrue(StudentProfile.objects.filter(user=self.submission.linked_student).exists())
 

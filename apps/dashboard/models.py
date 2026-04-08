@@ -107,6 +107,19 @@ class PublicSubmissionStatus(models.TextChoices):
     CLOSED = "CLOSED", "Closed"
 
 
+class PublicAdmissionWorkflowStatus(models.TextChoices):
+    NEW = "NEW", "New"
+    PENDING = "PENDING", "Pending Review"
+    APPROVED = "APPROVED", "Approved"
+    DECLINED = "DECLINED", "Declined"
+
+
+class PublicAdmissionPaymentStatus(models.TextChoices):
+    UNPAID = "UNPAID", "Unpaid"
+    PAID = "PAID", "Paid"
+    WAIVED = "WAIVED", "Waived"
+
+
 class PublicSiteSubmission(TimeStampedModel):
     submission_type = models.CharField(
         max_length=16,
@@ -149,6 +162,36 @@ class PublicSiteSubmission(TimeStampedModel):
         blank=True,
         null=True,
     )
+    admissions_status = models.CharField(
+        max_length=16,
+        choices=PublicAdmissionWorkflowStatus.choices,
+        default=PublicAdmissionWorkflowStatus.NEW,
+    )
+    payment_status = models.CharField(
+        max_length=16,
+        choices=PublicAdmissionPaymentStatus.choices,
+        default=PublicAdmissionPaymentStatus.UNPAID,
+    )
+    application_fee_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    application_fee_reference = models.CharField(max_length=120, blank=True)
+    application_fee_paid_at = models.DateTimeField(null=True, blank=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reviewed_public_site_submissions",
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    linked_student = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="public_admission_submissions",
+    )
+    generated_admission_number = models.CharField(max_length=32, blank=True)
+    approval_notes = models.TextField(blank=True)
     metadata = models.JSONField(default=dict, blank=True)
 
     class Meta:
@@ -157,6 +200,7 @@ class PublicSiteSubmission(TimeStampedModel):
             models.Index(fields=("submission_type", "status", "created_at")),
             models.Index(fields=("contact_email",)),
             models.Index(fields=("intended_class",)),
+            models.Index(fields=("submission_type", "admissions_status", "payment_status")),
         ]
 
     def clean(self):
@@ -175,6 +219,9 @@ class PublicSiteSubmission(TimeStampedModel):
         self.previous_school = (self.previous_school or "").strip()
         self.boarding_option = (self.boarding_option or "").strip()
         self.medical_notes = (self.medical_notes or "").strip()
+        self.application_fee_reference = (self.application_fee_reference or "").strip()
+        self.generated_admission_number = (self.generated_admission_number or "").strip().upper()
+        self.approval_notes = (self.approval_notes or "").strip()
 
         if self.submission_type == PublicSubmissionType.CONTACT:
             if not self.subject:
@@ -193,6 +240,11 @@ class PublicSiteSubmission(TimeStampedModel):
             missing = [label for label, value in required_values.items() if not value]
             if missing:
                 raise ValidationError(", ".join(missing) + " required for admission registration.")
+            if (
+                self.admissions_status == PublicAdmissionWorkflowStatus.APPROVED
+                and not self.generated_admission_number
+            ):
+                raise ValidationError("Approved applicants must have an admission number.")
 
     def __str__(self):
         title = self.applicant_name or self.contact_name or "Public submission"

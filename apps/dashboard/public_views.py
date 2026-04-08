@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+from django.db.models import Q
 from django.http import Http404, JsonResponse
 from django.shortcuts import redirect
 from django.views import View
 from django.views.generic import TemplateView
 
+from apps.accounts.constants import ROLE_BURSAR, ROLE_IT_MANAGER, ROLE_PRINCIPAL, ROLE_VP
+from apps.accounts.models import User
 from apps.dashboard.forms import PublicAdmissionRegistrationForm, PublicContactForm
 from apps.dashboard.models import SchoolProfile
+from apps.notifications.models import NotificationCategory
+from apps.notifications.services import create_bulk_notifications, send_email_event
 from apps.dashboard.public_site import (
     PUBLIC_INDEXABLE_PATHS,
     get_public_events,
@@ -18,6 +23,58 @@ from apps.dashboard.public_site import (
     get_public_site_context,
     public_site_enabled,
 )
+
+
+def _management_team_recipients(*, include_bursar=False):
+    role_codes = [ROLE_IT_MANAGER, ROLE_VP, ROLE_PRINCIPAL]
+    if include_bursar:
+        role_codes.append(ROLE_BURSAR)
+    role_filter = Q(primary_role__code__in=role_codes) | Q(secondary_roles__code__in=role_codes)
+    return list(User.objects.filter(is_active=True).filter(role_filter).distinct())
+
+
+def _notify_public_submission(*, submission, request):
+    profile = SchoolProfile.load()
+    include_bursar = submission.submission_type == "ADMISSION"
+    recipients = _management_team_recipients(include_bursar=include_bursar)
+    if submission.submission_type == "ADMISSION":
+        title = f"New admission application: {submission.applicant_name or submission.contact_name}"
+        message = (
+            f"{submission.applicant_name or submission.contact_name} applied for {submission.intended_class or '-'}.\n"
+            f"Guardian: {submission.guardian_name or submission.contact_name} | "
+            f"Phone: {submission.guardian_phone or submission.contact_phone or '-'} | "
+            f"Payment: {submission.get_payment_status_display()}."
+        )
+    else:
+        title = f"New enquiry: {submission.subject or submission.category or 'Website message'}"
+        message = (
+            f"{submission.contact_name} sent a {submission.category or 'website'} message.\n"
+            f"Email: {submission.contact_email or '-'} | Phone: {submission.contact_phone or '-'}."
+        )
+    if recipients:
+        create_bulk_notifications(
+            recipients=recipients,
+            category=NotificationCategory.SYSTEM,
+            title=title,
+            message=message,
+            action_url="/notifications/center/",
+            metadata={
+                "event": "PUBLIC_SITE_SUBMISSION",
+                "submission_id": str(submission.id),
+                "submission_type": submission.submission_type,
+            },
+        )
+    send_email_event(
+        to_emails=[profile.contact_email or "office@ndgakuje.org"],
+        subject=f"NDGA Website: {title}",
+        body_text=f"{message}\n\nOpen the portal notification center for follow-up.",
+        request=request,
+        metadata={
+            "event": "PUBLIC_SITE_SUBMISSION",
+            "submission_id": str(submission.id),
+            "submission_type": submission.submission_type,
+        },
+    )
 
 
 class PublicSiteEnabledMixin:
@@ -221,7 +278,8 @@ class PublicContactView(PublicSiteEnabledMixin, TemplateView):
     def post(self, request, *args, **kwargs):
         form = PublicContactForm(request.POST)
         if form.is_valid():
-            form.save()
+            submission = form.save()
+            _notify_public_submission(submission=submission, request=request)
             return redirect(f"{request.path}?submitted=1")
         return self.render_to_response(self.get_context_data(form=form))
 
@@ -257,29 +315,49 @@ class PublicRegistrationView(PublicSiteEnabledMixin, TemplateView):
     def post(self, request, *args, **kwargs):
         form = PublicAdmissionRegistrationForm(request.POST, request.FILES)
         if form.is_valid():
-            form.save()
+            submission = form.save()
+            _notify_public_submission(submission=submission, request=request)
             return redirect(f"{request.path}?submitted=1")
         return self.render_to_response(self.get_context_data(form=form))
 
 
 class PublicLiveChatCreateView(PublicSiteEnabledMixin, View):
     def post(self, request, *args, **kwargs):
+        contact_email = request.POST.get("contact_email", "").strip()
+        if not contact_email:
+            return JsonResponse(
+                {
+                    "ok": False,
+                    "errors": {
+                        "contact_email": [
+                            {
+                                "message": "Email address is required so management can reply to you.",
+                                "code": "required",
+                            }
+                        ]
+                    },
+                },
+                status=400,
+            )
         form = PublicContactForm(
             {
                 "contact_name": request.POST.get("contact_name", "").strip(),
-                "contact_email": request.POST.get("contact_email", "").strip(),
+                "contact_email": contact_email,
                 "contact_phone": request.POST.get("contact_phone", "").strip(),
                 "category": "Live Chat",
-                "subject": "Website Live Chat",
+                "subject": "Website Management Chat",
                 "message": request.POST.get("message", "").strip(),
             }
         )
         if form.is_valid():
-            form.save()
+            submission = form.save()
+            _notify_public_submission(submission=submission, request=request)
+            ticket_reference = f"NDGA-CHAT-{submission.id:05d}"
             return JsonResponse(
                 {
                     "ok": True,
-                    "message": "Your message has been sent to the admissions desk.",
+                    "message": "Your message has been sent to management. Replies will go to your email.",
+                    "ticket_reference": ticket_reference,
                 }
             )
         return JsonResponse({"ok": False, "errors": form.errors.get_json_data()}, status=400)

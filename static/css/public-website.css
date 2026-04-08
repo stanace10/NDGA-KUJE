@@ -1645,6 +1645,406 @@ textarea {
   color: var(--public-navy);
 }
 
+.public-support-dock {
+  position: fixed;
+  right: 20px;
+  bottom: 24px;
+  z-index: 62;
+  display: grid;
+  gap: 12px;
+  justify-items: end;
+}
+
+.public-support-fab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.24s ease, box-shadow 0.24s ease;
+}
+
+.public-support-fab:hover {
+  transform: translateY(-3px);
+}
+
+.public-support-fab--chat {
+  gap: 10px;
+  padding: 10px 14px 10px 10px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #031630, #123c6d);
+  color: white;
+  box-shadow: 0 22px 40px rgba(0, 33, 71, 0.26);
+}
+
+.public-support-fab-mark,
+.public-support-fab--whatsapp {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+}
+
+.public-support-fab-mark {
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 0.86rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.public-support-fab-text {
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+}
+
+.public-support-fab--whatsapp {
+  background: #1fa55b;
+  color: white;
+  box-shadow: 0 16px 34px rgba(31, 165, 91, 0.32);
+}
+
+.public-support-fab--whatsapp svg {
+  width: 24px;
+  height: 24px;
+  fill: currentColor;
+}
+
+.public-support-panel {
+  position: fixed;
+  right: 22px;
+  bottom: 96px;
+  width: min(390px, calc(100vw - 26px));
+  z-index: 61;
+  border-radius: 30px;
+  overflow: hidden;
+  background: white;
+  border: 1px solid rgba(7, 25, 53, 0.08);
+  box-shadow: 0 34px 80px rgba(5, 17, 38, 0.2);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(22px) scale(0.98);
+  transition: opacity 0.28s ease, transform 0.28s ease, visibility 0.28s ease;
+}
+
+.public-support-panel.is-open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+
+.public-support-header {
+  padding: 22px 22px 18px;
+  background: linear-gradient(180deg, #03214d 0%, #0b376a 100%);
+  color: white;
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 14px;
+}
+
+.public-support-header p {
+  margin: 10px 0 0;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.public-support-brand-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.public-support-avatars {
+  display: inline-flex;
+  align-items: center;
+}
+
+.public-support-avatars span {
+  width: 28px;
+  height: 28px;
+  margin-left: -8px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.15);
+  display: grid;
+  place-items: center;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.public-support-body {
+  min-height: 460px;
+  background:
+    linear-gradient(180deg, rgba(248, 249, 250, 0.94) 0%, rgba(255, 255, 255, 1) 28%),
+    radial-gradient(circle at top right, rgba(212, 175, 55, 0.16), transparent 44%);
+}
+
+.public-support-view {
+  display: none;
+  padding: 18px;
+  gap: 16px;
+}
+
+.public-support-view.is-active {
+  display: grid;
+}
+
+.public-support-hero {
+  padding: 18px;
+  border-radius: 22px;
+  background: rgba(0, 33, 71, 0.04);
+  border: 1px solid rgba(0, 33, 71, 0.08);
+}
+
+.public-support-hero h3,
+.public-support-management-note strong,
+.public-support-subhead span {
+  margin: 0;
+  color: var(--public-navy);
+}
+
+.public-support-hero p,
+.public-support-management-note p,
+.public-support-subhead small,
+.public-support-ticket-card p,
+.public-support-ticket-card small {
+  margin: 8px 0 0;
+  color: var(--public-copy);
+  line-height: 1.65;
+}
+
+.public-support-primary-link {
+  width: 100%;
+  border: 0;
+  border-radius: 20px;
+  padding: 16px 18px;
+  background: white;
+  box-shadow: 0 16px 30px rgba(4, 17, 38, 0.08);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-weight: 700;
+  color: var(--public-navy);
+  cursor: pointer;
+}
+
+.public-support-primary-link svg {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
+}
+
+.public-support-home-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.public-support-home-card {
+  width: 100%;
+  border: 1px solid rgba(0, 33, 71, 0.08);
+  background: white;
+  border-radius: 18px;
+  padding: 15px 16px;
+  text-align: left;
+  font-weight: 700;
+  color: var(--public-ink);
+  box-shadow: 0 12px 24px rgba(4, 17, 38, 0.05);
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
+  cursor: pointer;
+}
+
+.public-support-home-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 28px rgba(4, 17, 38, 0.1);
+}
+
+.public-support-resource-list {
+  display: grid;
+  gap: 10px;
+}
+
+.public-support-resource-list a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(0, 33, 71, 0.04);
+  color: var(--public-navy);
+  font-weight: 700;
+}
+
+.public-support-subhead {
+  display: grid;
+  gap: 4px;
+}
+
+.public-support-thread {
+  max-height: 248px;
+  overflow: auto;
+  display: grid;
+  gap: 12px;
+  padding: 4px 2px 4px;
+}
+
+.public-live-chat-bubble {
+  max-width: 84%;
+  padding: 14px 16px;
+  border-radius: 22px;
+  display: grid;
+  gap: 6px;
+  line-height: 1.62;
+  box-shadow: 0 10px 22px rgba(4, 17, 38, 0.05);
+}
+
+.public-live-chat-bubble strong {
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.public-live-chat-bubble p {
+  margin: 0;
+}
+
+.public-live-chat-bubble.is-user {
+  justify-self: start;
+  background: rgba(0, 33, 71, 0.08);
+  color: var(--public-ink);
+  border-bottom-left-radius: 8px;
+}
+
+.public-live-chat-bubble.is-agent {
+  justify-self: end;
+  background: rgba(212, 175, 55, 0.18);
+  color: var(--public-navy-deep);
+  border-bottom-right-radius: 8px;
+}
+
+.public-support-escalation {
+  padding: 16px;
+  border-radius: 20px;
+  background: rgba(212, 175, 55, 0.12);
+  border: 1px solid rgba(212, 175, 55, 0.22);
+}
+
+.public-support-escalation p {
+  margin: 0 0 12px;
+  font-weight: 700;
+  color: var(--public-navy);
+}
+
+.public-support-escalation-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.public-chatbot-form.public-support-question-form {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  padding: 0;
+}
+
+.public-chatbot-form.public-support-question-form input {
+  width: 100%;
+  border-radius: 18px;
+  border: 1px solid rgba(0, 33, 71, 0.12);
+  background: white;
+}
+
+.public-chatbot-form.public-support-question-form button {
+  min-width: 84px;
+  border-radius: 18px;
+}
+
+.public-support-management-shell {
+  display: grid;
+  gap: 14px;
+}
+
+.public-support-management-note {
+  padding: 16px;
+  border-radius: 20px;
+  background: rgba(0, 33, 71, 0.04);
+  border: 1px solid rgba(0, 33, 71, 0.08);
+}
+
+.public-live-chat-form {
+  display: grid;
+  gap: 12px;
+}
+
+.public-live-chat-form input,
+.public-live-chat-form textarea {
+  width: 100%;
+  border: 1px solid rgba(0, 33, 71, 0.12);
+  border-radius: 18px;
+  padding: 13px 14px;
+  background: white;
+}
+
+.public-live-chat-status {
+  min-height: 20px;
+  margin: 0;
+  color: var(--public-copy);
+  font-size: 0.92rem;
+}
+
+.public-support-ticket-list {
+  display: grid;
+  gap: 12px;
+}
+
+.public-support-ticket-card {
+  padding: 16px;
+  border-radius: 20px;
+  background: white;
+  box-shadow: 0 12px 26px rgba(4, 17, 38, 0.06);
+}
+
+.public-support-ticket-card strong {
+  color: var(--public-navy);
+}
+
+.public-support-ticket-card.is-empty {
+  background: rgba(0, 33, 71, 0.04);
+  box-shadow: none;
+}
+
+.public-support-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  padding: 12px;
+  border-top: 1px solid rgba(0, 33, 71, 0.08);
+  background: white;
+}
+
+.public-support-tabs button {
+  border: 0;
+  border-radius: 16px;
+  padding: 12px 10px;
+  background: transparent;
+  color: var(--public-copy);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.public-support-tabs button.is-active {
+  background: rgba(0, 33, 71, 0.08);
+  color: var(--public-navy);
+}
+
 .public-subject-band {
   margin-top: 26px;
   display: flex;

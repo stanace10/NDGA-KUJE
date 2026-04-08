@@ -289,6 +289,10 @@ class StageTwoHostRoutingTests(TestCase):
         self.assertEqual(allowed.status_code, 200)
         self.assertContains(allowed, "Staff Profile")
 
+        readonly_results = client.get("/portal/staff/results-overview/")
+        self.assertEqual(readonly_results.status_code, 200)
+        self.assertContains(readonly_results, "Results Overview")
+
     @override_settings(
         NDGA_LOCAL_SIMPLE_HOST_MODE=True,
         SYNC_NODE_ROLE="CLOUD",
@@ -303,6 +307,7 @@ class StageTwoHostRoutingTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertNotContains(response, "Result Entry")
         self.assertNotContains(response, "CBT Entry")
+        self.assertContains(response, "Results Overview")
         self.assertContains(response, "Profile")
         self.assertContains(response, "Settings")
 

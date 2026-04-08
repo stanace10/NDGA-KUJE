@@ -5,6 +5,7 @@ from apps.dashboard.models import (
     LessonPlanDraft,
     PortalDocument,
     PrincipalSignature,
+    PublicAdmissionWorkflowStatus,
     PublicSiteSubmission,
 )
 
@@ -41,13 +42,23 @@ class PublicSiteSubmissionAdmin(admin.ModelAdmin):
     list_display = (
         "submission_type",
         "status",
+        "admissions_status",
+        "payment_status",
         "applicant_name",
         "contact_name",
         "contact_email",
         "intended_class",
+        "generated_admission_number",
         "created_at",
     )
-    list_filter = ("submission_type", "status", "intended_class", "boarding_option")
+    list_filter = (
+        "submission_type",
+        "status",
+        "admissions_status",
+        "payment_status",
+        "intended_class",
+        "boarding_option",
+    )
     search_fields = (
         "contact_name",
         "contact_email",
@@ -56,4 +67,13 @@ class PublicSiteSubmissionAdmin(admin.ModelAdmin):
         "guardian_name",
         "guardian_phone",
         "subject",
+        "generated_admission_number",
+        "application_fee_reference",
     )
+    actions = ("mark_admission_pending",)
+
+    @admin.action(description="Mark selected admissions as pending review")
+    def mark_admission_pending(self, request, queryset):
+        queryset.filter(submission_type="ADMISSION").update(
+            admissions_status=PublicAdmissionWorkflowStatus.PENDING
+        )

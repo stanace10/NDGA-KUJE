@@ -128,6 +128,14 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
             )
             items.append(
                 _nav_item(
+                    label="Admissions Applicants",
+                    url="/portal/it/admissions/",
+                    request_path=request_path,
+                    matches=("/portal/it/admissions/",),
+                )
+            )
+            items.append(
+                _nav_item(
                     label="Audit Logs",
                     url="/audit/events/",
                     request_path=request_path,
@@ -231,6 +239,14 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                 url="/portal/it/",
                 request_path=request_path,
                 matches=("/", "/portal/it/$"),
+            )
+        )
+        items.append(
+            _nav_item(
+                label="Admissions Applicants",
+                url="/portal/it/admissions/",
+                request_path=request_path,
+                matches=("/portal/it/admissions/",),
             )
         )
         items.append(
@@ -351,6 +367,23 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
     if portal_key == "staff":
         if cloud_staff_admin_restricted:
             items.append(_nav_item(label="Dashboard", url="/", request_path=request_path, matches=("/", "/portal/staff/$")))
+            items.append(
+                _nav_item(
+                    label="Results Overview",
+                    url="/portal/staff/results-overview/",
+                    request_path=request_path,
+                    matches=("/portal/staff/results-overview/",),
+                )
+            )
+            if ROLE_FORM_TEACHER in role_codes:
+                items.append(
+                    _nav_item(
+                        label="Attendance Overview",
+                        url="/portal/staff/attendance-overview/",
+                        request_path=request_path,
+                        matches=("/portal/staff/attendance-overview/",),
+                    )
+                )
             items.append(
                 _nav_item(
                     label="Profile",
@@ -620,6 +653,12 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                         matches=("/results/report/",),
                     ),
                     _nav_item(
+                        label="Admissions Applicants",
+                        url="/portal/vp/admissions/",
+                        request_path=request_path,
+                        matches=("/portal/vp/admissions/",),
+                    ),
+                    _nav_item(
                         label="Notifications",
                         url="/notifications/center/",
                         request_path=request_path,
@@ -721,6 +760,12 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                     matches=("/attendance/form/",),
                 ),
                 _nav_item(
+                    label="Admissions Applicants",
+                    url="/portal/vp/admissions/",
+                    request_path=request_path,
+                    matches=("/portal/vp/admissions/",),
+                ),
+                _nav_item(
                     label="Staff Management",
                     url="/auth/it/user-provisioning/staff/directory/",
                     request_path=request_path,
@@ -793,6 +838,12 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                         matches=("/results/report/",),
                     ),
                     _nav_item(
+                        label="Admissions Applicants",
+                        url="/portal/principal/admissions/",
+                        request_path=request_path,
+                        matches=("/portal/principal/admissions/",),
+                    ),
+                    _nav_item(
                         label="Notifications",
                         url="/notifications/center/",
                         request_path=request_path,
@@ -846,6 +897,12 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                     url="/",
                     request_path=request_path,
                     matches=("/", "/portal/principal/$"),
+                ),
+                _nav_item(
+                    label="Admissions Applicants",
+                    url="/portal/principal/admissions/",
+                    request_path=request_path,
+                    matches=("/portal/principal/admissions/",),
                 ),
                 _nav_item(
                     label="Staff Management",
@@ -1040,6 +1097,12 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                         matches=("/", "/portal/bursar/$", "/finance/bursar/dashboard/"),
                     ),
                     _nav_item(
+                        label="Applicant Fees",
+                        url="/portal/bursar/admissions/",
+                        request_path=request_path,
+                        matches=("/portal/bursar/admissions/",),
+                    ),
+                    _nav_item(
                         label="Notifications",
                         url="/notifications/center/",
                         request_path=request_path,
@@ -1062,6 +1125,12 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                     url="/finance/bursar/dashboard/",
                     request_path=request_path,
                     matches=("/", "/portal/bursar/$", "/finance/bursar/dashboard/"),
+                ),
+                _nav_item(
+                    label="Applicant Fees",
+                    url="/portal/bursar/admissions/",
+                    request_path=request_path,
+                    matches=("/portal/bursar/admissions/",),
                 ),
                 _nav_item(
                     label="Fees",

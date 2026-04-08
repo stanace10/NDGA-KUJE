@@ -57,6 +57,7 @@ from apps.results.models import (
 )
 from apps.attendance.models import AttendanceRecord, AttendanceStatus
 from apps.attendance.services import (
+    get_form_teacher_assignments_for_current_session,
     get_current_student_attendance_snapshot,
     get_student_attendance_snapshot_for_window,
 )
@@ -972,6 +973,88 @@ def _staff_dashboard_payload(user):
     }
 
 
+def _staff_results_readonly_payload(user):
+    current_session, current_term = _current_window()
+    assignment_qs = TeacherSubjectAssignment.objects.filter(teacher=user, is_active=True).select_related(
+        "academic_class",
+        "subject",
+        "session",
+        "term",
+    )
+    if current_session:
+        assignment_qs = assignment_qs.filter(session=current_session)
+    if current_term:
+        assignment_qs = assignment_qs.filter(term=current_term)
+
+    rows = []
+    for assignment in assignment_qs.order_by("academic_class__code", "subject__name"):
+        sheet = ResultSheet.objects.filter(
+            academic_class=assignment.academic_class,
+            subject=assignment.subject,
+            session=assignment.session,
+            term=assignment.term,
+        ).first()
+        rows.append(
+            {
+                "class_code": assignment.academic_class.code,
+                "subject_name": assignment.subject.name,
+                "status_label": sheet.get_status_display() if sheet else "Not Started",
+                "status_code": sheet.status if sheet else "",
+                "updated_at": getattr(sheet, "updated_at", None),
+            }
+        )
+
+    published_count = ResultSheet.objects.filter(
+        created_by=user,
+        status=ResultSheetStatus.PUBLISHED,
+    ).count()
+    return {
+        "current_session": current_session,
+        "current_term": current_term,
+        "result_rows": rows,
+        "result_counts": {
+            "assigned": len(rows),
+            "draft": len([row for row in rows if row["status_code"] == ResultSheetStatus.DRAFT]),
+            "submitted": len([row for row in rows if row["status_code"] == ResultSheetStatus.SUBMITTED_TO_DEAN]),
+            "published": published_count,
+        },
+    }
+
+
+def _staff_attendance_readonly_payload(user):
+    current_session, current_term = _current_window()
+    assignment_qs = get_form_teacher_assignments_for_current_session(user)
+    rows = []
+    for assignment in assignment_qs:
+        instructional_class = assignment.academic_class.instructional_class
+        records = AttendanceRecord.objects.filter(
+            academic_class=instructional_class,
+            calendar__session=assignment.session,
+        )
+        if current_term:
+            records = records.filter(calendar__term=current_term)
+        rows.append(
+            {
+                "class_code": assignment.academic_class.display_name or assignment.academic_class.code,
+                "present_count": records.filter(status=AttendanceStatus.PRESENT).count(),
+                "absent_count": records.filter(status=AttendanceStatus.ABSENT).count(),
+                "marked_days": records.values("date").distinct().count(),
+                "latest_marked": records.order_by("-date").values_list("date", flat=True).first(),
+            }
+        )
+    return {
+        "current_session": current_session,
+        "current_term": current_term,
+        "attendance_rows": rows,
+        "attendance_counts": {
+            "classes": len(rows),
+            "marked_classes": len([row for row in rows if row["marked_days"] > 0]),
+            "total_present": sum(row["present_count"] for row in rows),
+            "total_absent": sum(row["absent_count"] for row in rows),
+        },
+    }
+
+
 def _leadership_school_payload(request):
     current_session, current_term = _current_window()
     search_query = (request.GET.get("q") or "").strip()
@@ -1673,6 +1756,34 @@ class StaffProfileView(StaffPortalBaseView):
             "published": result_sheet_qs.filter(status=ResultSheetStatus.PUBLISHED).count(),
         }
         context["form_assignments"] = form_assignment_qs.order_by("-session__name", "academic_class__code")
+        return context
+
+
+class StaffResultsOverviewView(StaffPortalBaseView):
+    template_name = "dashboard/staff_results_overview.html"
+    portal_description = "Read-only result visibility for cloud access."
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(_staff_results_readonly_payload(self.request.user))
+        context["readonly_notice"] = (
+            "This page is read-only on cloud. Use the school LAN for score entry, dean review, "
+            "and any result updates."
+        )
+        return context
+
+
+class StaffAttendanceOverviewView(StaffPortalBaseView):
+    template_name = "dashboard/staff_attendance_overview.html"
+    portal_description = "Read-only attendance visibility for cloud access."
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(_staff_attendance_readonly_payload(self.request.user))
+        context["readonly_notice"] = (
+            "This page is read-only on cloud. Use the school LAN for attendance marking "
+            "and attendance corrections."
+        )
         return context
 
 

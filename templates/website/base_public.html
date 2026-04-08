@@ -221,69 +221,121 @@
     </div>
   </div>
 
-  <button type="button" class="public-chatbot-trigger" data-chatbot-open aria-label="Open Smart Julie">
-    <span>SND</span>
-  </button>
-  <section class="public-chatbot" data-chatbot>
-    <header>
-      <div>
-        <strong>Smart Julie</strong>
-        <p>Hello! I am Julie. How can I help you join the NDGA family today?</p>
-      </div>
-      <button type="button" data-chatbot-close aria-label="Close chat">&times;</button>
-    </header>
-    <div class="public-chatbot-suggestions">
-      {% block chatbot_suggestions %}
-        <button type="button" data-chatbot-chip="How do I apply?">How do I apply?</button>
-        <button type="button" data-chatbot-chip="Tell me about exams">Entrance Exams</button>
-        <button type="button" data-chatbot-chip="Tell me about boarding">Boarding</button>
-        <button type="button" data-chatbot-chip="How do I contact admissions?">Admissions Contact</button>
-      {% endblock %}
-    </div>
-    <div class="public-chatbot-log" data-chatbot-log>
-      <article class="is-bot">Admissions, boarding, exams, directions, and contact support are all available here.</article>
-    </div>
-    <form class="public-chatbot-form" data-chatbot-form>
-      <input type="text" placeholder="Ask a question">
-      <button type="submit">Send</button>
-    </form>
-    <div class="public-chatbot-support-row">
-      <button type="button" class="public-chatbot-support" data-live-chat-open>Start Live Chat</button>
-      <a href="{{ public_contact.whatsapp_url }}" class="public-chatbot-support is-secondary" target="_blank" rel="noreferrer">WhatsApp</a>
-    </div>
-  </section>
+  <div class="public-support-dock">
+    <button type="button" class="public-support-fab public-support-fab--chat" data-chatbot-open aria-label="Open Smart Julie">
+      <span class="public-support-fab-mark">SND</span>
+      <span class="public-support-fab-text">Julie</span>
+    </button>
+    <a href="{{ public_contact.whatsapp_url }}" class="public-support-fab public-support-fab--whatsapp" target="_blank" rel="noreferrer" aria-label="Open WhatsApp chat">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.03 2.5A9.45 9.45 0 0 0 4 16.9L2.9 21l4.23-1.08A9.53 9.53 0 1 0 12.03 2.5Zm0 17.1a7.9 7.9 0 0 1-4.02-1.1l-.28-.17-2.5.64.67-2.42-.18-.29a7.93 7.93 0 1 1 6.3 3.34Zm4.34-5.98c-.24-.12-1.4-.7-1.61-.77-.21-.08-.37-.12-.52.12-.16.23-.6.77-.74.92-.14.16-.27.17-.5.06-.24-.12-1-.36-1.9-1.15-.7-.62-1.16-1.38-1.3-1.61-.13-.24-.02-.37.1-.49.11-.11.23-.28.35-.42.11-.14.15-.24.23-.4.08-.16.04-.3-.02-.42-.06-.12-.52-1.25-.71-1.71-.19-.45-.39-.39-.52-.39h-.45c-.16 0-.42.06-.64.3-.22.23-.84.82-.84 2 0 1.18.87 2.32.99 2.47.12.16 1.7 2.6 4.11 3.65.57.25 1.02.4 1.37.52.57.18 1.09.16 1.5.1.46-.07 1.4-.58 1.6-1.14.2-.56.2-1.04.14-1.14-.06-.1-.22-.16-.46-.28Z"/></svg>
+    </a>
+  </div>
 
-  <section class="public-live-chat" data-live-chat>
-    <header>
+  <section class="public-support-panel" data-chatbot>
+    <header class="public-support-header">
       <div>
-        <strong>Live Chat</strong>
-        <p>Send a direct message to the admissions desk. Visitor messages appear on the left and school replies on the right.</p>
+        <div class="public-support-brand-row">
+          <strong>Smart Julie</strong>
+          <div class="public-support-avatars" aria-hidden="true">
+            <span>J</span>
+            <span>M</span>
+            <span>N</span>
+          </div>
+        </div>
+        <p>Hello. I am Julie. How can I help you join the NDGA family today?</p>
       </div>
-      <button type="button" data-live-chat-close aria-label="Close live chat">&times;</button>
+      <button type="button" data-chatbot-close aria-label="Close support panel">&times;</button>
     </header>
-    <div class="public-live-chat-thread" data-live-chat-thread>
-      <article class="public-live-chat-bubble is-agent">
-        <strong>NDGA Admissions</strong>
-        <p>Welcome to Notre Dame Girls' Academy. Share your name, phone number, or email and tell us how we can help.</p>
-      </article>
-      <article class="public-live-chat-bubble is-agent">
-        <strong>NDGA Admissions</strong>
-        <p>For admission, fees, boarding, screening dates, or directions, send your message here and our team will follow up.</p>
-      </article>
+
+    <div class="public-support-body">
+      <section class="public-support-view is-active" data-support-view="home">
+        <div class="public-support-hero">
+          <h3>Need help with admissions, boarding, fees, or school life?</h3>
+          <p>Start with the AI assistant. If the answer is not enough, Julie will offer to connect you with management.</p>
+        </div>
+        <button type="button" class="public-support-primary-link" data-support-open-messages>
+          <span>Send us a message</span>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l8 7-8 7v-4.8L13.2 12 8 9.8V5Z"/></svg>
+        </button>
+        <div class="public-support-home-grid">
+          {% for prompt in chatbot_prompts %}
+            <button type="button" class="public-support-home-card" data-chatbot-chip="{{ prompt }}">
+              <span>{{ prompt }}</span>
+            </button>
+          {% endfor %}
+        </div>
+        <div class="public-support-resource-list">
+          <a href="/admissions/">Admissions Guide</a>
+          <a href="/fees/">Fees and Boarding</a>
+          <a href="{{ public_contact.maps_url }}" target="_blank" rel="noreferrer">School Directions</a>
+          <a href="/contact/">Contact the School</a>
+        </div>
+      </section>
+
+      <section class="public-support-view" data-support-view="messages">
+        <div class="public-support-subhead">
+          <span>Messages</span>
+          <small>Bot guidance first. Management follow-up when needed.</small>
+        </div>
+        <div class="public-chatbot-log public-support-thread" data-chatbot-log>
+          <article class="public-live-chat-bubble is-agent">
+            <strong>Smart Julie</strong>
+            <p>Ask about admissions, entrance screening, boarding, fees, subjects, term dates, or directions.</p>
+          </article>
+        </div>
+        <div class="public-support-escalation" data-chatbot-escalation hidden>
+          <p>Would you like to chat with management?</p>
+          <div class="public-support-escalation-actions">
+            <button type="button" class="public-chatbot-support" data-chatbot-escalate="yes">Yes, connect me</button>
+            <button type="button" class="public-chatbot-support is-secondary" data-chatbot-escalate="no">No, continue here</button>
+          </div>
+        </div>
+        <form class="public-chatbot-form public-support-question-form" data-chatbot-form>
+          <input type="text" placeholder="Ask Julie a question">
+          <button type="submit">Send</button>
+        </form>
+        <div class="public-support-management-shell" data-live-chat-shell hidden>
+          <div class="public-support-management-note">
+            <strong>Management queue</strong>
+            <p>Replies are sent to the visitor email you provide. If no agent is available, a ticket is created automatically.</p>
+          </div>
+          <form class="public-live-chat-form" data-live-chat-form method="post" action="{{ public_live_chat_url }}">
+            {% csrf_token %}
+            <input type="text" name="contact_name" placeholder="Your name" required>
+            <input type="email" name="contact_email" placeholder="Email address" required>
+            <input type="tel" name="contact_phone" placeholder="Phone number">
+            <textarea name="message" rows="4" placeholder="Type your message here" required></textarea>
+            <button type="submit" class="public-cta">Send message</button>
+            <p class="public-live-chat-status" data-live-chat-status></p>
+          </form>
+        </div>
+      </section>
+
+      <section class="public-support-view" data-support-view="tickets">
+        <div class="public-support-subhead">
+          <span>Tickets</span>
+          <small>Requests awaiting management follow-up.</small>
+        </div>
+        <div class="public-support-ticket-list" data-support-ticket-list>
+          <article class="public-support-ticket-card is-empty">
+            <strong>No open tickets yet</strong>
+            <p>When a management request is submitted, the reference and status will appear here during your visit.</p>
+          </article>
+        </div>
+      </section>
     </div>
-    <form class="public-live-chat-form" data-live-chat-form method="post" action="{{ public_live_chat_url }}">
-      {% csrf_token %}
-      <input type="text" name="contact_name" placeholder="Your name" required>
-      <input type="email" name="contact_email" placeholder="Email address">
-      <input type="tel" name="contact_phone" placeholder="Phone number">
-      <textarea name="message" rows="4" placeholder="Type your message here" required></textarea>
-      <button type="submit" class="public-cta">Send Message</button>
-      <p class="public-live-chat-status" data-live-chat-status></p>
-    </form>
-    <div class="public-live-chat-links">
-      <a href="{{ public_contact.whatsapp_url }}" target="_blank" rel="noreferrer">WhatsApp</a>
-      <a href="{{ public_contact.maps_url }}" target="_blank" rel="noreferrer">Open Map</a>
-    </div>
+
+    <nav class="public-support-tabs" aria-label="Support navigation">
+      <button type="button" class="is-active" data-support-tab="home">
+        <span>Home</span>
+      </button>
+      <button type="button" data-support-tab="messages">
+        <span>Messages</span>
+      </button>
+      <button type="button" data-support-tab="tickets">
+        <span>Tickets</span>
+      </button>
+    </nav>
   </section>
 
   <script src="{% static 'js/public-website.js' %}"></script>

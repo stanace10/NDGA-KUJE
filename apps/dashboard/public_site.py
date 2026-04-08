@@ -164,11 +164,11 @@ PUBLIC_NEWS = [
     {
         "slug": "third-term-resumption-2026",
         "category": "School Calendar",
-        "date": "April 18, 2026",
-        "title": "Third term for the 2025/2026 session resumes on April 18, 2026",
-        "summary": "Families are encouraged to prepare uniforms, academic materials, and boarding essentials ahead of resumption.",
+        "date": "April 20, 2026",
+        "title": "Third term for the 2025/2026 session resumes on April 20, 2026",
+        "summary": "Families are encouraged to prepare uniforms, academic materials, and boarding essentials ahead of resumption on Monday, April 20, 2026.",
         "body": [
-            "The second term has now been concluded, and the school is preparing to receive students for the third term of the 2025/2026 academic session on Friday, April 18, 2026.",
+            "The second term has now been concluded, and the school is preparing to receive students for the third term of the 2025/2026 academic session on Monday, April 20, 2026.",
             "Parents and guardians are encouraged to confirm student travel arrangements, personal supplies, and all resumption requirements early so that students can settle back into school routine smoothly.",
         ],
         "image": PUBLIC_IMAGE["campus_view"],
@@ -215,9 +215,9 @@ PUBLIC_EVENTS = [
     {
         "slug": "third-term-resumption",
         "title": "Third term resumption",
-        "summary": "Students resume for the third term of the 2025/2026 session on Friday, April 18, 2026.",
+        "summary": "Students resume for the third term of the 2025/2026 session on Monday, April 20, 2026.",
         "meta": "School Calendar",
-        "date": "April 18, 2026",
+        "date": "April 20, 2026",
         "location": "Notre Dame Girls' Academy, Kuje-Abuja",
     },
     {

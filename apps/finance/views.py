@@ -28,6 +28,7 @@ from apps.accounts.permissions import has_any_role
 from apps.academics.models import AcademicClass, AcademicSession, StudentClassEnrollment, Term
 from apps.audit.models import AuditStatus
 from apps.audit.services import get_client_ip, log_event, log_finance_transaction
+from apps.dashboard.models import PublicSiteSubmission, PublicSubmissionType
 from apps.finance.forms import (
     BursarMessageForm,
     ExpenseForm,
@@ -89,6 +90,8 @@ def _apply_gateway_provider_choices(form):
 
 
 def _preferred_portal_for_user(user):
+    if not getattr(user, "is_authenticated", False):
+        return "landing"
     if user.has_role(ROLE_STUDENT):
         return "student"
     if user.has_role(ROLE_BURSAR):
@@ -581,6 +584,12 @@ class BursarFinanceDashboardView(BursarAccessMixin, TemplateView):
         )
         context["recent_receipts"] = Receipt.objects.select_related("payment", "payment__student", "payment__gateway_transaction").order_by("-issued_at")[:12]
         context["recent_payments"] = Payment.objects.select_related("student", "receipt", "gateway_transaction").order_by("-created_at")[:12]
+        applicant_rows = PublicSiteSubmission.objects.filter(submission_type=PublicSubmissionType.ADMISSION)
+        context["admissions_counts"] = {
+            "total": applicant_rows.count(),
+            "paid": applicant_rows.filter(payment_status="PAID").count(),
+            "pending": applicant_rows.filter(admissions_status__in=["NEW", "PENDING"]).count(),
+        }
         return context
 
 
