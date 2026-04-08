@@ -1,0 +1,71 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Transcript Requests{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-[94rem] px-4 py-5 sm:px-6 lg:px-8">
+    <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 class="text-2xl font-bold text-slate-900">Transcript Requests</h1>
+          <p class="mt-1 text-sm text-slate-600">Review paid transcript requests and release transcript access only after confirmation.</p>
+        </div>
+        <form method="get" class="flex flex-wrap items-center gap-2">
+          <select name="status" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
+            <option value="all" {% if status_filter == "all" %}selected{% endif %}>All requests</option>
+            <option value="pending" {% if status_filter == "pending" %}selected{% endif %}>Pending review</option>
+            <option value="paid" {% if status_filter == "paid" %}selected{% endif %}>Paid only</option>
+            <option value="approved" {% if status_filter == "approved" %}selected{% endif %}>Approved</option>
+          </select>
+          <button type="submit" class="ndga-btn ndga-btn-primary">Apply</button>
+        </form>
+      </div>
+    </article>
+
+    <div class="mt-4 grid gap-4">
+      {% for row in transcript_requests %}
+        <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div class="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h2 class="text-lg font-semibold text-slate-900">{{ row.student.get_full_name|default:row.student.username }}</h2>
+              <p class="mt-1 text-sm text-slate-600">
+                Requested {{ row.created_at|date:"M j, Y g:i A" }}
+                {% if row.session %}| {{ row.session.name }}{% endif %}
+                | Amount: NGN {{ row.amount }}
+              </p>
+              <div class="mt-3 flex flex-wrap gap-2 text-xs font-semibold uppercase tracking-[0.12em]">
+                <span class="rounded-full bg-slate-100 px-3 py-1 text-slate-700">{{ row.get_payment_status_display }}</span>
+                <span class="rounded-full bg-amber-100 px-3 py-1 text-amber-800">{{ row.get_approval_status_display }}</span>
+                {% if row.gateway_transaction %}
+                  <span class="rounded-full bg-sky-100 px-3 py-1 text-sky-800">{{ row.gateway_transaction.reference }}</span>
+                {% endif %}
+              </div>
+              {% if row.response_message %}
+                <p class="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">{{ row.response_message }}</p>
+              {% endif %}
+            </div>
+            <div class="min-w-[18rem] flex-1 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <form method="post" class="space-y-3">
+                {% csrf_token %}
+                <input type="hidden" name="request_id" value="{{ row.id }}">
+                <textarea name="response_message" rows="3" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm" placeholder="Add a release note or follow-up note"></textarea>
+                <div class="flex flex-wrap gap-2">
+                  <button type="submit" name="action" value="approve" class="ndga-btn ndga-btn-primary" {% if row.payment_status != "PAID" %}disabled{% endif %}>
+                    Release Transcript
+                  </button>
+                  <button type="submit" name="action" value="reject" class="ndga-btn ndga-btn-secondary">
+                    Return for Follow-up
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </article>
+      {% empty %}
+        <article class="rounded-3xl border border-slate-200 bg-white px-5 py-6 text-sm text-slate-600 shadow-sm">
+          No transcript requests found for this filter yet.
+        </article>
+      {% endfor %}
+    </div>
+  </section>
+{% endblock %}

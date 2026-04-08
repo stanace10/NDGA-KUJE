@@ -98,7 +98,7 @@ class NotificationDetailView(LoginRequiredMixin, TemplateView):
             self.notification.category == NotificationCategory.PAYMENT
             and action_url in {"", "/portal/student", "/portal/student/"}
         ):
-            action_url = "/finance/student/overview/"
+            action_url = "/portal/student/finance/"
         context["notification"] = self.notification
         context["resolved_action_url"] = action_url
         return context

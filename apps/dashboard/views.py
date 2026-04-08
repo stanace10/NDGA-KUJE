@@ -583,7 +583,7 @@ def _student_dashboard_payload(request, user):
     attendance_label, attendance_tone_class = _attendance_tone(attendance_snapshot)
 
     reports_center_url = reverse("pdfs:student-reports")
-    transcript_url = reverse("pdfs:student-transcript-download")
+    transcript_url = reverse("dashboard:student-transcript")
     notifications_center_url = reverse("notifications:center")
     term_report_view_url = result_status.get("term_report_view_url", "")
     term_report_url = result_status.get("term_report_url", "")
@@ -1596,8 +1596,19 @@ class StudentTranscriptView(StudentPortalBaseView):
     portal_description = "Full transcript and session transcript downloads."
 
     def get_context_data(self, **kwargs):
+        from apps.finance.models import TranscriptRequest
+        from apps.finance.services import finance_profile, gateway_is_enabled, gateway_provider_label
+
         context = super().get_context_data(**kwargs)
         context.update(_student_dashboard_payload(self.request, self.request.user))
+        current_session, current_term = _current_window()
+        finance_settings = finance_profile()
+        transcript_request = (
+            TranscriptRequest.objects.filter(student=self.request.user)
+            .select_related("gateway_transaction", "payment", "approved_by", "session")
+            .order_by("-created_at")
+            .first()
+        )
 
         published_rows = (
             ClassResultCompilation.objects.filter(
@@ -1640,7 +1651,212 @@ class StudentTranscriptView(StudentPortalBaseView):
         context["session_transcript_rows"] = session_transcript_rows
         context["available_sessions"] = available_sessions
         context["selected_session"] = selected_session
+        context["current_session"] = current_session
+        context["current_term"] = current_term
+        context["transcript_request"] = transcript_request
+        context["transcript_access_granted"] = bool(transcript_request and transcript_request.is_access_granted)
+        context["transcript_fee_amount"] = finance_settings.transcript_fee_amount
+        context["transcript_fee_note"] = finance_settings.transcript_fee_note
+        context["gateway_enabled"] = gateway_is_enabled()
+        context["gateway_provider_label"] = gateway_provider_label()
+        context["transcript_download_url"] = reverse("pdfs:student-transcript-download")
         return context
+
+    def post(self, request, *args, **kwargs):
+        from apps.finance.models import (
+            TranscriptRequest,
+            TranscriptRequestApprovalStatus,
+            TranscriptRequestPaymentStatus,
+        )
+        from apps.finance.services import finance_profile, initialize_gateway_payment_transaction
+
+        action = (request.POST.get("action") or "").strip().lower()
+        if action != "init_transcript_payment":
+            messages.error(request, "Invalid transcript action.")
+            return redirect("dashboard:student-transcript")
+
+        session, term = _current_window()
+        if session is None:
+            messages.error(request, "Transcript requests require an active school session.")
+            return redirect("dashboard:student-transcript")
+
+        profile = finance_profile()
+        if profile.transcript_fee_amount <= 0:
+            messages.error(request, "Transcript fee has not been configured yet. Please contact management.")
+            return redirect("dashboard:student-transcript")
+
+        latest_request = (
+            TranscriptRequest.objects.filter(student=request.user)
+            .order_by("-created_at")
+            .first()
+        )
+        if latest_request and latest_request.is_access_granted:
+            messages.success(request, "Your transcript is already available for download.")
+            return redirect("dashboard:student-transcript")
+
+        transcript_request = latest_request
+        if transcript_request is None or transcript_request.approval_status == TranscriptRequestApprovalStatus.REJECTED:
+            transcript_request = TranscriptRequest.objects.create(
+                student=request.user,
+                session=session,
+                requested_by=request.user,
+                amount=profile.transcript_fee_amount,
+                note="Student transcript request created from the portal.",
+            )
+        else:
+            transcript_request.session = session
+            transcript_request.amount = profile.transcript_fee_amount
+            transcript_request.response_message = ""
+            transcript_request.save(update_fields=["session", "amount", "response_message", "updated_at"])
+
+        try:
+            transaction_row = initialize_gateway_payment_transaction(
+                student=request.user,
+                session=session,
+                term=term,
+                amount=profile.transcript_fee_amount,
+                initiated_by=request.user,
+                request=request,
+                auto_email_link=False,
+            )
+        except Exception as exc:
+            messages.error(request, "; ".join(getattr(exc, "messages", []) or [str(exc)]))
+            return redirect("dashboard:student-transcript")
+
+        metadata = dict(transaction_row.metadata or {})
+        metadata.update(
+            {
+                "service_kind": "TRANSCRIPT",
+                "transcript_request_id": transcript_request.id,
+                "redirect_path": reverse("dashboard:student-transcript"),
+            }
+        )
+        transaction_row.metadata = metadata
+        transaction_row.save(update_fields=["metadata", "updated_at"])
+
+        transcript_request.gateway_transaction = transaction_row
+        transcript_request.payment_status = TranscriptRequestPaymentStatus.INITIALIZED
+        transcript_request.response_message = (
+            "Transcript payment has been initialized. Complete payment to continue to management review."
+        )
+        transcript_request.save(
+            update_fields=["gateway_transaction", "payment_status", "response_message", "updated_at"]
+        )
+
+        if transaction_row.authorization_url:
+            return redirect(transaction_row.authorization_url)
+        messages.success(request, f"Transcript payment reference {transaction_row.reference} has been created.")
+        return redirect("dashboard:student-transcript")
+
+
+class TranscriptRequestManagementView(PortalPageView):
+    template_name = "dashboard/transcript_requests.html"
+    portal_name = "Transcript Requests"
+    portal_description = "Review paid transcript requests and release transcript access."
+
+    def dispatch(self, request, *args, **kwargs):
+        if not has_any_role(request.user, {ROLE_IT_MANAGER, ROLE_VP, ROLE_PRINCIPAL}):
+            return redirect("dashboard:landing")
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        from apps.finance.models import TranscriptRequest
+
+        context = super().get_context_data(**kwargs)
+        status_filter = (self.request.GET.get("status") or "all").strip().lower()
+        rows = TranscriptRequest.objects.select_related(
+            "student",
+            "student__student_profile",
+            "payment",
+            "gateway_transaction",
+            "approved_by",
+            "session",
+        ).order_by("-created_at")
+        if status_filter == "pending":
+            rows = rows.filter(approval_status="PENDING")
+        elif status_filter == "approved":
+            rows = rows.filter(approval_status="APPROVED")
+        elif status_filter == "paid":
+            rows = rows.filter(payment_status="PAID")
+        context["transcript_requests"] = rows[:150]
+        context["status_filter"] = status_filter
+        return context
+
+    def post(self, request, *args, **kwargs):
+        from apps.finance.models import (
+            TranscriptRequest,
+            TranscriptRequestApprovalStatus,
+            TranscriptRequestPaymentStatus,
+        )
+        from apps.notifications.models import NotificationCategory
+        from apps.notifications.services import create_notification, send_email_event
+
+        transcript_request = get_object_or_404(TranscriptRequest, pk=request.POST.get("request_id"))
+        action = (request.POST.get("action") or "").strip().lower()
+        note = (request.POST.get("response_message") or "").strip()
+
+        if action == "approve":
+            if transcript_request.payment_status != TranscriptRequestPaymentStatus.PAID:
+                messages.error(request, "Transcript can only be released after payment is confirmed.")
+                return redirect("dashboard:transcript-requests")
+            transcript_request.approval_status = TranscriptRequestApprovalStatus.APPROVED
+            transcript_request.approved_by = request.user
+            transcript_request.approved_at = timezone.now()
+            transcript_request.released_at = timezone.now()
+            transcript_request.response_message = note or (
+                "Your transcript request has been approved. You can now access your transcript from the student portal."
+            )
+            transcript_request.save(
+                update_fields=[
+                    "approval_status",
+                    "approved_by",
+                    "approved_at",
+                    "released_at",
+                    "response_message",
+                    "updated_at",
+                ]
+            )
+            create_notification(
+                recipient=transcript_request.student,
+                category=NotificationCategory.SYSTEM,
+                title="Transcript request approved",
+                message=transcript_request.response_message,
+                created_by=request.user,
+                action_url=reverse("dashboard:student-transcript"),
+                metadata={"transcript_request_id": transcript_request.id},
+            )
+            student_email = (transcript_request.student.email or "").strip()
+            if student_email:
+                send_email_event(
+                    to_emails=[student_email],
+                    subject="NDGA Transcript Request Approved",
+                    body_text=transcript_request.response_message,
+                    actor=request.user,
+                    request=request,
+                    metadata={"event": "TRANSCRIPT_REQUEST_APPROVED", "transcript_request_id": transcript_request.id},
+                )
+            messages.success(request, "Transcript access released to the student.")
+            return redirect("dashboard:transcript-requests")
+
+        if action == "reject":
+            transcript_request.approval_status = TranscriptRequestApprovalStatus.REJECTED
+            transcript_request.approved_by = request.user
+            transcript_request.approved_at = timezone.now()
+            transcript_request.response_message = note or "Transcript request was reviewed and needs follow-up with management."
+            transcript_request.save(
+                update_fields=[
+                    "approval_status",
+                    "approved_by",
+                    "approved_at",
+                    "response_message",
+                    "updated_at",
+                ]
+            )
+            messages.success(request, "Transcript request updated.")
+            return redirect("dashboard:transcript-requests")
+
+        messages.error(request, "Invalid transcript management action.")
+        return redirect("dashboard:transcript-requests")
 
 
 class StudentSettingsView(StudentPortalBaseView):
@@ -1955,7 +2171,7 @@ class BursarPortalView(PortalPageView):
     portal_description = "Finance operations and receipt controls."
 
     def get(self, request, *args, **kwargs):
-        return redirect("finance:bursar-dashboard")
+        return redirect("dashboard:bursar-finance")
 
 
 class VPPortalView(PortalPageView):
@@ -2026,6 +2242,18 @@ class ITPublicWebsiteSettingsView(PortalPageView):
     template_name = "dashboard/public_website_settings.html"
     portal_name = "IT Manager Portal"
     portal_description = "Manage public website content, contact details, gallery, news, and events."
+    SECTION_META = {
+        "overview": {"label": "Overview", "description": "Open the public website control pages."},
+        "branding": {"label": "Branding", "description": "School name, principal name, and logo."},
+        "contact": {"label": "Contact Details", "description": "Phone, email, address, and website."},
+        "homepage": {"label": "Homepage Hero", "description": "Main heading and red support line on the homepage."},
+        "principal": {"label": "Principal Message", "description": "Principal welcome heading and message blocks."},
+        "support-chat": {"label": "Support & Footer", "description": "Footer statement and chatbot copy."},
+        "gallery-categories": {"label": "Gallery Categories", "description": "Create and manage gallery sections."},
+        "gallery-images": {"label": "Gallery Images", "description": "Upload and update images for each section."},
+        "news": {"label": "News & Blog", "description": "Publish school updates and blog entries."},
+        "events": {"label": "Events", "description": "Manage upcoming and past school events."},
+    }
 
     def dispatch(self, request, *args, **kwargs):
         if not any(request.user.has_role(code) for code in {ROLE_IT_MANAGER, ROLE_VP, ROLE_PRINCIPAL}):
@@ -2039,8 +2267,65 @@ class ITPublicWebsiteSettingsView(PortalPageView):
     def _public_site_settings(self):
         return PublicWebsiteSettings.load()
 
+    def _active_section(self):
+        section = (self.kwargs.get("section") or "overview").strip().lower()
+        if section not in self.SECTION_META:
+            section = "overview"
+        return section
+
+    def _section_url(self, section):
+        if section == "overview":
+            return reverse("dashboard:it-public-website-settings")
+        return reverse("dashboard:it-public-website-section", kwargs={"section": section})
+
+    def _redirect_to_section(self, section):
+        return redirect(self._section_url(section or "overview"))
+
+    def _profile_form_payload(self, request, profile):
+        return {
+            "school_name": request.POST.get("school_name", profile.school_name),
+            "address": request.POST.get("address", profile.address),
+            "contact_email": request.POST.get("contact_email", profile.contact_email),
+            "contact_phone": request.POST.get("contact_phone", profile.contact_phone),
+            "website": request.POST.get("website", profile.website),
+            "principal_name": request.POST.get("principal_name", profile.principal_name),
+        }
+
+    def _site_settings_form_payload(self, request, settings_row):
+        return {
+            "hero_eyebrow": request.POST.get("hero_eyebrow", settings_row.hero_eyebrow),
+            "hero_title": request.POST.get("hero_title", settings_row.hero_title),
+            "hero_subtitle": request.POST.get("hero_subtitle", settings_row.hero_subtitle),
+            "principal_welcome_title": request.POST.get(
+                "principal_welcome_title", settings_row.principal_welcome_title
+            ),
+            "principal_welcome_message": request.POST.get(
+                "principal_welcome_message", settings_row.principal_welcome_message
+            ),
+            "principal_welcome_support": request.POST.get(
+                "principal_welcome_support", settings_row.principal_welcome_support
+            ),
+            "footer_statement": request.POST.get("footer_statement", settings_row.footer_statement),
+            "chat_welcome_text": request.POST.get("chat_welcome_text", settings_row.chat_welcome_text),
+            "chat_management_wait_text": request.POST.get(
+                "chat_management_wait_text", settings_row.chat_management_wait_text
+            ),
+        }
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        active_section = kwargs.get("active_section") or self._active_section()
+        context["active_section"] = active_section
+        context["website_sections"] = [
+            {
+                "slug": slug,
+                "label": meta["label"],
+                "description": meta["description"],
+                "url": self._section_url(slug),
+                "is_active": slug == active_section,
+            }
+            for slug, meta in self.SECTION_META.items()
+        ]
         context["branding_form"] = kwargs.get("branding_form") or PublicSiteBrandingForm(instance=self._site_profile())
         context["site_settings_form"] = kwargs.get("site_settings_form") or PublicWebsiteSettingsForm(
             instance=self._public_site_settings()
@@ -2059,137 +2344,200 @@ class ITPublicWebsiteSettingsView(PortalPageView):
 
     def post(self, request, *args, **kwargs):
         action = (request.POST.get("action") or "").strip().lower()
+        active_section = (request.POST.get("return_section") or self._active_section()).strip().lower()
 
         if action == "save_branding":
-            form = PublicSiteBrandingForm(request.POST, request.FILES, instance=self._site_profile())
+            profile = self._site_profile()
+            form = PublicSiteBrandingForm(
+                self._profile_form_payload(request, profile),
+                request.FILES,
+                instance=profile,
+            )
             if not form.is_valid():
-                return self.render_to_response(self.get_context_data(branding_form=form))
+                return self.render_to_response(self.get_context_data(branding_form=form, active_section="branding"))
             profile = form.save(commit=False)
             profile.updated_by = request.user
             profile.save()
             messages.success(request, "Public contact and branding details updated.")
-            return redirect("dashboard:it-public-website-settings")
+            return self._redirect_to_section("branding")
+
+        if action == "save_contact":
+            profile = self._site_profile()
+            form = PublicSiteBrandingForm(
+                self._profile_form_payload(request, profile),
+                request.FILES,
+                instance=profile,
+            )
+            if not form.is_valid():
+                return self.render_to_response(self.get_context_data(branding_form=form, active_section="contact"))
+            profile = form.save(commit=False)
+            profile.updated_by = request.user
+            profile.save()
+            messages.success(request, "Public contact details updated.")
+            return self._redirect_to_section("contact")
 
         if action == "save_site_settings":
-            form = PublicWebsiteSettingsForm(request.POST, instance=self._public_site_settings())
+            settings_row = self._public_site_settings()
+            form = PublicWebsiteSettingsForm(
+                self._site_settings_form_payload(request, settings_row),
+                instance=settings_row,
+            )
             if not form.is_valid():
-                return self.render_to_response(self.get_context_data(site_settings_form=form))
+                return self.render_to_response(self.get_context_data(site_settings_form=form, active_section="homepage"))
             settings_row = form.save(commit=False)
             settings_row.updated_by = request.user
             settings_row.save()
             messages.success(request, "Public homepage and support text updated.")
-            return redirect("dashboard:it-public-website-settings")
+            return self._redirect_to_section("homepage")
+
+        if action == "save_principal_message":
+            settings_row = self._public_site_settings()
+            form = PublicWebsiteSettingsForm(
+                self._site_settings_form_payload(request, settings_row),
+                instance=settings_row,
+            )
+            if not form.is_valid():
+                return self.render_to_response(self.get_context_data(site_settings_form=form, active_section="principal"))
+            settings_row = form.save(commit=False)
+            settings_row.updated_by = request.user
+            settings_row.save()
+            messages.success(request, "Principal message updated.")
+            return self._redirect_to_section("principal")
+
+        if action == "save_support_settings":
+            settings_row = self._public_site_settings()
+            form = PublicWebsiteSettingsForm(
+                self._site_settings_form_payload(request, settings_row),
+                instance=settings_row,
+            )
+            if not form.is_valid():
+                return self.render_to_response(
+                    self.get_context_data(site_settings_form=form, active_section="support-chat")
+                )
+            settings_row = form.save(commit=False)
+            settings_row.updated_by = request.user
+            settings_row.save()
+            messages.success(request, "Support and footer text updated.")
+            return self._redirect_to_section("support-chat")
 
         if action == "create_gallery_category":
             form = PublicGalleryCategoryForm(request.POST, request.FILES)
             if not form.is_valid():
-                return self.render_to_response(self.get_context_data(gallery_category_form=form))
+                return self.render_to_response(
+                    self.get_context_data(gallery_category_form=form, active_section="gallery-categories")
+                )
             row = form.save(commit=False)
             row.updated_by = request.user
             row.save()
             messages.success(request, "Gallery category saved.")
-            return redirect("dashboard:it-public-website-settings")
+            return self._redirect_to_section("gallery-categories")
 
         if action == "update_gallery_category":
             row = get_object_or_404(PublicGalleryCategory, pk=request.POST.get("row_id"))
             form = PublicGalleryCategoryForm(request.POST, request.FILES, instance=row)
             if not form.is_valid():
-                return self.render_to_response(self.get_context_data(gallery_category_form=form))
+                return self.render_to_response(
+                    self.get_context_data(gallery_category_form=form, active_section="gallery-categories")
+                )
             row = form.save(commit=False)
             row.updated_by = request.user
             row.save()
             messages.success(request, "Gallery category updated.")
-            return redirect("dashboard:it-public-website-settings")
+            return self._redirect_to_section("gallery-categories")
 
         if action == "delete_gallery_category":
             row = get_object_or_404(PublicGalleryCategory, pk=request.POST.get("row_id"))
             row.delete()
             messages.success(request, "Gallery category deleted.")
-            return redirect("dashboard:it-public-website-settings")
+            return self._redirect_to_section("gallery-categories")
 
         if action == "create_gallery_image":
             form = PublicGalleryImageForm(request.POST, request.FILES)
             if not form.is_valid():
-                return self.render_to_response(self.get_context_data(gallery_image_form=form))
+                return self.render_to_response(
+                    self.get_context_data(gallery_image_form=form, active_section="gallery-images")
+                )
             row = form.save(commit=False)
             row.updated_by = request.user
             row.save()
             messages.success(request, "Gallery image saved.")
-            return redirect("dashboard:it-public-website-settings")
+            return self._redirect_to_section("gallery-images")
 
         if action == "update_gallery_image":
             row = get_object_or_404(PublicGalleryImage, pk=request.POST.get("row_id"))
             form = PublicGalleryImageForm(request.POST, request.FILES, instance=row)
             if not form.is_valid():
-                return self.render_to_response(self.get_context_data(gallery_image_form=form))
+                return self.render_to_response(
+                    self.get_context_data(gallery_image_form=form, active_section="gallery-images")
+                )
             row = form.save(commit=False)
             row.updated_by = request.user
             row.save()
             messages.success(request, "Gallery image updated.")
-            return redirect("dashboard:it-public-website-settings")
+            return self._redirect_to_section("gallery-images")
 
         if action == "delete_gallery_image":
             row = get_object_or_404(PublicGalleryImage, pk=request.POST.get("row_id"))
             row.delete()
             messages.success(request, "Gallery image deleted.")
-            return redirect("dashboard:it-public-website-settings")
+            return self._redirect_to_section("gallery-images")
 
         if action == "create_news_post":
             form = PublicNewsPostForm(request.POST, request.FILES)
             if not form.is_valid():
-                return self.render_to_response(self.get_context_data(news_form=form))
+                return self.render_to_response(self.get_context_data(news_form=form, active_section="news"))
             row = form.save(commit=False)
             row.updated_by = request.user
             row.save()
             messages.success(request, "News item saved.")
-            return redirect("dashboard:it-public-website-settings")
+            return self._redirect_to_section("news")
 
         if action == "update_news_post":
             row = get_object_or_404(PublicNewsPost, pk=request.POST.get("row_id"))
             form = PublicNewsPostForm(request.POST, request.FILES, instance=row)
             if not form.is_valid():
-                return self.render_to_response(self.get_context_data(news_form=form))
+                return self.render_to_response(self.get_context_data(news_form=form, active_section="news"))
             row = form.save(commit=False)
             row.updated_by = request.user
             row.save()
             messages.success(request, "News item updated.")
-            return redirect("dashboard:it-public-website-settings")
+            return self._redirect_to_section("news")
 
         if action == "delete_news_post":
             row = get_object_or_404(PublicNewsPost, pk=request.POST.get("row_id"))
             row.delete()
             messages.success(request, "News item deleted.")
-            return redirect("dashboard:it-public-website-settings")
+            return self._redirect_to_section("news")
 
         if action == "create_event_post":
             form = PublicEventPostForm(request.POST, request.FILES)
             if not form.is_valid():
-                return self.render_to_response(self.get_context_data(event_form=form))
+                return self.render_to_response(self.get_context_data(event_form=form, active_section="events"))
             row = form.save(commit=False)
             row.updated_by = request.user
             row.save()
             messages.success(request, "Event saved.")
-            return redirect("dashboard:it-public-website-settings")
+            return self._redirect_to_section("events")
 
         if action == "update_event_post":
             row = get_object_or_404(PublicEventPost, pk=request.POST.get("row_id"))
             form = PublicEventPostForm(request.POST, request.FILES, instance=row)
             if not form.is_valid():
-                return self.render_to_response(self.get_context_data(event_form=form))
+                return self.render_to_response(self.get_context_data(event_form=form, active_section="events"))
             row = form.save(commit=False)
             row.updated_by = request.user
             row.save()
             messages.success(request, "Event updated.")
-            return redirect("dashboard:it-public-website-settings")
+            return self._redirect_to_section("events")
 
         if action == "delete_event_post":
             row = get_object_or_404(PublicEventPost, pk=request.POST.get("row_id"))
             row.delete()
             messages.success(request, "Event deleted.")
-            return redirect("dashboard:it-public-website-settings")
+            return self._redirect_to_section("events")
 
         messages.error(request, "Invalid public website action.")
-        return redirect("dashboard:it-public-website-settings")
+        return self._redirect_to_section(active_section)
 
 
 class PrincipalSettingsView(PortalPageView):

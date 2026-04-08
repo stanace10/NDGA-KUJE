@@ -14,18 +14,19 @@ from apps.dashboard.models import (
 
 PUBLIC_IMAGE = {
     "hero": "images/public/facility-campus-view.jpeg",
-    "hero_alt": "images/public/campus-life-1.jpg",
+    "hero_alt": "images/public/community-assembly.jpg",
     "hero_music": "images/public/social-clubs-1.jpg",
     "hero_students": "images/public/classroom-computing-wide.jpg",
     "hero_video": "videos/ndga-campus.mp4",
     "principal": "images/public/principal-portrait.jpeg",
+    "principal_large": "images/public/principal-portrait-large.jpeg",
     "logo": "images/ndga/logo.png",
     "campus": "images/public/facility-entrance.jpeg",
     "campus_view": "images/public/facility-campus-view.jpeg",
     "campus_refectory": "images/public/facility-refectory.jpeg",
     "campus_block": "images/public/campus-block.jpg",
-    "campus-life-1": "images/public/campus-life-1.jpg",
-    "campus-life-2": "images/public/campus-life-2.jpg",
+    "campus-life-1": "images/public/facility-campus-view.jpeg",
+    "campus-life-2": "images/public/community-assembly.jpg",
     "computer_lab": "images/public/classroom-computing-students.jpg",
     "computer_lab_junior": "images/public/classroom-computing-wide.jpg",
     "computer_lab_pair": "images/public/classroom-computing-pair.jpg",
@@ -48,6 +49,8 @@ PUBLIC_IMAGE = {
     "pioneers": "images/public/events-pioneers-1.jpg",
     "pioneers_alt": "images/public/events-pioneers-2.jpg",
     "events_stage": "images/public/events-voice-battle.jpg",
+    "leadership_sisters": "images/public/sisters-official-1.jpg",
+    "leadership_sisters_alt": "images/public/sisters-official-2.jpg",
 }
 
 
@@ -409,6 +412,16 @@ PUBLIC_PAGE_CONTENT = {
                 ],
             },
             {
+                "layout": "split",
+                "eyebrow": "Child Safeguarding",
+                "title": "Student safety, dignity, and welfare are a clear school responsibility",
+                "body": [
+                    "As a school owned and managed by the Sisters of Notre Dame de Namur, NDGA recognises and upholds the dignity and rights of every child. The school is committed to student safety and well-being and works in partnership with parents, guardians, staff, and all responsible adults to do this well.",
+                    "The academy values the participation of children in activities that support their spiritual, physical, emotional, intellectual, and social development. Staff and every adult who serves the school share responsibility for safeguarding children through a safe, caring environment that protects their best interests and prevents abuse.",
+                ],
+                "image": PUBLIC_IMAGE["campus_view"],
+            },
+            {
                 "layout": "list",
                 "eyebrow": "Notre Dame Hallmarks",
                 "title": "The seven hallmarks that shape NDGA",
@@ -432,13 +445,32 @@ PUBLIC_PAGE_CONTENT = {
                 ],
                 "image": PUBLIC_IMAGE["campus_view"],
             },
+            {
+                "layout": "cards",
+                "eyebrow": "Child Safeguarding",
+                "title": "Student safety and dignity remain part of the school's duty of care",
+                "cards": [
+                    {
+                        "title": "A gift from God",
+                        "text": "NDGA recognises every child as a gift from God and values the participation of students in activities that support their spiritual, physical, emotional, intellectual, and social development.",
+                    },
+                    {
+                        "title": "Shared responsibility",
+                        "text": "Staff, religious, and volunteers are expected to protect welfare, promote safety, and work with parents and guardians in the best interest of every child.",
+                    },
+                    {
+                        "title": "A safe and caring environment",
+                        "text": "The school remains committed to a caring environment that supports wellbeing, prevents abuse, and protects the dignity and rights of children.",
+                    },
+                ],
+            },
         ],
     },
     "principal": {
         "title": "Principal's Welcome",
         "eyebrow": "Leadership",
         "description": "A welcome from the Principal of Notre Dame Girls' Academy.",
-        "hero_image": PUBLIC_IMAGE["principal"],
+        "hero_image": PUBLIC_IMAGE["principal_large"],
         "sections": [
             {
                 "layout": "split",
@@ -450,7 +482,7 @@ PUBLIC_PAGE_CONTENT = {
                     "We partner closely with parents, the primary educators of their children, in nurturing Gospel values, disciplined character, and a sense of responsibility. Through a broad curriculum, co-curricular activities, and dedicated faculty, we prepare students not only for examinations, but for life.",
                     "At Notre Dame Girls' Academy, we are not simply educating girls; we are shaping future leaders grounded in faith and excellence.",
                 ],
-                "image": PUBLIC_IMAGE["principal"],
+                "image": PUBLIC_IMAGE["principal_large"],
                 "quote_author": "Principal",
                 "quote_role": "Notre Dame Girls' Academy, Kuje-Abuja",
             }
@@ -470,7 +502,7 @@ PUBLIC_PAGE_CONTENT = {
                     {"title": "Vision", "text": "NDGA seeks to form sound minds and patriotic citizens prepared for community and nation building."},
                     {"title": "Skills & Talents", "text": "Girls are given opportunities to discover and develop their talents in academics, arts, sports, leadership, and service."},
                     {"title": "Faith", "text": "School life is rooted in prayer, liturgy, Christian witness, and respect for the dignity of every person."},
-                    {"title": "Discipline", "text": "Routine, responsibility, and orderly conduct remain essential to how students learn and live."},
+                    {"title": "High Standards", "text": "Orderly conduct, personal responsibility, and purposeful routine support serious learning and community life."},
                     {"title": "Community", "text": "Families, staff, and students work together in a shared culture of respect, service, and growth."},
                 ],
             }
@@ -479,16 +511,39 @@ PUBLIC_PAGE_CONTENT = {
     "leadership": {
         "title": "Leadership",
         "eyebrow": "Leadership",
-        "description": "School leadership at NDGA combines pastoral care, academic seriousness, and institutional responsibility.",
-        "hero_image": PUBLIC_IMAGE["principal"],
+        "description": "NDGA is guided by the educational mission of the Sisters of Notre Dame de Namur, whose work in schools reaches across countries and generations.",
+        "hero_image": PUBLIC_IMAGE["leadership_sisters"],
         "sections": [
             {
+                "layout": "split",
+                "eyebrow": "The Congregation Behind NDGA",
+                "title": "The Sisters of Notre Dame de Namur",
+                "body": [
+                    "Notre Dame Girls' Academy is owned and managed by the Sisters of Notre Dame de Namur, the congregation founded by St. Julie Billiart in France in 1804 with the conviction that children should be given what they need for life.",
+                    "The mission reached Nigeria in 1963 through the British Province and continues through schools, pastoral care, health outreach, faith formation, and service in many dioceses. NDGA in Kuje-Abuja belongs to that wider Notre Dame educational family.",
+                    "Families therefore meet more than a local boarding school. They meet a school sustained by a Catholic educational tradition that has served young people in Great Britain, Japan, Nigeria, Belgium, Brazil, the United States, Kenya, Zimbabwe, South Africa, and other parts of the world.",
+                ],
+                "image": PUBLIC_IMAGE["leadership_sisters"],
+            },
+            {
                 "layout": "cards",
-                "title": "Leadership is visible in school culture, not only in offices",
+                "eyebrow": "A Wider Notre Dame Heritage",
+                "title": "How the Sisters support the life of NDGA",
                 "cards": [
-                    {"title": "Principal", "text": "Provides school-wide direction, academic oversight, and pastoral leadership.", "image": PUBLIC_IMAGE["principal"]},
-                    {"title": "Vice Principal", "text": "Supports academic coordination, school routine, and student development."},
-                    {"title": "Bursar & Admin Team", "text": "Supports finance, records, welfare coordination, and communication with families."},
+                    {"title": "A Global Educational Mission", "text": "The Sisters of Notre Dame de Namur serve schools and mission communities across continents and keep education at the centre of their service to children and young people."},
+                    {"title": "Formation of Girls and Young Women", "text": "Their tradition gives special attention to the dignity, education, confidence, and future of girls and young women, especially where society limits their opportunities."},
+                    {"title": "Visible Support at NDGA Kuje", "text": "At NDGA this support is seen in Catholic identity, child safeguarding, boarding structure, pastoral care, disciplined school culture, and the commitment to educating girls for life."},
+                ],
+            },
+            {
+                "layout": "list",
+                "eyebrow": "What Families Experience",
+                "title": "The practical effect of the Notre Dame mission at NDGA",
+                "items": [
+                    "A school culture shaped by the educational vision of St. Julie Billiart and the Sisters of Notre Dame de Namur.",
+                    "Catholic formation rooted in joy, hope, service, discipline, and the goodness of God.",
+                    "An academy for girls that belongs to a wider international Notre Dame family of schools and missions.",
+                    "Ongoing support for academics, boarding life, safeguarding, and the all-round development of girls in Kuje-Abuja.",
                 ],
             }
         ],
@@ -734,6 +789,8 @@ PUBLIC_PAGE_CONTENT = {
             {
                 "layout": "timeline",
                 "title": "Admission process",
+                "button_label": "Go to online registration",
+                "button_url": "/admissions/registration/",
                 "timeline": [
                     {"title": "Register online", "text": "Complete applicant and parent details and upload key records."},
                     {"title": "Review fees and payment guidance", "text": "Families receive the approved fee path, acceptance guidance, and required next steps from the school."},
@@ -745,9 +802,9 @@ PUBLIC_PAGE_CONTENT = {
                 "layout": "cards",
                 "title": "Entrance examination subjects",
                 "cards": [
-                    {"title": "English Language / Verbal", "text": "Reading, comprehension, language, and basic verbal reasoning."},
-                    {"title": "Mathematics / Quantitative", "text": "Number sense, reasoning, and applied problem-solving."},
-                    {"title": "General Paper", "text": "General awareness and age-appropriate written response."},
+                    {"title": "English Language and Verbal Aptitude", "text": "Candidates are assessed in reading, comprehension, spelling, sentence structure, vocabulary, and verbal reasoning appropriate to the entry class."},
+                    {"title": "Mathematics and Quantitative Aptitude", "text": "The school reviews number work, basic operations, applied reasoning, and problem-solving expected for transition into the chosen class level."},
+                    {"title": "General Paper", "text": "Applicants respond to age-appropriate questions that help the school understand readiness, expression, and general awareness."},
                 ],
             },
             {
@@ -800,22 +857,22 @@ PUBLIC_PAGE_CONTENT = {
                 "intro": "The school organises fees by class level so families can plan with clarity. The latest approved figure for each row is issued directly by the admissions office and bursary.",
                 "columns": ["Class", "Tuition / School Fees", "Boarding / Hostel", "Other Charges"],
                 "rows": [
-                    ["JSS1", "Available from admissions office", "Available from admissions office", "Registration, uniforms, and approved extras where applicable"],
-                    ["JSS2", "Available from admissions office", "Available from admissions office", "Class-based approved charges where applicable"],
-                    ["JSS3", "Available from admissions office", "Available from admissions office", "Class-based approved charges where applicable"],
-                    ["SS1", "Available from admissions office", "Available from admissions office", "Exam and approved class charges where applicable"],
-                    ["SS2", "Available from admissions office", "Available from admissions office", "Exam and approved class charges where applicable"],
-                    ["SS3", "Available from admissions office", "Available from admissions office", "Exam and approved class charges where applicable"],
+                    ["JSS1", "Approved school fee from bursary", "Approved boarding fee from bursary", "Application, uniforms, books, and other approved charges where applicable"],
+                    ["JSS2", "Approved school fee from bursary", "Approved boarding fee from bursary", "Uniform, books, and class-based approved charges where applicable"],
+                    ["JSS3", "Approved school fee from bursary", "Approved boarding fee from bursary", "Uniform, books, and class-based approved charges where applicable"],
+                    ["SS1", "Approved school fee from bursary", "Approved boarding fee from bursary", "Uniform, books, examination support, and approved extras where applicable"],
+                    ["SS2", "Approved school fee from bursary", "Approved boarding fee from bursary", "Uniform, books, and approved academic charges where applicable"],
+                    ["SS3", "Approved school fee from bursary", "Approved boarding fee from bursary", "Examination, graduation, and approved class charges where applicable"],
                 ],
             },
             {
                 "layout": "cards",
                 "title": "Fee guidance",
                 "cards": [
-                    {"title": "School Fees", "text": "Core tuition and class charges are issued by level for each student group."},
-                    {"title": "Boarding", "text": "Boarding and hostel fees are shown separately from other school charges."},
-                    {"title": "Other Approved Charges", "text": "Uniforms, examinations, and related approved items are clarified during admissions."},
-                    {"title": "Payment Information", "text": "Payment guidance is shared through approved school channels and follow-up communication."},
+                    {"title": "School Fees", "text": "Core tuition and class charges are arranged by class level and explained clearly to families."},
+                    {"title": "Boarding", "text": "Boarding and hostel fees are presented separately so parents can plan with clarity."},
+                    {"title": "Application Form Fee", "text": "The admission form fee is separate from school fees and applies only to applicants at the registration stage."},
+                    {"title": "Payment Information", "text": "Approved payment guidance comes through the bursary, admissions office, and the secure parent-facing payment flow."},
                 ],
             }
         ],
@@ -890,7 +947,7 @@ PUBLIC_PAGE_CONTENT = {
                 "cards": [
                     {"title": "Boarding Life", "text": "House life, prep, rest, welfare, and daily routine.", "image": PUBLIC_IMAGE["hostel"], "href": "/hostel-boarding/"},
                     {"title": "Spiritual Life", "text": "Assemblies, worship, retreats, liturgy, and faith formation remain central.", "image": PUBLIC_IMAGE["assembly"], "href": "/about/school-life/"},
-                    {"title": "Clubs & Leadership", "text": "Students grow through clubs, service, responsibility, and peer interaction.", "image": PUBLIC_IMAGE["socials"], "href": "/academics/co-curricular-activities/"},
+                    {"title": "Clubs & Leadership", "text": "Students grow through JETS, Literary and Debating, Home Makers, Creative Arts, French Club, Young Farmers, service, and peer leadership.", "image": PUBLIC_IMAGE["socials"], "href": "/academics/co-curricular-activities/"},
                     {"title": "Sports & Recreation", "text": "Basketball, volleyball, badminton, table tennis, and inter-house competition.", "image": PUBLIC_IMAGE["sports"], "href": "/facilities/"},
                 ],
             },

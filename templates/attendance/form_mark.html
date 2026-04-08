@@ -18,10 +18,8 @@
             </p>
           </div>
           <div class="flex flex-wrap items-center gap-2">
-            <a href="{{ daily_base_url }}?class_id={{ selected_class_id }}&attendance_date={{ prev_date|date:'Y-m-d' }}&page_size={{ page_size }}" class="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-ndga-navy/40">
-              Previous Day
-            </a>
             <form method="get" class="flex items-center gap-2">
+              <input type="hidden" name="term_id" value="{{ selected_term.id }}">
               <label class="text-sm font-semibold text-slate-700" for="attendance_date">Date</label>
               <input
                 id="attendance_date"
@@ -36,7 +34,10 @@
                 Open
               </button>
             </form>
-            <a href="{{ daily_base_url }}?class_id={{ selected_class_id }}&attendance_date={{ next_date|date:'Y-m-d' }}&page_size={{ page_size }}" class="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-ndga-navy/40">
+            <a href="{{ daily_base_url }}?class_id={{ selected_class_id }}&attendance_date={{ prev_date|date:'Y-m-d' }}&term_id={{ selected_term.id }}&page_size={{ page_size }}" class="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-ndga-navy/40">
+              Previous Day
+            </a>
+            <a href="{{ daily_base_url }}?class_id={{ selected_class_id }}&attendance_date={{ next_date|date:'Y-m-d' }}&term_id={{ selected_term.id }}&page_size={{ page_size }}" class="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-ndga-navy/40">
               Next Day
             </a>
             <a href="{{ weekly_url }}" class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-ndga-navy/40">
@@ -45,6 +46,18 @@
             <a href="{% url 'attendance:form-classes' %}" class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-ndga-navy/40">
               Class Management
             </a>
+            <form method="get" class="flex items-center gap-2">
+              <input type="hidden" name="class_id" value="{{ selected_class_id }}">
+              <input type="hidden" name="attendance_date" value="{{ selected_date|date:'Y-m-d' }}">
+              <input type="hidden" name="page_size" value="{{ page_size }}">
+              <label class="text-sm font-semibold text-slate-700" for="term_id">Term</label>
+              <select id="term_id" name="term_id" class="rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-800">
+                {% for term in available_terms %}
+                  <option value="{{ term.id }}" {% if selected_term and selected_term.id == term.id %}selected{% endif %}>{{ term.get_name_display }}</option>
+                {% endfor %}
+              </select>
+              <button type="submit" class="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-ndga-navy/40">Switch Term</button>
+            </form>
           </div>
         </div>
 
@@ -58,6 +71,7 @@
           {% csrf_token %}
           <input type="hidden" name="class_id" value="{{ selected_class_id }}">
           <input type="hidden" name="attendance_date" value="{{ selected_date|date:'Y-m-d' }}">
+          <input type="hidden" name="term_id" value="{{ selected_term.id }}">
           <input type="hidden" name="page" value="{{ page_obj.number|default:1 }}">
           <input type="hidden" name="page_size" value="{{ page_size }}">
           <div class="overflow-x-auto rounded-2xl border border-slate-200">
@@ -134,7 +148,7 @@
           <div class="mt-3 flex flex-wrap justify-end gap-2">
             {% if page_obj.has_previous %}
               <a
-                href="{% url 'attendance:form-mark' %}?class_id={{ selected_class_id }}&attendance_date={{ selected_date|date:'Y-m-d' }}&page={{ page_obj.previous_page_number }}&page_size={{ page_size }}"
+                href="{% url 'attendance:form-mark' %}?class_id={{ selected_class_id }}&attendance_date={{ selected_date|date:'Y-m-d' }}&term_id={{ selected_term.id }}&page={{ page_obj.previous_page_number }}&page_size={{ page_size }}"
                 class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
               >
                 Previous
@@ -142,7 +156,7 @@
             {% endif %}
             {% if page_obj.has_next %}
               <a
-                href="{% url 'attendance:form-mark' %}?class_id={{ selected_class_id }}&attendance_date={{ selected_date|date:'Y-m-d' }}&page={{ page_obj.next_page_number }}&page_size={{ page_size }}"
+                href="{% url 'attendance:form-mark' %}?class_id={{ selected_class_id }}&attendance_date={{ selected_date|date:'Y-m-d' }}&term_id={{ selected_term.id }}&page={{ page_obj.next_page_number }}&page_size={{ page_size }}"
                 class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50"
               >
                 Next

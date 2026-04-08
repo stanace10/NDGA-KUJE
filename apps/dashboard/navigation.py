@@ -136,6 +136,14 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
             )
             items.append(
                 _nav_item(
+                    label="Transcript Requests",
+                    url="/portal/it/transcripts/",
+                    request_path=request_path,
+                    matches=("/portal/it/transcripts/", "/portal/transcripts/"),
+                )
+            )
+            items.append(
+                _nav_item(
                     label="Public Website",
                     url="/portal/it/public-website/",
                     request_path=request_path,
@@ -190,6 +198,14 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                     url="/notifications/media/",
                     request_path=request_path,
                     matches=("/notifications/media/",),
+                )
+            )
+            items.append(
+                _nav_item(
+                    label="Transcript Requests",
+                    url="/portal/it/transcripts/",
+                    request_path=request_path,
+                    matches=("/portal/it/transcripts/", "/portal/transcripts/"),
                 )
             )
             items.append(
@@ -263,6 +279,14 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                 url="/portal/it/admissions/",
                 request_path=request_path,
                 matches=("/portal/it/admissions/",),
+            )
+        )
+        items.append(
+            _nav_item(
+                label="Transcript Requests",
+                url="/portal/it/transcripts/",
+                request_path=request_path,
+                matches=("/portal/it/transcripts/", "/portal/transcripts/"),
             )
         )
         items.append(
@@ -683,6 +707,12 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                         matches=("/portal/vp/admissions/",),
                     ),
                     _nav_item(
+                        label="Transcript Requests",
+                        url="/portal/vp/transcripts/",
+                        request_path=request_path,
+                        matches=("/portal/vp/transcripts/", "/portal/transcripts/"),
+                    ),
+                    _nav_item(
                         label="Notifications",
                         url="/notifications/center/",
                         request_path=request_path,
@@ -739,6 +769,12 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                         url="/results/approval/",
                         request_path=request_path,
                         matches=("/results/approval/",),
+                    ),
+                    _nav_item(
+                        label="Transcript Requests",
+                        url="/portal/vp/transcripts/",
+                        request_path=request_path,
+                        matches=("/portal/vp/transcripts/", "/portal/transcripts/"),
                     ),
                     _nav_item(
                         label="Messaging Center",
@@ -816,6 +852,12 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                     matches=("/results/approval/",),
                 ),
                 _nav_item(
+                    label="Transcript Requests",
+                    url="/portal/vp/transcripts/",
+                    request_path=request_path,
+                    matches=("/portal/vp/transcripts/", "/portal/transcripts/"),
+                ),
+                _nav_item(
                     label="Messaging Center",
                     url="/notifications/media/",
                     request_path=request_path,
@@ -866,6 +908,12 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                         url="/portal/principal/admissions/",
                         request_path=request_path,
                         matches=("/portal/principal/admissions/",),
+                    ),
+                    _nav_item(
+                        label="Transcript Requests",
+                        url="/portal/principal/transcripts/",
+                        request_path=request_path,
+                        matches=("/portal/principal/transcripts/", "/portal/transcripts/"),
                     ),
                     _nav_item(
                         label="Notifications",
@@ -953,6 +1001,12 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                     url="/results/approval/",
                     request_path=request_path,
                     matches=("/results/approval/",),
+                ),
+                _nav_item(
+                    label="Transcript Requests",
+                    url="/portal/principal/transcripts/",
+                    request_path=request_path,
+                    matches=("/portal/principal/transcripts/", "/portal/transcripts/"),
                 ),
                 _nav_item(
                     label="Performance Report",
@@ -1089,9 +1143,9 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                 ),
                 _nav_item(
                     label="Finance",
-                    url="/finance/student/overview/",
+                    url="/portal/student/finance/",
                     request_path=request_path,
-                    matches=("/finance/student/overview/",),
+                    matches=("/portal/student/finance/", "/finance/student/overview/"),
                 ),
                 _nav_item(
                     label="Settings",
@@ -1116,9 +1170,9 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                 [
                     _nav_item(
                         label="Dashboard",
-                        url="/finance/bursar/dashboard/",
+                        url="/portal/bursar/finance/",
                         request_path=request_path,
-                        matches=("/", "/portal/bursar/$", "/finance/bursar/dashboard/"),
+                        matches=("/", "/portal/bursar/$", "/portal/bursar/finance/", "/finance/bursar/dashboard/"),
                     ),
                     _nav_item(
                         label="Applicant Fees",
@@ -1146,9 +1200,9 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
             [
                 _nav_item(
                     label="Dashboard",
-                    url="/finance/bursar/dashboard/",
+                    url="/portal/bursar/finance/",
                     request_path=request_path,
-                    matches=("/", "/portal/bursar/$", "/finance/bursar/dashboard/"),
+                    matches=("/", "/portal/bursar/$", "/portal/bursar/finance/", "/finance/bursar/dashboard/"),
                 ),
                 _nav_item(
                     label="Applicant Fees",

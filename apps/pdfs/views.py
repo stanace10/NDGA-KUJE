@@ -42,6 +42,17 @@ def _pdf_runtime_error_response(*, request, fallback_url):
     return redirect(fallback_url)
 
 
+def _student_transcript_request_allows_access(student):
+    from apps.finance.models import TranscriptRequest
+
+    latest_request = (
+        TranscriptRequest.objects.filter(student=student)
+        .order_by("-created_at")
+        .first()
+    )
+    return latest_request if latest_request and latest_request.is_access_granted else None
+
+
 def _result_pin_session_key(*, student_id, compilation_id):
     return f"pdfs.result_pin.{student_id}.{compilation_id}"
 
@@ -338,6 +349,12 @@ class StudentTranscriptDownloadView(LoginRequiredMixin, UserPassesTestMixin, Vie
         return self.request.user.has_role(ROLE_STUDENT)
 
     def get(self, request, *args, **kwargs):
+        if _student_transcript_request_allows_access(request.user) is None:
+            messages.error(
+                request,
+                "Transcript access is available only after payment is confirmed and management releases it.",
+            )
+            return redirect("dashboard:student-transcript")
         try:
             pdf_bytes, _artifact = generate_transcript_pdf(
                 request=request,
@@ -366,6 +383,12 @@ class StudentSessionTranscriptDownloadView(LoginRequiredMixin, UserPassesTestMix
         return self.request.user.has_role(ROLE_STUDENT)
 
     def get(self, request, *args, **kwargs):
+        if _student_transcript_request_allows_access(request.user) is None:
+            messages.error(
+                request,
+                "Transcript access is available only after payment is confirmed and management releases it.",
+            )
+            return redirect("dashboard:student-transcript")
         session = get_object_or_404(AcademicSession, pk=kwargs["session_id"])
         try:
             pdf_bytes, _artifact = generate_transcript_pdf(

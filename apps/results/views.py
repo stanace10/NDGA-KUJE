@@ -741,6 +741,8 @@ class GradeEntryHomeView(ResultsAccessMixin, TemplateView):
         context["selected_session"] = window["selected_session"]
         context["selected_term"] = window["selected_term"]
         context["filter_query"] = filter_query
+        context["term_edit_locked"] = getattr(self.request, "term_edit_locked", False)
+        context["term_edit_lock_message"] = getattr(self.request, "term_edit_lock_message", "")
         return context
 
 
@@ -795,6 +797,7 @@ class GradeEntryClassSubjectsView(ResultsAccessMixin, TemplateView):
 
     def _assignment_rows(self):
         rows = []
+        term_edit_locked = getattr(self.request, "term_edit_locked", False)
         for assignment in self.assignments:
             sheet = _get_or_create_sheet_from_assignment(assignment, self.request.user)
             enrollment_qs = _subject_enrollments_for_assignment(assignment)
@@ -806,6 +809,7 @@ class GradeEntryClassSubjectsView(ResultsAccessMixin, TemplateView):
             can_edit = (
                 request_user_can_edit_session(self.request.user, assignment.session)
                 and sheet_is_editable_by_subject_owner(self.request.user, sheet)
+                and not term_edit_locked
             )
             rows.append(
                 {
@@ -835,6 +839,8 @@ class GradeEntryClassSubjectsView(ResultsAccessMixin, TemplateView):
         )
         context["class_page_url"] = self._current_url()
         context["filter_query"] = self._filter_query()
+        context["term_edit_locked"] = getattr(self.request, "term_edit_locked", False)
+        context["term_edit_lock_message"] = getattr(self.request, "term_edit_lock_message", "")
         return context
 
     def post(self, request, *args, **kwargs):
@@ -849,6 +855,16 @@ class GradeEntryClassSubjectsView(ResultsAccessMixin, TemplateView):
 
         if not request_user_can_edit_session(request.user, assignment.session):
             messages.error(request, "This session is closed. Result sheets are read-only.")
+            return redirect(self._current_url())
+        if getattr(request, "term_edit_locked", False):
+            messages.error(
+                request,
+                getattr(
+                    request,
+                    "term_edit_lock_message",
+                    "Third term is the active term. Previous-term records remain visible, but staff edit actions stay locked until the term opens.",
+                ),
+            )
             return redirect(self._current_url())
 
         sheet = _get_or_create_sheet_from_assignment(assignment, request.user)
@@ -965,8 +981,11 @@ class AssignmentScoreListView(ResultsAccessMixin, TemplateView):
                 can_edit=(
                     request_user_can_edit_session(request.user, assignment.session)
                     and sheet_is_editable_by_subject_owner(request.user, sheet)
+                    and not getattr(request, "term_edit_locked", False)
                 ),
                 class_subjects_url=self._class_subjects_url(assignment=assignment),
+                term_edit_locked=getattr(request, "term_edit_locked", False),
+                term_edit_lock_message=getattr(request, "term_edit_lock_message", ""),
             )
         )
 
@@ -988,6 +1007,18 @@ class AssignmentScoreListView(ResultsAccessMixin, TemplateView):
                 return JsonResponse({"ok": False, "error": message}, status=400)
             messages.error(request, message)
             return redirect(self._class_subjects_url(assignment=assignment))
+        if getattr(request, "term_edit_locked", False):
+            message = getattr(
+                request,
+                "term_edit_lock_message",
+                "Third term is the active term. Previous-term records remain visible, but staff edit actions stay locked until the term opens.",
+            )
+            if is_autosave:
+                return JsonResponse({"ok": False, "error": message}, status=403)
+            messages.error(request, message)
+            assignment_url = reverse("results:assignment-scores", kwargs={"assignment_id": assignment.id})
+            query = self._filter_query()
+            return redirect(f"{assignment_url}?{query}" if query else assignment_url)
 
         sheet = _get_or_create_sheet_from_assignment(assignment, request.user)
         if not sheet_is_editable_by_subject_owner(request.user, sheet):

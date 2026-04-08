@@ -105,6 +105,8 @@ class FinanceInstitutionProfile(TimeStampedModel):
     school_account_number = models.CharField(max_length=64, blank=True)
     application_form_fee_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     application_form_fee_note = models.CharField(max_length=220, blank=True)
+    transcript_fee_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    transcript_fee_note = models.CharField(max_length=220, blank=True)
     include_bank_details_in_messages = models.BooleanField(default=False)
     show_on_receipt_pdf = models.BooleanField(default=False)
     show_on_result_pdf = models.BooleanField(default=False)
@@ -126,6 +128,7 @@ class FinanceInstitutionProfile(TimeStampedModel):
         self.school_account_name = (self.school_account_name or "").strip()
         self.school_account_number = (self.school_account_number or "").strip()
         self.application_form_fee_note = (self.application_form_fee_note or "").strip()
+        self.transcript_fee_note = (self.transcript_fee_note or "").strip()
 
     @classmethod
     def load(cls):
@@ -526,6 +529,98 @@ class PaymentGatewayTransaction(TimeStampedModel):
 
     def __str__(self):
         return f"{self.reference} [{self.status}]"
+
+
+class TranscriptRequestPaymentStatus(models.TextChoices):
+    UNPAID = "UNPAID", "Unpaid"
+    INITIALIZED = "INITIALIZED", "Payment Initialized"
+    PAID = "PAID", "Paid"
+
+
+class TranscriptRequestApprovalStatus(models.TextChoices):
+    PENDING = "PENDING", "Pending Review"
+    APPROVED = "APPROVED", "Approved"
+    REJECTED = "REJECTED", "Rejected"
+
+
+class TranscriptRequest(TimeStampedModel):
+    student = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="transcript_requests",
+    )
+    session = models.ForeignKey(
+        AcademicSession,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="transcript_requests",
+    )
+    requested_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="requested_transcript_requests",
+    )
+    amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    payment_status = models.CharField(
+        max_length=16,
+        choices=TranscriptRequestPaymentStatus.choices,
+        default=TranscriptRequestPaymentStatus.UNPAID,
+    )
+    approval_status = models.CharField(
+        max_length=16,
+        choices=TranscriptRequestApprovalStatus.choices,
+        default=TranscriptRequestApprovalStatus.PENDING,
+    )
+    gateway_transaction = models.OneToOneField(
+        PaymentGatewayTransaction,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="transcript_request",
+    )
+    payment = models.OneToOneField(
+        Payment,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="transcript_request",
+    )
+    approved_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="approved_transcript_requests",
+    )
+    approved_at = models.DateTimeField(null=True, blank=True)
+    released_at = models.DateTimeField(null=True, blank=True)
+    note = models.TextField(blank=True)
+    response_message = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+        indexes = [
+            models.Index(fields=("student", "payment_status", "approval_status")),
+        ]
+
+    def clean(self):
+        if not self.student.has_role(ROLE_STUDENT):
+            raise ValidationError("Transcript requests can only be created for student accounts.")
+        self.note = (self.note or "").strip()
+        self.response_message = (self.response_message or "").strip()
+
+    @property
+    def is_access_granted(self):
+        return (
+            self.payment_status == TranscriptRequestPaymentStatus.PAID
+            and self.approval_status == TranscriptRequestApprovalStatus.APPROVED
+        )
+
+    def __str__(self):
+        return f"Transcript request for {self.student.username}"
 
 
 class FinanceDeltaSyncCursor(TimeStampedModel):

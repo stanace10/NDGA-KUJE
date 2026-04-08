@@ -12,6 +12,19 @@
             <p class="mt-1 text-sm text-slate-600">{{ current_session.name }} | {{ current_term.get_name_display }}</p>
           {% endif %}
         </div>
+        <form method="get" class="flex items-end gap-2">
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500" for="term_id">Term</label>
+            <select id="term_id" name="term_id" class="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm">
+              {% for term in available_terms %}
+                <option value="{{ term.id }}" {% if selected_term and selected_term.id == term.id %}selected{% endif %}>{{ term.get_name_display }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <button type="submit" class="rounded-xl bg-ndga-navy px-4 py-2 text-sm font-semibold text-white transition hover:bg-ndga-navy/90">
+            Open
+          </button>
+        </form>
       </div>
 
       <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">

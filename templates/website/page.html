@@ -1,6 +1,12 @@
 {% extends "website/base_public.html" %}
 {% load static %}
 
+{% block extra_head %}
+  {% if public_page.hero_image %}
+    <link rel="preload" as="image" href="{% static public_page.hero_image %}">
+  {% endif %}
+{% endblock %}
+
 {% block content %}
 <section class="public-page-hero" style="background-image:url('{% static public_page.hero_image %}')">
   <div class="public-page-hero-overlay"></div>
@@ -122,6 +128,11 @@
       {% elif section.layout == "timeline" %}
         <div class="public-section-heading">
           <h2>{{ section.title }}</h2>
+          {% if section.button_label and section.button_url %}
+            <div class="public-inline-cta">
+              <a href="{{ section.button_url }}" class="public-text-link">{{ section.button_label }}</a>
+            </div>
+          {% endif %}
         </div>
         <div class="public-timeline-card">
           {% for step in section.timeline %}

@@ -141,6 +141,7 @@
     if (liveChatStatus) {
       liveChatStatus.textContent = "";
     }
+    chatbotInput?.blur();
   };
 
   const addChatMessage = (text, sender, options = {}) => {
@@ -180,7 +181,7 @@
     {
       matches: ["fee", "fees", "payment", "pay", "bursar"],
       reply:
-        "The fees page shows the class-by-class structure, while management and bursary guidance confirm the latest approved figures for each admission cycle.",
+        "The fees page shows the class-by-class structure, while admissions and bursary guidance confirm the latest approved figures for each admission cycle.",
     },
     {
       matches: ["subject", "curriculum", "academic", "waec", "neco", "class", "jss", "ss"],
@@ -205,7 +206,12 @@
     {
       matches: ["principal", "welcome", "hallmark", "history", "sisters", "catholic"],
       reply:
-        "NDGA is a Catholic girls' secondary school of the Sisters of Notre Dame de Namur, shaped by learning, discipline, community, service, and faith formation.",
+        "NDGA is a Catholic girls' secondary school of the Sisters of Notre Dame de Namur, shaped by learning, discipline, community, service, faith formation, and the dignity of the girl child.",
+    },
+    {
+      matches: ["safeguarding", "safety", "child protection", "welfare"],
+      reply:
+        "Student safety and welfare are taken seriously. NDGA's safeguarding commitment recognises the dignity of every child and supports a safe, caring environment in partnership with parents and guardians.",
     },
     {
       matches: ["term", "resumption", "resume", "calendar"],
@@ -216,6 +222,11 @@
       matches: ["portal", "result", "download", "performance"],
       reply:
         "Students and parents can use the portal to view results, download reports, check finance visibility, and follow approved school updates.",
+    },
+    {
+      matches: ["transcript", "certificate", "document"],
+      reply:
+        "Transcript access is processed through the student portal after payment and management approval. Students are notified when the transcript is ready.",
     },
   ];
 
@@ -228,7 +239,7 @@
       text.includes("live chat");
     if (directEscalation) {
       return {
-        reply: "I can connect you with management. Would you like me to open the management chat queue?",
+        reply: "I can connect you with management. Would you like me to open the management chat window?",
         escalate: true,
       };
     }
@@ -382,11 +393,11 @@
     if (liveChatShell) {
       liveChatShell.hidden = false;
     }
-    window.setTimeout(() => {
+      window.setTimeout(() => {
       appendLiveChatBubble(
-        "If the Vice Principal or IT Manager is not immediately available, your message will be saved as a ticket and the reply will be sent to your email.",
+        "If no management agent is immediately available, your message will be saved as a ticket and the reply will be sent to your email.",
         "agent",
-        "Management Queue"
+        "Management"
       );
       liveChatForm?.querySelector("input[name='contact_email']")?.focus();
       saveLiveChatMessages();
@@ -458,7 +469,7 @@
       appendLiveChatBubble(
         payload.message || "Your message has been sent to management.",
         "agent",
-        "Management Queue"
+        "Management"
       );
       if (payload.ticket_reference) {
         pushTicket(payload.ticket_reference, messageText || "Management enquiry");
@@ -512,6 +523,13 @@
       closeChatbot();
       closeLightbox();
     }
+  });
+
+  window.addEventListener("popstate", () => {
+    closeChatbot();
+    closeSearch();
+    closeDrawer();
+    closeLightbox();
   });
 
   document.addEventListener("mousedown", (event) => {

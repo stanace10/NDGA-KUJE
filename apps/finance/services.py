@@ -49,6 +49,9 @@ from apps.finance.models import (
     SalaryRecord,
     SalaryStatus,
     StudentCharge,
+    TranscriptRequest,
+    TranscriptRequestApprovalStatus,
+    TranscriptRequestPaymentStatus,
 )
 from apps.notifications.models import NotificationCategory
 from apps.notifications.services import create_notification, extract_whatsapp_phones, notify_payment_receipt, send_email_event
@@ -267,7 +270,7 @@ def build_receipt_dispatch_package(*, payment, receipt, request=None):
     portal_url = build_portal_url(
         request_for_links,
         "student",
-        "/finance/student/overview/",
+        "/portal/student/finance/",
     )
     session_label = payment.session.name if payment.session_id else "-"
     term_label = payment.term.get_name_display() if payment.term_id else "-"
@@ -1000,7 +1003,7 @@ def initialize_gateway_payment_transaction(
                     f"Reference: {transaction_row.reference}."
                 ),
                 created_by=initiated_by,
-                action_url="/finance/student/overview/",
+                action_url="/portal/student/finance/",
                 metadata={"reference": transaction_row.reference, "amount": str(transaction_row.amount)},
             )
     return transaction_row
@@ -1106,6 +1109,34 @@ def verify_gateway_payment_transaction(*, gateway_transaction, actor=None, reque
             "updated_at",
         ]
     )
+    transcript_request_id = (transaction_row.metadata or {}).get("transcript_request_id")
+    service_kind = ((transaction_row.metadata or {}).get("service_kind") or "").strip().upper()
+    if transcript_request_id and service_kind == "TRANSCRIPT":
+        transcript_request = TranscriptRequest.objects.filter(
+            pk=transcript_request_id,
+            student=transaction_row.student,
+        ).first()
+        if transcript_request is not None:
+            transcript_request.amount = transaction_row.amount
+            transcript_request.payment_status = TranscriptRequestPaymentStatus.PAID
+            transcript_request.payment = payment
+            transcript_request.gateway_transaction = transaction_row
+            if transcript_request.approval_status == TranscriptRequestApprovalStatus.REJECTED:
+                transcript_request.approval_status = TranscriptRequestApprovalStatus.PENDING
+            transcript_request.response_message = (
+                "Transcript payment has been confirmed. Management will review and release your transcript shortly."
+            )
+            transcript_request.save(
+                update_fields=[
+                    "amount",
+                    "payment_status",
+                    "payment",
+                    "gateway_transaction",
+                    "approval_status",
+                    "response_message",
+                    "updated_at",
+                ]
+            )
     return transaction_row, payment, receipt
 
 
@@ -1598,7 +1629,7 @@ def dispatch_scheduled_fee_reminders(*, run_date=None, days_ahead=3, actor=None,
                 title=title,
                 message=body,
                 created_by=actor if getattr(actor, "is_authenticated", False) else None,
-                action_url="/finance/student/overview/",
+                action_url="/portal/student/finance/",
                 metadata={
                     "event": "SCHEDULED_FEE_REMINDER",
                     "reminder_type": reminder_type,

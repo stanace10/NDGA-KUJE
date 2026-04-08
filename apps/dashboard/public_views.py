@@ -25,8 +25,10 @@ from apps.dashboard.public_site import (
 )
 
 
-def _management_team_recipients(*, include_bursar=False):
+def _management_team_recipients(*, include_bursar=False, include_principal=False):
     role_codes = [ROLE_IT_MANAGER, ROLE_VP]
+    if include_principal:
+        role_codes.append(ROLE_PRINCIPAL)
     if include_bursar:
         role_codes.append(ROLE_BURSAR)
     role_filter = Q(primary_role__code__in=role_codes) | Q(secondary_roles__code__in=role_codes)
@@ -36,7 +38,10 @@ def _management_team_recipients(*, include_bursar=False):
 def _notify_public_submission(*, submission, request):
     profile = SchoolProfile.load()
     include_bursar = submission.submission_type == "ADMISSION"
-    recipients = _management_team_recipients(include_bursar=include_bursar)
+    recipients = _management_team_recipients(
+        include_bursar=include_bursar,
+        include_principal=submission.submission_type == "ADMISSION",
+    )
     if submission.submission_type == "ADMISSION":
         title = f"New admission application: {submission.applicant_name or submission.contact_name}"
         message = (
@@ -157,9 +162,9 @@ class PublicHomeView(PublicSiteEnabledMixin, TemplateView):
                         "title": "Application & Screening",
                         "text": "Families can review the current application form fee, screening guidance, and what happens before approval is granted.",
                         "images": [
-                            context["public_images"]["assembly"],
-                            context["public_images"]["hero_students"],
+                            context["public_images"]["campus"],
                             context["public_images"]["campus_view"],
+                            context["public_images"]["computer_lab_pair"],
                         ],
                         "href": "/admissions/",
                     },
@@ -167,9 +172,9 @@ class PublicHomeView(PublicSiteEnabledMixin, TemplateView):
                         "title": "School Fees by Class",
                         "text": "Fee guidance is arranged clearly by class level so parents can see the structure for JSS and SS classes without confusion.",
                         "images": [
-                            context["public_images"]["computer_lab_pair"],
                             context["public_images"]["library"],
                             context["public_images"]["computer_lab_junior"],
+                            context["public_images"]["science_lab"],
                         ],
                         "href": "/fees/",
                     },
@@ -177,9 +182,9 @@ class PublicHomeView(PublicSiteEnabledMixin, TemplateView):
                         "title": "Boarding & Welfare",
                         "text": "Boarding details explain routine, hostel care, study supervision, and the day-to-day support available to every girl.",
                         "images": [
+                            context["public_images"]["hostel"],
                             context["public_images"]["hostel_alt"],
-                            context["public_images"]["socials"],
-                            context["public_images"]["campus_block"],
+                            context["public_images"]["hostel_alt_two"],
                         ],
                         "href": "/hostel-boarding/",
                     },
@@ -190,8 +195,8 @@ class PublicHomeView(PublicSiteEnabledMixin, TemplateView):
                         "text": "JETS, Literary and Debating, IT, Home Makers, Creative Arts, French, Young Farmers, and student leadership groups keep school life active.",
                         "images": [
                             context["public_images"]["socials"],
-                            context["public_images"]["assembly"],
-                            context["public_images"]["hero_students"],
+                            context["public_images"]["socials_alt"],
+                            context["public_images"]["socials_alt_two"],
                         ],
                         "href": "/academics/co-curricular-activities/",
                     },
@@ -210,8 +215,8 @@ class PublicHomeView(PublicSiteEnabledMixin, TemplateView):
                         "text": "Prayer, liturgy, assemblies, retreats, and Gospel values remain part of the school day and the wider formation of students.",
                         "images": [
                             context["public_images"]["assembly"],
+                            context["public_images"]["assembly_alt"],
                             context["public_images"]["campus_view"],
-                            context["public_images"]["computer_lab_junior"],
                         ],
                         "href": "/about/school-life/",
                     },
@@ -233,6 +238,10 @@ class PublicHomeView(PublicSiteEnabledMixin, TemplateView):
                         "title": "A Worshipping Community",
                         "text": "Prayer, assemblies, Mass, retreats, and Catholic witness remain part of the formation of every student.",
                     },
+                    {
+                        "title": "Child Safeguarding",
+                        "text": "NDGA recognises every child as a gift from God and remains committed to safety, dignity, welfare, and partnership with parents and guardians.",
+                    },
                 ],
                 "home_gallery": get_public_gallery()[:4],
                 "home_news": get_public_news()[:2],
@@ -242,6 +251,7 @@ class PublicHomeView(PublicSiteEnabledMixin, TemplateView):
                     "Academic support from junior to senior secondary.",
                     "Catholic formation rooted in discipline, responsibility, and service.",
                     "Learning spaces that support science, ICT, reading, and student growth.",
+                    "Child safeguarding remains part of the school's duty of care to every student.",
                 ],
                 "chatbot_prompts": [
                     "How do I apply?",

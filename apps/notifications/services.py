@@ -408,7 +408,7 @@ def notify_payment_receipt(
         title=title,
         message=base_message,
         created_by=actor,
-        action_url="/finance/student/overview/",
+        action_url="/portal/student/finance/",
         metadata={"receipt_number": receipt_number, "amount": str(amount)},
     )
     emails = []

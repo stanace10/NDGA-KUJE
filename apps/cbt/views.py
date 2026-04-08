@@ -157,6 +157,16 @@ logger = logging.getLogger(__name__)
 
 
 def _exam_is_editable_for_actor(*, actor, exam):
+    setup_state = get_setup_state()
+    role_codes = actor.get_all_role_codes() if getattr(actor, "is_authenticated", False) else set()
+    if (
+        exam.term_id
+        and setup_state.current_term_id == exam.term_id
+        and setup_state.current_term_start_date
+        and setup_state.current_term_start_date > timezone.localdate()
+        and role_codes & {ROLE_SUBJECT_TEACHER, ROLE_FORM_TEACHER, ROLE_DEAN}
+    ):
+        return False
     if can_manage_all_cbt(actor):
         return exam.status in {
             CBTExamStatus.DRAFT,

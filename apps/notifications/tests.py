@@ -178,7 +178,7 @@ class NotificationWorkflowTests(TestCase):
             category=NotificationCategory.PAYMENT,
             title="Payment Receipt Issued",
         ).latest("created_at")
-        self.assertEqual(payment_notice.action_url, "/finance/student/overview/")
+        self.assertEqual(payment_notice.action_url, "/portal/student/finance/")
         self.assertTrue(
             Notification.objects.filter(
                 recipient=self.student,
@@ -248,7 +248,7 @@ class NotificationWorkflowTests(TestCase):
         client = self._client("student.ndgakuje.org", self.student)
         response = client.get(f"/notifications/detail/{notice.id}/")
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "/finance/student/overview/")
+        self.assertContains(response, "/portal/student/finance/")
 
     @override_settings(
         WHATSAPP_PROVIDER="meta_cloud",

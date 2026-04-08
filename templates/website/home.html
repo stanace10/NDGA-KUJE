@@ -1,6 +1,11 @@
 {% extends "website/base_public.html" %}
 {% load static %}
 
+{% block extra_head %}
+  <link rel="preload" as="image" href="{% static public_images.principal %}">
+  <link rel="preload" as="video" href="{% static public_images.hero_video %}" type="video/mp4">
+{% endblock %}
+
 {% block content %}
 <section class="public-hero public-hero-video">
   <video class="public-hero-video-media" autoplay muted loop playsinline poster="{% static public_images.hero %}">
@@ -8,7 +13,9 @@
   </video>
   <div class="public-hero-overlay"></div>
   <div class="public-container public-hero-content" data-reveal>
-    <h1>{{ public_site_settings.hero_title }}</h1>
+    <span class="public-eyebrow public-hero-kicker">{{ public_site_settings.hero_eyebrow }}</span>
+    <h1>{{ public_contact.school_name }}</h1>
+    <p class="public-hero-tagline">{{ public_site_settings.hero_title }}</p>
     <p class="public-hero-subline">{{ public_site_settings.hero_subtitle }}</p>
     <div class="public-hero-actions">
       <a href="/admissions/registration/" class="public-cta magnetic">Apply Now</a>
@@ -65,7 +72,7 @@
       <a href="/principal/" class="public-text-link">Read full welcome</a>
     </div>
     <div class="public-image-portrait">
-      <img src="{% static public_images.principal %}" alt="Principal portrait">
+      <img src="{% static public_images.principal %}" alt="Principal portrait" loading="eager" fetchpriority="high" decoding="async">
     </div>
   </div>
 </section>
@@ -83,6 +90,9 @@
           <p>{{ item.text }}</p>
         </article>
       {% endfor %}
+    </div>
+    <div class="public-inline-note public-inline-note-accent">
+      Child safeguarding remains part of the school's duty of care. NDGA recognises every child as a gift from God and works with parents and guardians to protect student welfare, dignity, and safety.
     </div>
   </div>
 </section>

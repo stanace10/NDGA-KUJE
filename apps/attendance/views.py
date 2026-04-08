@@ -11,7 +11,7 @@ from django.views.generic import TemplateView
 
 from apps.accounts.constants import ROLE_FORM_TEACHER, ROLE_IT_MANAGER, ROLE_PRINCIPAL, ROLE_VP
 from apps.accounts.permissions import has_any_role
-from apps.academics.models import StudentClassEnrollment
+from apps.academics.models import StudentClassEnrollment, Term
 from apps.attendance.forms import (
     CalendarManagementForm,
     HolidayCreateForm,
@@ -48,9 +48,25 @@ class FormTeacherClassListView(RoleRestrictedView):
     template_name = "attendance/form_class_list.html"
     allowed_roles = {ROLE_FORM_TEACHER}
 
+    @staticmethod
+    def _term_sort_key(term):
+        order = {"FIRST": 1, "SECOND": 2, "THIRD": 3}
+        return order.get(term.name, 99)
+
+    def _selected_term(self, setup_state):
+        available_terms = list(Term.objects.filter(session=setup_state.current_session))
+        available_terms.sort(key=self._term_sort_key)
+        requested_term_id = (self.request.GET.get("term_id") or "").strip()
+        if requested_term_id.isdigit():
+            selected = next((term for term in available_terms if term.id == int(requested_term_id)), None)
+            if selected is not None:
+                return available_terms, selected
+        return available_terms, setup_state.current_term
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         setup_state = get_setup_state()
+        available_terms, selected_term = self._selected_term(setup_state)
         assignments = list(
             get_form_teacher_assignments_for_current_session(self.request.user)
             .select_related("academic_class", "session")
@@ -62,11 +78,13 @@ class FormTeacherClassListView(RoleRestrictedView):
             {
                 "assignment": assignment,
                 "display_name": assignment.academic_class.display_name or assignment.academic_class.code,
-                "daily_url": f"{reverse('attendance:form-mark')}?{urlencode({'class_id': assignment.academic_class_id, 'attendance_date': date.today().isoformat()})}",
-                "weekly_url": f"{reverse('attendance:form-weekly')}?{urlencode({'class_id': assignment.academic_class_id, 'week_start': date.today().isoformat()})}",
+                "daily_url": f"{reverse('attendance:form-mark')}?{urlencode({'class_id': assignment.academic_class_id, 'attendance_date': date.today().isoformat(), 'term_id': selected_term.id if selected_term else ''})}",
+                "weekly_url": f"{reverse('attendance:form-weekly')}?{urlencode({'class_id': assignment.academic_class_id, 'week_start': date.today().isoformat(), 'term_id': selected_term.id if selected_term else ''})}",
             }
             for assignment in assignments
         ]
+        context["available_terms"] = available_terms
+        context["selected_term"] = selected_term
         return context
 
 
@@ -426,6 +444,21 @@ class FormTeacherAttendanceView(RoleRestrictedView):
         ).select_related("academic_class", "session")
         return setup_state, assignments, _pick_form_assignment(self.request, assignments)
 
+    @staticmethod
+    def _term_sort_key(term):
+        order = {"FIRST": 1, "SECOND": 2, "THIRD": 3}
+        return order.get(term.name, 99)
+
+    def _selected_term(self, setup_state):
+        available_terms = list(Term.objects.filter(session=setup_state.current_session))
+        available_terms.sort(key=self._term_sort_key)
+        requested_term_id = (self.request.GET.get("term_id") or self.request.POST.get("term_id") or "").strip()
+        if requested_term_id.isdigit():
+            selected = next((term for term in available_terms if term.id == int(requested_term_id)), None)
+            if selected is not None:
+                return available_terms, selected
+        return available_terms, setup_state.current_term
+
     def _selected_page_size(self):
         page_size_raw = self.request.GET.get("page_size") or self.request.POST.get("page_size")
         try:
@@ -462,6 +495,7 @@ class FormTeacherAttendanceView(RoleRestrictedView):
 
     def _build_context(self):
         setup_state, assignments, assignment = self._setup_and_assignment()
+        available_terms, selected_term = self._selected_term(setup_state)
         selected_date = self._selected_date()
         selected_class = assignment.academic_class if assignment else None
         week_start = selected_date - timedelta(days=selected_date.weekday())
@@ -475,6 +509,8 @@ class FormTeacherAttendanceView(RoleRestrictedView):
             "selected_class_id": assignment.academic_class_id if assignment else "",
             "selected_class_scope_label": self._selected_class_scope_label(assignment),
             "selected_date": selected_date,
+            "available_terms": available_terms,
+            "selected_term": selected_term,
             "week_start": week_start,
             "marking_allowed": False,
             "attendance_block_reason": "",
@@ -483,7 +519,7 @@ class FormTeacherAttendanceView(RoleRestrictedView):
             "current_page": int((self.request.GET.get("page") or self.request.POST.get("page") or "1")),
             "weekly_url": (
                 f"{reverse('attendance:form-weekly')}?"
-                f"{urlencode({'class_id': assignment.academic_class_id, 'week_start': week_start.isoformat()})}"
+                f"{urlencode({'class_id': assignment.academic_class_id, 'week_start': week_start.isoformat(), 'term_id': selected_term.id if selected_term else ''})}"
                 if assignment
                 else f"{reverse('attendance:form-weekly')}?week_start={week_start.isoformat()}"
             ),
@@ -498,14 +534,22 @@ class FormTeacherAttendanceView(RoleRestrictedView):
 
         calendar = SchoolCalendar.objects.filter(
             session=assignment.session,
-            term=setup_state.current_term,
+            term=selected_term,
         ).first()
         context["calendar"] = calendar
         if not calendar:
             messages.error(self.request, "School calendar not configured for current term.")
             return context
 
-        if not calendar.covers(selected_date):
+        if getattr(self.request, "term_edit_locked", False):
+            context["attendance_block_reason"] = getattr(
+                self.request,
+                "term_edit_lock_message",
+                "Third term is active. Attendance is view-only until the term opens.",
+            )
+        elif selected_term != setup_state.current_term:
+            context["attendance_block_reason"] = "Previous-term attendance is available for review only."
+        elif not calendar.covers(selected_date):
             context["attendance_block_reason"] = "Selected date is outside the school calendar range."
         elif selected_date.weekday() >= 5:
             context["attendance_block_reason"] = "Attendance cannot be marked on weekends."
@@ -547,14 +591,19 @@ class FormTeacherAttendanceView(RoleRestrictedView):
 
     def post(self, request, *args, **kwargs):
         setup_state, _assignments, assignment = self._setup_and_assignment()
+        _available_terms, selected_term = self._selected_term(setup_state)
         if not assignment:
             messages.error(request, "No active form teacher assignment found.")
+            return self.render_to_response(self._build_context())
+
+        if getattr(request, "term_edit_locked", False) or selected_term != setup_state.current_term:
+            messages.error(request, "Attendance is read-only for the selected term right now.")
             return self.render_to_response(self._build_context())
 
         selected_date = self._selected_date()
         calendar = SchoolCalendar.objects.filter(
             session=assignment.session,
-            term=setup_state.current_term,
+            term=selected_term,
         ).first()
         if not calendar:
             messages.error(request, "School calendar is not configured.")
@@ -626,6 +675,7 @@ class FormTeacherAttendanceView(RoleRestrictedView):
         return redirect(
             f"{reverse('attendance:form-mark')}?class_id={assignment.academic_class_id}"
             f"&attendance_date={selected_date}"
+            f"&term_id={selected_term.id}"
             f"&page={request.POST.get('page', 1)}&page_size={page_size}"
         )
 
@@ -642,6 +692,21 @@ class FormTeacherWeeklyAttendanceView(RoleRestrictedView):
             self.request.user
         ).select_related("academic_class", "session")
         return setup_state, _pick_form_assignment(self.request, assignments)
+
+    @staticmethod
+    def _term_sort_key(term):
+        order = {"FIRST": 1, "SECOND": 2, "THIRD": 3}
+        return order.get(term.name, 99)
+
+    def _selected_term(self, setup_state):
+        available_terms = list(Term.objects.filter(session=setup_state.current_session))
+        available_terms.sort(key=self._term_sort_key)
+        requested_term_id = (self.request.GET.get("term_id") or self.request.POST.get("term_id") or "").strip()
+        if requested_term_id.isdigit():
+            selected = next((term for term in available_terms if term.id == int(requested_term_id)), None)
+            if selected is not None:
+                return available_terms, selected
+        return available_terms, setup_state.current_term
 
     def _selected_page_size(self):
         page_size_raw = self.request.GET.get("page_size") or self.request.POST.get("page_size")
@@ -698,6 +763,7 @@ class FormTeacherWeeklyAttendanceView(RoleRestrictedView):
 
     def _build_context(self):
         setup_state, assignment = self._setup_and_assignment()
+        available_terms, selected_term = self._selected_term(setup_state)
         week_start = self._week_start()
         context = {
             "assignment": assignment,
@@ -706,6 +772,8 @@ class FormTeacherWeeklyAttendanceView(RoleRestrictedView):
             "week_days": [],
             "selected_class_id": assignment.academic_class_id if assignment else "",
             "selected_class_scope_label": self._selected_class_scope_label(assignment),
+            "available_terms": available_terms,
+            "selected_term": selected_term,
             "week_start": week_start,
             "prev_week": week_start - timedelta(days=7),
             "next_week": week_start + timedelta(days=7),
@@ -714,7 +782,7 @@ class FormTeacherWeeklyAttendanceView(RoleRestrictedView):
             "current_page": int((self.request.GET.get("page") or self.request.POST.get("page") or "1")),
             "daily_url": (
                 f"{reverse('attendance:form-mark')}?"
-                f"{urlencode({'class_id': assignment.academic_class_id, 'attendance_date': date.today().isoformat()})}"
+                f"{urlencode({'class_id': assignment.academic_class_id, 'attendance_date': date.today().isoformat(), 'term_id': selected_term.id if selected_term else ''})}"
                 if assignment
                 else f"{reverse('attendance:form-mark')}?attendance_date={date.today().isoformat()}"
             ),
@@ -726,12 +794,20 @@ class FormTeacherWeeklyAttendanceView(RoleRestrictedView):
 
         calendar = SchoolCalendar.objects.filter(
             session=assignment.session,
-            term=setup_state.current_term,
+            term=selected_term,
         ).first()
         context["calendar"] = calendar
         if not calendar:
             context["attendance_block_reason"] = "School calendar not configured for current term."
             return context
+        if getattr(self.request, "term_edit_locked", False):
+            context["attendance_block_reason"] = getattr(
+                self.request,
+                "term_edit_lock_message",
+                "Third term is active. Attendance is view-only until the term opens.",
+            )
+        elif selected_term != setup_state.current_term:
+            context["attendance_block_reason"] = "Previous-term attendance is available for review only."
 
         week_days = self._week_days(week_start=week_start, calendar=calendar)
         context["week_days"] = week_days
@@ -775,13 +851,18 @@ class FormTeacherWeeklyAttendanceView(RoleRestrictedView):
 
     def post(self, request, *args, **kwargs):
         setup_state, assignment = self._setup_and_assignment()
+        _available_terms, selected_term = self._selected_term(setup_state)
         if not assignment:
             messages.error(request, "No active form teacher assignment found.")
             return self.render_to_response(self._build_context())
 
+        if getattr(request, "term_edit_locked", False) or selected_term != setup_state.current_term:
+            messages.error(request, "Attendance is read-only for the selected term right now.")
+            return self.render_to_response(self._build_context())
+
         calendar = SchoolCalendar.objects.filter(
             session=assignment.session,
-            term=setup_state.current_term,
+            term=selected_term,
         ).first()
         if not calendar:
             messages.error(request, "School calendar is not configured.")
@@ -848,5 +929,6 @@ class FormTeacherWeeklyAttendanceView(RoleRestrictedView):
         return redirect(
             f"{reverse('attendance:form-weekly')}?class_id={assignment.academic_class_id}"
             f"&week_start={week_start.isoformat()}"
+            f"&term_id={selected_term.id}"
             f"&page={request.POST.get('page', 1)}&page_size={page_size}"
         )

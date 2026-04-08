@@ -309,6 +309,8 @@ class FinanceInstitutionProfileForm(_StyledFormMixin, forms.ModelForm):
             "school_account_number",
             "application_form_fee_amount",
             "application_form_fee_note",
+            "transcript_fee_amount",
+            "transcript_fee_note",
             "include_bank_details_in_messages",
             "show_on_receipt_pdf",
         ]

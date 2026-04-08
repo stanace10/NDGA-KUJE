@@ -4,382 +4,323 @@
 
 {% block content %}
   <section class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-    <div class="grid gap-6">
-      <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h1 class="text-2xl font-bold text-slate-900">Public Website Controls</h1>
-        <p class="mt-2 max-w-3xl text-sm text-slate-600">
-          Update core public-site content here without touching code. IT, VP, and Principal can manage branding,
-          homepage copy, gallery categories, gallery images, news, and events from this screen.
+    <div class="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+      <aside class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Public Website</p>
+        <h1 class="mt-2 text-2xl font-bold text-slate-900">Section Controls</h1>
+        <p class="mt-2 text-sm leading-6 text-slate-600">
+          Edit the public website page by page. Each button opens a dedicated editor.
         </p>
-      </article>
+        <div class="mt-5 grid gap-2">
+          {% for section in website_sections %}
+            <a
+              href="{{ section.url }}"
+              class="rounded-2xl border px-4 py-4 text-sm transition {% if section.is_active %}border-ndga-navy bg-ndga-navy text-white shadow-sm{% else %}border-slate-200 bg-slate-50 text-slate-900 hover:border-ndga-gold hover:bg-white{% endif %}"
+            >
+              <span class="block font-semibold">{{ section.label }}</span>
+              <span class="mt-1 block text-xs leading-5 {% if section.is_active %}text-white/75{% else %}text-slate-500{% endif %}">{{ section.description }}</span>
+            </a>
+          {% endfor %}
+        </div>
+      </aside>
 
-      <div class="grid gap-6 xl:grid-cols-2">
-        <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 class="text-lg font-semibold text-slate-900">School Branding & Contact</h2>
-          <form method="post" enctype="multipart/form-data" class="mt-4 grid gap-4">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="save_branding">
-            {% for field in branding_form %}
+      <div class="grid gap-6">
+        {% if active_section == "overview" %}
+          <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Overview</p>
+            <h2 class="mt-2 text-2xl font-bold text-slate-900">Choose a page to edit</h2>
+            <div class="mt-5 grid gap-3 md:grid-cols-2">
+              {% for section in website_sections %}
+                {% if section.slug != "overview" %}
+                  <a href="{{ section.url }}" class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm font-semibold text-slate-800 transition hover:border-ndga-gold hover:bg-white">
+                    {{ section.label }}
+                  </a>
+                {% endif %}
+              {% endfor %}
+            </div>
+          </article>
+        {% endif %}
+
+        {% if active_section == "branding" %}
+          <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Branding</p>
+            <h2 class="mt-2 text-2xl font-bold text-slate-900">School identity</h2>
+            <form method="post" enctype="multipart/form-data" class="mt-5 grid gap-4">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="save_branding">
+              <input type="hidden" name="return_section" value="branding">
               <div>
-                <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500" for="{{ field.id_for_label }}">{{ field.label }}</label>
-                {{ field }}
-                {% if field.errors %}<p class="mt-1 text-xs text-rose-700">{{ field.errors|striptags }}</p>{% endif %}
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500" for="{{ branding_form.school_name.id_for_label }}">{{ branding_form.school_name.label }}</label>
+                {{ branding_form.school_name }}
               </div>
-            {% endfor %}
-            <div>
+              <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500" for="{{ branding_form.principal_name.id_for_label }}">{{ branding_form.principal_name.label }}</label>
+                {{ branding_form.principal_name }}
+              </div>
+              <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500" for="{{ branding_form.school_logo.id_for_label }}">{{ branding_form.school_logo.label }}</label>
+                {{ branding_form.school_logo }}
+              </div>
               <button type="submit" class="ndga-btn ndga-btn-primary">Save Branding</button>
+            </form>
+          </article>
+        {% endif %}
+
+        {% if active_section == "contact" %}
+          <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Contact</p>
+            <h2 class="mt-2 text-2xl font-bold text-slate-900">Public contact details</h2>
+            <form method="post" enctype="multipart/form-data" class="mt-5 grid gap-4">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="save_contact">
+              <input type="hidden" name="return_section" value="contact">
+              <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500" for="{{ branding_form.contact_email.id_for_label }}">{{ branding_form.contact_email.label }}</label>
+                {{ branding_form.contact_email }}
+              </div>
+              <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500" for="{{ branding_form.contact_phone.id_for_label }}">{{ branding_form.contact_phone.label }}</label>
+                {{ branding_form.contact_phone }}
+              </div>
+              <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500" for="{{ branding_form.address.id_for_label }}">{{ branding_form.address.label }}</label>
+                {{ branding_form.address }}
+              </div>
+              <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500" for="{{ branding_form.website.id_for_label }}">{{ branding_form.website.label }}</label>
+                {{ branding_form.website }}
+              </div>
+              <button type="submit" class="ndga-btn ndga-btn-primary">Save Contact Details</button>
+            </form>
+          </article>
+        {% endif %}
+
+        {% if active_section == "homepage" %}
+          <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Homepage Hero</p>
+            <h2 class="mt-2 text-2xl font-bold text-slate-900">Hero title and red support line</h2>
+            <form method="post" class="mt-5 grid gap-4">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="save_site_settings">
+              <input type="hidden" name="return_section" value="homepage">
+              <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500" for="{{ site_settings_form.hero_title.id_for_label }}">{{ site_settings_form.hero_title.label }}</label>
+                {{ site_settings_form.hero_title }}
+              </div>
+              <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500" for="{{ site_settings_form.hero_subtitle.id_for_label }}">{{ site_settings_form.hero_subtitle.label }}</label>
+                {{ site_settings_form.hero_subtitle }}
+              </div>
+              <button type="submit" class="ndga-btn ndga-btn-primary">Save Homepage Hero</button>
+            </form>
+          </article>
+        {% endif %}
+
+        {% if active_section == "principal" %}
+          <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Principal</p>
+            <h2 class="mt-2 text-2xl font-bold text-slate-900">Principal message</h2>
+            <form method="post" class="mt-5 grid gap-4">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="save_principal_message">
+              <input type="hidden" name="return_section" value="principal">
+              <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500" for="{{ site_settings_form.principal_welcome_title.id_for_label }}">{{ site_settings_form.principal_welcome_title.label }}</label>
+                {{ site_settings_form.principal_welcome_title }}
+              </div>
+              <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500" for="{{ site_settings_form.principal_welcome_message.id_for_label }}">{{ site_settings_form.principal_welcome_message.label }}</label>
+                {{ site_settings_form.principal_welcome_message }}
+              </div>
+              <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500" for="{{ site_settings_form.principal_welcome_support.id_for_label }}">{{ site_settings_form.principal_welcome_support.label }}</label>
+                {{ site_settings_form.principal_welcome_support }}
+              </div>
+              <button type="submit" class="ndga-btn ndga-btn-primary">Save Principal Message</button>
+            </form>
+          </article>
+        {% endif %}
+
+        {% if active_section == "support-chat" %}
+          <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Support</p>
+            <h2 class="mt-2 text-2xl font-bold text-slate-900">Chatbot and footer text</h2>
+            <form method="post" class="mt-5 grid gap-4">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="save_support_settings">
+              <input type="hidden" name="return_section" value="support-chat">
+              <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500" for="{{ site_settings_form.footer_statement.id_for_label }}">{{ site_settings_form.footer_statement.label }}</label>
+                {{ site_settings_form.footer_statement }}
+              </div>
+              <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500" for="{{ site_settings_form.chat_welcome_text.id_for_label }}">{{ site_settings_form.chat_welcome_text.label }}</label>
+                {{ site_settings_form.chat_welcome_text }}
+              </div>
+              <div>
+                <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500" for="{{ site_settings_form.chat_management_wait_text.id_for_label }}">{{ site_settings_form.chat_management_wait_text.label }}</label>
+                {{ site_settings_form.chat_management_wait_text }}
+              </div>
+              <button type="submit" class="ndga-btn ndga-btn-primary">Save Support Text</button>
+            </form>
+          </article>
+        {% endif %}
+
+        {% if active_section == "gallery-categories" %}
+          <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 class="text-xl font-semibold text-slate-900">Gallery Categories</h2>
+            <form method="post" enctype="multipart/form-data" class="mt-4 grid gap-3">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="create_gallery_category">
+              <input type="hidden" name="return_section" value="gallery-categories">
+              {% for field in gallery_category_form %}
+                <div>
+                  <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                  {{ field }}
+                </div>
+              {% endfor %}
+              <button type="submit" class="ndga-btn ndga-btn-primary">Save Gallery Category</button>
+            </form>
+            <div class="mt-5 space-y-3">
+              {% for row in gallery_categories %}
+                <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div class="flex items-start justify-between gap-4">
+                    <div>
+                      <p class="font-semibold text-slate-900">{{ row.title }}</p>
+                      <p class="mt-1 text-sm text-slate-600">{{ row.summary|default:"No summary yet." }}</p>
+                    </div>
+                    <form method="post">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="delete_gallery_category">
+                      <input type="hidden" name="return_section" value="gallery-categories">
+                      <input type="hidden" name="row_id" value="{{ row.id }}">
+                      <button type="submit" class="ndga-btn ndga-btn-secondary">Delete</button>
+                    </form>
+                  </div>
+                </article>
+              {% empty %}
+                <p class="text-sm text-slate-500">No custom gallery categories yet.</p>
+              {% endfor %}
             </div>
-          </form>
-        </article>
+          </article>
+        {% endif %}
 
-        <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 class="text-lg font-semibold text-slate-900">Homepage & Chat Text</h2>
-          <form method="post" class="mt-4 grid gap-4">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="save_site_settings">
-            {% for field in site_settings_form %}
-              <div>
-                <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500" for="{{ field.id_for_label }}">{{ field.label }}</label>
-                {{ field }}
-                {% if field.errors %}<p class="mt-1 text-xs text-rose-700">{{ field.errors|striptags }}</p>{% endif %}
-              </div>
-            {% endfor %}
-            <div>
-              <button type="submit" class="ndga-btn ndga-btn-primary">Save Website Text</button>
+        {% if active_section == "gallery-images" %}
+          <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 class="text-xl font-semibold text-slate-900">Gallery Images</h2>
+            <form method="post" enctype="multipart/form-data" class="mt-4 grid gap-3">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="create_gallery_image">
+              <input type="hidden" name="return_section" value="gallery-images">
+              {% for field in gallery_image_form %}
+                <div>
+                  <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                  {{ field }}
+                </div>
+              {% endfor %}
+              <button type="submit" class="ndga-btn ndga-btn-primary">Upload Gallery Image</button>
+            </form>
+            <div class="mt-5 space-y-3">
+              {% for row in gallery_images %}
+                <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div class="flex items-start justify-between gap-4">
+                    <div>
+                      <p class="font-semibold text-slate-900">{{ row.title|default:"Gallery image" }}</p>
+                      <p class="mt-1 text-sm text-slate-600">{{ row.category.title }}{% if row.caption %} | {{ row.caption }}{% endif %}</p>
+                    </div>
+                    <form method="post">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="delete_gallery_image">
+                      <input type="hidden" name="return_section" value="gallery-images">
+                      <input type="hidden" name="row_id" value="{{ row.id }}">
+                      <button type="submit" class="ndga-btn ndga-btn-secondary">Delete</button>
+                    </form>
+                  </div>
+                </article>
+              {% empty %}
+                <p class="text-sm text-slate-500">No uploaded gallery images yet.</p>
+              {% endfor %}
             </div>
-          </form>
-        </article>
-      </div>
+          </article>
+        {% endif %}
 
-      <div class="grid gap-6 xl:grid-cols-2">
-        <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 class="text-lg font-semibold text-slate-900">Gallery Categories</h2>
-          <form method="post" enctype="multipart/form-data" class="mt-4 grid gap-3">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="create_gallery_category">
-            {% for field in gallery_category_form %}
-              <div>
-                <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500" for="{{ field.id_for_label }}">{{ field.label }}</label>
-                {{ field }}
-                {% if field.errors %}<p class="mt-1 text-xs text-rose-700">{{ field.errors|striptags }}</p>{% endif %}
-              </div>
-            {% endfor %}
-            <button type="submit" class="ndga-btn ndga-btn-primary">Save Gallery Category</button>
-          </form>
-
-          <div class="mt-5 space-y-3">
-            {% for row in gallery_categories %}
-              <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <div class="flex items-start justify-between gap-4">
-                  <div>
-                    <p class="font-semibold text-slate-900">{{ row.title }}</p>
-                    <p class="mt-1 text-sm text-slate-600">{{ row.summary|default:"No summary yet." }}</p>
-                    <p class="mt-2 text-xs uppercase tracking-[0.14em] text-slate-500">{{ row.slug }}</p>
-                  </div>
-                  <form method="post">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="delete_gallery_category">
-                    <input type="hidden" name="row_id" value="{{ row.id }}">
-                    <button type="submit" class="ndga-btn ndga-btn-secondary">Delete</button>
-                  </form>
+        {% if active_section == "news" %}
+          <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 class="text-xl font-semibold text-slate-900">News & Blog Updates</h2>
+            <form method="post" enctype="multipart/form-data" class="mt-4 grid gap-3">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="create_news_post">
+              <input type="hidden" name="return_section" value="news">
+              {% for field in news_form %}
+                <div>
+                  <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                  {{ field }}
                 </div>
-                <details class="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
-                  <summary class="cursor-pointer text-sm font-semibold text-slate-800">Edit category</summary>
-                  <form method="post" enctype="multipart/form-data" class="mt-4 grid gap-3">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="update_gallery_category">
-                    <input type="hidden" name="row_id" value="{{ row.id }}">
+              {% endfor %}
+              <button type="submit" class="ndga-btn ndga-btn-primary">Save News Item</button>
+            </form>
+            <div class="mt-5 space-y-3">
+              {% for row in news_posts %}
+                <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div class="flex items-start justify-between gap-4">
                     <div>
-                      <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Title</label>
-                      <input type="text" name="title" value="{{ row.title }}" class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm">
+                      <p class="font-semibold text-slate-900">{{ row.title }}</p>
+                      <p class="mt-1 text-sm text-slate-600">{{ row.category }} | {{ row.published_on }}</p>
                     </div>
-                    <div>
-                      <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Slug</label>
-                      <input type="text" name="slug" value="{{ row.slug }}" class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm">
-                    </div>
-                    <div>
-                      <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Summary</label>
-                      <textarea name="summary" rows="3" class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm">{{ row.summary }}</textarea>
-                    </div>
-                    <div class="grid gap-3 sm:grid-cols-2">
-                      <div>
-                        <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Sort Order</label>
-                        <input type="number" name="sort_order" value="{{ row.sort_order }}" class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm">
-                      </div>
-                      <div class="flex items-center gap-3 pt-6">
-                        <input type="checkbox" name="is_active" value="on" {% if row.is_active %}checked{% endif %}>
-                        <span class="text-sm text-slate-700">Active</span>
-                      </div>
-                    </div>
-                    <div>
-                      <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Replace Cover Image</label>
-                      <input type="file" name="cover_image" accept="image/png,image/jpeg,image/jpg,image/webp" class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm">
-                    </div>
-                    <button type="submit" class="ndga-btn ndga-btn-primary">Update Category</button>
-                  </form>
-                </details>
-              </article>
-            {% empty %}
-              <p class="text-sm text-slate-500">No custom gallery categories yet. Static fallback remains active until you add one.</p>
-            {% endfor %}
-          </div>
-        </article>
-
-        <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 class="text-lg font-semibold text-slate-900">Gallery Images</h2>
-          <form method="post" enctype="multipart/form-data" class="mt-4 grid gap-3">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="create_gallery_image">
-            {% for field in gallery_image_form %}
-              <div>
-                <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500" for="{{ field.id_for_label }}">{{ field.label }}</label>
-                {{ field }}
-                {% if field.errors %}<p class="mt-1 text-xs text-rose-700">{{ field.errors|striptags }}</p>{% endif %}
-              </div>
-            {% endfor %}
-            <button type="submit" class="ndga-btn ndga-btn-primary">Upload Gallery Image</button>
-          </form>
-
-          <div class="mt-5 space-y-3">
-            {% for row in gallery_images %}
-              <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <div class="flex items-start justify-between gap-4">
-                  <div>
-                    <p class="font-semibold text-slate-900">{{ row.title|default:"Gallery image" }}</p>
-                    <p class="mt-1 text-sm text-slate-600">{{ row.category.title }}{% if row.caption %} | {{ row.caption }}{% endif %}</p>
+                    <form method="post">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="delete_news_post">
+                      <input type="hidden" name="return_section" value="news">
+                      <input type="hidden" name="row_id" value="{{ row.id }}">
+                      <button type="submit" class="ndga-btn ndga-btn-secondary">Delete</button>
+                    </form>
                   </div>
-                  <form method="post">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="delete_gallery_image">
-                    <input type="hidden" name="row_id" value="{{ row.id }}">
-                    <button type="submit" class="ndga-btn ndga-btn-secondary">Delete</button>
-                  </form>
+                </article>
+              {% empty %}
+                <p class="text-sm text-slate-500">No custom news items yet.</p>
+              {% endfor %}
+            </div>
+          </article>
+        {% endif %}
+
+        {% if active_section == "events" %}
+          <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 class="text-xl font-semibold text-slate-900">Events</h2>
+            <form method="post" enctype="multipart/form-data" class="mt-4 grid gap-3">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="create_event_post">
+              <input type="hidden" name="return_section" value="events">
+              {% for field in event_form %}
+                <div>
+                  <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                  {{ field }}
                 </div>
-                <details class="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
-                  <summary class="cursor-pointer text-sm font-semibold text-slate-800">Edit image details</summary>
-                  <form method="post" enctype="multipart/form-data" class="mt-4 grid gap-3">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="update_gallery_image">
-                    <input type="hidden" name="row_id" value="{{ row.id }}">
+              {% endfor %}
+              <button type="submit" class="ndga-btn ndga-btn-primary">Save Event</button>
+            </form>
+            <div class="mt-5 space-y-3">
+              {% for row in event_posts %}
+                <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div class="flex items-start justify-between gap-4">
                     <div>
-                      <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Category</label>
-                      <select name="category" class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm">
-                        {% for category in gallery_categories %}
-                          <option value="{{ category.id }}" {% if category.id == row.category_id %}selected{% endif %}>{{ category.title }}</option>
-                        {% endfor %}
-                      </select>
+                      <p class="font-semibold text-slate-900">{{ row.title }}</p>
+                      <p class="mt-1 text-sm text-slate-600">{{ row.meta }} | {{ row.event_date }}{% if row.location %} | {{ row.location }}{% endif %}</p>
                     </div>
-                    <div>
-                      <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Title</label>
-                      <input type="text" name="title" value="{{ row.title }}" class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm">
-                    </div>
-                    <div>
-                      <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Caption</label>
-                      <input type="text" name="caption" value="{{ row.caption }}" class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm">
-                    </div>
-                    <div class="grid gap-3 sm:grid-cols-2">
-                      <div>
-                        <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Sort Order</label>
-                        <input type="number" name="sort_order" value="{{ row.sort_order }}" class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm">
-                      </div>
-                      <div class="flex items-center gap-3 pt-6">
-                        <input type="checkbox" name="is_active" value="on" {% if row.is_active %}checked{% endif %}>
-                        <span class="text-sm text-slate-700">Active</span>
-                      </div>
-                    </div>
-                    <div>
-                      <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Replace Image</label>
-                      <input type="file" name="image" accept="image/png,image/jpeg,image/jpg,image/webp" class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm">
-                    </div>
-                    <button type="submit" class="ndga-btn ndga-btn-primary">Update Image</button>
-                  </form>
-                </details>
-              </article>
-            {% empty %}
-              <p class="text-sm text-slate-500">No uploaded gallery images yet.</p>
-            {% endfor %}
-          </div>
-        </article>
-      </div>
-
-      <div class="grid gap-6 xl:grid-cols-2">
-        <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 class="text-lg font-semibold text-slate-900">News & Blog Updates</h2>
-          <form method="post" enctype="multipart/form-data" class="mt-4 grid gap-3">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="create_news_post">
-            {% for field in news_form %}
-              <div>
-                <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500" for="{{ field.id_for_label }}">{{ field.label }}</label>
-                {{ field }}
-                {% if field.errors %}<p class="mt-1 text-xs text-rose-700">{{ field.errors|striptags }}</p>{% endif %}
-              </div>
-            {% endfor %}
-            <button type="submit" class="ndga-btn ndga-btn-primary">Save News Item</button>
-          </form>
-
-          <div class="mt-5 space-y-3">
-            {% for row in news_posts %}
-              <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <div class="flex items-start justify-between gap-4">
-                  <div>
-                    <p class="font-semibold text-slate-900">{{ row.title }}</p>
-                    <p class="mt-1 text-sm text-slate-600">{{ row.category }} | {{ row.published_on }}</p>
+                    <form method="post">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="delete_event_post">
+                      <input type="hidden" name="return_section" value="events">
+                      <input type="hidden" name="row_id" value="{{ row.id }}">
+                      <button type="submit" class="ndga-btn ndga-btn-secondary">Delete</button>
+                    </form>
                   </div>
-                  <form method="post">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="delete_news_post">
-                    <input type="hidden" name="row_id" value="{{ row.id }}">
-                    <button type="submit" class="ndga-btn ndga-btn-secondary">Delete</button>
-                  </form>
-                </div>
-                <details class="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
-                  <summary class="cursor-pointer text-sm font-semibold text-slate-800">Edit news item</summary>
-                  <form method="post" enctype="multipart/form-data" class="mt-4 grid gap-3">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="update_news_post">
-                    <input type="hidden" name="row_id" value="{{ row.id }}">
-                    <div>
-                      <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Title</label>
-                      <input type="text" name="title" value="{{ row.title }}" class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm">
-                    </div>
-                    <div class="grid gap-3 sm:grid-cols-2">
-                      <div>
-                        <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Slug</label>
-                        <input type="text" name="slug" value="{{ row.slug }}" class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm">
-                      </div>
-                      <div>
-                        <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Category</label>
-                        <input type="text" name="category" value="{{ row.category }}" class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm">
-                      </div>
-                    </div>
-                    <div>
-                      <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Published Date</label>
-                      <input type="date" name="published_on" value="{{ row.published_on|date:'Y-m-d' }}" class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm">
-                    </div>
-                    <div>
-                      <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Summary</label>
-                      <textarea name="summary" rows="3" class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm">{{ row.summary }}</textarea>
-                    </div>
-                    <div>
-                      <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Body</label>
-                      <textarea name="body" rows="6" class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm">{{ row.body }}</textarea>
-                    </div>
-                    <div class="grid gap-3 sm:grid-cols-2">
-                      <div>
-                        <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Sort Order</label>
-                        <input type="number" name="sort_order" value="{{ row.sort_order }}" class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm">
-                      </div>
-                      <div class="flex items-center gap-3 pt-6">
-                        <input type="checkbox" name="is_published" value="on" {% if row.is_published %}checked{% endif %}>
-                        <span class="text-sm text-slate-700">Published</span>
-                      </div>
-                    </div>
-                    <div>
-                      <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Replace Image</label>
-                      <input type="file" name="image" accept="image/png,image/jpeg,image/jpg,image/webp" class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm">
-                    </div>
-                    <button type="submit" class="ndga-btn ndga-btn-primary">Update News Item</button>
-                  </form>
-                </details>
-              </article>
-            {% empty %}
-              <p class="text-sm text-slate-500">No custom news items yet. Static fallback remains active until you add one.</p>
-            {% endfor %}
-          </div>
-        </article>
-
-        <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 class="text-lg font-semibold text-slate-900">Events</h2>
-          <form method="post" enctype="multipart/form-data" class="mt-4 grid gap-3">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="create_event_post">
-            {% for field in event_form %}
-              <div>
-                <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500" for="{{ field.id_for_label }}">{{ field.label }}</label>
-                {{ field }}
-                {% if field.errors %}<p class="mt-1 text-xs text-rose-700">{{ field.errors|striptags }}</p>{% endif %}
-              </div>
-            {% endfor %}
-            <button type="submit" class="ndga-btn ndga-btn-primary">Save Event</button>
-          </form>
-
-          <div class="mt-5 space-y-3">
-            {% for row in event_posts %}
-              <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <div class="flex items-start justify-between gap-4">
-                  <div>
-                    <p class="font-semibold text-slate-900">{{ row.title }}</p>
-                    <p class="mt-1 text-sm text-slate-600">{{ row.meta }} | {{ row.event_date }}{% if row.location %} | {{ row.location }}{% endif %}</p>
-                  </div>
-                  <form method="post">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="delete_event_post">
-                    <input type="hidden" name="row_id" value="{{ row.id }}">
-                    <button type="submit" class="ndga-btn ndga-btn-secondary">Delete</button>
-                  </form>
-                </div>
-                <details class="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
-                  <summary class="cursor-pointer text-sm font-semibold text-slate-800">Edit event</summary>
-                  <form method="post" enctype="multipart/form-data" class="mt-4 grid gap-3">
-                    {% csrf_token %}
-                    <input type="hidden" name="action" value="update_event_post">
-                    <input type="hidden" name="row_id" value="{{ row.id }}">
-                    <div>
-                      <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Title</label>
-                      <input type="text" name="title" value="{{ row.title }}" class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm">
-                    </div>
-                    <div class="grid gap-3 sm:grid-cols-2">
-                      <div>
-                        <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Slug</label>
-                        <input type="text" name="slug" value="{{ row.slug }}" class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm">
-                      </div>
-                      <div>
-                        <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Meta Label</label>
-                        <input type="text" name="meta" value="{{ row.meta }}" class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm">
-                      </div>
-                    </div>
-                    <div class="grid gap-3 sm:grid-cols-2">
-                      <div>
-                        <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Event Date</label>
-                        <input type="date" name="event_date" value="{{ row.event_date|date:'Y-m-d' }}" class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm">
-                      </div>
-                      <div>
-                        <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Location</label>
-                        <input type="text" name="location" value="{{ row.location }}" class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm">
-                      </div>
-                    </div>
-                    <div>
-                      <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Summary</label>
-                      <textarea name="summary" rows="3" class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm">{{ row.summary }}</textarea>
-                    </div>
-                    <div>
-                      <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Body</label>
-                      <textarea name="body" rows="5" class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm">{{ row.body }}</textarea>
-                    </div>
-                    <div class="grid gap-3 sm:grid-cols-2">
-                      <div>
-                        <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Sort Order</label>
-                        <input type="number" name="sort_order" value="{{ row.sort_order }}" class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm">
-                      </div>
-                      <div class="flex items-center gap-3 pt-6">
-                        <input type="checkbox" name="is_published" value="on" {% if row.is_published %}checked{% endif %}>
-                        <span class="text-sm text-slate-700">Published</span>
-                      </div>
-                    </div>
-                    <div>
-                      <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Replace Image</label>
-                      <input type="file" name="image" accept="image/png,image/jpeg,image/jpg,image/webp" class="w-full rounded-2xl border border-slate-300 px-4 py-3 text-sm">
-                    </div>
-                    <button type="submit" class="ndga-btn ndga-btn-primary">Update Event</button>
-                  </form>
-                </details>
-              </article>
-            {% empty %}
-              <p class="text-sm text-slate-500">No custom events yet. Static fallback remains active until you add one.</p>
-            {% endfor %}
-          </div>
-        </article>
+                </article>
+              {% empty %}
+                <p class="text-sm text-slate-500">No custom events yet.</p>
+              {% endfor %}
+            </div>
+          </article>
+        {% endif %}
       </div>
     </div>
   </section>
