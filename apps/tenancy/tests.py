@@ -1,6 +1,7 @@
 from django.core import mail
 from django.test import Client, RequestFactory, TestCase, override_settings
 from django.utils import timezone
+from unittest.mock import patch
 
 from apps.accounts.constants import ROLE_FORM_TEACHER, ROLE_IT_MANAGER, ROLE_STUDENT, ROLE_SUBJECT_TEACHER, ROLE_VP
 from apps.accounts.models import Role, User
@@ -310,6 +311,28 @@ class StageTwoHostRoutingTests(TestCase):
         self.assertContains(response, "Results Overview")
         self.assertContains(response, "Profile")
         self.assertContains(response, "Settings")
+
+    @override_settings(
+        NDGA_LOCAL_SIMPLE_HOST_MODE=True,
+        SYNC_NODE_ROLE="LAN",
+        LAN_RUNTIME_RESTRICT_PORTALS=False,
+    )
+    @patch(
+        "apps.tenancy.middleware.current_term_staff_edit_lock",
+        return_value={"locked": True, "start_date": timezone.datetime(2026, 4, 20).date()},
+    )
+    def test_future_term_lock_keeps_staff_get_open_but_blocks_post(self, _mock_lock):
+        client = Client(HTTP_HOST="localhost:8000")
+        client.force_login(self.teacher_user)
+
+        readonly = client.get("/results/grade-entry/")
+        self.assertEqual(readonly.status_code, 200)
+        self.assertContains(readonly, "Result Entry")
+        self.assertTrue(getattr(readonly.wsgi_request, "term_edit_locked", False))
+
+        blocked = client.post("/results/grade-entry/")
+        self.assertEqual(blocked.status_code, 403)
+        self.assertIn("Term Entry Locked", blocked.content.decode())
 
     @override_settings(
         NDGA_LOCAL_SIMPLE_HOST_MODE=True,

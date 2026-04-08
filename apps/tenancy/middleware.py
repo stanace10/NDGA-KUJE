@@ -310,6 +310,14 @@ class PortalAccessMiddleware:
         if not lock_state["locked"]:
             return None
         start_date = lock_state["start_date"]
+        if request.method in {"GET", "HEAD", "OPTIONS"}:
+            request.term_edit_locked = True
+            request.term_edit_lock_start_date = start_date
+            request.term_edit_lock_message = (
+                "Third term is the active term. Previous-term records remain visible, "
+                "but staff edit actions stay locked until the term opens."
+            )
+            return None
         context = {
             "restriction_title": "Term Entry Locked",
             "restriction_heading": "Staff editing is closed until the new term opens.",
