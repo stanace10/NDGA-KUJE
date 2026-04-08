@@ -232,31 +232,64 @@
     data-chat-management-wait="{{ public_site_settings.chat_management_wait_text }}"
   >
     <header class="ndga-support-header">
-      <div class="ndga-support-header-copy">
+      <div class="ndga-support-header-top">
         <div class="ndga-support-brand-row">
           <strong>Smart Julie</strong>
           <div class="ndga-support-avatars" aria-hidden="true">
             <span></span>
             <span></span>
+            <span></span>
           </div>
         </div>
-        <h3>Hi there. How can we help?</h3>
-        <p>{{ public_site_settings.chat_welcome_text }}</p>
+        <button type="button" class="ndga-support-close" data-chatbot-close aria-label="Close support panel">&times;</button>
       </div>
-      <button type="button" class="ndga-support-close" data-chatbot-close aria-label="Close support panel">&times;</button>
+      <div class="ndga-support-header-copy">
+        <h3>Hi there. How can we help?</h3>
+        <p>Admissions, boarding, fees, portal support, and directions.</p>
+      </div>
     </header>
 
     <div class="ndga-support-body">
       <section class="ndga-support-view is-active" data-support-view="home">
-        <div class="ndga-support-home-card ndga-support-home-card--intro">
-          <small>Admissions, boarding, fees, school life</small>
-          <h4>Start with Julie first.</h4>
-          <p>Ask Julie about admissions, entrance screening, boarding, fees, subjects, child safeguarding, term dates, or directions. Management is offered only when the answer is not enough.</p>
-        </div>
         <button type="button" class="ndga-support-primary" data-support-open-messages>
-          <span>Send us a message</span>
+          <div>
+            <strong>Send us a message</strong>
+            <small>Ask Julie first</small>
+          </div>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l8 7-8 7v-4.8L13.2 12 8 9.8V5Z"/></svg>
         </button>
+        <div class="ndga-support-mini-grid">
+          <button type="button" class="ndga-support-mini-card" data-support-open-messages>
+            <strong>Help Centre</strong>
+            <small>Quick answers</small>
+          </button>
+          <a href="/news/" class="ndga-support-mini-card">
+            <strong>Blog</strong>
+            <small>School updates</small>
+          </a>
+          <a href="{{ public_contact.whatsapp_url }}" class="ndga-support-mini-card" target="_blank" rel="noreferrer">
+            <strong>WhatsApp</strong>
+            <small>Optional shortcut</small>
+          </a>
+          <button type="button" class="ndga-support-mini-card" data-chatbot-chip="How can I follow NDGA updates on Facebook and X?">
+            <strong>Facebook / X</strong>
+            <small>Social support</small>
+          </button>
+        </div>
+        <div class="ndga-support-topic-grid">
+          <button type="button" class="ndga-support-topic-card" data-chatbot-chip="How do I apply?">
+            <strong>Admission</strong>
+            <small>Forms, screening, fees</small>
+          </button>
+          <button type="button" class="ndga-support-topic-card" data-chatbot-chip="Tell me about the school.">
+            <strong>About School</strong>
+            <small>Mission, values, boarding</small>
+          </button>
+          <a href="{{ public_portal_url }}" class="ndga-support-topic-card ndga-support-topic-card--link">
+            <strong>School Portal</strong>
+            <small>Open portal access</small>
+          </a>
+        </div>
         <div class="ndga-support-home-grid">
           {% for prompt in chatbot_prompts %}
             <button type="button" class="ndga-support-chip" data-chatbot-chip="{{ prompt }}">
@@ -264,23 +297,17 @@
             </button>
           {% endfor %}
         </div>
-        <div class="ndga-support-resource-list">
-          <a href="/admissions/">Admissions Guide</a>
-          <a href="/fees/">Fees and Boarding</a>
-          <a href="{{ public_contact.maps_url }}" target="_blank" rel="noreferrer">School Directions</a>
-          <a href="/contact/">Contact the School</a>
-        </div>
       </section>
 
       <section class="ndga-support-view" data-support-view="messages">
         <div class="ndga-support-subhead">
           <span>Messages</span>
-          <small>Julie replies first. Management joins only when needed.</small>
+          <small>Julie replies first. Management is offered only when needed.</small>
         </div>
         <div class="ndga-support-thread" data-chatbot-log>
           <article class="public-live-chat-bubble is-agent">
             <strong>Smart Julie</strong>
-            <p>Ask about admissions, entrance screening, boarding, fees, subjects, term dates, or directions.</p>
+            <p>Ask about admissions, boarding, fees, school life, portal access, or directions.</p>
           </article>
         </div>
         <div class="ndga-support-escalation" data-chatbot-escalation hidden>
@@ -297,7 +324,7 @@
         <div class="ndga-support-management-shell" data-live-chat-shell hidden>
           <div class="ndga-support-management-note">
             <strong>Management follow-up</strong>
-            <p>Replies are sent to the email you provide. If no one is free right away, your message becomes a ticket automatically.</p>
+            <p>If no one is free right away, your message becomes a ticket and replies go to your email.</p>
           </div>
           <form class="ndga-support-management-form" data-live-chat-form method="post" action="{{ public_live_chat_url }}">
             {% csrf_token %}
@@ -314,7 +341,7 @@
       <section class="ndga-support-view" data-support-view="tickets">
         <div class="ndga-support-subhead">
           <span>Tickets</span>
-          <small>Requests awaiting management follow-up.</small>
+          <small>Follow-up requests from management.</small>
         </div>
         <div class="ndga-support-ticket-list" data-support-ticket-list>
           <article class="ndga-support-ticket-card is-empty">

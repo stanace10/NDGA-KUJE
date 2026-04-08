@@ -162,8 +162,8 @@ class PublicHomeView(PublicSiteEnabledMixin, TemplateView):
                         "title": "Application & Screening",
                         "text": "Families can review the current application form fee, screening guidance, and what happens before approval is granted.",
                         "images": [
+                            context["public_images"]["about_student"],
                             context["public_images"]["campus"],
-                            context["public_images"]["campus_view"],
                             context["public_images"]["computer_lab_pair"],
                         ],
                         "href": "/admissions/",
@@ -223,24 +223,32 @@ class PublicHomeView(PublicSiteEnabledMixin, TemplateView):
                 ],
                 "home_hallmarks": [
                     {
-                        "title": "A Welcoming Community",
-                        "text": "Girls are known, encouraged, and helped to settle into a calm and friendly school environment.",
+                        "title": "God is Good",
+                        "text": "We proclaim by our lives even more than by our words that God is good.",
                     },
                     {
-                        "title": "A Learning Community",
-                        "text": "High expectations, academic follow-up, and celebration of achievement shape the rhythm of school life.",
+                        "title": "Dignity of Each Person",
+                        "text": "We honour the dignity and sacredness of each person in the school community.",
                     },
                     {
-                        "title": "A Caring Community",
-                        "text": "Pastoral attention, boarding supervision, and close staff support remain visible in the daily life of students.",
+                        "title": "Justice and Peace",
+                        "text": "We educate for and act on behalf of justice and peace in the world.",
                     },
                     {
-                        "title": "A Worshipping Community",
-                        "text": "Prayer, assemblies, Mass, retreats, and Catholic witness remain part of the formation of every student.",
+                        "title": "Community Service",
+                        "text": "We commit ourselves to community service through generous action and shared responsibility.",
                     },
                     {
-                        "title": "Child Safeguarding",
-                        "text": "NDGA recognises every child as a gift from God and remains committed to safety, dignity, welfare, and partnership with parents and guardians.",
+                        "title": "Gift of Diversity",
+                        "text": "We embrace the gift of diversity and respect the background and worth of every child.",
+                    },
+                    {
+                        "title": "Community",
+                        "text": "We create community among those with whom we work and those we serve.",
+                    },
+                    {
+                        "title": "Educating for Life",
+                        "text": "We develop holistic learning communities which educate for life.",
                     },
                 ],
                 "home_gallery": get_public_gallery()[:4],

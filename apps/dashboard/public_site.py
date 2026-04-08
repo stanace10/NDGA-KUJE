@@ -13,7 +13,7 @@ from apps.dashboard.models import (
 
 
 PUBLIC_IMAGE = {
-    "hero": "images/public/facility-campus-view.jpeg",
+    "hero": "images/public/facility-academic-block.jpeg",
     "hero_alt": "images/public/community-assembly.jpg",
     "hero_music": "images/public/social-clubs-1.jpg",
     "hero_students": "images/public/classroom-computing-wide.jpg",
@@ -22,19 +22,20 @@ PUBLIC_IMAGE = {
     "principal_large": "images/public/principal-portrait-large.jpeg",
     "logo": "images/ndga/logo.png",
     "campus": "images/public/facility-entrance.jpeg",
-    "campus_view": "images/public/facility-campus-view.jpeg",
+    "campus_view": "images/public/facility-academic-block.jpeg",
     "campus_refectory": "images/public/facility-refectory.jpeg",
-    "campus_block": "images/public/campus-block.jpg",
-    "campus-life-1": "images/public/facility-campus-view.jpeg",
+    "campus_block": "images/public/facility-academic-block.jpeg",
+    "about_student": "images/public/about-student-learning.jpg",
+    "campus-life-1": "images/public/facility-academic-block.jpeg",
     "campus-life-2": "images/public/community-assembly.jpg",
     "computer_lab": "images/public/classroom-computing-students.jpg",
     "computer_lab_junior": "images/public/classroom-computing-wide.jpg",
     "computer_lab_pair": "images/public/classroom-computing-pair.jpg",
     "cbt_room": "images/public/classroom-cbt-room.jpg",
-    "hostel": "images/public/boarding-hostel-1.jpeg",
+    "hostel": "images/public/boarding-study.jpeg",
     "hostel_alt": "images/public/boarding-hostel-2.jpeg",
     "hostel_alt_two": "images/public/boarding-hostel-3.jpeg",
-    "sports": "images/public/sports-football-team.jpeg",
+    "sports": "images/public/sports-field-football.jpeg",
     "sports_alt": "images/public/sports-badminton.jpeg",
     "sports_alt_two": "images/public/sports-volleyball-close.jpeg",
     "science_lab": "images/public/academics-chemistry-lab.jpg",
@@ -378,17 +379,17 @@ PUBLIC_PAGE_CONTENT = {
         "title": "About Notre Dame Girls' Academy",
         "eyebrow": "About NDGA",
         "description": "A Catholic girls' secondary school in Kuje-Abuja shaped by learning, discipline, care, and faith formation.",
-        "hero_image": PUBLIC_IMAGE["campus_block"],
+        "hero_image": PUBLIC_IMAGE["about_student"],
         "sections": [
             {
                 "layout": "split",
                 "eyebrow": "The School Story",
                 "title": "A girls' academy rooted in Catholic tradition and the education of the girl child",
                 "body": [
-                    "Notre Dame Girls' Academy, Kuje-Abuja is a Catholic secondary school for girls owned and managed by the Sisters of Notre Dame de Namur. The school exists to educate girls for life through purposeful learning, discipline, service, and faith formation.",
-                    "The academy belongs to a global Notre Dame educational tradition inspired by St. Julie Billiart, who called educators to give children what they need for life. That conviction continues to shape learning, school culture, and the care given to every student at NDGA.",
+                    "Notre Dame Girls' Academy, Kuje-Abuja is a Catholic secondary school for girls owned and managed by the Sisters of Notre Dame de Namur. The school exists to educate girls for life through purposeful learning, Catholic formation, disciplined care, and the full development of the girl child.",
+                    "Beyond academic excellence, NDGA is committed to the moral, spiritual, social, and emotional formation of every student. Girls are known, valued, guided to discover their strengths, and encouraged to grow into confident, competent, and compassionate young women.",
                 ],
-                "image": PUBLIC_IMAGE["campus"],
+                "image": PUBLIC_IMAGE["about_student"],
             },
             {
                 "layout": "cards",
@@ -419,7 +420,7 @@ PUBLIC_PAGE_CONTENT = {
                     "As a school owned and managed by the Sisters of Notre Dame de Namur, NDGA recognises and upholds the dignity and rights of every child. The school is committed to student safety and well-being and works in partnership with parents, guardians, staff, and all responsible adults to do this well.",
                     "The academy values the participation of children in activities that support their spiritual, physical, emotional, intellectual, and social development. Staff and every adult who serves the school share responsibility for safeguarding children through a safe, caring environment that protects their best interests and prevents abuse.",
                 ],
-                "image": PUBLIC_IMAGE["campus_view"],
+                "image": PUBLIC_IMAGE["about_student"],
             },
             {
                 "layout": "list",
@@ -1227,15 +1228,27 @@ def get_public_gallery_category(slug: str):
 
 def _normalize_card_collection(cards):
     if isinstance(cards, dict):
-        return [deepcopy(cards)]
+        row = deepcopy(cards)
+        if "items" in row:
+            row["list_items"] = _normalize_simple_items(row.pop("items"))
+        return [row]
     if isinstance(cards, (list, tuple)):
         rows = list(cards)
         if rows and all(
             isinstance(row, tuple) and len(row) == 2 and isinstance(row[0], str)
             for row in rows
         ):
-            return [dict(rows)]
-        return [deepcopy(row) for row in rows]
+            row = dict(rows)
+            if "items" in row:
+                row["list_items"] = _normalize_simple_items(row.pop("items"))
+            return [row]
+        normalized = []
+        for row in rows:
+            item = deepcopy(row)
+            if isinstance(item, dict) and "items" in item:
+                item["list_items"] = _normalize_simple_items(item.pop("items"))
+            normalized.append(item)
+        return normalized
     return []
 
 

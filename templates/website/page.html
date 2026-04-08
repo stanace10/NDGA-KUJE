@@ -103,9 +103,9 @@
               <div>
                 <h3>{{ card.title }}</h3>
                 <p>{{ card.text }}</p>
-                {% if card.items %}
+                {% if card.list_items %}
                   <ul class="public-card-list">
-                    {% for item in card.items %}
+                    {% for item in card.list_items %}
                       <li>{{ item }}</li>
                     {% endfor %}
                   </ul>

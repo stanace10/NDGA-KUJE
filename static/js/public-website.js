@@ -204,6 +204,11 @@
         "You can reach the school through +234 902 940 5413, +234 813 341 3127, or office@ndgakuje.org.",
     },
     {
+      matches: ["facebook", "twitter", "x", "social"],
+      reply:
+        "School updates are published through the NDGA website news area, direct admissions support, and management follow-up when needed. You can also use WhatsApp for a quick external contact option.",
+    },
+    {
       matches: ["principal", "welcome", "hallmark", "history", "sisters", "catholic"],
       reply:
         "NDGA is a Catholic girls' secondary school of the Sisters of Notre Dame de Namur, shaped by learning, discipline, community, service, faith formation, and the dignity of the girl child.",
@@ -266,6 +271,12 @@
     });
   });
   document.querySelector("[data-chatbot-close]")?.addEventListener("click", closeChatbot);
+  document.addEventListener("click", (event) => {
+    if (!chatbot?.classList.contains("is-open")) return;
+    if (chatbot.contains(event.target)) return;
+    if (event.target.closest("[data-chatbot-open]")) return;
+    closeChatbot();
+  });
   supportTabs.forEach((tab) => {
     tab.addEventListener("click", () => {
       openChatbot(tab.getAttribute("data-support-tab"));
