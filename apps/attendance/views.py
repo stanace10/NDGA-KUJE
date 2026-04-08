@@ -542,13 +542,9 @@ class FormTeacherAttendanceView(RoleRestrictedView):
             return context
 
         if getattr(self.request, "term_edit_locked", False):
-            context["attendance_block_reason"] = getattr(
-                self.request,
-                "term_edit_lock_message",
-                "Third term is active. Attendance is view-only until the term opens.",
-            )
+            context["attendance_block_reason"] = ""
         elif selected_term != setup_state.current_term:
-            context["attendance_block_reason"] = "Previous-term attendance is available for review only."
+            context["attendance_block_reason"] = ""
         elif not calendar.covers(selected_date):
             context["attendance_block_reason"] = "Selected date is outside the school calendar range."
         elif selected_date.weekday() >= 5:
@@ -801,13 +797,9 @@ class FormTeacherWeeklyAttendanceView(RoleRestrictedView):
             context["attendance_block_reason"] = "School calendar not configured for current term."
             return context
         if getattr(self.request, "term_edit_locked", False):
-            context["attendance_block_reason"] = getattr(
-                self.request,
-                "term_edit_lock_message",
-                "Third term is active. Attendance is view-only until the term opens.",
-            )
+            context["attendance_block_reason"] = ""
         elif selected_term != setup_state.current_term:
-            context["attendance_block_reason"] = "Previous-term attendance is available for review only."
+            context["attendance_block_reason"] = ""
 
         week_days = self._week_days(week_start=week_start, calendar=calendar)
         context["week_days"] = week_days

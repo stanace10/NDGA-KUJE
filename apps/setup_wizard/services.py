@@ -367,6 +367,35 @@ def finalize_setup(*, actor):
     return setup_state
 
 
+def _carry_forward_teacher_assignments(*, session, from_term, to_term):
+    if not session or not from_term or not to_term or from_term.id == to_term.id:
+        return 0
+    source_rows = list(
+        TeacherSubjectAssignment.objects.filter(
+            session=session,
+            term=from_term,
+            is_active=True,
+        ).select_related("teacher", "subject", "academic_class")
+    )
+    if not source_rows:
+        return 0
+    created = 0
+    for row in source_rows:
+        _assignment, was_created = TeacherSubjectAssignment.objects.update_or_create(
+            subject=row.subject,
+            academic_class=row.academic_class,
+            session=session,
+            term=to_term,
+            defaults={
+                "teacher": row.teacher,
+                "is_active": True,
+            },
+        )
+        if was_created:
+            created += 1
+    return created
+
+
 def readable_term_choices():
     return [
         (TermName.FIRST, "First Term"),
@@ -566,6 +595,11 @@ def advance_current_term(*, actor):
         next_term, _ = Term.objects.get_or_create(
             session=current_session,
             name=next_term_name,
+        )
+        _carry_forward_teacher_assignments(
+            session=current_session,
+            from_term=current_term,
+            to_term=next_term,
         )
         setup_state.current_term = next_term
     else:
@@ -778,6 +812,14 @@ def set_current_session_term(*, actor, session, term):
     if session.is_closed:
         raise ValueError("Closed session cannot be set as active context.")
     setup_state = get_setup_state()
+    previous_session = setup_state.current_session
+    previous_term = setup_state.current_term
+    if previous_session and previous_term and previous_session.id == session.id and previous_term.id != term.id:
+        _carry_forward_teacher_assignments(
+            session=session,
+            from_term=previous_term,
+            to_term=term,
+        )
     setup_state.current_session = session
     setup_state.current_term = term
     setup_state.last_updated_by = actor

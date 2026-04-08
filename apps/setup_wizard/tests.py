@@ -8,7 +8,7 @@ import zipfile
 from django.core.management import call_command
 from django.test import Client, TestCase, override_settings
 
-from apps.accounts.constants import ROLE_IT_MANAGER, ROLE_STUDENT
+from apps.accounts.constants import ROLE_IT_MANAGER, ROLE_STUDENT, ROLE_SUBJECT_TEACHER
 from apps.accounts.models import Role, StudentProfile, User
 from apps.academics.models import (
     AcademicClass,
@@ -17,6 +17,7 @@ from apps.academics.models import (
     GradeScale,
     StudentClassEnrollment,
     Subject,
+    TeacherSubjectAssignment,
     Term,
 )
 from apps.attendance.models import SchoolCalendar
@@ -225,6 +226,53 @@ class SetupWizardFlowTests(TestCase):
         self.assertEqual(
             set(Term.objects.filter(session=setup_state.current_session).values_list("name", flat=True)),
             {"FIRST", "SECOND", "THIRD"},
+        )
+
+    def test_end_term_carries_teacher_assignments_into_next_term(self):
+        session = AcademicSession.objects.create(name="2029/2030")
+        first = Term.objects.create(session=session, name="FIRST")
+        second = Term.objects.create(session=session, name="SECOND")
+        academic_class = AcademicClass.objects.create(code="JS2A", display_name="JS2A")
+        subject = Subject.objects.create(name="Mathematics", code="MATH", is_active=True)
+        ClassSubject.objects.create(academic_class=academic_class, subject=subject, is_active=True)
+        teacher_role = Role.objects.get(code=ROLE_SUBJECT_TEACHER)
+        teacher = User.objects.create_user(
+            username="teacher-term-rollover",
+            password="Password123!",
+            primary_role=teacher_role,
+            must_change_password=False,
+        )
+        TeacherSubjectAssignment.objects.create(
+            teacher=teacher,
+            subject=subject,
+            academic_class=academic_class,
+            session=session,
+            term=first,
+            is_active=True,
+        )
+
+        setup_state = SystemSetupState.get_solo()
+        setup_state.state = SetupStateCode.IT_READY
+        setup_state.current_session = session
+        setup_state.current_term = first
+        setup_state.save(update_fields=["state", "current_session", "current_term", "updated_at"])
+
+        client = Client(HTTP_HOST="it.ndgakuje.org")
+        client.force_login(self.it_user)
+        response = client.post(
+            "/setup/session-term/",
+            {"action": "end-term", "confirm_end_term": "on"},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(
+            TeacherSubjectAssignment.objects.filter(
+                teacher=teacher,
+                subject=subject,
+                academic_class=academic_class,
+                session=session,
+                term=second,
+                is_active=True,
+            ).exists()
         )
 
     def test_end_session_promotes_and_graduates_students(self):

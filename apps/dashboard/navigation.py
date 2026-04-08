@@ -537,15 +537,6 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                         matches=("/results/report/",),
                     )
                 )
-            if ROLE_DEAN in role_codes:
-                items.append(
-                    _nav_item(
-                        label="Messaging Center",
-                        url="/notifications/media/",
-                        request_path=request_path,
-                        matches=("/notifications/media/",),
-                    )
-                )
             items.append(
                 _nav_item(
                     label="Settings",
@@ -653,15 +644,6 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                     url="/results/report/performance/",
                     request_path=request_path,
                     matches=("/results/report/",),
-                )
-            )
-        if ROLE_DEAN in role_codes:
-            items.append(
-                _nav_item(
-                    label="Messaging Center",
-                    url="/notifications/media/",
-                    request_path=request_path,
-                    matches=("/notifications/media/",),
                 )
             )
         items.append(
