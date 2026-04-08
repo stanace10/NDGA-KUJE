@@ -39,7 +39,7 @@
     <article class="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
       <div class="grid gap-0 xl:grid-cols-[340px_minmax(0,1fr)]">
         <aside class="border-b border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(201,150,40,0.15),_transparent_40%),linear-gradient(180deg,_#0f2747_0%,_#173a66_100%)] p-5 text-white xl:border-b-0 xl:border-r">
-          <p class="text-xs font-semibold uppercase tracking-[0.22em] text-white/70">Student Finance Desk</p>
+          <p class="text-xs font-semibold uppercase tracking-[0.22em] text-white/70">Finance</p>
           <div class="mt-5 flex justify-center xl:justify-start">
             {% if student_photo_url %}
               <div class="relative">
@@ -69,7 +69,7 @@
               <p class="mt-1 text-base font-semibold text-white">{{ current_class_label }}</p>
             </div>
             <div class="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-sm">
-              <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/70">Current Window</p>
+              <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/70">Current Session / Term</p>
               <p class="mt-1 text-base font-semibold text-white">
                 {% if current_term %}{{ current_term.get_name_display }}{% else %}-{% endif %}
               </p>
@@ -80,7 +80,17 @@
             <div class="rounded-2xl border border-emerald-300/30 bg-emerald-400/10 p-4 backdrop-blur-sm">
               <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-100">Outstanding Balance</p>
               <p class="mt-1 text-2xl font-bold text-white">{{ total_outstanding }}</p>
-              <p class="mt-1 text-xs text-emerald-100/90">Live bursar charges for the selected term and session.</p>
+              <p class="mt-1 text-xs text-emerald-100/90">This is the amount still due for the selected session and term.</p>
+            </div>
+            <div class="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-sm">
+              <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/70">Next Action</p>
+              <p class="mt-1 text-sm font-semibold text-white">
+                {% if total_outstanding > 0 %}
+                  Review charges, then continue to payment.
+                {% else %}
+                  Account is clear for this window.
+                {% endif %}
+              </p>
             </div>
           </div>
         </aside>
@@ -88,10 +98,10 @@
         <div class="p-4 sm:p-6 lg:p-7">
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Institutional Payment Centre</p>
-              <h2 class="mt-1 text-2xl font-bold text-slate-900 sm:text-3xl">Fee summary, receipts, and secure checkout</h2>
+              <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Finance</p>
+              <h2 class="mt-1 text-2xl font-bold text-slate-900 sm:text-3xl">View charges, pay fees, and track receipts</h2>
               <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                Review what has been billed, what has been paid, and what is still outstanding. Payments are prepared here and then handed off to the selected secure gateway.
+                First understand the account summary for this term, then choose what you want to pay and continue to secure checkout.
               </p>
             </div>
             <div class="flex flex-wrap gap-2">
@@ -107,17 +117,17 @@
           </div>
 
           <div class="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <article class="rounded-2xl border border-rose-200 bg-rose-50 p-4">
+              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-rose-700">Outstanding</p>
+              <p class="mt-2 text-2xl font-bold text-rose-800">{{ total_outstanding }}</p>
+            </article>
             <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Total Charged</p>
               <p class="mt-2 text-2xl font-bold text-slate-900">{{ total_charged }}</p>
             </article>
             <article class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700">Paid Applied</p>
+              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700">Total Paid</p>
               <p class="mt-2 text-2xl font-bold text-emerald-800">{{ total_paid_applied }}</p>
-            </article>
-            <article class="rounded-2xl border border-rose-200 bg-rose-50 p-4">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-rose-700">Outstanding</p>
-              <p class="mt-2 text-2xl font-bold text-rose-800">{{ total_outstanding }}</p>
             </article>
             <article class="rounded-2xl border border-indigo-200 bg-indigo-50 p-4">
               <p class="text-xs font-semibold uppercase tracking-[0.14em] text-indigo-700">Credit Balance</p>
@@ -131,7 +141,7 @@
                 <div>
                   <h3 class="text-lg font-semibold text-slate-900">Make a payment</h3>
                   <p class="mt-1 text-sm text-slate-600">
-                    Choose a payment plan, select an available gateway, and continue to secure checkout.
+                    Choose what you want to pay, confirm the amount, then continue to secure checkout.
                   </p>
                 </div>
                 {% if not gateway_enabled %}
@@ -151,7 +161,7 @@
                 </div>
 
                 <div>
-                  <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Payment Plan</p>
+                  <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">1. What do you want to pay?</p>
                   <div class="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                     <button type="button" data-plan-button data-plan-value="FULL" class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left transition hover:border-ndga-navy/40 hover:shadow-sm">
                       <span class="block text-sm font-semibold text-slate-900">Full Bundle</span>
@@ -190,14 +200,14 @@
 
                 <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
                   <div>
-                    <label class="mb-1.5 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ gateway_form.amount.id_for_label }}">{{ gateway_form.amount.label }}</label>
+                    <label class="mb-1.5 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ gateway_form.amount.id_for_label }}">2. Amount</label>
                     {{ gateway_form.amount }}
                     <p class="mt-2 text-xs leading-5 text-slate-500">
                       Use full payment for everything outstanding, single item for one charge, or percentage for approved part payment.
                     </p>
                   </div>
                   <div>
-                    <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Payment Method</p>
+                    <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">3. Payment Method</p>
                     <div class="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                       {% for provider in gateway_provider_cards %}
                         <button
@@ -243,8 +253,8 @@
             <article class="rounded-3xl border border-slate-200 bg-white p-4 sm:p-5">
               <div class="flex items-start justify-between gap-3">
                 <div>
-                  <h3 class="text-lg font-semibold text-slate-900">Filter academic window</h3>
-                  <p class="mt-1 text-sm text-slate-600">Switch between sessions and terms when you want to inspect older charges and receipts.</p>
+                  <h3 class="text-lg font-semibold text-slate-900">Filter records</h3>
+                  <p class="mt-1 text-sm text-slate-600">Open another session or term when you want to review older charges, payments, and receipts.</p>
                 </div>
                 <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
                   {{ category_examples }}
@@ -299,8 +309,8 @@
     <article class="mt-4 rounded-3xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
       <div class="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 class="text-lg font-semibold text-slate-900">Receipts and payment history</h2>
-          <p class="mt-1 text-sm text-slate-600">Every confirmed payment can be reviewed here, and issued receipts can be downloaded as PDF.</p>
+          <h2 class="text-lg font-semibold text-slate-900">Payment history and receipts</h2>
+          <p class="mt-1 text-sm text-slate-600">Successful payments appear here first, with receipt download links where available.</p>
         </div>
         <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
           Total payments: {{ total_payments }}
@@ -334,7 +344,7 @@
           </article>
         {% empty %}
           <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500 xl:col-span-2">
-            No confirmed payment records found yet for this window.
+            No payments have been confirmed for this window yet.
           </div>
         {% endfor %}
       </div>
@@ -362,7 +372,7 @@
               </dl>
             </article>
           {% empty %}
-            <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">No finance categories found for selected filters.</div>
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">No charge groups are available for the selected term yet.</div>
           {% endfor %}
         </div>
         <div class="mt-4 hidden overflow-x-auto rounded-2xl border border-slate-200 md:block">
@@ -387,7 +397,7 @@
                 </tr>
               {% empty %}
                 <tr>
-                  <td colspan="5" class="px-3 py-6 text-center text-slate-500">No finance categories found for selected filters.</td>
+                  <td colspan="5" class="px-3 py-6 text-center text-slate-500">No charge groups are available for the selected term yet.</td>
                 </tr>
               {% endfor %}
             </tbody>
@@ -425,7 +435,7 @@
               </dl>
             </article>
           {% empty %}
-            <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">No charge records found for selected filters.</div>
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">No charges have been posted for this term yet.</div>
           {% endfor %}
         </div>
         <div class="mt-4 hidden overflow-x-auto rounded-2xl border border-slate-200 md:block">
@@ -467,7 +477,7 @@
                 </tr>
               {% empty %}
                 <tr>
-                  <td colspan="7" class="px-3 py-6 text-center text-slate-500">No charge records found for selected filters.</td>
+                  <td colspan="7" class="px-3 py-6 text-center text-slate-500">No charges have been posted for this term yet.</td>
                 </tr>
               {% endfor %}
             </tbody>
@@ -496,7 +506,7 @@
             <p class="mt-3 text-xs text-slate-500">{{ row|payment_plan_summary }}</p>
           </article>
         {% empty %}
-          <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">No gateway transactions found yet.</div>
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">Gateway payment attempts will appear here after you start an online payment.</div>
         {% endfor %}
       </div>
       <div class="mt-4 hidden overflow-x-auto rounded-2xl border border-slate-200 md:block">
@@ -520,7 +530,7 @@
                 <td class="px-3 py-2 text-slate-600">{{ row.created_at|date:"Y-m-d H:i" }}</td>
               </tr>
             {% empty %}
-              <tr><td colspan="5" class="px-3 py-6 text-center text-slate-500">No gateway transactions found yet.</td></tr>
+              <tr><td colspan="5" class="px-3 py-6 text-center text-slate-500">Gateway payment attempts will appear here after you start an online payment.</td></tr>
             {% endfor %}
           </tbody>
         </table>

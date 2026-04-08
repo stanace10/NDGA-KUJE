@@ -406,10 +406,10 @@ PUBLIC_PAGE_CONTENT = {
                 "eyebrow": "Community Hallmarks",
                 "title": "The character of a Notre Dame learning community",
                 "cards": [
-                    {"title": "A Welcoming Community", "text": "NDGA is known for a warm, friendly atmosphere where girls settle in, make friends quickly, and grow within a community that values belonging."},
-                    {"title": "A Learning Community", "text": "High expectations, celebration of achievement, and close academic support help students grow academically, socially, emotionally, and spiritually."},
-                    {"title": "A Caring Community", "text": "Pastoral care is taken seriously. Every student is known, monitored with attention, and given room to develop as an individual."},
-                    {"title": "A Worshipping Community", "text": "Daily assemblies, Masses, retreats, and prayer form part of school life and help students build a personal and communal life of faith."},
+                    {"title": "Faith in Daily Life", "text": "Prayer, liturgy, assemblies, and reflection are part of everyday school life and help students grow in faith, gratitude, and responsibility."},
+                    {"title": "Academic Purpose", "text": "Serious teaching, clear expectations, guided study, and close follow-up help girls grow in confidence and academic maturity."},
+                    {"title": "Pastoral Care", "text": "Students are known personally, supported carefully, and guided with attention to their wellbeing, dignity, and character."},
+                    {"title": "Belonging and Discipline", "text": "NDGA combines warmth and order, helping girls settle well, form healthy friendships, and grow within a disciplined community."},
                 ],
             },
             {
@@ -532,7 +532,7 @@ PUBLIC_PAGE_CONTENT = {
                 "title": "How the Sisters support the life of NDGA",
                 "cards": [
                     {"title": "A Global Educational Mission", "text": "The Sisters of Notre Dame de Namur serve schools and mission communities across continents and keep education at the centre of their service to children and young people."},
-                    {"title": "Formation of Girls and Young Women", "text": "Their tradition gives special attention to the dignity, education, confidence, and future of girls and young women, especially where society limits their opportunities."},
+                    {"title": "Education of the Girl Child", "text": "Their educational tradition gives careful attention to the dignity, confidence, education, and future of girls and young women."},
                     {"title": "Visible Support at NDGA Kuje", "text": "At NDGA this support is seen in Catholic identity, child safeguarding, boarding structure, pastoral care, disciplined school culture, and the commitment to educating girls for life."},
                 ],
             },
