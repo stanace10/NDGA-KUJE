@@ -39,7 +39,7 @@
             </div>
             <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
               <dt class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">End Date</dt>
-              <dd class="mt-1 text-sm font-semibold text-slate-800">{{ selected_calendar.end_date }}</dd>
+              <dd class="mt-1 text-sm font-semibold text-slate-800">{{ selected_calendar.end_date|default:"Open-ended" }}</dd>
             </div>
             <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
               <dt class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">School Days</dt>
@@ -96,7 +96,7 @@
                 <tr>
                   <td class="px-3 py-2 text-slate-700">{{ row.session.name }}</td>
                   <td class="px-3 py-2 text-slate-700">{{ row.term.get_name_display }}</td>
-                  <td class="px-3 py-2 text-slate-700">{{ row.start_date }} - {{ row.end_date }}</td>
+                  <td class="px-3 py-2 text-slate-700">{{ row.start_date }} - {{ row.end_date|default:"Open-ended" }}</td>
                   <td class="px-3 py-2">
                     <div class="flex flex-wrap gap-2">
                       <a href="{% url 'attendance:calendar-manage' %}?calendar_id={{ row.id }}" class="ndga-btn ndga-btn-secondary !px-3 !py-1.5 !text-xs">View</a>

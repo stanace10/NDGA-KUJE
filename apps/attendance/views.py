@@ -186,7 +186,9 @@ class CalendarManagementView(RoleRestrictedView):
         exclude_weekends = holiday_form.cleaned_data.get("exclude_weekends", False)
         entry_mode = holiday_form.cleaned_data["entry_mode"]
 
-        if start < selected_calendar.start_date or end > selected_calendar.end_date:
+        if start < selected_calendar.start_date or (
+            selected_calendar.end_date and end > selected_calendar.end_date
+        ):
             holiday_form.add_error(
                 "start_date",
                 "Holiday date/range must stay within calendar start/end dates.",
@@ -350,7 +352,9 @@ class CalendarManagementView(RoleRestrictedView):
                     )
                 )
             new_date = form.cleaned_data["date"]
-            if new_date < selected_calendar.start_date or new_date > selected_calendar.end_date:
+            if new_date < selected_calendar.start_date or (
+                selected_calendar.end_date and new_date > selected_calendar.end_date
+            ):
                 form.add_error("date", "Holiday date must be within calendar start/end.")
                 return self.render_to_response(
                     self.get_context_data(
@@ -501,7 +505,7 @@ class FormTeacherAttendanceView(RoleRestrictedView):
             messages.error(self.request, "School calendar not configured for current term.")
             return context
 
-        if selected_date < calendar.start_date or selected_date > calendar.end_date:
+        if not calendar.covers(selected_date):
             context["attendance_block_reason"] = "Selected date is outside the school calendar range."
         elif selected_date.weekday() >= 5:
             context["attendance_block_reason"] = "Attendance cannot be marked on weekends."
@@ -678,7 +682,7 @@ class FormTeacherWeeklyAttendanceView(RoleRestrictedView):
         rows = []
         for index in range(5):
             row_date = week_start + timedelta(days=index)
-            in_range = calendar.start_date <= row_date <= calendar.end_date
+            in_range = calendar.covers(row_date)
             is_holiday = row_date in holidays
             selectable = in_range and not is_holiday
             rows.append(

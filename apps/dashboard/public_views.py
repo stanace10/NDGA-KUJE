@@ -122,18 +122,33 @@ class PublicHomeView(PublicSiteEnabledMixin, TemplateView):
                         "title": "Junior Secondary",
                         "text": "Strong foundations in English Studies, Mathematics, Intermediate Science, Digital Technologies, citizenship, and disciplined study routine.",
                         "image": context["public_images"]["computer_lab_junior"],
+                        "images": [
+                            context["public_images"]["computer_lab_junior"],
+                            context["public_images"]["computer_lab_pair"],
+                            context["public_images"]["hero_students"],
+                        ],
                         "href": "/academics/junior-secondary/",
                     },
                     {
                         "title": "Senior Secondary",
                         "text": "A balanced programme preparing students for WAEC, NECO, leadership, and responsible choices beyond school.",
                         "image": context["public_images"]["science_lab"],
+                        "images": [
+                            context["public_images"]["science_lab"],
+                            context["public_images"]["physics_lab"],
+                            context["public_images"]["library"],
+                        ],
                         "href": "/academics/senior-secondary/",
                     },
                     {
                         "title": "Subjects, Exams, and Support",
                         "text": "Subjects are broad, assessment is structured, and mentoring, revision, and guided follow-up support every girl's progress.",
                         "image": context["public_images"]["library"],
+                        "images": [
+                            context["public_images"]["library"],
+                            context["public_images"]["cbt_room"],
+                            context["public_images"]["computer_lab"],
+                        ],
                         "href": "/academics/subjects-departments/",
                     },
                 ],

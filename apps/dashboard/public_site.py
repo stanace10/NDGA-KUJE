@@ -1035,7 +1035,10 @@ def get_public_contact(*, school_profile=None):
 
 
 def get_public_page(slug: str):
-    return deepcopy(PUBLIC_PAGE_CONTENT.get(slug))
+    page = deepcopy(PUBLIC_PAGE_CONTENT.get(slug))
+    if page is None:
+        return None
+    return _normalize_public_page(page)
 
 
 def get_public_news():
@@ -1062,6 +1065,43 @@ def get_public_gallery_category(slug: str):
         if item["slug"] == slug:
             return deepcopy(item)
     return None
+
+
+def _normalize_card_collection(cards):
+    if isinstance(cards, dict):
+        return [deepcopy(cards)]
+    if isinstance(cards, (list, tuple)):
+        rows = list(cards)
+        if rows and all(
+            isinstance(row, tuple) and len(row) == 2 and isinstance(row[0], str)
+            for row in rows
+        ):
+            return [dict(rows)]
+        return [deepcopy(row) for row in rows]
+    return []
+
+
+def _normalize_simple_items(items):
+    if isinstance(items, dict):
+        return list(items.values())
+    if isinstance(items, (list, tuple)):
+        rows = list(items)
+        if rows and all(
+            isinstance(row, tuple) and len(row) == 2 and isinstance(row[0], str)
+            for row in rows
+        ):
+            return [value for _key, value in rows]
+        return rows
+    return []
+
+
+def _normalize_public_page(page):
+    for section in page.get("sections", []):
+        if "cards" in section:
+            section["cards"] = _normalize_card_collection(section.get("cards"))
+        if "items" in section:
+            section["items"] = _normalize_simple_items(section.get("items"))
+    return page
 
 
 def get_public_site_context(*, school_profile=None):

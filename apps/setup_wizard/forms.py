@@ -68,6 +68,7 @@ class CalendarSetupForm(forms.Form):
         label="Term Start Date",
     )
     end_date = forms.DateField(
+        required=False,
         widget=forms.DateInput(attrs={"type": "date"}),
         label="Term End Date",
     )
@@ -167,9 +168,13 @@ class CalendarSetupForm(forms.Form):
                 "Holiday lines must follow YYYY-MM-DD|Description."
             ) from exc
 
-        if start_date and end_date:
+        if start_date:
             for row in cleaned_data["parsed_holidays"]:
-                if row.date_value < start_date or row.date_value > end_date:
+                if row.date_value < start_date:
+                    raise forms.ValidationError(
+                        "Holiday dates must fall on or after the term start date."
+                    )
+                if end_date and row.date_value > end_date:
                     raise forms.ValidationError(
                         "Holiday dates must fall within term start and end dates."
                     )

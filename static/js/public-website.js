@@ -20,6 +20,7 @@
   const liveChatForm = document.querySelector("[data-live-chat-form]");
   const liveChatStatus = document.querySelector("[data-live-chat-status]");
   const supportTicketList = document.querySelector("[data-support-ticket-list]");
+  const rotatingGalleries = [...document.querySelectorAll("[data-rotating-gallery]")];
 
   const lockBody = (locked) => {
     body.style.overflow = locked ? "hidden" : "";
@@ -381,9 +382,20 @@
         return;
       }
       toggleEscalationPrompt(false);
-      appendLiveChatBubble("No problem. You can continue asking here and I will keep helping.", "agent");
+      appendLiveChatBubble("No problem. You can continue here and I will keep helping.", "agent");
       saveLiveChatMessages();
     });
+  });
+
+  rotatingGalleries.forEach((gallery) => {
+    const images = [...gallery.querySelectorAll("img")];
+    if (images.length < 2) return;
+    let index = 0;
+    window.setInterval(() => {
+      images[index].classList.remove("is-active");
+      index = (index + 1) % images.length;
+      images[index].classList.add("is-active");
+    }, 3200);
   });
 
   liveChatForm?.addEventListener("submit", async (event) => {

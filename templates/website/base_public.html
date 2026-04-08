@@ -140,12 +140,8 @@
           <img src="{% static public_images.logo %}" alt="NDGA logo">
           <div>
             <strong>{{ public_contact.school_name }}</strong>
-            <p>Educating girls for life through strong academics, boarding structure, faith formation, and disciplined student growth.</p>
+            <p>Notre Dame Girls' Academy forms young women through strong academics, full boarding, faith formation, discipline, and community life.</p>
           </div>
-        </div>
-        <div class="public-footer-cta-group">
-          <a href="{{ public_apply_url }}" class="public-cta magnetic">Apply Now</a>
-          <a href="/fees/" class="public-secondary-cta magnetic">View Fees</a>
         </div>
       </div>
       <div class="public-container public-footer-grid">
@@ -223,8 +219,7 @@
 
   <div class="public-support-dock">
     <button type="button" class="public-support-fab public-support-fab--chat" data-chatbot-open aria-label="Open Smart Julie">
-      <span class="public-support-fab-mark">SND</span>
-      <span class="public-support-fab-text">Julie</span>
+      <span class="public-support-fab-mark">ND</span>
     </button>
     <a href="{{ public_contact.whatsapp_url }}" class="public-support-fab public-support-fab--whatsapp" target="_blank" rel="noreferrer" aria-label="Open WhatsApp chat">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.03 2.5A9.45 9.45 0 0 0 4 16.9L2.9 21l4.23-1.08A9.53 9.53 0 1 0 12.03 2.5Zm0 17.1a7.9 7.9 0 0 1-4.02-1.1l-.28-.17-2.5.64.67-2.42-.18-.29a7.93 7.93 0 1 1 6.3 3.34Zm4.34-5.98c-.24-.12-1.4-.7-1.61-.77-.21-.08-.37-.12-.52.12-.16.23-.6.77-.74.92-.14.16-.27.17-.5.06-.24-.12-1-.36-1.9-1.15-.7-.62-1.16-1.38-1.3-1.61-.13-.24-.02-.37.1-.49.11-.11.23-.28.35-.42.11-.14.15-.24.23-.4.08-.16.04-.3-.02-.42-.06-.12-.52-1.25-.71-1.71-.19-.45-.39-.39-.52-.39h-.45c-.16 0-.42.06-.64.3-.22.23-.84.82-.84 2 0 1.18.87 2.32.99 2.47.12.16 1.7 2.6 4.11 3.65.57.25 1.02.4 1.37.52.57.18 1.09.16 1.5.1.46-.07 1.4-.58 1.6-1.14.2-.56.2-1.04.14-1.14-.06-.1-.22-.16-.46-.28Z"/></svg>
@@ -237,12 +232,12 @@
         <div class="public-support-brand-row">
           <strong>Smart Julie</strong>
           <div class="public-support-avatars" aria-hidden="true">
-            <span>J</span>
-            <span>M</span>
-            <span>N</span>
+            <span>ND</span>
+            <span>VP</span>
+            <span>IT</span>
           </div>
         </div>
-        <p>Hello. I am Julie. How can I help you join the NDGA family today?</p>
+        <p>Hello. I am Julie. I can guide you on admissions, fees, boarding, subjects, screening, and school life.</p>
       </div>
       <button type="button" data-chatbot-close aria-label="Close support panel">&times;</button>
     </header>
@@ -250,8 +245,8 @@
     <div class="public-support-body">
       <section class="public-support-view is-active" data-support-view="home">
         <div class="public-support-hero">
-          <h3>Need help with admissions, boarding, fees, or school life?</h3>
-          <p>Start with the AI assistant. If the answer is not enough, Julie will offer to connect you with management.</p>
+          <h3>How can we help?</h3>
+          <p>Start here with Smart Julie. If the answer is not enough, Julie will offer to connect you with management.</p>
         </div>
         <button type="button" class="public-support-primary-link" data-support-open-messages>
           <span>Send us a message</span>
@@ -275,7 +270,7 @@
       <section class="public-support-view" data-support-view="messages">
         <div class="public-support-subhead">
           <span>Messages</span>
-          <small>Bot guidance first. Management follow-up when needed.</small>
+          <small>Julie replies first. Management joins only when needed.</small>
         </div>
         <div class="public-chatbot-log public-support-thread" data-chatbot-log>
           <article class="public-live-chat-bubble is-agent">
@@ -297,7 +292,7 @@
         <div class="public-support-management-shell" data-live-chat-shell hidden>
           <div class="public-support-management-note">
             <strong>Management queue</strong>
-            <p>Replies are sent to the visitor email you provide. If no agent is available, a ticket is created automatically.</p>
+            <p>Replies are sent to the email you provide. If no management agent is available, your message becomes a ticket automatically.</p>
           </div>
           <form class="public-live-chat-form" data-live-chat-form method="post" action="{{ public_live_chat_url }}">
             {% csrf_token %}

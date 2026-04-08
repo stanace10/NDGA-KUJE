@@ -11,7 +11,7 @@ class CalendarManagementForm(forms.Form):
     session = forms.ModelChoiceField(queryset=AcademicSession.objects.none())
     term = forms.ModelChoiceField(queryset=Term.objects.none())
     start_date = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}))
-    end_date = forms.DateField(widget=forms.DateInput(attrs={"type": "date"}))
+    end_date = forms.DateField(required=False, widget=forms.DateInput(attrs={"type": "date"}))
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

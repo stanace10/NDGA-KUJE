@@ -1468,10 +1468,10 @@ textarea {
 
 .public-footer-top {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 24px;
   align-items: center;
-  padding: 26px 28px;
+  padding: 24px 28px;
   border-radius: 32px;
   background: rgba(255, 255, 255, 0.06);
   margin-bottom: 28px;
@@ -1669,16 +1669,7 @@ textarea {
   transform: translateY(-3px);
 }
 
-.public-support-fab--chat {
-  gap: 10px;
-  padding: 10px 14px 10px 10px;
-  border-radius: 999px;
-  background: linear-gradient(135deg, #031630, #123c6d);
-  color: white;
-  box-shadow: 0 22px 40px rgba(0, 33, 71, 0.26);
-}
-
-.public-support-fab-mark,
+.public-support-fab--chat,
 .public-support-fab--whatsapp {
   width: 56px;
   height: 56px;
@@ -1688,17 +1679,20 @@ textarea {
 .public-support-fab-mark {
   display: grid;
   place-items: center;
-  background: rgba(255, 255, 255, 0.12);
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ff4b63, #f86858);
   font-size: 0.86rem;
   font-weight: 800;
   letter-spacing: 0.12em;
 }
 
-.public-support-fab-text {
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  font-size: 0.8rem;
+.public-support-fab--chat {
+  padding: 0;
+  background: transparent;
+  color: white;
+  box-shadow: 0 22px 40px rgba(255, 75, 99, 0.28);
 }
 
 .public-support-fab--whatsapp {
@@ -1717,7 +1711,7 @@ textarea {
   position: fixed;
   right: 22px;
   bottom: 96px;
-  width: min(390px, calc(100vw - 26px));
+  width: min(360px, calc(100vw - 26px));
   z-index: 61;
   border-radius: 30px;
   overflow: hidden;
@@ -1740,7 +1734,7 @@ textarea {
 
 .public-support-header {
   padding: 22px 22px 18px;
-  background: linear-gradient(180deg, #03214d 0%, #0b376a 100%);
+  background: linear-gradient(180deg, #ff4b63 0%, #f86858 100%);
   color: white;
   display: flex;
   justify-content: space-between;
@@ -1780,7 +1774,7 @@ textarea {
 }
 
 .public-support-body {
-  min-height: 460px;
+  min-height: 430px;
   background:
     linear-gradient(180deg, rgba(248, 249, 250, 0.94) 0%, rgba(255, 255, 255, 1) 28%),
     radial-gradient(circle at top right, rgba(212, 175, 55, 0.16), transparent 44%);
@@ -1887,6 +1881,13 @@ textarea {
   gap: 4px;
 }
 
+.public-side-help-panel {
+  background: white;
+  border-radius: var(--public-radius-xl);
+  box-shadow: var(--public-shadow);
+  padding: 28px;
+}
+
 .public-support-thread {
   max-height: 248px;
   overflow: auto;
@@ -1924,7 +1925,7 @@ textarea {
 
 .public-live-chat-bubble.is-agent {
   justify-self: end;
-  background: rgba(212, 175, 55, 0.18);
+  background: rgba(255, 75, 99, 0.14);
   color: var(--public-navy-deep);
   border-bottom-right-radius: 8px;
 }
@@ -2043,6 +2044,41 @@ textarea {
 .public-support-tabs button.is-active {
   background: rgba(0, 33, 71, 0.08);
   color: var(--public-navy);
+}
+
+.public-academic-preview-card {
+  text-align: center;
+}
+
+.public-academic-preview-card > div:last-child {
+  padding-top: 12px;
+}
+
+.public-academic-orb {
+  position: relative;
+  width: min(210px, calc(100% - 42px));
+  aspect-ratio: 1;
+  margin: 22px auto 0;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 18px 44px rgba(3, 21, 45, 0.24);
+}
+
+.public-academic-orb img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transform: scale(1.08);
+  transition: opacity 0.6s ease, transform 0.9s ease;
+}
+
+.public-academic-orb img.is-active {
+  opacity: 1;
+  transform: scale(1);
 }
 
 .public-subject-band {

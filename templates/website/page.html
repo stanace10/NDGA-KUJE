@@ -37,7 +37,7 @@
         <article class="public-story-card">
           <img src="{% static item.image %}" alt="{{ item.title }}">
           <div>
-            <span>{{ item.category }}{% if item.date %} · {{ item.date }}{% endif %}</span>
+            <span>{{ item.category }}{% if item.date %} | {{ item.date }}{% endif %}</span>
             <h3>{{ item.title }}</h3>
             <p>{{ item.summary }}</p>
             <a href="/news/{{ item.slug }}/">Read more</a>
@@ -53,7 +53,7 @@
     <div class="public-container public-event-list" data-reveal>
       {% for item in event_items %}
         <article>
-          <strong>{{ item.meta }}{% if item.date %} · {{ item.date }}{% endif %}</strong>
+          <strong>{{ item.meta }}{% if item.date %} | {{ item.date }}{% endif %}</strong>
           <h3>{{ item.title }}</h3>
           <p>{{ item.summary }}</p>
           <span>{{ item.location }}</span>
@@ -175,18 +175,4 @@
     </div>
   </section>
 {% endfor %}
-
-<section class="public-final-cta">
-  <div class="public-container public-final-cta-inner" data-reveal>
-    <div>
-      <span class="public-eyebrow">Admissions</span>
-      <h2>Need help with admission, fees, or boarding guidance?</h2>
-    </div>
-    <div class="public-button-row">
-      <a href="/admissions/registration/" class="public-cta magnetic">Apply Now</a>
-      <a href="/contact/" class="public-secondary-cta magnetic">Contact Admissions</a>
-      <button type="button" class="public-secondary-cta magnetic" data-chatbot-open data-support-target="messages">Ask Smart Julie</button>
-    </div>
-  </div>
-</section>
 {% endblock %}
