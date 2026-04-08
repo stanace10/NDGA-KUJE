@@ -136,6 +136,14 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
             )
             items.append(
                 _nav_item(
+                    label="Public Website",
+                    url="/portal/it/public-website/",
+                    request_path=request_path,
+                    matches=("/portal/it/public-website/",),
+                )
+            )
+            items.append(
+                _nav_item(
                     label="Audit Logs",
                     url="/audit/events/",
                     request_path=request_path,
@@ -182,6 +190,14 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                     url="/notifications/media/",
                     request_path=request_path,
                     matches=("/notifications/media/",),
+                )
+            )
+            items.append(
+                _nav_item(
+                    label="Public Website",
+                    url="/portal/it/public-website/",
+                    request_path=request_path,
+                    matches=("/portal/it/public-website/",),
                 )
             )
             items.append(
@@ -247,6 +263,14 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                 url="/portal/it/admissions/",
                 request_path=request_path,
                 matches=("/portal/it/admissions/",),
+            )
+        )
+        items.append(
+            _nav_item(
+                label="Public Website",
+                url="/portal/it/public-website/",
+                request_path=request_path,
+                matches=("/portal/it/public-website/",),
             )
         )
         items.append(

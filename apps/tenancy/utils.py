@@ -2,6 +2,7 @@ import ipaddress
 from urllib.parse import urlencode
 
 from django.conf import settings
+from django.utils import timezone
 
 from apps.accounts.constants import ROLE_HOME_PORTAL, STAFF_ROLE_CODES
 
@@ -81,6 +82,22 @@ CLOUD_LAN_ONLY_OPERATION_PREFIXES = (
     "/finance/bursar/reminders/run/",
 )
 
+CLOUD_ALLOWED_MANAGEMENT_PREFIXES = (
+    "/portal/it/public-website/",
+    "/finance/bursar/settings/",
+    "/finance/bursar/charges/",
+)
+
+FUTURE_TERM_STAFF_EDIT_PREFIXES = (
+    "/attendance/form/",
+    "/results/grade-entry/",
+    "/results/dean/",
+    "/results/form/",
+    "/cbt/authoring/",
+    "/cbt/dean/",
+    "/cbt/marking/",
+)
+
 
 def normalize_host(host):
     return (host or "").split(":")[0].lower()
@@ -112,7 +129,38 @@ def user_has_lan_only_operation_roles(user_or_role_codes):
 
 def path_is_cloud_lan_only_operation(path):
     request_path = path or "/"
+    if any(request_path.startswith(prefix) for prefix in CLOUD_ALLOWED_MANAGEMENT_PREFIXES):
+        return False
     return any(request_path.startswith(prefix) for prefix in CLOUD_LAN_ONLY_OPERATION_PREFIXES)
+
+
+def current_term_staff_edit_lock():
+    try:
+        from apps.attendance.models import SchoolCalendar
+        from apps.setup_wizard.services import get_setup_state
+    except Exception:
+        return {"locked": False, "start_date": None}
+
+    setup_state = get_setup_state()
+    if not getattr(setup_state, "current_term_id", None):
+        return {"locked": False, "start_date": None}
+    calendar = (
+        SchoolCalendar.objects.select_related("term", "session")
+        .filter(term=setup_state.current_term)
+        .first()
+    )
+    if calendar is None or not calendar.start_date:
+        return {"locked": False, "start_date": None}
+    today = timezone.localdate()
+    return {
+        "locked": calendar.start_date > today,
+        "start_date": calendar.start_date,
+    }
+
+
+def path_is_future_term_staff_edit_operation(path):
+    request_path = path or "/"
+    return any(request_path.startswith(prefix) for prefix in FUTURE_TERM_STAFF_EDIT_PREFIXES)
 
 
 def _local_simple_portal_key_from_host(host):

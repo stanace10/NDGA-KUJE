@@ -17,7 +17,7 @@
       <div class="public-gallery-category-grid">
         {% for item in gallery_items %}
           <a href="/gallery/{{ item.slug }}/" class="public-gallery-category-card">
-            <img src="{% static item.image %}" alt="{{ item.title }}">
+            <img src="{{ item.image_url }}" alt="{{ item.title }}">
             <div>
               <span>Gallery</span>
               <h3>{{ item.title }}</h3>
@@ -35,7 +35,7 @@
     <div class="public-container public-stack-cards" data-reveal>
       {% for item in news_items %}
         <article class="public-story-card">
-          <img src="{% static item.image %}" alt="{{ item.title }}">
+          <img src="{{ item.image_url }}" alt="{{ item.title }}">
           <div>
             <span>{{ item.category }}{% if item.date %} | {{ item.date }}{% endif %}</span>
             <h3>{{ item.title }}</h3>

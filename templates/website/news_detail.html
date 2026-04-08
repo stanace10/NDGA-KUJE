@@ -1,8 +1,7 @@
 {% extends "website/base_public.html" %}
-{% load static %}
 
 {% block content %}
-<section class="public-page-hero" style="background-image:url('{% static article.image %}')">
+<section class="public-page-hero" style="background-image:url('{{ article.image_url }}')">
   <div class="public-page-hero-overlay"></div>
   <div class="public-container public-page-hero-content" data-reveal>
     <span class="public-eyebrow">{{ article.category }}{% if article.date %} · {{ article.date }}{% endif %}</span>

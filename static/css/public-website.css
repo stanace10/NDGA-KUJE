@@ -2065,6 +2065,431 @@ textarea {
   box-shadow: 0 18px 44px rgba(3, 21, 45, 0.24);
 }
 
+.public-hero-school-name {
+  margin: 18px 0 0;
+  font-size: clamp(1.18rem, 2.8vw, 1.68rem);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #ffffff;
+  position: relative;
+  display: inline-block;
+  padding-bottom: 14px;
+}
+
+.public-hero-school-name::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: min(230px, 75%);
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #d4af37 0%, #1d8b4f 55%, #b3202a 100%);
+}
+
+.ndga-support-dock {
+  position: fixed;
+  right: 22px;
+  bottom: 24px;
+  z-index: 80;
+  display: grid;
+  gap: 12px;
+}
+
+.ndga-support-fab {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  color: white;
+  text-decoration: none;
+  border: 0;
+  cursor: pointer;
+  box-shadow: 0 20px 40px rgba(7, 25, 53, 0.22);
+}
+
+.ndga-support-fab--chat {
+  background: linear-gradient(135deg, #ff4b63 0%, #f86858 100%);
+}
+
+.ndga-support-fab--whatsapp {
+  background: linear-gradient(135deg, #1fa55b 0%, #188a4b 100%);
+}
+
+.ndga-support-fab svg {
+  width: 24px;
+  height: 24px;
+  fill: currentColor;
+}
+
+.ndga-support-fab-mark {
+  font-size: 0.92rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.ndga-support-panel {
+  position: fixed;
+  right: 22px;
+  bottom: 98px;
+  z-index: 79;
+  width: min(360px, calc(100vw - 24px));
+  border-radius: 30px;
+  background: #fff;
+  overflow: hidden;
+  border: 1px solid rgba(7, 25, 53, 0.08);
+  box-shadow: 0 34px 80px rgba(5, 17, 38, 0.2);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(20px) scale(0.98);
+  transition: opacity 0.25s ease, transform 0.25s ease, visibility 0.25s ease;
+}
+
+.ndga-support-panel.is-open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+
+.ndga-support-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 22px 22px 18px;
+  background: linear-gradient(180deg, #ff4b63 0%, #f86858 100%);
+  color: white;
+}
+
+.ndga-support-header-copy h3 {
+  margin: 12px 0 0;
+  font-size: 2rem;
+  line-height: 1.02;
+  color: white;
+}
+
+.ndga-support-header-copy p {
+  margin: 12px 0 0;
+  color: rgba(255, 255, 255, 0.84);
+  line-height: 1.58;
+}
+
+.ndga-support-brand-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ndga-support-avatars {
+  display: inline-flex;
+  align-items: center;
+}
+
+.ndga-support-avatars span {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin-left: -8px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.14);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.ndga-support-close {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 0;
+  background: rgba(255, 255, 255, 0.16);
+  color: white;
+  font-size: 1.35rem;
+  cursor: pointer;
+}
+
+.ndga-support-body {
+  min-height: 430px;
+  background:
+    linear-gradient(180deg, rgba(248, 249, 250, 0.94) 0%, rgba(255, 255, 255, 1) 28%),
+    radial-gradient(circle at top right, rgba(212, 175, 55, 0.16), transparent 44%);
+}
+
+.ndga-support-view {
+  display: none;
+  padding: 18px;
+  gap: 14px;
+}
+
+.ndga-support-view.is-active {
+  display: grid;
+}
+
+.ndga-support-home-card,
+.ndga-support-management-note,
+.ndga-support-ticket-card {
+  border-radius: 22px;
+  background: rgba(0, 33, 71, 0.04);
+  border: 1px solid rgba(0, 33, 71, 0.08);
+  padding: 18px;
+}
+
+.ndga-support-home-card--intro small,
+.ndga-support-subhead small {
+  display: block;
+  color: var(--public-copy);
+  line-height: 1.55;
+}
+
+.ndga-support-home-card--intro small {
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.ndga-support-home-card--intro h4,
+.ndga-support-subhead span {
+  margin: 0;
+  font-size: 1.16rem;
+  color: var(--public-navy);
+}
+
+.ndga-support-home-card--intro p,
+.ndga-support-ticket-card p,
+.ndga-support-management-note p {
+  margin: 10px 0 0;
+  color: var(--public-copy);
+  line-height: 1.62;
+}
+
+.ndga-support-primary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  border: 0;
+  border-radius: 20px;
+  padding: 16px 18px;
+  background: white;
+  box-shadow: 0 16px 30px rgba(4, 17, 38, 0.08);
+  color: var(--public-navy);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ndga-support-primary svg {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
+}
+
+.ndga-support-home-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.ndga-support-chip {
+  width: 100%;
+  text-align: left;
+  border: 1px solid rgba(0, 33, 71, 0.08);
+  border-radius: 18px;
+  padding: 14px 16px;
+  background: white;
+  color: var(--public-ink);
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.ndga-support-chip:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 26px rgba(4, 17, 38, 0.08);
+}
+
+.ndga-support-resource-list {
+  display: grid;
+  gap: 10px;
+}
+
+.ndga-support-resource-list a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 13px 15px;
+  border-radius: 18px;
+  background: rgba(0, 33, 71, 0.04);
+  color: var(--public-navy);
+  font-weight: 700;
+}
+
+.ndga-support-subhead {
+  display: grid;
+  gap: 4px;
+}
+
+.ndga-support-thread {
+  max-height: 248px;
+  overflow: auto;
+  display: grid;
+  gap: 12px;
+  padding: 4px 2px;
+}
+
+.ndga-support-thread .public-live-chat-bubble {
+  max-width: 84%;
+  padding: 14px 16px;
+  border-radius: 22px;
+  display: grid;
+  gap: 6px;
+  line-height: 1.62;
+  box-shadow: 0 10px 22px rgba(4, 17, 38, 0.05);
+}
+
+.ndga-support-thread .public-live-chat-bubble strong {
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.ndga-support-thread .public-live-chat-bubble p {
+  margin: 0;
+}
+
+.ndga-support-thread .public-live-chat-bubble.is-user {
+  justify-self: start;
+  background: rgba(0, 33, 71, 0.08);
+  color: var(--public-ink);
+  border-bottom-left-radius: 8px;
+}
+
+.ndga-support-thread .public-live-chat-bubble.is-agent {
+  justify-self: end;
+  background: rgba(255, 75, 99, 0.14);
+  color: var(--public-navy-deep);
+  border-bottom-right-radius: 8px;
+}
+
+.ndga-support-escalation {
+  padding: 16px;
+  border-radius: 20px;
+  background: rgba(212, 175, 55, 0.12);
+  border: 1px solid rgba(212, 175, 55, 0.22);
+}
+
+.ndga-support-escalation p {
+  margin: 0 0 12px;
+  color: var(--public-navy);
+  font-weight: 700;
+}
+
+.ndga-support-escalation-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.ndga-support-action,
+.ndga-support-send {
+  border: 0;
+  border-radius: 18px;
+  padding: 13px 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ndga-support-action,
+.ndga-support-send {
+  background: var(--public-gold);
+  color: var(--public-navy-deep);
+}
+
+.ndga-support-action--muted {
+  background: rgba(0, 33, 71, 0.08);
+  color: var(--public-navy);
+}
+
+.ndga-support-question-form {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+}
+
+.ndga-support-question-form input,
+.ndga-support-management-form input,
+.ndga-support-management-form textarea {
+  width: 100%;
+  border: 1px solid rgba(0, 33, 71, 0.12);
+  border-radius: 18px;
+  padding: 13px 14px;
+  background: white;
+}
+
+.ndga-support-question-form button {
+  min-width: 84px;
+  border: 0;
+  border-radius: 18px;
+  background: var(--public-gold);
+  color: var(--public-navy-deep);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ndga-support-management-shell,
+.ndga-support-ticket-list {
+  display: grid;
+  gap: 14px;
+}
+
+.ndga-support-management-form {
+  display: grid;
+  gap: 12px;
+}
+
+.ndga-support-status {
+  min-height: 20px;
+  margin: 0;
+  color: var(--public-copy);
+  font-size: 0.92rem;
+}
+
+.ndga-support-ticket-card strong {
+  color: var(--public-navy);
+}
+
+.ndga-support-ticket-card.is-empty {
+  background: rgba(0, 33, 71, 0.04);
+}
+
+.ndga-support-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  padding: 12px;
+  border-top: 1px solid rgba(0, 33, 71, 0.08);
+  background: white;
+}
+
+.ndga-support-tabs button {
+  border: 0;
+  border-radius: 16px;
+  padding: 12px 10px;
+  background: transparent;
+  color: var(--public-copy);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ndga-support-tabs button.is-active {
+  background: rgba(0, 33, 71, 0.08);
+  color: var(--public-navy);
+}
+
 .public-academic-orb img {
   position: absolute;
   inset: 0;

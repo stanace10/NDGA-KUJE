@@ -103,6 +103,8 @@ class FinanceInstitutionProfile(TimeStampedModel):
     school_bank_name = models.CharField(max_length=140, blank=True)
     school_account_name = models.CharField(max_length=160, blank=True)
     school_account_number = models.CharField(max_length=64, blank=True)
+    application_form_fee_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    application_form_fee_note = models.CharField(max_length=220, blank=True)
     include_bank_details_in_messages = models.BooleanField(default=False)
     show_on_receipt_pdf = models.BooleanField(default=False)
     show_on_result_pdf = models.BooleanField(default=False)
@@ -123,6 +125,7 @@ class FinanceInstitutionProfile(TimeStampedModel):
         self.school_bank_name = (self.school_bank_name or "").strip()
         self.school_account_name = (self.school_account_name or "").strip()
         self.school_account_number = (self.school_account_number or "").strip()
+        self.application_form_fee_note = (self.application_form_fee_note or "").strip()
 
     @classmethod
     def load(cls):

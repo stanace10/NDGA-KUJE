@@ -27,6 +27,11 @@
           <span>{{ item }}</span>
         {% endfor %}
       </div>
+      <div class="public-registration-note">
+        <strong>Application form fee</strong>
+        <span>NGN {{ public_application_form_fee_amount }}</span>
+        {% if public_application_form_fee_note %}<span>{{ public_application_form_fee_note }}</span>{% endif %}
+      </div>
     </aside>
 
     <div class="public-form-panel">

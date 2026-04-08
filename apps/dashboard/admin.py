@@ -6,7 +6,12 @@ from apps.dashboard.models import (
     PortalDocument,
     PrincipalSignature,
     PublicAdmissionWorkflowStatus,
+    PublicEventPost,
+    PublicGalleryCategory,
+    PublicGalleryImage,
+    PublicNewsPost,
     PublicSiteSubmission,
+    PublicWebsiteSettings,
 )
 
 
@@ -77,3 +82,36 @@ class PublicSiteSubmissionAdmin(admin.ModelAdmin):
         queryset.filter(submission_type="ADMISSION").update(
             admissions_status=PublicAdmissionWorkflowStatus.PENDING
         )
+
+
+@admin.register(PublicWebsiteSettings)
+class PublicWebsiteSettingsAdmin(admin.ModelAdmin):
+    list_display = ("singleton_key", "updated_at", "updated_by")
+
+
+@admin.register(PublicGalleryCategory)
+class PublicGalleryCategoryAdmin(admin.ModelAdmin):
+    list_display = ("title", "slug", "sort_order", "is_active", "updated_at")
+    list_filter = ("is_active",)
+    search_fields = ("title", "slug", "summary")
+
+
+@admin.register(PublicGalleryImage)
+class PublicGalleryImageAdmin(admin.ModelAdmin):
+    list_display = ("title", "category", "sort_order", "is_active", "updated_at")
+    list_filter = ("is_active", "category")
+    search_fields = ("title", "caption", "category__title")
+
+
+@admin.register(PublicNewsPost)
+class PublicNewsPostAdmin(admin.ModelAdmin):
+    list_display = ("title", "category", "published_on", "sort_order", "is_published")
+    list_filter = ("is_published", "category")
+    search_fields = ("title", "summary", "body")
+
+
+@admin.register(PublicEventPost)
+class PublicEventPostAdmin(admin.ModelAdmin):
+    list_display = ("title", "meta", "event_date", "sort_order", "is_published")
+    list_filter = ("is_published", "meta")
+    search_fields = ("title", "summary", "body", "location")

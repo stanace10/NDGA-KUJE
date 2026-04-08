@@ -11,7 +11,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.files.base import ContentFile
 from django.db.models import Count, Q
 from django.http import JsonResponse
-from django.shortcuts import redirect
+from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse
 from django.utils import timezone
 from django.views import View
@@ -70,6 +70,12 @@ from apps.tenancy.utils import (
     user_has_lan_only_operation_roles,
 )
 from apps.dashboard.forms import (
+    PublicEventPostForm,
+    PublicGalleryCategoryForm,
+    PublicGalleryImageForm,
+    PublicNewsPostForm,
+    PublicSiteBrandingForm,
+    PublicWebsiteSettingsForm,
     PrincipalSignatureForm,
     PrivilegedSecuritySettingsForm,
     StudentDisplaySettingsForm,
@@ -79,7 +85,16 @@ from apps.dashboard.intelligence import (
     build_student_academic_analytics,
     build_teacher_performance_analytics,
 )
-from apps.dashboard.models import PrincipalSignature, SchoolProfile, StudentClubMembership
+from apps.dashboard.models import (
+    PrincipalSignature,
+    PublicEventPost,
+    PublicGalleryCategory,
+    PublicGalleryImage,
+    PublicNewsPost,
+    PublicWebsiteSettings,
+    SchoolProfile,
+    StudentClubMembership,
+)
 from apps.dashboard.navigation import build_portal_navigation
 
 
@@ -2005,6 +2020,176 @@ class PrincipalPortalView(PortalPageView):
                 "Operational management runs on the school LAN."
             )
         return context
+
+
+class ITPublicWebsiteSettingsView(PortalPageView):
+    template_name = "dashboard/public_website_settings.html"
+    portal_name = "IT Manager Portal"
+    portal_description = "Manage public website content, contact details, gallery, news, and events."
+
+    def dispatch(self, request, *args, **kwargs):
+        if not any(request.user.has_role(code) for code in {ROLE_IT_MANAGER, ROLE_VP, ROLE_PRINCIPAL}):
+            messages.error(request, "Public website settings are restricted to management.")
+            return redirect("dashboard:landing")
+        return super().dispatch(request, *args, **kwargs)
+
+    def _site_profile(self):
+        return SchoolProfile.load()
+
+    def _public_site_settings(self):
+        return PublicWebsiteSettings.load()
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["branding_form"] = kwargs.get("branding_form") or PublicSiteBrandingForm(instance=self._site_profile())
+        context["site_settings_form"] = kwargs.get("site_settings_form") or PublicWebsiteSettingsForm(
+            instance=self._public_site_settings()
+        )
+        context["gallery_category_form"] = kwargs.get("gallery_category_form") or PublicGalleryCategoryForm()
+        context["gallery_image_form"] = kwargs.get("gallery_image_form") or PublicGalleryImageForm()
+        context["news_form"] = kwargs.get("news_form") or PublicNewsPostForm()
+        context["event_form"] = kwargs.get("event_form") or PublicEventPostForm()
+        context["gallery_categories"] = PublicGalleryCategory.objects.prefetch_related("images").order_by("sort_order", "title")
+        context["gallery_images"] = PublicGalleryImage.objects.select_related("category").order_by(
+            "category__sort_order", "sort_order", "id"
+        )[:120]
+        context["news_posts"] = PublicNewsPost.objects.order_by("sort_order", "-published_on", "-created_at")[:40]
+        context["event_posts"] = PublicEventPost.objects.order_by("sort_order", "event_date", "title")[:40]
+        return context
+
+    def post(self, request, *args, **kwargs):
+        action = (request.POST.get("action") or "").strip().lower()
+
+        if action == "save_branding":
+            form = PublicSiteBrandingForm(request.POST, request.FILES, instance=self._site_profile())
+            if not form.is_valid():
+                return self.render_to_response(self.get_context_data(branding_form=form))
+            profile = form.save(commit=False)
+            profile.updated_by = request.user
+            profile.save()
+            messages.success(request, "Public contact and branding details updated.")
+            return redirect("dashboard:it-public-website-settings")
+
+        if action == "save_site_settings":
+            form = PublicWebsiteSettingsForm(request.POST, instance=self._public_site_settings())
+            if not form.is_valid():
+                return self.render_to_response(self.get_context_data(site_settings_form=form))
+            settings_row = form.save(commit=False)
+            settings_row.updated_by = request.user
+            settings_row.save()
+            messages.success(request, "Public homepage and support text updated.")
+            return redirect("dashboard:it-public-website-settings")
+
+        if action == "create_gallery_category":
+            form = PublicGalleryCategoryForm(request.POST, request.FILES)
+            if not form.is_valid():
+                return self.render_to_response(self.get_context_data(gallery_category_form=form))
+            row = form.save(commit=False)
+            row.updated_by = request.user
+            row.save()
+            messages.success(request, "Gallery category saved.")
+            return redirect("dashboard:it-public-website-settings")
+
+        if action == "update_gallery_category":
+            row = get_object_or_404(PublicGalleryCategory, pk=request.POST.get("row_id"))
+            form = PublicGalleryCategoryForm(request.POST, request.FILES, instance=row)
+            if not form.is_valid():
+                return self.render_to_response(self.get_context_data(gallery_category_form=form))
+            row = form.save(commit=False)
+            row.updated_by = request.user
+            row.save()
+            messages.success(request, "Gallery category updated.")
+            return redirect("dashboard:it-public-website-settings")
+
+        if action == "delete_gallery_category":
+            row = get_object_or_404(PublicGalleryCategory, pk=request.POST.get("row_id"))
+            row.delete()
+            messages.success(request, "Gallery category deleted.")
+            return redirect("dashboard:it-public-website-settings")
+
+        if action == "create_gallery_image":
+            form = PublicGalleryImageForm(request.POST, request.FILES)
+            if not form.is_valid():
+                return self.render_to_response(self.get_context_data(gallery_image_form=form))
+            row = form.save(commit=False)
+            row.updated_by = request.user
+            row.save()
+            messages.success(request, "Gallery image saved.")
+            return redirect("dashboard:it-public-website-settings")
+
+        if action == "update_gallery_image":
+            row = get_object_or_404(PublicGalleryImage, pk=request.POST.get("row_id"))
+            form = PublicGalleryImageForm(request.POST, request.FILES, instance=row)
+            if not form.is_valid():
+                return self.render_to_response(self.get_context_data(gallery_image_form=form))
+            row = form.save(commit=False)
+            row.updated_by = request.user
+            row.save()
+            messages.success(request, "Gallery image updated.")
+            return redirect("dashboard:it-public-website-settings")
+
+        if action == "delete_gallery_image":
+            row = get_object_or_404(PublicGalleryImage, pk=request.POST.get("row_id"))
+            row.delete()
+            messages.success(request, "Gallery image deleted.")
+            return redirect("dashboard:it-public-website-settings")
+
+        if action == "create_news_post":
+            form = PublicNewsPostForm(request.POST, request.FILES)
+            if not form.is_valid():
+                return self.render_to_response(self.get_context_data(news_form=form))
+            row = form.save(commit=False)
+            row.updated_by = request.user
+            row.save()
+            messages.success(request, "News item saved.")
+            return redirect("dashboard:it-public-website-settings")
+
+        if action == "update_news_post":
+            row = get_object_or_404(PublicNewsPost, pk=request.POST.get("row_id"))
+            form = PublicNewsPostForm(request.POST, request.FILES, instance=row)
+            if not form.is_valid():
+                return self.render_to_response(self.get_context_data(news_form=form))
+            row = form.save(commit=False)
+            row.updated_by = request.user
+            row.save()
+            messages.success(request, "News item updated.")
+            return redirect("dashboard:it-public-website-settings")
+
+        if action == "delete_news_post":
+            row = get_object_or_404(PublicNewsPost, pk=request.POST.get("row_id"))
+            row.delete()
+            messages.success(request, "News item deleted.")
+            return redirect("dashboard:it-public-website-settings")
+
+        if action == "create_event_post":
+            form = PublicEventPostForm(request.POST, request.FILES)
+            if not form.is_valid():
+                return self.render_to_response(self.get_context_data(event_form=form))
+            row = form.save(commit=False)
+            row.updated_by = request.user
+            row.save()
+            messages.success(request, "Event saved.")
+            return redirect("dashboard:it-public-website-settings")
+
+        if action == "update_event_post":
+            row = get_object_or_404(PublicEventPost, pk=request.POST.get("row_id"))
+            form = PublicEventPostForm(request.POST, request.FILES, instance=row)
+            if not form.is_valid():
+                return self.render_to_response(self.get_context_data(event_form=form))
+            row = form.save(commit=False)
+            row.updated_by = request.user
+            row.save()
+            messages.success(request, "Event updated.")
+            return redirect("dashboard:it-public-website-settings")
+
+        if action == "delete_event_post":
+            row = get_object_or_404(PublicEventPost, pk=request.POST.get("row_id"))
+            row.delete()
+            messages.success(request, "Event deleted.")
+            return redirect("dashboard:it-public-website-settings")
+
+        messages.error(request, "Invalid public website action.")
+        return redirect("dashboard:it-public-website-settings")
 
 
 class PrincipalSettingsView(PortalPageView):

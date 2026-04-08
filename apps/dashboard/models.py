@@ -2,6 +2,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
+from django.utils.text import slugify
 
 from apps.academics.models import AcademicClass, AcademicSession, Subject, TeacherSubjectAssignment, Term
 from apps.accounts.models import User
@@ -94,6 +95,80 @@ class SchoolProfile(TimeStampedModel):
 
     def __str__(self):
         return self.school_name
+
+
+class PublicWebsiteSettings(TimeStampedModel):
+    singleton_key = models.CharField(max_length=16, default="PRIMARY", unique=True, editable=False)
+    hero_eyebrow = models.CharField(max_length=160, default="Welcome to Notre Dame Girls' Academy")
+    hero_title = models.CharField(max_length=220, default="Educating Girls for Life")
+    hero_subtitle = models.TextField(
+        default=(
+            "Notre Dame Girls' Academy, Kuje-Abuja forms confident, competent, and "
+            "compassionate young women through purposeful learning, Catholic formation, "
+            "full boarding, and disciplined care."
+        )
+    )
+    principal_welcome_title = models.CharField(max_length=180, default="A welcome from the Principal")
+    principal_welcome_message = models.TextField(
+        default=(
+            "Welcome to Notre Dame Girls' Academy, a Catholic secondary school dedicated "
+            "to forming confident, competent, and compassionate young women."
+        )
+    )
+    principal_welcome_support = models.TextField(
+        default=(
+            "We partner with parents to nurture Gospel values, disciplined study habits, "
+            "strong character, and the full potential of every girl entrusted to our care."
+        )
+    )
+    footer_statement = models.TextField(
+        default=(
+            "Educating girls for life through strong academics, boarding structure, "
+            "faith formation, and disciplined student growth."
+        )
+    )
+    chat_welcome_text = models.TextField(
+        default=(
+            "Hello. I am Julie. I can guide you on admissions, fees, boarding, "
+            "subjects, screening, and school life."
+        )
+    )
+    chat_management_wait_text = models.TextField(
+        default="Connecting you to management. Please wait..."
+    )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="updated_public_website_settings",
+    )
+
+    class Meta:
+        verbose_name = "Public Website Settings"
+        verbose_name_plural = "Public Website Settings"
+
+    def clean(self):
+        self.singleton_key = "PRIMARY"
+        self.hero_eyebrow = (self.hero_eyebrow or "").strip()
+        self.hero_title = (self.hero_title or "").strip()
+        self.hero_subtitle = (self.hero_subtitle or "").strip()
+        self.principal_welcome_title = (self.principal_welcome_title or "").strip()
+        self.principal_welcome_message = (self.principal_welcome_message or "").strip()
+        self.principal_welcome_support = (self.principal_welcome_support or "").strip()
+        self.footer_statement = (self.footer_statement or "").strip()
+        self.chat_welcome_text = (self.chat_welcome_text or "").strip()
+        self.chat_management_wait_text = (self.chat_management_wait_text or "").strip()
+
+    @classmethod
+    def load(cls):
+        row = cls.objects.first()
+        if row:
+            return row
+        return cls.objects.create()
+
+    def __str__(self):
+        return "Public Website Settings"
 
 
 class PublicSubmissionType(models.TextChoices):
@@ -249,6 +324,138 @@ class PublicSiteSubmission(TimeStampedModel):
     def __str__(self):
         title = self.applicant_name or self.contact_name or "Public submission"
         return f"{self.get_submission_type_display()}: {title}"
+
+
+class PublicGalleryCategory(TimeStampedModel):
+    title = models.CharField(max_length=180)
+    slug = models.SlugField(max_length=180, unique=True, blank=True)
+    summary = models.TextField(blank=True)
+    cover_image = models.ImageField(upload_to="public_site/gallery/categories/", blank=True, null=True)
+    sort_order = models.PositiveIntegerField(default=10)
+    is_active = models.BooleanField(default=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="updated_public_gallery_categories",
+    )
+
+    class Meta:
+        ordering = ("sort_order", "title")
+
+    def clean(self):
+        self.title = (self.title or "").strip()
+        self.summary = (self.summary or "").strip()
+        if not self.slug:
+            self.slug = slugify(self.title)
+
+    def __str__(self):
+        return self.title
+
+
+class PublicGalleryImage(TimeStampedModel):
+    category = models.ForeignKey(
+        PublicGalleryCategory,
+        on_delete=models.CASCADE,
+        related_name="images",
+    )
+    title = models.CharField(max_length=180, blank=True)
+    caption = models.CharField(max_length=220, blank=True)
+    image = models.ImageField(upload_to="public_site/gallery/images/")
+    sort_order = models.PositiveIntegerField(default=10)
+    is_active = models.BooleanField(default=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="updated_public_gallery_images",
+    )
+
+    class Meta:
+        ordering = ("sort_order", "id")
+
+    def clean(self):
+        self.title = (self.title or "").strip()
+        self.caption = (self.caption or "").strip()
+
+    def __str__(self):
+        return self.title or f"Gallery image #{self.pk or 'new'}"
+
+
+class PublicNewsPost(TimeStampedModel):
+    title = models.CharField(max_length=220)
+    slug = models.SlugField(max_length=220, unique=True, blank=True)
+    category = models.CharField(max_length=120, default="School News")
+    published_on = models.DateField(default=timezone.localdate)
+    summary = models.TextField()
+    body = models.TextField()
+    image = models.ImageField(upload_to="public_site/news/", blank=True, null=True)
+    is_published = models.BooleanField(default=True)
+    sort_order = models.PositiveIntegerField(default=10)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="updated_public_news_posts",
+    )
+
+    class Meta:
+        ordering = ("sort_order", "-published_on", "-created_at")
+
+    def clean(self):
+        self.title = (self.title or "").strip()
+        self.category = (self.category or "").strip()
+        self.summary = (self.summary or "").strip()
+        self.body = (self.body or "").strip()
+        if not self.slug:
+            self.slug = slugify(self.title)
+
+    def body_paragraphs(self):
+        return [line.strip() for line in (self.body or "").splitlines() if line.strip()]
+
+    def __str__(self):
+        return self.title
+
+
+class PublicEventPost(TimeStampedModel):
+    title = models.CharField(max_length=220)
+    slug = models.SlugField(max_length=220, unique=True, blank=True)
+    meta = models.CharField(max_length=120, default="School Event")
+    event_date = models.DateField(default=timezone.localdate)
+    location = models.CharField(max_length=220, blank=True)
+    summary = models.TextField()
+    body = models.TextField(blank=True)
+    image = models.ImageField(upload_to="public_site/events/", blank=True, null=True)
+    is_published = models.BooleanField(default=True)
+    sort_order = models.PositiveIntegerField(default=10)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="updated_public_event_posts",
+    )
+
+    class Meta:
+        ordering = ("sort_order", "event_date", "title")
+
+    def clean(self):
+        self.title = (self.title or "").strip()
+        self.meta = (self.meta or "").strip()
+        self.location = (self.location or "").strip()
+        self.summary = (self.summary or "").strip()
+        self.body = (self.body or "").strip()
+        if not self.slug:
+            self.slug = slugify(self.title)
+
+    def body_paragraphs(self):
+        return [line.strip() for line in (self.body or "").splitlines() if line.strip()]
+
+    def __str__(self):
+        return self.title
 
 
 class LearningResourceCategory(models.TextChoices):

@@ -8,9 +8,10 @@
   </video>
   <div class="public-hero-overlay"></div>
   <div class="public-container public-hero-content" data-reveal>
-    <span class="public-eyebrow">Welcome to Notre Dame Girls' Academy</span>
-    <h1>Educating Girls for Life</h1>
-    <p>Notre Dame Girls' Academy, Kuje-Abuja forms confident, competent, and compassionate young women through purposeful learning, Catholic formation, full boarding, and disciplined care.</p>
+    <span class="public-eyebrow">{{ public_site_settings.hero_eyebrow }}</span>
+    <p class="public-hero-school-name">Notre Dame Girls' Academy, Kuje-Abuja</p>
+    <h1>{{ public_site_settings.hero_title }}</h1>
+    <p>{{ public_site_settings.hero_subtitle }}</p>
     <div class="public-hero-actions">
       <a href="/admissions/registration/" class="public-cta magnetic">Apply Now</a>
       <a href="/auth/login/?audience=student" class="public-secondary-cta magnetic">School Portal</a>
@@ -56,9 +57,9 @@
   <div class="public-container public-split public-split-reverse" data-reveal>
     <div class="public-copy">
       <span class="public-eyebrow">{{ home_principal.eyebrow }}</span>
-      <h2>A welcome from the Principal</h2>
-      <p>Welcome to Notre Dame Girls' Academy, a Catholic secondary school dedicated to forming confident, competent, and compassionate young women.</p>
-      <p>We partner with parents to nurture Gospel values, disciplined study habits, strong character, and the full potential of every girl entrusted to our care.</p>
+      <h2>{{ public_site_settings.principal_welcome_title }}</h2>
+      <p>{{ public_site_settings.principal_welcome_message }}</p>
+      <p>{{ public_site_settings.principal_welcome_support }}</p>
       <div class="public-quote-signoff">
         <strong>{{ public_principal_name }}</strong>
         <span>Principal, Notre Dame Girls' Academy</span>
@@ -215,12 +216,12 @@
       <h2>Selected school moments with room to explore more</h2>
     </div>
     <div class="public-gallery-category-grid">
-      {% for category in home_gallery %}
-        <a href="/gallery/{{ category.slug }}/" class="public-gallery-category-card">
-          <img src="{% static category.image %}" alt="{{ category.title }}">
-          <div>
-            <span>Gallery</span>
-            <h3>{{ category.title }}</h3>
+        {% for category in home_gallery %}
+          <a href="/gallery/{{ category.slug }}/" class="public-gallery-category-card">
+            <img src="{{ category.image_url }}" alt="{{ category.title }}">
+            <div>
+              <span>Gallery</span>
+              <h3>{{ category.title }}</h3>
             <p>{{ category.summary }}</p>
           </div>
         </a>
@@ -242,7 +243,7 @@
       <div class="public-stack-cards">
         {% for item in home_news %}
           <article class="public-story-card">
-            <img src="{% static item.image %}" alt="{{ item.title }}">
+            <img src="{{ item.image_url }}" alt="{{ item.title }}">
             <div>
               <span>{{ item.category }}{% if item.date %} | {{ item.date }}{% endif %}</span>
               <h3>{{ item.title }}</h3>

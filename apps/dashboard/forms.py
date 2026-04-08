@@ -24,8 +24,13 @@ from apps.dashboard.models import (
     LMSModule,
     LMSSubmissionStatus,
     PortalDocument,
+    PublicEventPost,
+    PublicGalleryCategory,
+    PublicGalleryImage,
+    PublicNewsPost,
     PublicSiteSubmission,
     PublicSubmissionType,
+    PublicWebsiteSettings,
     SchoolProfile,
     StudentClubMembership,
     WeeklyChallenge,
@@ -187,6 +192,131 @@ class SchoolProfileForm(_StyledFormMixin, forms.ModelForm):
         self.fields["school_stamp"].widget.attrs.setdefault(
             "accept", "image/png,image/jpeg,image/jpg,image/svg+xml"
         )
+
+
+class PublicSiteBrandingForm(_StyledFormMixin, forms.ModelForm):
+    class Meta:
+        model = SchoolProfile
+        fields = (
+            "school_name",
+            "address",
+            "contact_email",
+            "contact_phone",
+            "website",
+            "principal_name",
+            "school_logo",
+        )
+        widgets = {
+            "address": forms.Textarea(attrs={"rows": 3}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["school_logo"].required = False
+        self.fields["school_logo"].widget.attrs.setdefault(
+            "accept", "image/png,image/jpeg,image/jpg,image/svg+xml"
+        )
+
+
+class PublicWebsiteSettingsForm(_StyledFormMixin, forms.ModelForm):
+    class Meta:
+        model = PublicWebsiteSettings
+        fields = (
+            "hero_eyebrow",
+            "hero_title",
+            "hero_subtitle",
+            "principal_welcome_title",
+            "principal_welcome_message",
+            "principal_welcome_support",
+            "footer_statement",
+            "chat_welcome_text",
+            "chat_management_wait_text",
+        )
+        widgets = {
+            "hero_subtitle": forms.Textarea(attrs={"rows": 3}),
+            "principal_welcome_message": forms.Textarea(attrs={"rows": 4}),
+            "principal_welcome_support": forms.Textarea(attrs={"rows": 4}),
+            "footer_statement": forms.Textarea(attrs={"rows": 3}),
+            "chat_welcome_text": forms.Textarea(attrs={"rows": 3}),
+            "chat_management_wait_text": forms.Textarea(attrs={"rows": 2}),
+        }
+
+
+class PublicGalleryCategoryForm(_StyledFormMixin, forms.ModelForm):
+    class Meta:
+        model = PublicGalleryCategory
+        fields = ("title", "slug", "summary", "cover_image", "sort_order", "is_active")
+        widgets = {
+            "summary": forms.Textarea(attrs={"rows": 3}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["cover_image"].required = False
+        self.fields["cover_image"].widget.attrs.setdefault("accept", "image/png,image/jpeg,image/jpg,image/webp")
+
+
+class PublicGalleryImageForm(_StyledFormMixin, forms.ModelForm):
+    class Meta:
+        model = PublicGalleryImage
+        fields = ("category", "title", "caption", "image", "sort_order", "is_active")
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["image"].widget.attrs.setdefault("accept", "image/png,image/jpeg,image/jpg,image/webp")
+
+
+class PublicNewsPostForm(_StyledFormMixin, forms.ModelForm):
+    class Meta:
+        model = PublicNewsPost
+        fields = (
+            "title",
+            "slug",
+            "category",
+            "published_on",
+            "summary",
+            "body",
+            "image",
+            "sort_order",
+            "is_published",
+        )
+        widgets = {
+            "published_on": forms.DateInput(attrs={"type": "date"}),
+            "summary": forms.Textarea(attrs={"rows": 3}),
+            "body": forms.Textarea(attrs={"rows": 6}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["image"].required = False
+        self.fields["image"].widget.attrs.setdefault("accept", "image/png,image/jpeg,image/jpg,image/webp")
+
+
+class PublicEventPostForm(_StyledFormMixin, forms.ModelForm):
+    class Meta:
+        model = PublicEventPost
+        fields = (
+            "title",
+            "slug",
+            "meta",
+            "event_date",
+            "location",
+            "summary",
+            "body",
+            "image",
+            "sort_order",
+            "is_published",
+        )
+        widgets = {
+            "event_date": forms.DateInput(attrs={"type": "date"}),
+            "summary": forms.Textarea(attrs={"rows": 3}),
+            "body": forms.Textarea(attrs={"rows": 5}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["image"].required = False
+        self.fields["image"].widget.attrs.setdefault("accept", "image/png,image/jpeg,image/jpg,image/webp")
 
 
 class PublicContactForm(_StyledFormMixin, forms.ModelForm):

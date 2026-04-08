@@ -2,6 +2,15 @@ from __future__ import annotations
 
 from copy import deepcopy
 
+from django.conf import settings
+
+from apps.dashboard.models import (
+    PublicEventPost,
+    PublicGalleryCategory,
+    PublicNewsPost,
+    PublicWebsiteSettings,
+)
+
 
 PUBLIC_IMAGE = {
     "hero": "images/public/facility-campus-view.jpeg",
@@ -40,6 +49,15 @@ PUBLIC_IMAGE = {
     "pioneers_alt": "images/public/events-pioneers-2.jpg",
     "events_stage": "images/public/events-voice-battle.jpg",
 }
+
+
+def _format_public_date(value):
+    if value is None:
+        return ""
+    try:
+        return value.strftime("%B %d, %Y").replace(" 0", " ")
+    except Exception:
+        return str(value)
 
 PUBLIC_CONTACT = {
     "school_name": "Notre Dame Girls' Academy, Kuje-Abuja",
@@ -1038,30 +1056,113 @@ def get_public_page(slug: str):
     page = deepcopy(PUBLIC_PAGE_CONTENT.get(slug))
     if page is None:
         return None
+    if slug == "fees":
+        page = _apply_live_fee_rows(page)
+    if slug == "principal":
+        page = _apply_public_principal_overrides(page)
     return _normalize_public_page(page)
 
 
 def get_public_news():
-    return deepcopy(PUBLIC_NEWS)
+    rows = list(PublicNewsPost.objects.filter(is_published=True).order_by("sort_order", "-published_on", "-created_at"))
+    if rows:
+        return [
+            {
+                "slug": row.slug,
+                "category": row.category,
+                "date": _format_public_date(row.published_on),
+                "title": row.title,
+                "summary": row.summary,
+                "body": row.body_paragraphs(),
+                "image": row.image.name if row.image else PUBLIC_IMAGE["campus_view"],
+                "image_url": row.image.url if row.image else f"{settings.STATIC_URL}{PUBLIC_IMAGE['campus_view']}",
+            }
+            for row in rows
+        ]
+    return [
+        {
+            **deepcopy(item),
+            "image_url": f"{settings.STATIC_URL}{item['image']}",
+        }
+        for item in PUBLIC_NEWS
+    ]
 
 
 def get_public_news_item(slug: str):
-    for item in PUBLIC_NEWS:
+    for item in get_public_news():
         if item["slug"] == slug:
             return deepcopy(item)
     return None
 
 
 def get_public_events():
-    return deepcopy(PUBLIC_EVENTS)
+    rows = list(PublicEventPost.objects.filter(is_published=True).order_by("sort_order", "event_date", "title"))
+    if rows:
+        return [
+            {
+                "slug": row.slug,
+                "title": row.title,
+                "summary": row.summary,
+                "meta": row.meta,
+                "date": _format_public_date(row.event_date),
+                "location": row.location,
+                "body": row.body_paragraphs(),
+                "image": row.image.name if row.image else PUBLIC_IMAGE["campus_view"],
+                "image_url": row.image.url if row.image else f"{settings.STATIC_URL}{PUBLIC_IMAGE['campus_view']}",
+            }
+            for row in rows
+        ]
+    return [
+        {
+            **deepcopy(item),
+            "image_url": f"{settings.STATIC_URL}{item.get('image', PUBLIC_IMAGE['campus_view'])}",
+        }
+        for item in PUBLIC_EVENTS
+    ]
 
 
 def get_public_gallery():
-    return deepcopy(PUBLIC_GALLERY)
+    categories = list(
+        PublicGalleryCategory.objects.filter(is_active=True)
+        .prefetch_related("images")
+        .order_by("sort_order", "title")
+    )
+    if categories:
+        payload = []
+        fallback_images = [
+            PUBLIC_IMAGE["campus_view"],
+            PUBLIC_IMAGE["computer_lab"],
+            PUBLIC_IMAGE["science_lab"],
+        ]
+        for category in categories:
+            active_images = [row for row in category.images.all() if row.is_active]
+            image_urls = [row.image.url for row in active_images if row.image]
+            if not image_urls:
+                image_urls = [f"{settings.STATIC_URL}{item}" for item in fallback_images]
+            payload.append(
+                {
+                    "slug": category.slug,
+                    "title": category.title,
+                    "summary": category.summary,
+                    "image": category.cover_image.name if category.cover_image else "",
+                    "image_url": category.cover_image.url if category.cover_image else image_urls[0],
+                    "images": [row.image.name for row in active_images if row.image],
+                    "image_urls": image_urls,
+                }
+            )
+        return payload
+    return [
+        {
+            **deepcopy(item),
+            "image_url": f"{settings.STATIC_URL}{item['image']}",
+            "image_urls": [f"{settings.STATIC_URL}{row}" for row in item["images"]],
+        }
+        for item in PUBLIC_GALLERY
+    ]
 
 
 def get_public_gallery_category(slug: str):
-    for item in PUBLIC_GALLERY:
+    for item in get_public_gallery():
         if item["slug"] == slug:
             return deepcopy(item)
     return None
@@ -1104,10 +1205,102 @@ def _normalize_public_page(page):
     return page
 
 
+def _apply_public_principal_overrides(page):
+    settings_row = PublicWebsiteSettings.load()
+    page["title"] = settings_row.principal_welcome_title or page.get("title", "Principal's Welcome")
+    for section in page.get("sections", []):
+        if section.get("layout") == "split":
+            section["title"] = settings_row.principal_welcome_title or section.get("title", "")
+            section["body"] = [
+                settings_row.principal_welcome_message or "",
+                settings_row.principal_welcome_support or "",
+            ]
+            break
+    return page
+
+
+def _apply_live_fee_rows(page):
+    try:
+        from apps.finance.models import ChargeTargetType, StudentCharge
+        from apps.finance.services import current_academic_window, finance_profile
+    except Exception:
+        return page
+
+    session, term = current_academic_window()
+    charges_qs = StudentCharge.objects.select_related("academic_class").filter(
+        target_type=ChargeTargetType.CLASS,
+        is_active=True,
+        academic_class__isnull=False,
+    )
+    if session is not None:
+        charges_qs = charges_qs.filter(session=session)
+    if term is not None:
+        charges_qs = charges_qs.filter(term__in=[term, None])
+
+    class_rows = {}
+    for charge in charges_qs.order_by("academic_class__code", "item_name"):
+        class_code = getattr(charge.academic_class, "code", "") or "Class"
+        bucket = class_rows.setdefault(
+            class_code,
+            {
+                "school_fees": [],
+                "boarding": [],
+                "other": [],
+            },
+        )
+        item_name = (charge.item_name or "").strip()
+        label = f"{item_name}: NGN {charge.amount}"
+        lowered = item_name.lower()
+        if "hostel" in lowered or "boarding" in lowered:
+            bucket["boarding"].append(label)
+        elif "school" in lowered or "tuition" in lowered or "fees" in lowered:
+            bucket["school_fees"].append(label)
+        else:
+            bucket["other"].append(label)
+
+    finance_settings = finance_profile()
+    rows = []
+    for class_code in sorted(class_rows.keys()):
+        bucket = class_rows[class_code]
+        rows.append(
+            [
+                class_code,
+                ", ".join(bucket["school_fees"]) or "Contact bursary for approved school-fee line items",
+                ", ".join(bucket["boarding"]) or "Boarding charge shared separately where applicable",
+                ", ".join(bucket["other"]) or "No additional approved charges currently listed",
+            ]
+        )
+
+    if rows:
+        page["sections"][0]["rows"] = rows
+    page["sections"][0]["intro"] = (
+        "The public fee table now reflects the latest active class charges configured by the bursary. "
+        "Families should still confirm the full approved breakdown with the school before payment."
+    )
+    page["sections"][1]["cards"][0]["text"] = "Class charges on this page are pulled from the current bursary fee configuration."
+    page["sections"][1]["cards"][3]["text"] = (
+        f"Application form fee: NGN {finance_settings.application_form_fee_amount}. "
+        f"{finance_settings.application_form_fee_note or 'Further payment guidance is shared during admissions follow-up.'}"
+    )
+    return page
+
+
 def get_public_site_context(*, school_profile=None):
     principal_name = ""
     if school_profile is not None:
         principal_name = (school_profile.principal_name or "").strip()
+    public_site_settings = PublicWebsiteSettings.load()
+    application_fee_amount = "0.00"
+    application_fee_note = ""
+    try:
+        from apps.finance.services import finance_profile
+
+        finance_settings = finance_profile()
+        application_fee_amount = str(finance_settings.application_form_fee_amount or "0.00")
+        application_fee_note = finance_settings.application_form_fee_note or ""
+    except Exception:
+        application_fee_amount = "0.00"
+        application_fee_note = ""
 
     return {
         "public_navigation": deepcopy(PUBLIC_NAVIGATION),
@@ -1118,10 +1311,13 @@ def get_public_site_context(*, school_profile=None):
         "public_search_links": deepcopy(PUBLIC_SEARCH_LINKS),
         "public_faqs": deepcopy(PUBLIC_FAQS),
         "public_principal_name": principal_name or "Office of the Principal",
+        "public_site_settings": public_site_settings,
         "public_images": deepcopy(PUBLIC_IMAGE),
         "public_class_options": deepcopy(PUBLIC_CLASS_OPTIONS),
         "public_apply_url": "/admissions/registration/",
         "public_portal_url": "/auth/login/?audience=student",
         "public_portal_text": "School Portal",
         "public_live_chat_url": "/live-chat/",
+        "public_application_form_fee_amount": application_fee_amount,
+        "public_application_form_fee_note": application_fee_note,
     }

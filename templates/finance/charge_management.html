@@ -81,6 +81,20 @@
             {{ profile_form.school_account_number }}
             {% if profile_form.school_account_number.errors %}<p class="mt-1 text-xs text-rose-700">{{ profile_form.school_account_number.errors|striptags }}</p>{% endif %}
           </div>
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ profile_form.application_form_fee_amount.id_for_label }}">
+              Admission Form Fee
+            </label>
+            {{ profile_form.application_form_fee_amount }}
+            {% if profile_form.application_form_fee_amount.errors %}<p class="mt-1 text-xs text-rose-700">{{ profile_form.application_form_fee_amount.errors|striptags }}</p>{% endif %}
+          </div>
+          <div class="sm:col-span-2">
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ profile_form.application_form_fee_note.id_for_label }}">
+              Application Fee Note
+            </label>
+            {{ profile_form.application_form_fee_note }}
+            {% if profile_form.application_form_fee_note.errors %}<p class="mt-1 text-xs text-rose-700">{{ profile_form.application_form_fee_note.errors|striptags }}</p>{% endif %}
+          </div>
           <div class="space-y-2 pt-1">
             <label class="inline-flex items-center gap-2 text-sm text-slate-700">
               {{ profile_form.include_bank_details_in_messages }}

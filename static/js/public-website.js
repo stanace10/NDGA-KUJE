@@ -329,13 +329,13 @@
     const tickets = raw ? JSON.parse(raw) : [];
     if (!tickets.length) {
       supportTicketList.innerHTML =
-        '<article class="public-support-ticket-card is-empty"><strong>No open tickets yet</strong><p>When a management request is submitted, the reference and status will appear here during your visit.</p></article>';
+        '<article class="ndga-support-ticket-card is-empty"><strong>No open tickets yet</strong><p>When a management request is submitted, the reference and status will appear here during your visit.</p></article>';
       return;
     }
     supportTicketList.innerHTML = "";
     tickets.forEach((ticket) => {
       const card = document.createElement("article");
-      card.className = "public-support-ticket-card";
+      card.className = "ndga-support-ticket-card";
       card.innerHTML = `<strong>${ticket.reference}</strong><p>${ticket.summary}</p><small>${ticket.status}</small>`;
       supportTicketList.appendChild(card);
     });
@@ -355,9 +355,12 @@
   };
 
   const connectToManagement = () => {
+    const waitText =
+      chatbot?.getAttribute("data-chat-management-wait") ||
+      "Connecting you to management. Please wait...";
     toggleEscalationPrompt(false);
     openChatbot("messages");
-    appendLiveChatBubble("Connecting you to management. Please wait...", "agent", "System");
+    appendLiveChatBubble(waitText, "agent", "System");
     if (liveChatShell) {
       liveChatShell.hidden = false;
     }

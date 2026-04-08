@@ -22,9 +22,11 @@ from apps.setup_wizard.services import setup_is_ready
 from apps.tenancy.utils import (
     build_portal_url,
     cloud_staff_operations_lan_only_enabled,
+    current_term_staff_edit_lock,
     current_portal_key,
     lan_runtime_restrictions_enabled,
     path_is_cloud_lan_only_operation,
+    path_is_future_term_staff_edit_operation,
     user_has_lan_only_operation_roles,
 )
 
@@ -213,6 +215,10 @@ class PortalAccessMiddleware:
         if response is not None:
             return response
 
+        response = self._enforce_future_term_staff_edit_lock(request)
+        if response is not None:
+            return response
+
         host_allowed_roles = PORTAL_ROLE_ACCESS.get(request.portal_key)
         if host_allowed_roles is not None:
             response = self._enforce_role_guard(
@@ -287,6 +293,35 @@ class PortalAccessMiddleware:
                 "and the approved local workflows for this node."
             ),
             "current_node_label": "LAN",
+        }
+        return render(request, "dashboard/lan_restricted.html", context=context, status=403)
+
+    def _enforce_future_term_staff_edit_lock(self, request):
+        if not getattr(request.user, "is_authenticated", False):
+            return None
+        if not path_is_future_term_staff_edit_operation(request.path):
+            return None
+        role_codes = set(request.user.get_all_role_codes())
+        if role_codes & {ROLE_IT_MANAGER, ROLE_PRINCIPAL, ROLE_VP, ROLE_BURSAR}:
+            return None
+        if not role_codes & {ROLE_SUBJECT_TEACHER, ROLE_FORM_TEACHER, ROLE_DEAN}:
+            return None
+        lock_state = current_term_staff_edit_lock()
+        if not lock_state["locked"]:
+            return None
+        start_date = lock_state["start_date"]
+        context = {
+            "restriction_title": "Term Entry Locked",
+            "restriction_heading": "Staff editing is closed until the new term opens.",
+            "restriction_message": (
+                "Second term entry work is closed. Staff can continue to view earlier records, "
+                "but entry, marking, and attendance actions remain locked until third term begins."
+            ),
+            "allowed_summary": (
+                f"Third Term begins on {start_date.strftime('%B %d, %Y').replace(' 0', ' ')}. "
+                "Management can still access oversight and setup controls."
+            ),
+            "current_node_label": "Academic Window",
         }
         return render(request, "dashboard/lan_restricted.html", context=context, status=403)
 
