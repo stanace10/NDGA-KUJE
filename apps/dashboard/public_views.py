@@ -26,7 +26,7 @@ from apps.dashboard.public_site import (
 
 
 def _management_team_recipients(*, include_bursar=False):
-    role_codes = [ROLE_IT_MANAGER, ROLE_VP, ROLE_PRINCIPAL]
+    role_codes = [ROLE_IT_MANAGER, ROLE_VP]
     if include_bursar:
         role_codes.append(ROLE_BURSAR)
     role_filter = Q(primary_role__code__in=role_codes) | Q(secondary_roles__code__in=role_codes)
@@ -150,6 +150,70 @@ class PublicHomeView(PublicSiteEnabledMixin, TemplateView):
                             context["public_images"]["computer_lab"],
                         ],
                         "href": "/academics/subjects-departments/",
+                    },
+                ],
+                "home_fee_highlights": [
+                    {
+                        "title": "Application & Screening",
+                        "text": "Families can review the current application form fee, screening guidance, and what happens before approval is granted.",
+                        "images": [
+                            context["public_images"]["assembly"],
+                            context["public_images"]["hero_students"],
+                            context["public_images"]["campus_view"],
+                        ],
+                        "href": "/admissions/",
+                    },
+                    {
+                        "title": "School Fees by Class",
+                        "text": "Fee guidance is arranged clearly by class level so parents can see the structure for JSS and SS classes without confusion.",
+                        "images": [
+                            context["public_images"]["computer_lab_pair"],
+                            context["public_images"]["library"],
+                            context["public_images"]["computer_lab_junior"],
+                        ],
+                        "href": "/fees/",
+                    },
+                    {
+                        "title": "Boarding & Welfare",
+                        "text": "Boarding details explain routine, hostel care, study supervision, and the day-to-day support available to every girl.",
+                        "images": [
+                            context["public_images"]["hostel_alt"],
+                            context["public_images"]["socials"],
+                            context["public_images"]["campus_block"],
+                        ],
+                        "href": "/hostel-boarding/",
+                    },
+                ],
+                "home_life_highlights": [
+                    {
+                        "title": "Clubs & Leadership",
+                        "text": "JETS, Literary and Debating, IT, Home Makers, Creative Arts, French, Young Farmers, and student leadership groups keep school life active.",
+                        "images": [
+                            context["public_images"]["socials"],
+                            context["public_images"]["assembly"],
+                            context["public_images"]["hero_students"],
+                        ],
+                        "href": "/academics/co-curricular-activities/",
+                    },
+                    {
+                        "title": "Sports & Recreation",
+                        "text": "Football, basketball, volleyball, badminton, table tennis, athletics, and inter-house activities support confidence and healthy competition.",
+                        "images": [
+                            context["public_images"]["sports"],
+                            context["public_images"]["sports_alt"],
+                            context["public_images"]["sports_alt_two"],
+                        ],
+                        "href": "/facilities/",
+                    },
+                    {
+                        "title": "Faith & Formation",
+                        "text": "Prayer, liturgy, assemblies, retreats, and Gospel values remain part of the school day and the wider formation of students.",
+                        "images": [
+                            context["public_images"]["assembly"],
+                            context["public_images"]["campus_view"],
+                            context["public_images"]["computer_lab_junior"],
+                        ],
+                        "href": "/about/school-life/",
                     },
                 ],
                 "home_hallmarks": [

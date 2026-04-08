@@ -413,6 +413,18 @@ class FinancePortalTests(TestCase):
         self.assertContains(response, "Sports Wear")
         self.assertContains(response, "Outstanding")
 
+    def test_student_finance_portal_alias_renders_inside_student_portal(self):
+        client = self._client("student.ndgakuje.org", self.student)
+        response = client.get("/portal/student/finance/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Student Finance")
+
+    def test_bursar_finance_portal_alias_renders_dashboard(self):
+        client = self._client("bursar.ndgakuje.org", self.bursar)
+        response = client.get("/finance/bursar/dashboard/")
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "School Finance Overview")
+
     def test_monthly_cashflow_series_handles_date_buckets(self):
         today = timezone.localdate()
         month_start = today.replace(day=1)

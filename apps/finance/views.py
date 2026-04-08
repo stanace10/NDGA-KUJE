@@ -191,7 +191,11 @@ class FinancePortalAccessMixin(LoginRequiredMixin, UserPassesTestMixin):
     def dispatch(self, request, *args, **kwargs):
         preferred_portal = _preferred_portal_for_user(request.user)
         portal_key = current_portal_key(request)
-        if preferred_portal in {"bursar", "vp", "principal"} and portal_key != preferred_portal:
+        if (
+            preferred_portal in {"bursar", "vp", "principal"}
+            and portal_key != preferred_portal
+            and not request.path.startswith("/finance/")
+        ):
             target = build_portal_url(request, preferred_portal, request.path, query=request.GET)
             return redirect(target)
         return super().dispatch(request, *args, **kwargs)
@@ -289,6 +293,16 @@ class ReceiptAccessMixin(FinancePortalAccessMixin):
 
 class StudentFinanceAccessMixin(FinancePortalAccessMixin):
     allowed_roles = {ROLE_STUDENT}
+
+
+class FinanceStudentPortalRedirectView(StudentFinanceAccessMixin, View):
+    def get(self, request, *args, **kwargs):
+        return redirect(build_portal_url(request, "student", "/portal/student/finance/", query=request.GET))
+
+
+class FinanceBursarPortalRedirectView(BursarAccessMixin, View):
+    def get(self, request, *args, **kwargs):
+        return redirect(build_portal_url(request, "bursar", "/portal/bursar/finance/", query=request.GET))
 
 
 class StudentFinanceOverviewView(StudentFinanceAccessMixin, TemplateView):
@@ -1661,7 +1675,7 @@ class BursarMessagingView(BursarAccessMixin, TemplateView):
             title=subject,
             message=delivery_message,
             created_by=request.user,
-            action_url="/finance/student/overview/",
+            action_url="/portal/student/finance/",
             metadata={
                 "event": "BURSAR_MESSAGE",
                 "target_scope": form.cleaned_data["target_scope"],

@@ -7,6 +7,7 @@
   const searchInput = document.querySelector("[data-search-input]");
   const searchItems = [...document.querySelectorAll("[data-search-item]")];
   const chatbot = document.querySelector("[data-chatbot]");
+  const chatToggleButtons = [...document.querySelectorAll("[data-chatbot-open]")];
   const supportViews = [...document.querySelectorAll("[data-support-view]")];
   const supportTabs = [...document.querySelectorAll("[data-support-tab]")];
   const chatbotLog = document.querySelector("[data-chatbot-log]");
@@ -126,10 +127,21 @@
   };
 
   const openChatbot = (targetView = "home") => {
+    if (!chatbot) return;
     chatbot?.classList.add("is-open");
     setSupportView(targetView);
   };
-  const closeChatbot = () => chatbot?.classList.remove("is-open");
+  const closeChatbot = () => {
+    chatbot?.classList.remove("is-open");
+    setSupportView("home");
+    toggleEscalationPrompt(false);
+    if (liveChatShell) {
+      liveChatShell.hidden = true;
+    }
+    if (liveChatStatus) {
+      liveChatStatus.textContent = "";
+    }
+  };
 
   const addChatMessage = (text, sender, options = {}) => {
     if (!chatbotLog || !text) return;
@@ -233,8 +245,14 @@
     };
   };
 
-  document.querySelectorAll("[data-chatbot-open]").forEach((button) => {
-    button.addEventListener("click", () => openChatbot(button.getAttribute("data-support-target") || "home"));
+  chatToggleButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      if (chatbot?.classList.contains("is-open")) {
+        closeChatbot();
+        return;
+      }
+      openChatbot(button.getAttribute("data-support-target") || "home");
+    });
   });
   document.querySelector("[data-chatbot-close]")?.addEventListener("click", closeChatbot);
   supportTabs.forEach((tab) => {
@@ -366,7 +384,7 @@
     }
     window.setTimeout(() => {
       appendLiveChatBubble(
-        "No management agent is currently active in the live queue. You can leave your message below and a ticket will be created automatically.",
+        "If the Vice Principal or IT Manager is not immediately available, your message will be saved as a ticket and the reply will be sent to your email.",
         "agent",
         "Management Queue"
       );
@@ -493,6 +511,15 @@
       closeSearch();
       closeChatbot();
       closeLightbox();
+    }
+  });
+
+  document.addEventListener("mousedown", (event) => {
+    if (!chatbot?.classList.contains("is-open")) return;
+    const clickedToggle = chatToggleButtons.some((button) => button.contains(event.target));
+    if (clickedToggle) return;
+    if (!chatbot.contains(event.target)) {
+      closeChatbot();
     }
   });
 })();

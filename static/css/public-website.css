@@ -2056,7 +2056,7 @@ textarea {
 
 .public-academic-orb {
   position: relative;
-  width: min(210px, calc(100% - 42px));
+  width: min(282px, calc(100% - 28px));
   aspect-ratio: 1;
   margin: 22px auto 0;
   border-radius: 50%;
@@ -2065,26 +2065,18 @@ textarea {
   box-shadow: 0 18px 44px rgba(3, 21, 45, 0.24);
 }
 
-.public-hero-school-name {
-  margin: 18px 0 0;
-  font-size: clamp(1.18rem, 2.8vw, 1.68rem);
-  font-weight: 800;
-  letter-spacing: 0.02em;
-  color: #ffffff;
-  position: relative;
-  display: inline-block;
-  padding-bottom: 14px;
+.public-academic-orb-lg {
+  width: min(268px, calc(100% - 28px));
 }
 
-.public-hero-school-name::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  width: min(230px, 75%);
-  height: 4px;
-  border-radius: 999px;
-  background: linear-gradient(90deg, #d4af37 0%, #1d8b4f 55%, #b3202a 100%);
+.public-hero-subline {
+  margin: 18px 0 0;
+  max-width: 54rem;
+  font-size: clamp(1.05rem, 2vw, 1.38rem);
+  font-weight: 700;
+  line-height: 1.7;
+  color: #b3202a;
+  text-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
 }
 
 .ndga-support-dock {
@@ -2099,8 +2091,8 @@ textarea {
 .ndga-support-fab {
   display: grid;
   place-items: center;
-  width: 58px;
-  height: 58px;
+  width: 60px;
+  height: 60px;
   border-radius: 50%;
   color: white;
   text-decoration: none;
@@ -2110,7 +2102,7 @@ textarea {
 }
 
 .ndga-support-fab--chat {
-  background: linear-gradient(135deg, #ff4b63 0%, #f86858 100%);
+  background: linear-gradient(135deg, #062247 0%, #0d3c76 100%);
 }
 
 .ndga-support-fab--whatsapp {
@@ -2123,19 +2115,14 @@ textarea {
   fill: currentColor;
 }
 
-.ndga-support-fab-mark {
-  font-size: 0.92rem;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-}
-
 .ndga-support-panel {
   position: fixed;
   right: 22px;
   bottom: 98px;
   z-index: 79;
-  width: min(360px, calc(100vw - 24px));
-  border-radius: 30px;
+  width: min(356px, calc(100vw - 24px));
+  height: min(588px, calc(100vh - 128px));
+  border-radius: 28px;
   background: #fff;
   overflow: hidden;
   border: 1px solid rgba(7, 25, 53, 0.08);
@@ -2158,22 +2145,23 @@ textarea {
   display: flex;
   justify-content: space-between;
   gap: 14px;
-  padding: 22px 22px 18px;
+  padding: 18px 18px 16px;
   background: linear-gradient(180deg, #ff4b63 0%, #f86858 100%);
   color: white;
 }
 
 .ndga-support-header-copy h3 {
-  margin: 12px 0 0;
-  font-size: 2rem;
-  line-height: 1.02;
+  margin: 10px 0 0;
+  font-size: 1.42rem;
+  line-height: 1.08;
   color: white;
 }
 
 .ndga-support-header-copy p {
-  margin: 12px 0 0;
+  margin: 10px 0 0;
+  font-size: 0.95rem;
   color: rgba(255, 255, 255, 0.84);
-  line-height: 1.58;
+  line-height: 1.5;
 }
 
 .ndga-support-brand-row {
@@ -2212,7 +2200,9 @@ textarea {
 }
 
 .ndga-support-body {
-  min-height: 430px;
+  min-height: 0;
+  height: calc(100% - 156px);
+  overflow: hidden;
   background:
     linear-gradient(180deg, rgba(248, 249, 250, 0.94) 0%, rgba(255, 255, 255, 1) 28%),
     radial-gradient(circle at top right, rgba(212, 175, 55, 0.16), transparent 44%);
@@ -2220,8 +2210,10 @@ textarea {
 
 .ndga-support-view {
   display: none;
-  padding: 18px;
-  gap: 14px;
+  padding: 14px;
+  gap: 12px;
+  height: 100%;
+  align-content: start;
 }
 
 .ndga-support-view.is-active {
@@ -2231,10 +2223,10 @@ textarea {
 .ndga-support-home-card,
 .ndga-support-management-note,
 .ndga-support-ticket-card {
-  border-radius: 22px;
+  border-radius: 20px;
   background: rgba(0, 33, 71, 0.04);
   border: 1px solid rgba(0, 33, 71, 0.08);
-  padding: 18px;
+  padding: 14px;
 }
 
 .ndga-support-home-card--intro small,
@@ -2274,8 +2266,8 @@ textarea {
   gap: 12px;
   width: 100%;
   border: 0;
-  border-radius: 20px;
-  padding: 16px 18px;
+  border-radius: 18px;
+  padding: 15px 16px;
   background: white;
   box-shadow: 0 16px 30px rgba(4, 17, 38, 0.08);
   color: var(--public-navy);
@@ -2291,15 +2283,15 @@ textarea {
 
 .ndga-support-home-grid {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .ndga-support-chip {
   width: 100%;
   text-align: left;
   border: 1px solid rgba(0, 33, 71, 0.08);
-  border-radius: 18px;
-  padding: 14px 16px;
+  border-radius: 16px;
+  padding: 12px 14px;
   background: white;
   color: var(--public-ink);
   font-weight: 700;
@@ -2334,10 +2326,10 @@ textarea {
 }
 
 .ndga-support-thread {
-  max-height: 248px;
+  max-height: 192px;
   overflow: auto;
   display: grid;
-  gap: 12px;
+  gap: 10px;
   padding: 4px 2px;
 }
 
@@ -2425,7 +2417,7 @@ textarea {
 .ndga-support-management-form textarea {
   width: 100%;
   border: 1px solid rgba(0, 33, 71, 0.12);
-  border-radius: 18px;
+  border-radius: 16px;
   padding: 13px 14px;
   background: white;
 }
@@ -2433,7 +2425,7 @@ textarea {
 .ndga-support-question-form button {
   min-width: 84px;
   border: 0;
-  border-radius: 18px;
+  border-radius: 16px;
   background: var(--public-gold);
   color: var(--public-navy-deep);
   font-weight: 700;
@@ -2478,11 +2470,22 @@ textarea {
 .ndga-support-tabs button {
   border: 0;
   border-radius: 16px;
-  padding: 12px 10px;
+  padding: 10px 8px 9px;
   background: transparent;
   color: var(--public-copy);
   font-weight: 700;
   cursor: pointer;
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+  align-items: center;
+  font-size: 0.78rem;
+}
+
+.ndga-support-tabs button svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
 }
 
 .ndga-support-tabs button.is-active {

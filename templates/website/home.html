@@ -8,10 +8,8 @@
   </video>
   <div class="public-hero-overlay"></div>
   <div class="public-container public-hero-content" data-reveal>
-    <span class="public-eyebrow">{{ public_site_settings.hero_eyebrow }}</span>
-    <p class="public-hero-school-name">Notre Dame Girls' Academy, Kuje-Abuja</p>
     <h1>{{ public_site_settings.hero_title }}</h1>
-    <p>{{ public_site_settings.hero_subtitle }}</p>
+    <p class="public-hero-subline">{{ public_site_settings.hero_subtitle }}</p>
     <div class="public-hero-actions">
       <a href="/admissions/registration/" class="public-cta magnetic">Apply Now</a>
       <a href="/auth/login/?audience=student" class="public-secondary-cta magnetic">School Portal</a>
@@ -151,11 +149,19 @@
         <span class="public-eyebrow">Fees & Boarding</span>
         <h2>Class-by-class structure with clear boarding access</h2>
       </div>
-      <div class="public-pillars-grid">
-        {% for card in home_fees.sections.1.cards %}
-          <article class="public-pillar-card">
-            <h3>{{ card.title }}</h3>
-            <p>{{ card.text }}</p>
+      <div class="public-card-grid public-card-grid-three">
+        {% for card in home_fee_highlights %}
+          <article class="public-media-card public-academic-preview-card">
+            <div class="public-academic-orb public-academic-orb-lg" data-rotating-gallery>
+              {% for image in card.images %}
+                <img src="{% static image %}" alt="{{ card.title }}" class="{% if forloop.first %}is-active{% endif %}">
+              {% endfor %}
+            </div>
+            <div>
+              <h3>{{ card.title }}</h3>
+              <p>{{ card.text }}</p>
+              <a href="{{ card.href }}">Learn more</a>
+            </div>
           </article>
         {% endfor %}
       </div>
@@ -163,13 +169,10 @@
         <a href="/fees/" class="public-text-link">Open the fee page</a>
       </div>
     </div>
-    <div class="public-image-stack">
-      <img src="{% static public_images.hostel_alt %}" alt="Hostel life at NDGA">
-      <div class="public-image-stack-card">
-        <strong>Full Boarding</strong>
-        <p>Boarding routine, supervision, study support, and welfare guidance are explained clearly for families.</p>
-        <a href="/hostel-boarding/" class="public-text-link">View hostel details</a>
-      </div>
+    <div class="public-copy">
+      <p>Boarding guidance, application fee structure, and school fees remain visible before admission is completed. Families can move from enquiry to registration with fewer unanswered questions.</p>
+      <p>The bursary and admissions workflow also keeps application charges separate from normal student school fees, so each stage is easier to understand.</p>
+      <a href="/hostel-boarding/" class="public-text-link">View hostel details</a>
     </div>
   </div>
 </section>
@@ -181,30 +184,20 @@
       <h2>Boarding, clubs, sports, worship, and school community</h2>
     </div>
     <div class="public-card-grid public-card-grid-three">
-      <article class="public-media-card">
-        <img src="{% static public_images.socials %}" alt="Clubs and student activities">
-        <div>
-          <h3>Clubs & Leadership</h3>
-          <p>JETS, Literary and Debating, IT, Home Makers, Creative Arts, French, Young Farmers, and other student groups.</p>
-          <a href="/academics/co-curricular-activities/">Learn more</a>
-        </div>
-      </article>
-      <article class="public-media-card">
-        <img src="{% static public_images.sports %}" alt="Sports at NDGA">
-        <div>
-          <h3>Sports & Recreation</h3>
-          <p>Football, basketball, volleyball, badminton, table tennis, athletics, and inter-house activities support balanced growth.</p>
-          <a href="/facilities/">See facilities</a>
-        </div>
-      </article>
-      <article class="public-media-card">
-        <img src="{% static public_images.assembly %}" alt="Faith life at NDGA">
-        <div>
-          <h3>Faith & Formation</h3>
-          <p>Prayer, liturgy, assemblies, retreats, and Gospel values remain part of the school day.</p>
-          <a href="/about/school-life/">Read more</a>
-        </div>
-      </article>
+      {% for card in home_life_highlights %}
+        <article class="public-media-card public-academic-preview-card">
+          <div class="public-academic-orb public-academic-orb-lg" data-rotating-gallery>
+            {% for image in card.images %}
+              <img src="{% static image %}" alt="{{ card.title }}" class="{% if forloop.first %}is-active{% endif %}">
+            {% endfor %}
+          </div>
+          <div>
+            <h3>{{ card.title }}</h3>
+            <p>{{ card.text }}</p>
+            <a href="{{ card.href }}">Learn more</a>
+          </div>
+        </article>
+      {% endfor %}
     </div>
   </div>
 </section>
