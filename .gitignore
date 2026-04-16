@@ -25,6 +25,7 @@ deploy_*.tar
 deploy_*.tar.gz
 ndga-deploy-bundle.tar.gz
 ndga-*.tar.gz
+sftp-upload.txt
 
 NDGA_result_preview.pdf
 NDGA_result_preview.png
