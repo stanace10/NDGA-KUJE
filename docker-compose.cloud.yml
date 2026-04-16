@@ -128,7 +128,7 @@ services:
     ports:
       - "127.0.0.1:8080:80"
     volumes:
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx.cloud.conf:/etc/nginx/conf.d/default.conf:ro
       - ndga_static_data:/app/staticfiles:ro
       - ndga_media_data:/app/media:ro
     healthcheck:
