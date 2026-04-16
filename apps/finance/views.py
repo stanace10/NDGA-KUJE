@@ -118,8 +118,205 @@ def _portal_media_url(file_field):
         return ""
 
 
+CORE_STUDENT_FEE_ROWS = [
+    {
+        "title": "School Fees",
+        "code": "school-fees",
+        "summary": "Main school charge for the selected session and term.",
+        "configured_amount": None,
+    },
+    {
+        "title": "Petty Cash",
+        "code": "petty-cash",
+        "summary": "Fixed student petty cash charge posted by bursary.",
+        "configured_amount": Decimal("15000.00"),
+    },
+    {
+        "title": "Pocket Money",
+        "code": "pocket-money",
+        "summary": "Fixed student pocket money charge posted by bursary.",
+        "configured_amount": Decimal("15000.00"),
+    },
+]
+
+
+def _instructional_class_row(academic_class):
+    if not academic_class:
+        return None
+    return academic_class.instructional_class
+
+
+def _instructional_class_label(academic_class):
+    row = _instructional_class_row(academic_class)
+    if not row:
+        return "-"
+    return row.display_name or row.code
+
+
+def _instructional_class_options():
+    rows = (
+        AcademicClass.objects.filter(is_active=True)
+        .select_related("base_class")
+        .order_by("base_class__code", "code")
+    )
+    options = {}
+    for row in rows:
+        instructional = row.instructional_class
+        if instructional:
+            options[instructional.id] = instructional
+    return sorted(options.values(), key=lambda item: item.code)
+
+
+def _instructional_class_ids_for_filter(class_id):
+    if not str(class_id or "").isdigit():
+        return []
+    selected = (
+        AcademicClass.objects.filter(pk=int(class_id), is_active=True)
+        .select_related("base_class")
+        .first()
+    )
+    if not selected:
+        return []
+    return selected.instructional_class.cohort_class_ids()
+
+
+def _ensure_default_core_charges(*, session, term, actor=None):
+    if session is None:
+        return
+    for academic_class in AcademicClass.objects.filter(is_active=True, base_class__isnull=True).order_by("code"):
+        for fee_row in CORE_STUDENT_FEE_ROWS:
+            configured_amount = fee_row.get("configured_amount")
+            if configured_amount is None:
+                continue
+            StudentCharge.objects.get_or_create(
+                session=session,
+                term=term,
+                target_type=ChargeTargetType.CLASS,
+                academic_class=academic_class,
+                item_name=fee_row["title"],
+                defaults={
+                    "description": fee_row["summary"],
+                    "amount": configured_amount,
+                    "student": None,
+                    "due_date": None,
+                    "created_by": actor,
+                    "is_active": True,
+                },
+            )
+
+
+def _student_payment_option_rows(category_rows):
+    category_map = {
+        (row.get("category") or "").strip().lower(): row
+        for row in (category_rows or [])
+        if (row.get("category") or "").strip()
+    }
+    option_rows = []
+    configured_titles = set()
+    for fee_row in CORE_STUDENT_FEE_ROWS:
+        category_key = fee_row["title"].lower()
+        row = category_map.get(category_key)
+        configured_titles.add(category_key)
+        if row is None:
+            option_rows.append(
+                {
+                    "code": fee_row["code"],
+                    "title": fee_row["title"],
+                    "status_label": "Awaiting Setup",
+                    "status_tone": "bg-slate-100 text-slate-600",
+                    "amount": Decimal("0.00"),
+                    "charged": Decimal("0.00"),
+                    "paid": Decimal("0.00"),
+                    "outstanding": Decimal("0.00"),
+                    "fee_item": fee_row["title"],
+                    "action_label": "Pay Now",
+                    "can_pay": False,
+                    "summary": (
+                        "Bursary has not posted this class amount yet."
+                        if fee_row["configured_amount"] is None
+                        else fee_row["summary"]
+                    ),
+                    "sort_rank": 0,
+                }
+            )
+            continue
+        outstanding = row.get("outstanding") or Decimal("0.00")
+        charged = row.get("charged") or Decimal("0.00")
+        paid = row.get("paid") or Decimal("0.00")
+        option_rows.append(
+            {
+                "code": fee_row["code"],
+                "title": fee_row["title"],
+                "status_label": "Unpaid" if outstanding > Decimal("0.00") else "Paid",
+                "status_tone": (
+                    "bg-rose-50 text-rose-700"
+                    if outstanding > Decimal("0.00")
+                    else "bg-emerald-50 text-emerald-700"
+                ),
+                "amount": outstanding,
+                "charged": charged,
+                "paid": paid,
+                "outstanding": outstanding,
+                "fee_item": fee_row["title"],
+                "action_label": "Pay Now",
+                "can_pay": outstanding > Decimal("0.00"),
+                "summary": fee_row["summary"],
+                "sort_rank": 0,
+            }
+        )
+    for row in category_rows or []:
+        category = (row.get("category") or "").strip() or "Posted Fee"
+        if category.lower() in configured_titles:
+            continue
+        outstanding = row.get("outstanding") or Decimal("0.00")
+        charged = row.get("charged") or Decimal("0.00")
+        paid = row.get("paid") or Decimal("0.00")
+        option_rows.append(
+            {
+                "code": category.lower().replace(" ", "-"),
+                "title": category,
+                "status_label": "Unpaid" if outstanding > Decimal("0.00") else "Paid",
+                "status_tone": (
+                    "bg-rose-50 text-rose-700"
+                    if outstanding > Decimal("0.00")
+                    else "bg-emerald-50 text-emerald-700"
+                ),
+                "amount": outstanding,
+                "charged": charged,
+                "paid": paid,
+                "outstanding": outstanding,
+                "fee_item": category,
+                "action_label": "Pay Now",
+                "can_pay": outstanding > Decimal("0.00"),
+                "summary": (
+                    f"Posted by bursary for your class. Charged: NGN {charged}. Paid: NGN {paid}."
+                    if charged > Decimal("0.00")
+                    else "Waiting for bursary posting."
+                ),
+                "sort_rank": 1,
+            }
+        )
+    return sorted(
+        option_rows,
+        key=lambda row: (row["sort_rank"], row["title"]),
+    )
+
+
+def _charge_row_item_name(row):
+    if isinstance(row, dict):
+        return row.get("item_name", "")
+    return getattr(row, "item_name", "")
+
+
 def _manual_sync_token_valid(request):
     accepted_tokens = []
+    primary_manual = (getattr(settings, "MANUAL_UPDATE_TOKEN", "") or "").strip()
+    if primary_manual:
+        accepted_tokens.append(primary_manual)
+    for item in getattr(settings, "MANUAL_UPDATE_TOKEN_FALLBACKS", []) or []:
+        token = (item or "").strip()
+        if token and token not in accepted_tokens:
+            accepted_tokens.append(token)
     primary = (getattr(settings, "SYNC_ENDPOINT_AUTH_TOKEN", "") or "").strip()
     if primary:
         accepted_tokens.append(primary)
@@ -129,7 +326,12 @@ def _manual_sync_token_valid(request):
             accepted_tokens.append(token)
     if not accepted_tokens:
         return False
-    provided = (request.headers.get("X-NDGA-Manual-Sync-Token") or request.GET.get("token") or "").strip()
+    provided = (
+        request.headers.get("X-NDGA-Manual-Update-Token")
+        or request.headers.get("X-NDGA-Manual-Sync-Token")
+        or request.GET.get("token")
+        or ""
+    ).strip()
     return bool(provided) and any(
         hmac.compare_digest(provided, expected)
         for expected in accepted_tokens
@@ -138,6 +340,8 @@ def _manual_sync_token_valid(request):
 
 def _request_ip_allowed(request, setting_name):
     allowed = getattr(settings, setting_name, []) or []
+    if not allowed and setting_name == "MANUAL_UPDATE_ALLOWED_IPS":
+        allowed = getattr(settings, "SYNC_ENDPOINT_ALLOWED_IPS", []) or []
     if not allowed:
         return True
     raw_ip = (get_client_ip(request) or "").strip()
@@ -206,7 +410,7 @@ class FinancePortalAccessMixin(LoginRequiredMixin, UserPassesTestMixin):
 
 class ManualPaymentDeltaExportView(View):
     def get(self, request, *args, **kwargs):
-        if not _request_ip_allowed(request, "SYNC_ENDPOINT_ALLOWED_IPS"):
+        if not _request_ip_allowed(request, "MANUAL_UPDATE_ALLOWED_IPS"):
             _log_security_rejection(
                 request=request,
                 event_type="MANUAL_SYNC_IP_DENIED",
@@ -317,17 +521,25 @@ class StudentFinanceOverviewView(StudentFinanceAccessMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         user = self.request.user
         current_session, current_term = current_academic_window()
+        _ensure_default_core_charges(session=current_session, term=current_term)
         student_profile = getattr(user, "student_profile", None)
 
         session_ids = set(
             StudentCharge.objects.filter(student=user).values_list("session_id", flat=True)
         )
-        session_ids.update(
-            StudentCharge.objects.filter(
-                academic_class__student_enrollments__student=user,
-                academic_class__student_enrollments__is_active=True,
-            ).values_list("session_id", flat=True)
-        )
+        enrolled_class_ids = set()
+        enrollment_rows = StudentClassEnrollment.objects.filter(
+            student=user,
+            is_active=True,
+        ).select_related("academic_class", "academic_class__base_class")
+        for enrollment in enrollment_rows:
+            enrolled_class_ids.update(enrollment.academic_class.instructional_class.cohort_class_ids())
+        if enrolled_class_ids:
+            session_ids.update(
+                StudentCharge.objects.filter(
+                    academic_class_id__in=list(enrolled_class_ids),
+                ).values_list("session_id", flat=True)
+            )
         session_ids.update(
             Payment.objects.filter(student=user).values_list("session_id", flat=True)
         )
@@ -368,8 +580,6 @@ class StudentFinanceOverviewView(StudentFinanceAccessMixin, TemplateView):
         if selected_term is None and available_terms:
             selected_term = available_terms[0]
 
-        status_filter = (self.request.GET.get("status") or "all").strip().lower()
-
         overview = {
             "charge_rows": [],
             "category_rows": [],
@@ -399,40 +609,18 @@ class StudentFinanceOverviewView(StudentFinanceAccessMixin, TemplateView):
             initial={
                 "student": user.id,
                 "amount": overview["total_outstanding"] or Decimal("0.00"),
-                "payment_plan": GatewayPaymentInitForm.PaymentPlan.FULL,
-                "percentage": 50,
+                "payment_plan": GatewayPaymentInitForm.PaymentPlan.FEE_ITEM,
             }
         )
         gateway_form.fields["student"].queryset = User.objects.filter(id=user.id)
         gateway_form.fields["student"].widget = forms.HiddenInput()
         _apply_gateway_provider_choices(gateway_form)
-
         rows = list(overview["charge_rows"])
-        if status_filter in {"paid", "partial", "owing"}:
-            rows = [row for row in rows if row.status.lower() == status_filter]
-
-        category_map = {}
-        for row in rows:
-            category_row = category_map.setdefault(
-                row.item_name,
-                {
-                    "category": row.item_name,
-                    "charged": Decimal("0.00"),
-                    "paid": Decimal("0.00"),
-                    "outstanding": Decimal("0.00"),
-                    "items": 0,
-                },
-            )
-            category_row["charged"] += row.amount
-            category_row["paid"] += row.paid_applied
-            category_row["outstanding"] += row.outstanding
-            category_row["items"] += 1
-
-        filtered_categories = sorted(
-            category_map.values(),
-            key=lambda row: (row["outstanding"], row["category"]),
-            reverse=True,
-        )
+        filtered_categories = list(overview["category_rows"])
+        payment_option_rows = _student_payment_option_rows(filtered_categories)
+        display_total_charged = overview["total_charged"]
+        display_total_outstanding = overview["total_outstanding"]
+        other_charge_rows = rows
         class_session = selected_session or current_session
         current_enrollment = None
         if class_session:
@@ -459,6 +647,18 @@ class StudentFinanceOverviewView(StudentFinanceAccessMixin, TemplateView):
                     "enabled": gateway_is_enabled(code),
                 }
             )
+        gateway_provider_cards = sorted(
+            gateway_provider_cards,
+            key=lambda row: {"PAYSTACK": 0, "FLUTTERWAVE": 1, "REMITTA": 2}.get(row["code"], 9),
+        )
+        gateway_provider_cards.append(
+            {
+                "code": "GOOGLE_PAY",
+                "label": "Google Pay",
+                "enabled": False,
+                "coming_soon": True,
+            }
+        )
         gateway_any_enabled = any(row["enabled"] for row in gateway_provider_cards)
 
         context.update(
@@ -474,22 +674,22 @@ class StudentFinanceOverviewView(StudentFinanceAccessMixin, TemplateView):
                 "available_terms": available_terms,
                 "selected_session": selected_session,
                 "selected_term": selected_term,
-                "status_filter": status_filter,
                 "charge_rows": rows,
                 "category_rows": filtered_categories,
-                "total_charged": sum((row.amount for row in rows), Decimal("0.00")),
-                "total_paid_applied": sum((row.paid_applied for row in rows), Decimal("0.00")),
-                "total_outstanding": sum((row.outstanding for row in rows), Decimal("0.00")),
+                "payment_option_rows": payment_option_rows,
+                "other_charge_rows": other_charge_rows,
+                "total_charged": display_total_charged,
+                "total_paid_applied": overview["total_paid_applied"],
+                "total_outstanding": display_total_outstanding,
                 "total_payments": overview["total_payments"],
                 "unallocated_credit": overview["unallocated_credit"],
-                "category_examples": "School Fees, Cloth, Feeding, Sports Wear, Pocket Money",
+                "category_examples": "School Fees, Hostel, Feeding, Uniform, Transport",
                 "gateway_form": gateway_form,
                 "gateway_transactions": gateway_transactions,
                 "recent_payments": recent_payments,
                 "gateway_enabled": gateway_any_enabled,
                 "gateway_provider_label": gateway_provider_label(),
                 "gateway_provider_cards": gateway_provider_cards,
-                "gateway_fee_items": [row for row in filtered_categories if row["outstanding"] > Decimal("0.00")],
             }
         )
         return context
@@ -515,7 +715,6 @@ class StudentFinanceOverviewView(StudentFinanceAccessMixin, TemplateView):
                 overview=overview,
                 payment_plan=form.cleaned_data["payment_plan"],
                 fee_item=form.cleaned_data.get("fee_item", ""),
-                percentage=form.cleaned_data.get("percentage"),
                 custom_amount=form.cleaned_data["amount"],
             )
             transaction_row = initialize_gateway_payment_transaction(
@@ -610,8 +809,8 @@ class BursarFinanceDashboardView(BursarAccessMixin, TemplateView):
 class BursarChargeManagementView(BursarAccessMixin, TemplateView):
     template_name = "finance/charge_management.html"
 
-    def _form(self, data=None):
-        return StudentChargeForm(data=data)
+    def _form(self, data=None, instance=None):
+        return StudentChargeForm(data=data, instance=instance)
 
     def _profile(self):
         return finance_profile()
@@ -630,8 +829,9 @@ class BursarChargeManagementView(BursarAccessMixin, TemplateView):
         status = (self.request.GET.get("status") or "").strip()
         if search:
             rows = rows.filter(item_name__icontains=search)
-        if class_id.isdigit():
-            rows = rows.filter(academic_class_id=int(class_id))
+        cohort_ids = _instructional_class_ids_for_filter(class_id)
+        if cohort_ids:
+            rows = rows.filter(academic_class_id__in=cohort_ids)
         if status == "active":
             rows = rows.filter(is_active=True)
         elif status == "inactive":
@@ -641,17 +841,31 @@ class BursarChargeManagementView(BursarAccessMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         filtered_charges = self._filtered_rows()
+        edit_charge = kwargs.get("edit_charge")
+        if edit_charge is None:
+            edit_id = (self.request.GET.get("edit") or "").strip()
+            if edit_id.isdigit():
+                edit_charge = (
+                    StudentCharge.objects.select_related("academic_class", "session", "term")
+                    .filter(pk=int(edit_id), target_type=ChargeTargetType.CLASS)
+                    .first()
+                )
         context["charge_form"] = kwargs.get("charge_form") or self._form()
         context["profile_form"] = kwargs.get("profile_form") or self._profile_form()
         context["finance_profile"] = self._profile()
         context["charges"] = filtered_charges
+        context["edit_charge"] = edit_charge
+        if edit_charge and "charge_form" not in kwargs:
+            context["charge_form"] = self._form(instance=edit_charge)
         context["search_query"] = self.request.GET.get("q", "")
         context["class_filter"] = self.request.GET.get("class_id", "")
         context["status_filter"] = self.request.GET.get("status", "")
-        context["class_options"] = AcademicClass.objects.order_by("code")
         session, term = current_academic_window()
+        _ensure_default_core_charges(session=session, term=term, actor=self.request.user)
         context["current_session"] = session
         context["current_term"] = term
+        context["class_options"] = _instructional_class_options()
+        context["core_fee_rows"] = CORE_STUDENT_FEE_ROWS
         context["active_charge_count"] = StudentCharge.objects.filter(is_active=True).count()
         context["inactive_charge_count"] = StudentCharge.objects.filter(is_active=False).count()
         context["expense_record_count"] = Expense.objects.count()
@@ -665,29 +879,40 @@ class BursarChargeManagementView(BursarAccessMixin, TemplateView):
             messages.error(request, "Setup current session before managing charges.")
             return redirect("finance:bursar-settings")
 
-        if action == "create_charge":
-            form = self._form(request.POST)
+        if action in {"create_charge", "update_charge"}:
+            edit_charge = None
+            if action == "update_charge":
+                edit_charge = get_object_or_404(
+                    StudentCharge.objects.select_related("academic_class", "session", "term"),
+                    pk=request.POST.get("charge_id"),
+                    target_type=ChargeTargetType.CLASS,
+                )
+            form = self._form(request.POST, instance=edit_charge)
             if not form.is_valid():
-                return self.render_to_response(self.get_context_data(charge_form=form))
+                return self.render_to_response(self.get_context_data(charge_form=form, edit_charge=edit_charge))
             charge = form.save(commit=False)
-            charge.session = session
-            charge.term = term
+            if edit_charge is None:
+                charge.session = session
+                charge.term = term
+                charge.created_by = request.user
             charge.target_type = ChargeTargetType.CLASS
             charge.student = None
             charge.due_date = None
-            charge.created_by = request.user
             charge.save()
             log_finance_transaction(
                 actor=request.user,
                 request=request,
                 metadata={
-                    "action": "CHARGE_CREATED",
+                    "action": "CHARGE_UPDATED" if edit_charge else "CHARGE_CREATED",
                     "charge_id": str(charge.id),
                     "class_id": str(charge.academic_class_id) if charge.academic_class_id else "",
                     "amount": str(charge.amount),
                 },
             )
-            messages.success(request, "Charge configured successfully.")
+            messages.success(
+                request,
+                "Charge updated successfully." if edit_charge else "Charge configured successfully.",
+            )
             return redirect("finance:bursar-settings")
 
         if action == "save_finance_profile":
@@ -790,8 +1015,9 @@ class BursarPaymentManagementView(BursarAccessMixin, TemplateView):
         rows = self._base_enrollments(session=session)
         class_id = (self.request.GET.get("class_id") or "").strip()
         query = (self.request.GET.get("q") or "").strip()
-        if class_id.isdigit():
-            rows = rows.filter(academic_class_id=int(class_id))
+        cohort_ids = _instructional_class_ids_for_filter(class_id)
+        if cohort_ids:
+            rows = rows.filter(academic_class_id__in=cohort_ids)
         if query:
             rows = rows.filter(
                 Q(student__username__icontains=query)
@@ -809,6 +1035,8 @@ class BursarPaymentManagementView(BursarAccessMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         context["latest_receipt"] = self._pop_latest_receipt()
         session, term = current_academic_window()
+        _ensure_default_core_charges(session=session, term=term, actor=self.request.user)
+        context["core_fee_rows"] = CORE_STUDENT_FEE_ROWS
         context["current_session"] = session
         context["current_term"] = term
         status_filter = self._status_filter_value()
@@ -848,7 +1076,7 @@ class BursarPaymentManagementView(BursarAccessMixin, TemplateView):
                 {
                     "student": row.student,
                     "profile": profile,
-                    "class_code": row.academic_class.code if row.academic_class_id else "-",
+                    "class_code": _instructional_class_label(row.academic_class),
                     "total_due": charged,
                     "total_paid": paid,
                     "total_outstanding": outstanding,
@@ -893,11 +1121,7 @@ class BursarPaymentManagementView(BursarAccessMixin, TemplateView):
                 "search_query": (self.request.GET.get("q") or "").strip(),
                 "status_filter": status_filter,
                 "page_mode": self.page_mode,
-                "class_options": (
-                    AcademicClass.objects.filter(student_enrollments__in=base_rows)
-                    .distinct()
-                    .order_by("code")
-                ),
+                "class_options": _instructional_class_options(),
             }
         )
         return context
@@ -1015,8 +1239,7 @@ class BursarStudentFinanceDetailView(BursarAccessMixin, TemplateView):
     def _gateway_form(self, data=None, initial_amount=None):
         initial = {
             "student": self.student.id,
-            "payment_plan": GatewayPaymentInitForm.PaymentPlan.FULL,
-            "percentage": 50,
+            "payment_plan": GatewayPaymentInitForm.PaymentPlan.FEE_ITEM,
         }
         if initial_amount is not None:
             initial["amount"] = initial_amount
@@ -1031,6 +1254,7 @@ class BursarStudentFinanceDetailView(BursarAccessMixin, TemplateView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         session, term = current_academic_window()
+        _ensure_default_core_charges(session=session, term=term, actor=self.request.user)
         enrollment = None
         overview = {
             "charge_rows": [],
@@ -1059,7 +1283,7 @@ class BursarStudentFinanceDetailView(BursarAccessMixin, TemplateView):
                 "student_profile": getattr(self.student, "student_profile", None),
                 "current_session": session,
                 "current_term": term,
-                "class_code": enrollment.academic_class.code if enrollment else "-",
+                "class_code": _instructional_class_label(enrollment.academic_class if enrollment else None),
                 "overview": overview,
                 "charge_rows": overview["charge_rows"],
                 "category_rows": overview["category_rows"],
@@ -1156,7 +1380,6 @@ class BursarStudentFinanceDetailView(BursarAccessMixin, TemplateView):
                     overview=overview,
                     payment_plan=gateway_form.cleaned_data["payment_plan"],
                     fee_item=gateway_form.cleaned_data.get("fee_item", ""),
-                    percentage=gateway_form.cleaned_data.get("percentage"),
                     custom_amount=gateway_form.cleaned_data["amount"],
                 )
                 transaction_row = initialize_gateway_payment_transaction(

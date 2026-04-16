@@ -1,134 +1,221 @@
 {% extends "layouts/base.html" %}
+{% load static %}
 
 {% block title %}Student Learning Hub{% endblock %}
 
 {% block content %}
-  <section class="mx-auto max-w-[96rem] px-4 py-5 sm:px-6 lg:px-8">
-    <div class="grid gap-5 xl:grid-cols-[1.35fr_0.85fr]">
-      <div class="space-y-5">
-        <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <div>
-            <div>
-              <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Learning Hub</p>
-              <h1 class="mt-2 text-2xl font-bold text-slate-900">Assignments, Study Materials, And Practice Support</h1>
-              <p class="mt-1 text-sm text-slate-600">Only resources for {{ current_class_code }} and your enrolled subjects are shown here.</p>
-            </div>
-          </div>
-        </article>
-
-        <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 class="text-base font-semibold text-slate-900">Published Learning Resources</h2>
-          <div class="mt-4 grid gap-3 lg:grid-cols-2">
-            {% for row in resource_rows %}
-              <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <div class="flex items-start justify-between gap-2">
-                  <div>
-                    <p class="text-sm font-semibold text-slate-900">{{ row.title }}</p>
-                    <p class="mt-1 text-xs uppercase tracking-[0.14em] text-slate-500">{{ row.get_category_display }}{% if row.subject %} | {{ row.subject.name }}{% endif %}</p>
-                  </div>
-                  {% if row.due_date %}
-                    <span class="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800">Due {{ row.due_date }}</span>
-                  {% endif %}
-                </div>
-                {% if row.description %}<p class="mt-2 text-sm text-slate-600">{{ row.description }}</p>{% endif %}
-                {% if row.content_text %}<p class="mt-2 whitespace-pre-line text-sm text-slate-700">{{ row.content_text|truncatechars:280 }}</p>{% endif %}
-                <div class="mt-3 flex flex-wrap gap-2 text-sm">
-                  {% if row.resource_file %}
-                    <a href="{{ row.resource_file.url }}" class="font-semibold text-ndga-navy hover:text-ndga-gold">Open File</a>
-                  {% endif %}
-                  {% if row.external_url %}
-                    <a href="{{ row.external_url }}" target="_blank" rel="noreferrer" class="font-semibold text-ndga-navy hover:text-ndga-gold">External Link</a>
-                  {% endif %}
-                </div>
-              </article>
-            {% empty %}
-              <p class="text-sm text-slate-500 lg:col-span-2">No learning resources are published for your current class yet.</p>
-            {% endfor %}
-          </div>
-        </article>
-
-        <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 class="text-base font-semibold text-slate-900">AI Lesson And Assignment Feed</h2>
-          <div class="mt-4 space-y-3">
-            {% for row in lesson_rows %}
-              <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <div class="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <p class="text-sm font-semibold text-slate-900">{{ row.subject.name }}: {{ row.topic }}</p>
-                    <p class="mt-1 text-xs text-slate-500">By {{ row.teacher.get_full_name|default:row.teacher.username }}{% if row.assignment_due_date %} | Due {{ row.assignment_due_date }}{% endif %}</p>
-                  </div>
-                </div>
-                <div class="mt-3 grid gap-3 lg:grid-cols-2">
-                  <div class="rounded-2xl border border-slate-200 bg-white p-3">
-                    <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Objectives</p>
-                    <p class="mt-2 whitespace-pre-line text-sm text-slate-700">{{ row.lesson_objectives }}</p>
-                  </div>
-                  <div class="rounded-2xl border border-slate-200 bg-white p-3">
-                    <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Assignment</p>
-                    <p class="mt-2 whitespace-pre-line text-sm text-slate-700">{{ row.assignment_text|default:"No assignment attached yet." }}</p>
-                  </div>
-                </div>
-              </article>
-            {% empty %}
-              <p class="text-sm text-slate-500">No lesson-planner resources have been published for your class yet.</p>
-            {% endfor %}
-          </div>
-        </article>
+  <section class="mx-auto max-w-[75rem] px-4 py-6 sm:px-6 lg:px-8">
+    <section class="ndga-page-surface">
+      <div class="ndga-page-header">
+        <p class="ndga-eyebrow">Learning Hub</p>
+        <h1 class="ndga-heading mt-2">Learning Resources</h1>
+        <p class="ndga-supporting mt-3 text-sm">Assignments, study materials, and classroom support for your current subjects.</p>
       </div>
 
-      <aside class="space-y-5">
-        <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div class="flex items-start justify-between gap-3">
-            <div>
-              <h2 class="text-base font-semibold text-slate-900">Weekly Challenge</h2>
-              <p class="mt-1 text-sm text-slate-600">Short brain teaser prompts for your class level.</p>
-            </div>
-            <a href="{{ weekly_challenge_url }}" class="ndga-btn ndga-btn-secondary">Open Challenge</a>
-          </div>
-          <div class="mt-4 space-y-3">
-            {% for row in challenge_rows %}
-              <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">{{ row.week_label }}</p>
-                <p class="mt-1 text-sm font-semibold text-slate-900">{{ row.title }}</p>
-                <p class="mt-2 text-sm text-slate-700">{{ row.question_text|truncatechars:120 }}</p>
-              </article>
-            {% empty %}
-              <p class="text-sm text-slate-500">No active weekly challenge for your class yet.</p>
-            {% endfor %}
-          </div>
-        </article>
+      <div class="px-5 py-5 sm:px-6">
+        <div class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_18rem]">
+          <div class="space-y-5">
+            {% if not resource_rows and not lesson_rows and not challenge_rows %}
+              <section class="ndga-panel px-5 py-6 sm:px-6">
+                <div class="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                  <div class="max-w-2xl">
+                    <span class="ndga-empty-icon">
+                      <svg viewBox="0 0 24 24" fill="none" class="h-5 w-5" aria-hidden="true">
+                        <path d="M7 5.5h10M7 9.5h10M7 13.5h7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        <rect x="5" y="3.5" width="14" height="17" rx="2" stroke="currentColor" stroke-width="1.8"/>
+                      </svg>
+                    </span>
+                    <p class="mt-4 text-[1.65rem] font-bold text-ndga-navy" style="font-family: var(--ndga-font-display);">No learning resources available yet</p>
+                    <p class="mt-2 max-w-xl text-sm leading-7 text-slate-600">Published assignments, study materials, and formal classroom notices will appear here once they are released by the school.</p>
+                  </div>
+                  <a href="{% url 'dashboard:student-lms' %}" class="inline-flex items-center justify-center rounded-xl border border-[rgba(11,31,58,0.1)] bg-[#fbf7ee] px-4 py-3 text-sm font-semibold text-ndga-navy transition hover:border-[rgba(11,31,58,0.2)] hover:bg-white">Open Classroom</a>
+                </div>
+              </section>
+            {% endif %}
 
-        <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 class="text-base font-semibold text-slate-900">AI Tutor</h2>
-          <p class="mt-1 text-sm text-slate-600">Ask for revision help in your current subjects.</p>
-          <form method="post" class="mt-4 space-y-3">
-            {% csrf_token %}
-            <div>
-              <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ tutor_form.subject.id_for_label }}">Subject</label>
-              {{ tutor_form.subject }}
-            </div>
-            <div>
-              <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ tutor_form.question.id_for_label }}">Question</label>
-              {{ tutor_form.question }}
-              {% if tutor_form.question.errors %}<p class="mt-1 text-xs text-rose-700">{{ tutor_form.question.errors|striptags }}</p>{% endif %}
-            </div>
-            <button type="submit" class="ndga-btn ndga-btn-primary">Ask Tutor</button>
-          </form>
-        </article>
+            {% if resource_rows %}
+              <section class="ndga-panel px-5 py-5">
+                <h2 class="ndga-section-title">Published Resources</h2>
+                <div class="mt-4 divide-y divide-slate-100">
+                  {% for row in resource_rows %}
+                    <div class="py-4 first:pt-0 last:pb-0">
+                      <div class="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p class="text-base font-semibold text-slate-900">{{ row.title }}</p>
+                          <p class="mt-1 text-sm text-slate-500">{{ row.get_category_display }}{% if row.subject %} | {{ row.subject.name }}{% endif %}</p>
+                        </div>
+                        {% if row.due_date %}<p class="text-xs font-medium text-slate-500">Due {{ row.due_date }}</p>{% endif %}
+                      </div>
+                      {% if row.description %}<p class="mt-2 text-sm leading-6 text-slate-600">{{ row.description }}</p>{% endif %}
+                      <div class="mt-2 flex flex-wrap gap-3 text-sm">
+                        {% if row.resource_file %}<a href="{{ row.resource_file.url }}" class="font-semibold text-ndga-navy hover:text-ndga-gold">Open file</a>{% endif %}
+                        {% if row.external_url %}<a href="{{ row.external_url }}" target="_blank" rel="noreferrer" class="font-semibold text-ndga-navy hover:text-ndga-gold">External link</a>{% endif %}
+                      </div>
+                    </div>
+                  {% endfor %}
+                </div>
+              </section>
+            {% endif %}
 
-        {% if tutor_reply %}
-          <article class="rounded-3xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
-            <h2 class="text-base font-semibold text-emerald-900">Tutor Reply</h2>
-            <p class="mt-2 text-sm text-emerald-900">{{ tutor_reply.answer }}</p>
-            <div class="mt-3 space-y-2 text-sm text-emerald-900">
-              {% for row in tutor_reply.steps %}
-                <div class="rounded-2xl border border-emerald-200 bg-white px-3 py-2">{{ row }}</div>
-              {% endfor %}
-            </div>
-            <p class="mt-3 text-sm font-semibold text-emerald-900">Practice tip: {{ tutor_reply.practice_tip }}</p>
-          </article>
-        {% endif %}
-      </aside>
-    </div>
+            {% if lesson_rows %}
+              <section class="ndga-panel px-5 py-5">
+                <h2 class="ndga-section-title">Assignments</h2>
+                <div class="mt-4 divide-y divide-slate-100">
+                  {% for row in lesson_rows %}
+                    <div class="py-4 first:pt-0 last:pb-0">
+                      <div class="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p class="text-base font-semibold text-slate-900">{{ row.subject.name }}: {{ row.topic }}</p>
+                          <p class="mt-1 text-sm text-slate-500">By {{ row.teacher.get_full_name|default:row.teacher.username }}</p>
+                        </div>
+                        {% if row.assignment_due_date %}<p class="text-xs font-medium text-slate-500">Due {{ row.assignment_due_date }}</p>{% endif %}
+                      </div>
+                      {% if row.assignment_text %}
+                        <p class="mt-2 text-sm leading-6 text-slate-600">{{ row.assignment_text|truncatechars:200 }}</p>
+                      {% elif row.lesson_objectives %}
+                        <p class="mt-2 text-sm leading-6 text-slate-600">{{ row.lesson_objectives|truncatechars:200 }}</p>
+                      {% endif %}
+                    </div>
+                  {% endfor %}
+                </div>
+              </section>
+            {% endif %}
+
+            {% if challenge_rows %}
+              <section class="ndga-panel px-5 py-5">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                  <h2 class="ndga-section-title">Weekly Challenge</h2>
+                  <a href="{{ weekly_challenge_url }}" class="text-sm font-semibold text-ndga-navy hover:text-ndga-gold">Open challenge</a>
+                </div>
+                <div class="mt-4 divide-y divide-slate-100">
+                  {% for row in challenge_rows %}
+                    <div class="py-4 first:pt-0 last:pb-0">
+                      <p class="ndga-label">{{ row.week_label }}</p>
+                      <p class="mt-2 text-base font-semibold text-slate-900">{{ row.title }}</p>
+                      <p class="mt-2 text-sm leading-6 text-slate-600">{{ row.question_text|truncatechars:180 }}</p>
+                    </div>
+                  {% endfor %}
+                </div>
+              </section>
+            {% endif %}
+          </div>
+
+          <aside class="space-y-4">
+            <section class="ndga-panel px-5 py-5">
+              <p class="ndga-eyebrow">LMS Access</p>
+              <h2 class="mt-2 text-[1.45rem] font-bold text-ndga-navy" style="font-family: var(--ndga-font-display);">Classroom Materials</h2>
+              <p class="mt-3 text-sm leading-6 text-slate-600">Open your classroom workspace to view active lessons, assignments, and teacher instructions.</p>
+              <a href="{% url 'dashboard:student-lms' %}" class="mt-5 inline-flex w-full items-center justify-center rounded-xl bg-ndga-navy px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#08172c]">Open Classroom</a>
+            </section>
+          </aside>
+        </div>
+      </div>
+    </section>
   </section>
+
+  {% if tutor_form %}
+    <div class="fixed bottom-4 right-4 z-[70] sm:bottom-5 sm:right-5">
+      <button
+        type="button"
+        id="studentTutorLauncher"
+        class="ndga-chat-launcher transition hover:-translate-y-0.5"
+        aria-label="Open NDGA Tutor"
+      >
+        <span class="relative inline-flex h-11 w-11 items-center justify-center rounded-full bg-[rgba(198,167,94,0.12)] text-[#f3e1b4]">
+          <svg viewBox="0 0 24 24" fill="none" class="h-5 w-5" aria-hidden="true">
+            <path d="M8 10.5h8M8 14h5m-7 5.5 2.2-2H18a3 3 0 0 0 3-3v-7A3 3 0 0 0 18 4.5H6a3 3 0 0 0-3 3v7a3 3 0 0 0 3 3h.2V19.5Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span class="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border border-[#0b1f3a] bg-[#c6a75e]"></span>
+        </span>
+      </button>
+
+      <div id="studentTutorPanel" class="ndga-chat-panel mt-3 hidden">
+        <div class="border-b border-[rgba(198,167,94,0.18)] bg-ndga-navy px-4 py-4 text-white">
+          <div class="flex items-start justify-between gap-3">
+            <div class="flex items-center gap-3">
+              <span class="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-white/10 text-[#f1d59a]">
+                <svg viewBox="0 0 24 24" fill="none" class="h-5 w-5" aria-hidden="true">
+                  <path d="M8 10.5h8M8 14h5m-7 5.5 2.2-2H18a3 3 0 0 0 3-3v-7A3 3 0 0 0 18 4.5H6a3 3 0 0 0-3 3v7a3 3 0 0 0 3 3h.2V19.5Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </span>
+              <div>
+                <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#e8d7b0]">NDGA Tutor</p>
+                <h2 class="mt-1 text-lg font-bold" style="font-family: var(--ndga-font-display);">Academic Support</h2>
+              </div>
+            </div>
+            <button type="button" id="studentTutorClose" class="rounded-full border border-white/10 px-3 py-1.5 text-sm font-semibold text-white/80">Close</button>
+          </div>
+        </div>
+
+        <div class="ndga-chat-scroll space-y-3 bg-[#fcfaf6] px-4 py-4">
+          <div class="ndga-chat-bubble-school">
+            Ask about any current subject, revision idea, assignment task, or concept you want explained more clearly.
+          </div>
+          {% if tutor_reply %}
+            <div class="ndga-chat-bubble-school">
+              <p>{{ tutor_reply.answer }}</p>
+              {% if tutor_reply.practice_tip %}
+                <p class="mt-3 text-sm font-semibold text-slate-900">Practice tip: {{ tutor_reply.practice_tip }}</p>
+              {% endif %}
+            </div>
+          {% endif %}
+        </div>
+
+        <form method="post" class="space-y-3 border-t border-[rgba(11,31,58,0.08)] bg-white px-4 py-4">
+          {% csrf_token %}
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ tutor_form.subject.id_for_label }}">Subject</label>
+            {{ tutor_form.subject }}
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ tutor_form.question.id_for_label }}">Question</label>
+            {{ tutor_form.question }}
+            {% if tutor_form.question.errors %}<p class="mt-1 text-xs text-rose-700">{{ tutor_form.question.errors|striptags }}</p>{% endif %}
+          </div>
+          <button type="submit" class="ndga-btn ndga-btn-primary w-full justify-center">Ask Tutor</button>
+        </form>
+      </div>
+    </div>
+  {% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+  <script>
+    (function () {
+      const launcher = document.getElementById("studentTutorLauncher");
+      const panel = document.getElementById("studentTutorPanel");
+      const closeBtn = document.getElementById("studentTutorClose");
+      if (!launcher || !panel) return;
+
+      function openPanel() {
+        panel.classList.remove("hidden");
+      }
+
+      function closePanel() {
+        panel.classList.add("hidden");
+      }
+
+      launcher.addEventListener("click", () => {
+        if (panel.classList.contains("hidden")) {
+          openPanel();
+          return;
+        }
+        closePanel();
+      });
+
+      if (closeBtn) {
+        closeBtn.addEventListener("click", closePanel);
+      }
+
+      document.addEventListener("click", (event) => {
+        if (!panel.contains(event.target) && !launcher.contains(event.target)) {
+          closePanel();
+        }
+      });
+
+      {% if tutor_reply %}
+        openPanel();
+      {% endif %}
+    })();
+  </script>
 {% endblock %}

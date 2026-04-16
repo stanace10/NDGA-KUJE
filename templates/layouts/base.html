@@ -55,6 +55,506 @@
 {% endif %}
   <link rel="stylesheet" href="{% static 'vendor/font-manrope/index.css' %}">
   <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+  <style>
+    :root {
+      --ndga-portal-navy: #0b1f3a;
+      --ndga-portal-navy-soft: #132949;
+      --ndga-portal-gold: #c6a75e;
+      --ndga-portal-ivory: #f8f6f2;
+      --ndga-portal-paper: #fffdf9;
+      --ndga-portal-border: #e5e0d7;
+      --ndga-portal-muted: #6b7280;
+      --ndga-portal-text: #1a1a1a;
+      --ndga-font-display: "Georgia", "Times New Roman", serif;
+      --ndga-font-ui: "Manrope Variable", "Manrope", "Segoe UI", sans-serif;
+    }
+
+    body,
+    button,
+    input,
+    select,
+    textarea {
+      font-family: var(--ndga-font-ui);
+    }
+
+    body {
+      background: linear-gradient(180deg, #fcfaf6 0%, #f5efe5 100%);
+      color: var(--ndga-portal-text);
+    }
+
+    body.login-shell {
+      background: #081425;
+    }
+
+    .portal-shell {
+      background: linear-gradient(180deg, #fcfaf6 0%, #f5efe5 100%);
+    }
+
+    .portal-sidebar,
+    .portal-sidebar-mobile {
+      background: linear-gradient(180deg, #08172c 0%, #102644 100%);
+      border-right: 1px solid rgba(198, 167, 94, 0.14);
+      box-shadow: 0 20px 56px rgba(7, 20, 40, 0.18);
+      padding-top: 1.5rem;
+      padding-bottom: 1.5rem;
+    }
+
+    .portal-brand {
+      border-color: rgba(198, 167, 94, 0.18);
+      background: rgba(255, 255, 255, 0.04);
+      padding: 0.9rem 1rem;
+    }
+
+    .portal-brand-title {
+      color: rgba(234, 226, 213, 0.68);
+      letter-spacing: 0.18em;
+    }
+
+    .portal-brand-subtitle {
+      color: #fff9ec;
+      font-family: var(--ndga-font-display);
+      font-size: 1.45rem;
+      font-weight: 700;
+      line-height: 1.05;
+    }
+
+    .portal-nav {
+      gap: 1rem;
+      padding-right: 0.2rem;
+    }
+
+    .portal-nav-group {
+      margin-bottom: 0.45rem;
+    }
+
+    .portal-nav-heading {
+      padding-inline: 0.85rem;
+      color: rgba(230, 220, 200, 0.58);
+      font-size: 0.62rem;
+      font-weight: 700;
+      letter-spacing: 0.26em;
+    }
+
+    .portal-nav-group-links {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .portal-nav-link {
+      position: relative;
+      border: 1px solid transparent;
+      border-radius: 1rem;
+      color: rgba(244, 241, 234, 0.82);
+      padding: 0.8rem 0.95rem;
+      font-weight: 600;
+      white-space: normal;
+    }
+
+    .portal-nav-link:hover {
+      background: rgba(255, 255, 255, 0.045);
+      border-color: rgba(198, 167, 94, 0.12);
+      color: #ffffff;
+    }
+
+    .portal-nav-link-active {
+      background: rgba(198, 167, 94, 0.14) !important;
+      border-color: rgba(198, 167, 94, 0.28) !important;
+      color: #ffffff !important;
+      box-shadow: none !important;
+    }
+
+    .portal-nav-link-active::before {
+      content: "";
+      position: absolute;
+      left: 0.55rem;
+      top: 50%;
+      height: 1.25rem;
+      width: 3px;
+      transform: translateY(-50%);
+      border-radius: 999px;
+      background: var(--ndga-portal-gold);
+    }
+
+    .portal-topbar {
+      margin-bottom: 0.85rem;
+      border: 1px solid rgba(11, 31, 58, 0.08);
+      border-radius: 1rem;
+      background: rgba(255, 253, 249, 0.95);
+      box-shadow: 0 10px 24px rgba(11, 31, 58, 0.05);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.85rem;
+      padding: 0.75rem 0.85rem;
+    }
+
+    .portal-title-text {
+      color: var(--ndga-portal-navy);
+      font-family: var(--ndga-font-display);
+      font-size: 1.15rem;
+      font-weight: 700;
+      line-height: 1.1;
+    }
+
+    .portal-topbar-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      margin-left: auto;
+    }
+
+    .portal-topbar-chip,
+    .portal-user-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.55rem;
+      border: 1px solid rgba(11, 31, 58, 0.08);
+      border-radius: 999px;
+      background: #fffdf9;
+      color: var(--ndga-portal-navy);
+      padding: 0.45rem 0.7rem;
+      font-size: 0.78rem;
+      font-weight: 600;
+      line-height: 1;
+    }
+
+    .portal-user-pill-photo {
+      height: 1.9rem;
+      width: 1.9rem;
+      border-radius: 999px;
+      object-fit: cover;
+      border: 1px solid rgba(11, 31, 58, 0.08);
+    }
+
+    .portal-user-pill-fallback {
+      display: inline-flex;
+      height: 1.9rem;
+      width: 1.9rem;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      background: linear-gradient(180deg, #0b1f3a 0%, #132949 100%);
+      color: #fff;
+      font-size: 0.78rem;
+      font-weight: 700;
+    }
+
+    .ndga-page-surface {
+      overflow: hidden;
+      border: 1px solid var(--ndga-portal-border);
+      border-radius: 1.75rem;
+      background: var(--ndga-portal-paper);
+      box-shadow: 0 18px 40px rgba(11, 31, 58, 0.05);
+    }
+
+    .ndga-page-header {
+      border-bottom: 1px solid var(--ndga-portal-border);
+      padding: 1.35rem 1.5rem 1.1rem;
+    }
+
+    .ndga-eyebrow {
+      color: #7b8088;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.24em;
+      text-transform: uppercase;
+    }
+
+    .ndga-heading {
+      color: var(--ndga-portal-navy);
+      font-family: var(--ndga-font-display);
+      font-size: clamp(2rem, 3vw, 3rem);
+      font-weight: 700;
+      line-height: 1.02;
+      letter-spacing: -0.02em;
+    }
+
+    .ndga-section-title {
+      color: var(--ndga-portal-navy);
+      font-family: var(--ndga-font-display);
+      font-size: 1.5rem;
+      font-weight: 700;
+      line-height: 1.08;
+    }
+
+    .ndga-supporting {
+      color: var(--ndga-portal-muted);
+      line-height: 1.7;
+    }
+
+    .ndga-panel {
+      border: 1px solid var(--ndga-portal-border);
+      border-radius: 1.25rem;
+      background: rgba(255, 252, 246, 0.98);
+      box-shadow: 0 12px 28px rgba(11, 31, 58, 0.04);
+    }
+
+    .ndga-panel-muted {
+      background: #fbf8f1;
+    }
+
+    .ndga-metric-card {
+      border: 1px solid rgba(11, 31, 58, 0.08);
+      border-radius: 1.25rem;
+      background: linear-gradient(180deg, #fffdf9 0%, #faf5ec 100%);
+      box-shadow: 0 14px 32px rgba(11, 31, 58, 0.05);
+    }
+
+    .ndga-label {
+      color: #7b8088;
+      font-size: 0.68rem;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+    }
+
+    .ndga-empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      border: 1px solid var(--ndga-portal-border);
+      border-radius: 1.25rem;
+      background: linear-gradient(180deg, #fffdf9 0%, #f6f1e7 100%);
+      padding: 2rem 1.5rem;
+      text-align: center;
+    }
+
+    .ndga-empty-icon {
+      display: inline-flex;
+      height: 3.25rem;
+      width: 3.25rem;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(198, 167, 94, 0.26);
+      border-radius: 999px;
+      background: rgba(198, 167, 94, 0.12);
+      color: var(--ndga-portal-navy);
+    }
+
+    .ndga-empty-title {
+      color: var(--ndga-portal-navy);
+      font-family: var(--ndga-font-display);
+      font-size: 1.5rem;
+      font-weight: 700;
+      line-height: 1.08;
+    }
+
+    .ndga-empty-copy {
+      max-width: 32rem;
+      color: var(--ndga-portal-muted);
+      font-size: 0.95rem;
+      line-height: 1.7;
+    }
+
+    .ndga-checkout-card {
+      width: min(100%, 20rem);
+      border: 1px solid var(--ndga-portal-border);
+      border-radius: 1.25rem;
+      background: var(--ndga-portal-paper);
+      box-shadow: 0 24px 56px rgba(7, 20, 40, 0.18);
+    }
+
+    .ndga-provider-option {
+      border: 1px solid rgba(11, 31, 58, 0.1);
+      border-radius: 1rem;
+      background: #fffdf9;
+      transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+    }
+
+    .ndga-provider-option:hover {
+      transform: translateY(-1px);
+      border-color: rgba(11, 31, 58, 0.22);
+      box-shadow: 0 12px 24px rgba(11, 31, 58, 0.07);
+    }
+
+    .ndga-provider-option[data-active="true"] {
+      border-color: rgba(198, 167, 94, 0.52);
+      background: linear-gradient(180deg, #fffaf0 0%, #f9f1df 100%);
+      box-shadow: 0 14px 28px rgba(11, 31, 58, 0.08);
+    }
+
+    .ndga-provider-badge {
+      border-radius: 999px;
+      padding: 0.35rem 0.75rem;
+      font-size: 0.7rem;
+      font-weight: 700;
+    }
+
+    .ndga-provider-logo {
+      display: inline-flex;
+      height: 2rem;
+      width: 2rem;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      border: 1px solid rgba(11, 31, 58, 0.08);
+      background: #f7f2e8;
+      color: var(--ndga-portal-navy);
+      font-size: 0.68rem;
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      flex: 0 0 auto;
+    }
+
+    .ndga-chat-launcher {
+      display: flex;
+      height: 3.35rem;
+      width: 3.35rem;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(198, 167, 94, 0.38);
+      border-radius: 999px;
+      background: linear-gradient(180deg, #0b1f3a 0%, #132949 100%);
+      box-shadow: 0 18px 40px rgba(7, 20, 40, 0.26);
+    }
+
+    .ndga-chat-panel {
+      width: min(20rem, calc(100vw - 1rem));
+      max-height: min(34rem, calc(100vh - 6rem));
+      overflow: hidden;
+      border: 1px solid rgba(11, 31, 58, 0.12);
+      border-radius: 1.35rem;
+      background: var(--ndga-portal-paper);
+      box-shadow: 0 30px 80px rgba(7, 20, 40, 0.2);
+    }
+
+    .ndga-chat-scroll {
+      max-height: min(19rem, calc(100vh - 20rem));
+      overflow-y: auto;
+    }
+
+    .ndga-chat-panel select,
+    .ndga-chat-panel textarea {
+      width: 100%;
+      border: 1px solid rgba(11, 31, 58, 0.12);
+      border-radius: 1rem;
+      background: #fffdf9;
+      padding: 0.75rem 0.9rem;
+      color: var(--ndga-portal-text);
+      font-size: 0.92rem;
+    }
+
+    .ndga-chat-panel textarea {
+      min-height: 6rem;
+      resize: vertical;
+    }
+
+    .ndga-chat-panel select:focus,
+    .ndga-chat-panel textarea:focus {
+      border-color: rgba(198, 167, 94, 0.72);
+      box-shadow: 0 0 0 4px rgba(198, 167, 94, 0.12);
+      outline: none;
+    }
+
+    .ndga-chat-bubble-user,
+    .ndga-chat-bubble-school {
+      max-width: 88%;
+      border-radius: 1rem;
+      padding: 0.85rem 0.95rem;
+      font-size: 0.92rem;
+      line-height: 1.6;
+    }
+
+    .ndga-chat-bubble-school {
+      background: #f7f1e5;
+      color: var(--ndga-portal-navy);
+    }
+
+    .ndga-chat-bubble-user {
+      margin-left: auto;
+      background: var(--ndga-portal-navy);
+      color: #ffffff;
+    }
+
+    .login-bg-vignette {
+      background:
+        linear-gradient(180deg, rgba(8, 20, 37, 0.84) 0%, rgba(8, 20, 37, 0.72) 100%),
+        radial-gradient(circle at top right, rgba(198, 167, 94, 0.18), transparent 34%);
+    }
+
+    .login-showcase h1,
+    .login-card h2 {
+      font-family: var(--ndga-font-display);
+      font-weight: 700;
+    }
+
+    .login-card {
+      border: 1px solid rgba(229, 224, 215, 0.8);
+      background: rgba(248, 246, 242, 0.96);
+      box-shadow: 0 28px 60px rgba(7, 20, 40, 0.18);
+    }
+
+    .login-card input,
+    .login-card select,
+    .login-card textarea {
+      border-color: rgba(11, 31, 58, 0.12);
+      background: rgba(255, 253, 249, 0.96);
+    }
+
+    .login-card input:focus,
+    .login-card select:focus,
+    .login-card textarea:focus {
+      border-color: rgba(198, 167, 94, 0.72);
+      box-shadow: 0 0 0 4px rgba(198, 167, 94, 0.12);
+      outline: none;
+    }
+
+    @media (max-width: 640px) {
+      .ndga-heading {
+        font-size: 2rem;
+      }
+
+      .portal-topbar {
+        gap: 0.6rem;
+        padding: 0.7rem 0.8rem;
+      }
+
+      .portal-title-text {
+        font-size: 1rem;
+      }
+
+      .portal-topbar-meta {
+        gap: 0.45rem;
+      }
+
+      .portal-topbar-chip,
+      .portal-user-pill {
+        padding: 0.38rem 0.58rem;
+        font-size: 0.72rem;
+      }
+
+      .portal-nav-link {
+        padding-block: 0.78rem;
+      }
+
+      .ndga-page-surface {
+        border-radius: 1.25rem;
+      }
+
+      .ndga-page-header {
+        padding: 1rem 1rem 0.95rem;
+      }
+
+      .ndga-panel,
+      .ndga-metric-card {
+        border-radius: 1rem;
+      }
+
+      .ndga-checkout-card {
+        width: min(100%, 19rem);
+        border-radius: 1.2rem;
+      }
+
+      .ndga-chat-panel {
+        width: min(100vw - 0.9rem, 19rem);
+        max-height: min(70vh, 30rem);
+        border-radius: 1.2rem;
+      }
+    }
+  </style>
   {% block extra_head %}{% endblock %}
 </head>
 <body class="{% block body_class %}min-h-screen bg-ndga-ash{% endblock %}">
@@ -270,6 +770,18 @@
           </button>
           <div class="portal-topbar-title">
             <span class="portal-title-text">{{ portal_shell_title }}</span>
+          </div>
+          <div class="portal-topbar-meta">
+            {% if current_session and current_term %}
+              <span class="portal-topbar-chip">{{ current_term.get_name_display }}</span>
+            {% endif %}
+            <span class="portal-user-pill">
+              {% if portal_profile_photo_url %}
+                <img src="{{ portal_profile_photo_url }}" alt="{{ user_display_name }}" class="portal-user-pill-photo">
+              {% else %}
+                <span class="portal-user-pill-fallback">{{ user_display_name|slice:":1"|upper }}</span>
+              {% endif %}
+            </span>
           </div>
         </header>
       {% endif %}

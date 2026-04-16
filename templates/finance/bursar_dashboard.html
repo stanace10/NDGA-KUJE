@@ -12,7 +12,7 @@
             <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">Bursar Command Center</p>
             <h1 class="mt-2 text-2xl font-bold">School Finance Overview</h1>
             <p class="mt-2 text-sm text-slate-200">
-              Track student payments, debtors, receipts, expenses, and salaries from one clear dashboard.
+              Manage class fees, student payments, receipts, debtors, expenses, salaries, and admission-form payments from one dashboard.
             </p>
           </div>
           <div class="flex flex-wrap gap-2">
@@ -23,7 +23,6 @@
             <a href="{% url 'finance:bursar-assets' %}" class="ndga-btn !bg-emerald-100 !text-emerald-900 hover:!bg-emerald-200">Assets</a>
             <a href="{% url 'finance:bursar-messaging' %}" class="ndga-btn !bg-slate-100 !text-slate-900 hover:!bg-white">Messaging</a>
             {% endif %}
-            <a href="{% url 'results:performance-report' %}" class="ndga-btn !bg-indigo-100 !text-indigo-900 hover:!bg-indigo-200">Performance</a>
             {% if not cloud_staff_operations_lan_only %}
             <a href="{% url 'finance:bursar-settings' %}" class="ndga-btn !bg-slate-700 !text-white hover:!bg-slate-800">Settings</a>
             {% endif %}

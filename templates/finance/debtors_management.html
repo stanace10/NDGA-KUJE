@@ -54,7 +54,7 @@
           <select id="class_id" name="class_id" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:border-ndga-navy/60 focus:ring-4 focus:ring-ndga-navy/10">
             <option value="">All Classes</option>
             {% for row in class_options %}
-              <option value="{{ row.id }}" {% if class_filter == row.id|stringformat:'s' %}selected{% endif %}>{{ row.code }}</option>
+              <option value="{{ row.id }}" {% if class_filter == row.id|stringformat:'s' %}selected{% endif %}>{{ row.display_name|default:row.code }}</option>
             {% endfor %}
           </select>
         </div>

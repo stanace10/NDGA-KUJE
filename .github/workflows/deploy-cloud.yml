@@ -28,8 +28,12 @@ jobs:
           tar \
             --exclude-vcs \
             --exclude=.venv \
+            --exclude=.env \
+            --exclude=.env.lan \
+            --exclude=.env.cloud \
             --exclude=media \
             --exclude=staticfiles \
+            --exclude=certs/lan \
             --exclude=backups/postgres \
             -czf ndga-deploy-bundle.tar.gz .
 

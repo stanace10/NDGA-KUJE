@@ -22,8 +22,6 @@
                   <td style="vertical-align:middle;">
                     {% if logo_url %}
                       <img src="{{ logo_url }}" alt="{{ school_profile.school_name }}" style="width:64px; height:64px; object-fit:contain; display:block; margin-bottom:10px; background:#ffffff; border-radius:16px; padding:6px; border:0; outline:none;">
-                    {% elif logo_data_uri %}
-                      <img src="{{ logo_data_uri }}" alt="{{ school_profile.school_name }}" style="width:64px; height:64px; object-fit:contain; display:block; margin-bottom:10px; background:#ffffff; border-radius:16px; padding:6px; border:0; outline:none;">
                     {% endif %}
                     <div style="font-size:25px; line-height:1.2; font-weight:700;">{{ school_profile.school_name|default:"Notre Dame Girls Academy" }}</div>
                     <div style="margin-top:6px; font-size:13px; line-height:1.5; color:#e2e8f0;">

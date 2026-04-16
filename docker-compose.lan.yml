@@ -61,6 +61,7 @@ services:
       redis:
         condition: service_healthy
     volumes:
+      - ./.env.cloud:/app/.env.cloud:ro
       - ndga_lan_static_data:/app/staticfiles
       - ndga_lan_media_data:/app/media
       - ndga_lan_backup_data:/app/backups/postgres
@@ -93,6 +94,7 @@ services:
       web:
         condition: service_started
     volumes:
+      - ./.env.cloud:/app/.env.cloud:ro
       - ndga_lan_media_data:/app/media
       - ndga_lan_backup_data:/app/backups/postgres
 
@@ -112,6 +114,7 @@ services:
       web:
         condition: service_started
     volumes:
+      - ./.env.cloud:/app/.env.cloud:ro
       - ndga_lan_media_data:/app/media
       - ndga_lan_backup_data:/app/backups/postgres
 
@@ -123,8 +126,10 @@ services:
         condition: service_started
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./certs/lan:/etc/nginx/certs:ro
       - ndga_lan_static_data:/app/staticfiles:ro
       - ndga_lan_media_data:/app/media:ro
 

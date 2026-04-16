@@ -2,274 +2,131 @@
 
 {% block title %}Student Profile{% endblock %}
 
-{% block extra_head %}
-  <style>
-    .portal-profile-shell,
-    .portal-profile-shell * {
-      box-sizing: border-box;
-    }
-    .portal-profile-shell .portal-profile-grid,
-    .portal-profile-shell .portal-profile-sidebar,
-    .portal-profile-shell .portal-profile-cards,
-    .portal-profile-shell .portal-profile-cards > div,
-    .portal-profile-shell article,
-    .portal-profile-shell section,
-    .portal-profile-shell aside {
-      min-width: 0;
-    }
-    .portal-profile-shell .portal-profile-cards p,
-    .portal-profile-shell .portal-profile-sidebar p,
-    .portal-profile-shell .portal-profile-table-history td,
-    .portal-profile-shell .portal-profile-table-history th {
-      overflow-wrap: anywhere;
-      word-break: break-word;
-    }
-    @media (max-width: 768px) {
-      .student-profile-mobile-history {
-        display: grid;
-      }
-      .student-profile-table-history {
-        display: none;
-      }
-      .portal-profile-shell {
-        overflow-x: hidden;
-      }
-      .portal-profile-shell .portal-profile-grid {
-        grid-template-columns: minmax(0, 1fr);
-      }
-      .portal-profile-shell .portal-profile-sidebar,
-      .portal-profile-shell .portal-profile-cards > div {
-        width: 100%;
-      }
-      .portal-profile-shell .overflow-x-auto {
-        max-width: 100%;
-      }
-      .portal-profile-shell article,
-      .portal-profile-shell section,
-      .portal-profile-shell aside,
-      .portal-profile-shell .portal-profile-cards > div {
-        overflow: hidden;
-      }
-      .portal-profile-shell .portal-profile-photo {
-        max-width: 100%;
-      }
-    }
-    @media (min-width: 769px) {
-      .student-profile-mobile-history {
-        display: none;
-      }
-    }
-  </style>
-{% endblock %}
-
 {% block content %}
-  <section class="portal-profile-shell mx-auto max-w-[94rem] px-3 py-3 sm:px-6 lg:px-8">
-    <article class="overflow-hidden rounded-3xl border border-slate-200 bg-white p-3 sm:p-6 shadow-sm">
-      <div class="portal-profile-grid grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
-        <aside class="portal-profile-sidebar rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:p-5">
-          <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Student Profile</p>
-          <div class="mt-4 flex justify-center">
+  <section class="mx-auto max-w-[75rem] px-4 py-6 sm:px-6 lg:px-8">
+    <section class="ndga-page-surface">
+      <div class="ndga-page-header">
+        <div class="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <div class="flex items-center gap-4">
             {% if portal_profile_photo_url %}
-              <div class="relative">
-                <img src="{{ portal_profile_photo_url }}" alt="{{ user_display_name }}" class="portal-profile-photo h-28 w-28 sm:h-36 sm:w-36 lg:h-40 lg:w-40 rounded-full border border-slate-200 object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='grid';">
-                <div class="portal-profile-photo hidden h-28 w-28 sm:h-36 sm:w-36 lg:h-40 lg:w-40 place-items-center rounded-full border border-slate-200 bg-white text-4xl sm:text-5xl font-bold text-ndga-navy">
-                  {{ user_display_name|slice:":1"|upper }}
-                </div>
-              </div>
+              <img src="{{ portal_profile_photo_url }}" alt="{{ user_display_name }}" class="h-20 w-20 rounded-full object-cover ring-4 ring-[#f2ebde] sm:h-24 sm:w-24">
             {% else %}
-              <div class="portal-profile-photo grid h-28 w-28 sm:h-36 sm:w-36 lg:h-40 lg:w-40 place-items-center rounded-full border border-slate-200 bg-white text-4xl sm:text-5xl font-bold text-ndga-navy">
+              <div class="grid h-20 w-20 place-items-center rounded-full bg-[#f4ede0] text-3xl font-bold text-ndga-navy ring-4 ring-[#f2ebde] sm:h-24 sm:w-24">
                 {{ user_display_name|slice:":1"|upper }}
               </div>
             {% endif %}
-          </div>
-          <p class="mt-4 text-center text-base font-semibold text-slate-900 break-words">{{ user_display_name }}</p>
-          <p class="mt-1 text-center text-xs text-slate-500 break-words">{{ user_identifier }}</p>
-          <div class="mt-4 rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-700">
-            <p><span class="font-semibold">Class:</span> {{ current_class_code }}</p>
-            <p class="mt-1"><span class="font-semibold">Age:</span> {% if student_age is not None %}{{ student_age }}{% else %}-{% endif %}</p>
-            <p class="mt-1"><span class="font-semibold">Lifecycle:</span> {% if student_profile %}{{ student_profile.get_lifecycle_state_display }}{% else %}-{% endif %}</p>
-          </div>
-        </aside>
-
-        <section class="min-w-0">
-          <h1 class="text-2xl font-bold text-slate-900">Biodata</h1>
-          <p class="mt-1 text-sm text-slate-600">Complete student and guardian profile record.</p>
-
-          <div class="portal-profile-cards mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">First Name</p>
-              <p class="mt-1 text-sm font-semibold text-slate-900">{{ request.user.first_name|default:"-" }}</p>
-            </div>
-            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Last Name</p>
-              <p class="mt-1 text-sm font-semibold text-slate-900">{{ request.user.last_name|default:"-" }}</p>
-            </div>
-            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Middle Name</p>
-              <p class="mt-1 text-sm font-semibold text-slate-900">
-                {% if student_profile and student_profile.middle_name %}{{ student_profile.middle_name }}{% else %}-{% endif %}
-              </p>
-            </div>
-            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Username</p>
-              <p class="mt-1 text-sm font-semibold text-slate-900">{{ request.user.username }}</p>
-            </div>
-            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Email</p>
-              <p class="mt-1 break-all text-sm font-semibold text-slate-900">{{ request.user.email|default:"-" }}</p>
-            </div>
-            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Student Number</p>
-              <p class="mt-1 text-sm font-semibold text-slate-900">
-                {% if student_profile %}{{ student_profile.student_number }}{% else %}-{% endif %}
-              </p>
-            </div>
-            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Date of Birth</p>
-              <p class="mt-1 text-sm font-semibold text-slate-900">
-                {% if student_profile and student_profile.date_of_birth %}{{ student_profile.date_of_birth }}{% else %}-{% endif %}
-              </p>
-            </div>
-            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Gender</p>
-              <p class="mt-1 text-sm font-semibold text-slate-900">
-                {% if student_profile and student_profile.gender %}{{ student_profile.get_gender_display }}{% else %}-{% endif %}
-              </p>
-            </div>
-            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Admission Date</p>
-              <p class="mt-1 text-sm font-semibold text-slate-900">
-                {% if student_profile and student_profile.admission_date %}{{ student_profile.admission_date }}{% else %}-{% endif %}
-              </p>
-            </div>
-            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">State of Origin</p>
-              <p class="mt-1 text-sm font-semibold text-slate-900">
-                {% if student_profile and student_profile.state_of_origin %}{{ student_profile.state_of_origin }}{% else %}-{% endif %}
-              </p>
-            </div>
-            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Nationality</p>
-              <p class="mt-1 text-sm font-semibold text-slate-900">
-                {% if student_profile and student_profile.nationality %}{{ student_profile.nationality }}{% else %}-{% endif %}
-              </p>
-            </div>
-            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Guardian Name</p>
-              <p class="mt-1 text-sm font-semibold text-slate-900">
-                {% if student_profile and student_profile.guardian_name %}{{ student_profile.guardian_name }}{% else %}-{% endif %}
-              </p>
-            </div>
-            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Guardian Phone</p>
-              <p class="mt-1 text-sm font-semibold text-slate-900">
-                {% if student_profile and student_profile.guardian_phone %}{{ student_profile.guardian_phone }}{% else %}-{% endif %}
-              </p>
-            </div>
-            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3 xl:col-span-2">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Guardian Email</p>
-              <p class="mt-1 break-all text-sm font-semibold text-slate-900">
-                {% if student_profile and student_profile.guardian_email %}{{ student_profile.guardian_email }}{% else %}-{% endif %}
-              </p>
-            </div>
-            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3 xl:col-span-3">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Address</p>
-              <p class="mt-1 text-sm font-semibold text-slate-900 break-words">
-                {% if student_profile and student_profile.address %}{{ student_profile.address }}{% else %}-{% endif %}
-              </p>
-            </div>
-            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3 xl:col-span-3">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Medical Notes</p>
-              <p class="mt-1 text-sm font-semibold text-slate-900">{% if student_profile and student_profile.medical_notes %}{{ student_profile.medical_notes }}{% else %}-{% endif %}</p>
-            </div>
-            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3 xl:col-span-3">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Disciplinary Notes</p>
-              <p class="mt-1 text-sm font-semibold text-slate-900">{% if student_profile and student_profile.disciplinary_notes %}{{ student_profile.disciplinary_notes }}{% else %}-{% endif %}</p>
-            </div>
-            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3 xl:col-span-3">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Club / Society</p>
-              <p class="mt-1 text-sm font-semibold text-slate-900">{% for row in club_memberships %}{{ row.club.name }}{% if row.office_held %} ({{ row.office_held }}){% endif %}{% if not forloop.last %}, {% endif %}{% empty %}-{% endfor %}</p>
-            </div>
-            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Fees Charged</p>
-              <p class="mt-1 text-sm font-semibold text-slate-900">{{ finance_snapshot.charged }}</p>
-            </div>
-            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Fees Paid</p>
-              <p class="mt-1 text-sm font-semibold text-slate-900">{{ finance_snapshot.paid }}</p>
-            </div>
-            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Outstanding</p>
-              <p class="mt-1 text-sm font-semibold text-slate-900">{{ finance_snapshot.outstanding }}</p>
-            </div>
-          </div>
-
-          <div class="mt-6 grid gap-4 xl:grid-cols-2">
-            <article class="min-w-0 overflow-hidden rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h2 class="text-lg font-semibold text-slate-900">Operational Snapshot</h2>
-              <div class="mt-4 grid gap-3 sm:grid-cols-2">
-                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3"><p class="text-xs uppercase tracking-[0.14em] text-slate-500">Attendance</p><p class="mt-1 text-2xl font-bold text-slate-900">{% if attendance_snapshot %}{{ attendance_snapshot.percentage }}%{% else %}-{% endif %}</p></div>
-                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3"><p class="text-xs uppercase tracking-[0.14em] text-slate-500">Result Status</p><p class="mt-1 text-sm font-semibold text-slate-900">{{ result_status.label }}</p></div>
-                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3"><p class="text-xs uppercase tracking-[0.14em] text-slate-500">Reports Published</p><p class="mt-1 text-2xl font-bold text-slate-900">{{ published_compilations|length }}</p></div>
-                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3"><p class="text-xs uppercase tracking-[0.14em] text-slate-500">Offered Subjects</p><p class="mt-1 text-2xl font-bold text-slate-900">{{ offered_subject_count }}</p></div>
+            <div class="min-w-0">
+              <p class="ndga-eyebrow">Student Profile</p>
+              <h1 class="mt-2 text-[2.1rem] font-bold text-ndga-navy sm:text-[2.65rem]" style="font-family: var(--ndga-font-display);">{{ user_display_name }}</h1>
+              <div class="mt-3 flex flex-wrap gap-2 text-sm text-slate-600">
+                {% if user_identifier %}<span class="rounded-full border border-[rgba(11,31,58,0.08)] bg-[#fbf7ee] px-3 py-1.5 font-medium">{{ user_identifier }}</span>{% endif %}
+                {% if current_class_code %}<span class="rounded-full border border-[rgba(11,31,58,0.08)] bg-[#fbf7ee] px-3 py-1.5 font-medium">{{ current_class_code }}</span>{% endif %}
+                {% if current_session and current_term %}
+                  <span class="rounded-full border border-[rgba(11,31,58,0.08)] bg-[#fbf7ee] px-3 py-1.5 font-medium">{{ current_session.name }} | {{ current_term.get_name_display }}</span>
+                {% endif %}
               </div>
-            </article>
-
-            <article class="min-w-0 overflow-hidden rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h2 class="text-lg font-semibold text-slate-900">Academic Analytics</h2>
-              {% if student_analytics.available %}
-                <div class="mt-4 grid gap-3 sm:grid-cols-2">
-                  <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3"><p class="text-xs uppercase tracking-[0.14em] text-slate-500">Current GPA</p><p class="mt-1 text-2xl font-bold text-slate-900">{{ student_analytics.current.gpa }}</p></div>
-                  <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3"><p class="text-xs uppercase tracking-[0.14em] text-slate-500">Risk Level</p><p class="mt-1 text-sm font-semibold text-slate-900">{{ student_analytics.risk.label }}</p></div>
-                  <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3 sm:col-span-2"><p class="text-xs uppercase tracking-[0.14em] text-slate-500">Weak Subjects</p><p class="mt-1 text-sm font-semibold text-slate-900">{% for row in student_analytics.weak_subjects %}{{ row.subject }}{% if not forloop.last %}, {% endif %}{% empty %}-{% endfor %}</p></div>
-                </div>
-              {% else %}
-                <p class="mt-4 text-sm text-slate-500">No academic analytics are available yet.</p>
-              {% endif %}
-            </article>
+            </div>
           </div>
 
-          <article class="mt-6 overflow-hidden rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 class="text-lg font-semibold text-slate-900">Published Result History</h2>
-            <div class="student-profile-mobile-history mt-4 gap-3">
-              {% for row in published_compilations %}
-                <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Session</p>
-                  <p class="mt-1 text-sm font-semibold text-slate-900">{{ row.session.name }}</p>
-                  <div class="mt-3 grid gap-3 sm:grid-cols-2">
-                    <div>
-                      <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Term</p>
-                      <p class="mt-1 text-sm font-semibold text-slate-900">{{ row.term.get_name_display }}</p>
-                    </div>
-                    <div>
-                      <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Class</p>
-                      <p class="mt-1 text-sm font-semibold text-slate-900">{{ row.academic_class.display_name|default:row.academic_class.code }}</p>
-                    </div>
-                    <div class="sm:col-span-2">
-                      <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Published</p>
-                      <p class="mt-1 text-sm font-semibold text-slate-900">{{ row.published_at|date:"d M Y"|default:"-" }}</p>
-                    </div>
-                  </div>
-                </article>
-              {% empty %}
-                <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">No published result history yet.</div>
-              {% endfor %}
-            </div>
-            <div class="student-profile-table-history mt-4 overflow-x-auto rounded-2xl border border-slate-200">
-              <table class="min-w-full divide-y divide-slate-200 text-sm">
-                <thead class="bg-slate-50"><tr><th class="px-3 py-2 text-left">Session</th><th class="px-3 py-2 text-left">Term</th><th class="px-3 py-2 text-left">Class</th><th class="px-3 py-2 text-left">Published</th></tr></thead>
-                <tbody class="divide-y divide-slate-100 bg-white">
-                  {% for row in published_compilations %}
-                    <tr><td class="px-3 py-2">{{ row.session.name }}</td><td class="px-3 py-2">{{ row.term.get_name_display }}</td><td class="px-3 py-2 font-semibold text-slate-900">{{ row.academic_class.display_name|default:row.academic_class.code }}</td><td class="px-3 py-2">{{ row.published_at|date:"d M Y"|default:'-' }}</td></tr>
-                  {% empty %}
-                    <tr><td colspan="4" class="px-3 py-4 text-slate-500">No published result history yet.</td></tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-            </div>
-          </article>
-        </section>
+          <div class="flex flex-wrap items-center gap-3 lg:justify-end">
+            <span class="inline-flex rounded-full px-3 py-1.5 text-sm font-semibold {{ student_status_badge.tone }}">{{ student_status_badge.label }}</span>
+          </div>
+        </div>
       </div>
-    </article>
+
+      <div class="px-5 py-6 sm:px-6">
+        <div class="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
+          <section class="space-y-5">
+            {% if profile_identity_rows %}
+              <section class="ndga-panel px-5 py-5 sm:px-6">
+                <div class="border-b border-[rgba(11,31,58,0.08)] pb-4">
+                  <p class="ndga-eyebrow">Identity</p>
+                  <h2 class="mt-2 text-[1.65rem] font-bold text-ndga-navy" style="font-family: var(--ndga-font-display);">Student Record</h2>
+                </div>
+                <div class="mt-4 grid gap-x-8 gap-y-1 sm:grid-cols-2 xl:grid-cols-3">
+                  {% for row in profile_identity_rows %}
+                    <div class="border-b border-[rgba(11,31,58,0.08)] py-3.5">
+                      <p class="ndga-label">{{ row.label }}</p>
+                      <p class="mt-2 text-[0.98rem] font-semibold text-slate-900 break-words">{{ row.value }}</p>
+                    </div>
+                  {% endfor %}
+                </div>
+              </section>
+            {% endif %}
+
+            {% if profile_academic_rows %}
+              <section class="ndga-panel px-5 py-5 sm:px-6">
+                <div class="border-b border-[rgba(11,31,58,0.08)] pb-4">
+                  <p class="ndga-eyebrow">Academic</p>
+                  <h2 class="mt-2 text-[1.65rem] font-bold text-ndga-navy" style="font-family: var(--ndga-font-display);">Class & Enrollment</h2>
+                </div>
+                <div class="mt-4 grid gap-x-8 gap-y-1 sm:grid-cols-2">
+                  {% for row in profile_academic_rows %}
+                    <div class="border-b border-[rgba(11,31,58,0.08)] py-3.5">
+                      <p class="ndga-label">{{ row.label }}</p>
+                      <p class="mt-2 text-[0.98rem] font-semibold text-slate-900 break-words">{{ row.value }}</p>
+                    </div>
+                  {% endfor %}
+                </div>
+              </section>
+            {% endif %}
+          </section>
+
+          <section class="space-y-5">
+            {% if profile_guardian_rows %}
+              <section class="ndga-panel px-5 py-5 sm:px-6">
+                <div class="border-b border-[rgba(11,31,58,0.08)] pb-4">
+                  <p class="ndga-eyebrow">Guardian</p>
+                  <h2 class="mt-2 text-[1.65rem] font-bold text-ndga-navy" style="font-family: var(--ndga-font-display);">Parent & Guardian Details</h2>
+                </div>
+                <div class="mt-4 space-y-0">
+                  {% for row in profile_guardian_rows %}
+                    <div class="border-b border-[rgba(11,31,58,0.08)] py-3.5 last:border-b-0 last:pb-0">
+                      <p class="ndga-label">{{ row.label }}</p>
+                      <p class="mt-2 text-[0.98rem] font-semibold text-slate-900 break-words">{{ row.value }}</p>
+                    </div>
+                  {% endfor %}
+                </div>
+              </section>
+            {% endif %}
+
+            {% if profile_contact_rows %}
+              <section class="ndga-panel px-5 py-5 sm:px-6">
+                <div class="border-b border-[rgba(11,31,58,0.08)] pb-4">
+                  <p class="ndga-eyebrow">Contact</p>
+                  <h2 class="mt-2 text-[1.65rem] font-bold text-ndga-navy" style="font-family: var(--ndga-font-display);">Student Contact Details</h2>
+                </div>
+                <div class="mt-4 space-y-0">
+                  {% for row in profile_contact_rows %}
+                    <div class="border-b border-[rgba(11,31,58,0.08)] py-3.5 last:border-b-0 last:pb-0">
+                      <p class="ndga-label">{{ row.label }}</p>
+                      <p class="mt-2 text-[0.98rem] font-semibold text-slate-900 break-words">{{ row.value }}</p>
+                    </div>
+                  {% endfor %}
+                </div>
+              </section>
+            {% endif %}
+
+            {% if profile_secondary_sections %}
+              <section class="ndga-panel px-5 py-5 sm:px-6">
+                <div class="border-b border-[rgba(11,31,58,0.08)] pb-4">
+                  <p class="ndga-eyebrow">Notes</p>
+                  <h2 class="mt-2 text-[1.65rem] font-bold text-ndga-navy" style="font-family: var(--ndga-font-display);">Additional Records</h2>
+                </div>
+
+                <div class="mt-4 space-y-3">
+                  {% for section in profile_secondary_sections %}
+                    <details class="rounded-2xl border border-[rgba(11,31,58,0.08)] bg-[#fbf8f1] px-4 py-4" {% if forloop.first %}open{% endif %}>
+                      <summary class="cursor-pointer list-none text-sm font-semibold text-slate-900">{{ section.title }}</summary>
+                      <p class="mt-3 text-sm leading-7 text-slate-600">{{ section.value }}</p>
+                    </details>
+                  {% endfor %}
+                </div>
+              </section>
+            {% endif %}
+          </section>
+        </div>
+      </div>
+    </section>
   </section>
 {% endblock %}

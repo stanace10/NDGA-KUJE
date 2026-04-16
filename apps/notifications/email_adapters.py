@@ -100,8 +100,9 @@ class BrevoEmailProvider:
             },
             method="POST",
         )
+        timeout_seconds = max(int(getattr(settings, "NOTIFICATIONS_EMAIL_TIMEOUT_SECONDS", 30) or 30), 5)
         try:
-            with urlopen(request, timeout=12) as response:
+            with urlopen(request, timeout=timeout_seconds) as response:
                 status = getattr(response, "status", 200)
                 ok = 200 <= status < 300
                 return EmailSendResult(

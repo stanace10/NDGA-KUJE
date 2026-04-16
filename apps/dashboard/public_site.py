@@ -11,6 +11,8 @@ from apps.dashboard.models import (
     PublicWebsiteSettings,
 )
 
+DEFAULT_PUBLIC_APPLICATION_FORM_FEE = "5500.00"
+
 
 PUBLIC_IMAGE = {
     "hero": "images/public/facility-academic-block.jpeg",
@@ -23,6 +25,7 @@ PUBLIC_IMAGE = {
     "logo": "images/ndga/logo.png",
     "campus": "images/public/facility-entrance.jpeg",
     "campus_view": "images/public/facility-academic-block.jpeg",
+    "campus_round_view": "images/public/facility-campus-view.jpeg",
     "campus_refectory": "images/public/facility-refectory.jpeg",
     "campus_block": "images/public/facility-academic-block.jpeg",
     "about_student": "images/public/about-student-learning.jpg",
@@ -50,9 +53,28 @@ PUBLIC_IMAGE = {
     "pioneers": "images/public/events-pioneers-1.jpg",
     "pioneers_alt": "images/public/events-pioneers-2.jpg",
     "events_stage": "images/public/events-voice-battle.jpg",
-    "leadership_sisters": "images/public/sisters-official-1.jpg",
-    "leadership_sisters_alt": "images/public/sisters-official-2.jpg",
+    "leadership_sisters": "images/public/leadership-team.jpeg",
+    "leadership_sisters_alt": "images/public/leadership-team.jpeg",
 }
+
+DEFAULT_PRINCIPAL_WELCOME_TITLE = "Principal's Welcome"
+LEGACY_PRINCIPAL_WELCOME_MESSAGE = (
+    "Welcome to Notre Dame Girls' Academy, a Catholic secondary school dedicated "
+    "to forming confident, competent, and compassionate young women."
+)
+LEGACY_PRINCIPAL_WELCOME_SUPPORT = (
+    "We partner with parents to nurture Gospel values, disciplined study habits, "
+    "strong character, and the full potential of every girl entrusted to our care."
+)
+FULL_PRINCIPAL_WELCOME_BODY = [
+    "Welcome to Notre Dame Girls' Academy (NDGA), Kuje - Abuja - a Catholic secondary school dedicated to forming confident, competent, and compassionate young women.",
+    "Owned and managed by the Sisters of Notre Dame de Namur, our academy is part of a global educational tradition inspired by St. Julie Billiart, who urged educators to teach the children whatever they need for life. At NDGA, this timeless vision shapes everything we do.",
+    "We believe that education must be holistic. Beyond academic excellence, we are committed to the moral, spiritual, social, and emotional formation of every student. Our supportive learning environment ensures that each girl is known, valued, and guided to discover her strengths and fulfill her potential.",
+    "As a Catholic school, we partner closely with parents, the primary educators of their children, in nurturing Gospel values and strong character. We serve students from diverse backgrounds and abilities, fostering a community built on respect, discipline, service, and integrity. Through a rich and comprehensive curriculum, engaging co-curricular activities, and dedicated faculty, we prepare our students not only for examinations, but for life. Our graduates are equipped to think critically, lead responsibly, and serve selflessly in society.",
+    "At Notre Dame Girls' Academy, we are not simply educating girls; we are shaping future leaders grounded in faith and excellence.",
+    "We invite you to explore our website, visit our campus, and discover how NDGA can partner with you in giving your daughter the education she deserves - one that prepares her for life, both temporal and eternal.",
+    "With every good wish,",
+]
 
 
 def _format_public_date(value):
@@ -65,12 +87,15 @@ def _format_public_date(value):
 
 PUBLIC_CONTACT = {
     "school_name": "Notre Dame Girls' Academy, Kuje-Abuja",
-    "phone_primary": "+234 902 940 5413",
-    "phone_secondary": "+234 813 341 3127",
+    "phone_primary": "0906 330 2377",
+    "phone_secondary": "08018 932 5729",
     "email": "office@ndgakuje.org",
     "address": "Just after SS Simon and Jude Minor Seminary, Kuchiyako, Kuje-Abuja",
     "maps_url": "https://maps.app.goo.gl/t7Zx37KFpbYVZqtP6",
-    "whatsapp_url": "https://wa.me/2349029405413",
+    "whatsapp_url": "https://wa.me/2349063302377",
+    "x_url": "https://x.com/ndgakuje",
+    "tiktok_url": "https://www.tiktok.com/@ndgakuje",
+    "facebook_url": "https://www.facebook.com/notredamegirlsacademy/",
 }
 
 PUBLIC_CLASS_OPTIONS = [
@@ -157,12 +182,12 @@ PUBLIC_NAVIGATION = [
                 ],
             },
             {
-                "title": "Fees & Boarding",
+                "title": "Boarding & Support",
                 "items": [
-                    {"label": "Fees & Charges", "url": "/fees/"},
                     {"label": "Hostel / Boarding", "url": "/hostel-boarding/"},
                     {"label": "Payment Information", "url": "/admissions/payment-information/"},
                     {"label": "Admission FAQs", "url": "/admissions/admission-faqs/"},
+                    {"label": "Contact", "url": "/contact/"},
                 ],
             },
         ],
@@ -477,12 +502,7 @@ PUBLIC_PAGE_CONTENT = {
                 "layout": "split",
                 "eyebrow": "A Message from the Principal",
                 "title": "Educating confident, competent, and compassionate young women",
-                "body": [
-                    "Welcome to Notre Dame Girls' Academy, Kuje-Abuja, a Catholic secondary school dedicated to forming confident, competent, and compassionate young women.",
-                    "Owned and managed by the Sisters of Notre Dame de Namur, our academy is part of a global educational tradition inspired by St. Julie Billiart. We believe education must be holistic. Beyond academic excellence, we remain committed to the moral, spiritual, social, and emotional formation of every student.",
-                    "We partner closely with parents, the primary educators of their children, in nurturing Gospel values, disciplined character, and a sense of responsibility. Through a broad curriculum, co-curricular activities, and dedicated faculty, we prepare students not only for examinations, but for life.",
-                    "At Notre Dame Girls' Academy, we are not simply educating girls; we are shaping future leaders grounded in faith and excellence.",
-                ],
+                "body": FULL_PRINCIPAL_WELCOME_BODY,
                 "image": PUBLIC_IMAGE["principal_large"],
                 "quote_author": "Principal",
                 "quote_role": "Notre Dame Girls' Academy, Kuje-Abuja",
@@ -790,11 +810,11 @@ PUBLIC_PAGE_CONTENT = {
             {
                 "layout": "timeline",
                 "title": "Admission process",
-                "button_label": "Go to online registration",
+                "button_label": "Start Admission",
                 "button_url": "/admissions/registration/",
                 "timeline": [
                     {"title": "Register online", "text": "Complete applicant and parent details and upload key records."},
-                    {"title": "Review fees and payment guidance", "text": "Families receive the approved fee path, acceptance guidance, and required next steps from the school."},
+                    {"title": "Receive admissions guidance", "text": "Families receive screening, document, and next-step guidance directly from the school."},
                     {"title": "Entrance examination or screening", "text": "Applicants sit for English Language or Verbal Aptitude, Mathematics or Quantitative Aptitude, and General Paper, with interview guidance where required."},
                     {"title": "Admission review and activation", "text": "Successful applicants receive confirmation, acceptance guidance, and onboarding into the school community."},
                 ],
@@ -834,7 +854,7 @@ PUBLIC_PAGE_CONTENT = {
                     {"title": "Prepare the required documents", "text": "Recent school result, birth certificate, and passport photograph should be ready."},
                     {"title": "Complete the online registration", "text": "Submit the form with parent or guardian details and student information."},
                     {"title": "Sit for screening", "text": "Applicants take the written examination and any required interview stage on the approved admissions schedule."},
-                    {"title": "Confirm admission", "text": "Successful candidates complete the acceptance and fee process."},
+                    {"title": "Confirm admission", "text": "Successful candidates receive the school guidance needed for enrolment and resumption."},
                 ],
             }
         ],
@@ -908,16 +928,16 @@ PUBLIC_PAGE_CONTENT = {
     "payment-information": {
         "title": "Payment Information",
         "eyebrow": "Payments",
-        "description": "Payment guidance for admissions and fees is shared in a controlled and clear process.",
+        "description": "Payment guidance for admissions is shared in a clear and secure process.",
         "hero_image": PUBLIC_IMAGE["campus"],
         "sections": [
             {
                 "layout": "list",
-                "title": "What families should expect",
+                "title": "Payment steps at a glance",
                 "items": [
                     "Admissions guidance provides approved payment channels.",
                     "Online registration can be completed before the payment stage.",
-                    "Parents should keep payment evidence and reference details where required.",
+                    "Parents keep payment evidence and reference details where required.",
                     "The student portal remains the secure route for parent-facing visibility after onboarding.",
                 ],
             }
@@ -1038,7 +1058,6 @@ PUBLIC_SEARCH_LINKS = [
     {"label": "Admissions Overview", "url": "/admissions/", "group": "Admissions"},
     {"label": "How to Apply", "url": "/admissions/how-to-apply/", "group": "Admissions"},
     {"label": "Online Registration", "url": "/admissions/registration/", "group": "Admissions"},
-    {"label": "Fees & Charges", "url": "/fees/", "group": "Admissions"},
     {"label": "Hostel & Boarding", "url": "/hostel-boarding/", "group": "Explore"},
     {"label": "Facilities", "url": "/facilities/", "group": "Explore"},
     {"label": "Gallery", "url": "/gallery/", "group": "Explore"},
@@ -1068,7 +1087,6 @@ PUBLIC_INDEXABLE_PATHS = {
     "/admissions/",
     "/admissions/how-to-apply/",
     "/admissions/registration/",
-    "/fees/",
     "/hostel-boarding/",
     "/admissions/payment-information/",
     "/admissions/admission-faqs/",
@@ -1115,7 +1133,7 @@ def get_public_page(slug: str):
     if page is None:
         return None
     if slug == "fees":
-        page = _apply_live_fee_rows(page)
+        return None
     if slug == "principal":
         page = _apply_public_principal_overrides(page)
     return _normalize_public_page(page)
@@ -1275,16 +1293,22 @@ def _normalize_public_page(page):
     return page
 
 
+def _resolved_public_principal_copy(settings_row=None):
+    return {
+        "title": DEFAULT_PRINCIPAL_WELCOME_TITLE,
+        "message": FULL_PRINCIPAL_WELCOME_BODY[0],
+        "support": FULL_PRINCIPAL_WELCOME_BODY[1],
+        "body": FULL_PRINCIPAL_WELCOME_BODY,
+    }
+
+
 def _apply_public_principal_overrides(page):
-    settings_row = PublicWebsiteSettings.load()
-    page["title"] = settings_row.principal_welcome_title or page.get("title", "Principal's Welcome")
+    principal_copy = _resolved_public_principal_copy()
+    page["title"] = principal_copy["title"] or page.get("title", "Principal's Welcome")
     for section in page.get("sections", []):
         if section.get("layout") == "split":
-            section["title"] = settings_row.principal_welcome_title or section.get("title", "")
-            section["body"] = [
-                settings_row.principal_welcome_message or "",
-                settings_row.principal_welcome_support or "",
-            ]
+            section["title"] = principal_copy["title"] or section.get("title", "")
+            section["body"] = principal_copy["body"]
             break
     return page
 
@@ -1360,16 +1384,21 @@ def get_public_site_context(*, school_profile=None):
     if school_profile is not None:
         principal_name = (school_profile.principal_name or "").strip()
     public_site_settings = PublicWebsiteSettings.load()
+    principal_copy = _resolved_public_principal_copy(public_site_settings)
+    public_site_settings.principal_welcome_title = principal_copy["title"]
+    public_site_settings.principal_welcome_message = principal_copy["message"]
+    public_site_settings.principal_welcome_support = principal_copy["support"]
     application_fee_amount = "0.00"
     application_fee_note = ""
     try:
         from apps.finance.services import finance_profile
 
         finance_settings = finance_profile()
-        application_fee_amount = str(finance_settings.application_form_fee_amount or "0.00")
+        configured_fee = str(finance_settings.application_form_fee_amount or "0.00")
+        application_fee_amount = configured_fee if configured_fee not in {"0", "0.00"} else DEFAULT_PUBLIC_APPLICATION_FORM_FEE
         application_fee_note = finance_settings.application_form_fee_note or ""
     except Exception:
-        application_fee_amount = "0.00"
+        application_fee_amount = DEFAULT_PUBLIC_APPLICATION_FORM_FEE
         application_fee_note = ""
 
     return {

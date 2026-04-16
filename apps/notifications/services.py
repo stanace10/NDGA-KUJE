@@ -3,8 +3,10 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass
+from pathlib import Path
 from urllib.parse import urlparse
 
+from django.conf import settings
 from django.templatetags.static import static
 from django.template.loader import render_to_string
 from django.utils.html import conditional_escape
@@ -18,9 +20,6 @@ from apps.notifications.email_adapters import EmailSendResult, get_email_provide
 from apps.notifications.whatsapp_adapters import WhatsAppSendResult, get_whatsapp_provider
 from apps.notifications.models import Notification, NotificationCategory
 from apps.tenancy.utils import build_portal_url
-from apps.pdfs.services import school_logo_data_uri
-
-
 def _normalized_emails(emails):
     seen = set()
     clean = []
@@ -100,13 +99,80 @@ def _school_logo_url(*, request=None, profile=None):
     profile = profile or SchoolProfile.load()
     if profile and profile.school_logo:
         logo_path = profile.school_logo.url
-    else:
-        logo_path = static("images/ndga/logo.png")
+        if logo_path.startswith(("http://", "https://")):
+            return logo_path
+        if not logo_path.startswith("/"):
+            logo_path = f"/{logo_path}"
+        return f"{_public_root_url(request=request, profile=profile)}{logo_path}"
+    presigned_url = _fallback_presigned_email_logo_url()
+    if presigned_url:
+        return presigned_url
+    logo_path = static("images/ndga/logo.png")
     if logo_path.startswith(("http://", "https://")):
         return logo_path
     if not logo_path.startswith("/"):
         logo_path = f"/{logo_path}"
     return f"{_public_root_url(request=request, profile=profile)}{logo_path}"
+
+
+def _load_cloud_aws_values():
+    keys = (
+        "AWS_STORAGE_BUCKET_NAME",
+        "AWS_REGION",
+        "AWS_S3_REGION_NAME",
+        "AWS_ACCESS_KEY_ID",
+        "AWS_SECRET_ACCESS_KEY",
+    )
+    values = {
+        key: str(getattr(settings, key, "") or "").strip()
+        for key in keys
+    }
+    if values["AWS_STORAGE_BUCKET_NAME"] and values["AWS_ACCESS_KEY_ID"] and values["AWS_SECRET_ACCESS_KEY"]:
+        return values
+    env_file = Path(settings.ROOT_DIR) / ".env.cloud"
+    if not env_file.exists():
+        return values
+    for line in env_file.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        if key in keys and not values.get(key):
+            values[key] = value.strip()
+    return values
+
+
+def _fallback_presigned_email_logo_url():
+    try:
+        import boto3
+        from botocore.config import Config
+    except Exception:  # noqa: BLE001
+        return ""
+
+    values = _load_cloud_aws_values()
+    bucket = values.get("AWS_STORAGE_BUCKET_NAME", "")
+    access_key = values.get("AWS_ACCESS_KEY_ID", "")
+    secret_key = values.get("AWS_SECRET_ACCESS_KEY", "")
+    region = values.get("AWS_REGION") or values.get("AWS_S3_REGION_NAME") or ""
+    if not bucket or not access_key or not secret_key or not region:
+        return ""
+    try:
+        client = boto3.client(
+            "s3",
+            aws_access_key_id=access_key,
+            aws_secret_access_key=secret_key,
+            region_name=region,
+            endpoint_url=f"https://s3.{region}.amazonaws.com",
+            config=Config(signature_version="s3v4", s3={"addressing_style": "virtual"}),
+        )
+        return client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": bucket, "Key": "branding/email/ndga-logo.png"},
+            ExpiresIn=604800,
+        )
+    except Exception:  # noqa: BLE001
+        return ""
 
 
 def _school_email_html(*, subject, body_text, body_html="", request=None):
@@ -127,8 +193,6 @@ def _school_email_html(*, subject, body_text, body_html="", request=None):
         {
             "school_profile": profile,
             "logo_url": resolved_logo_url,
-            # Gmail is more reliable with an absolute HTTPS image than a base64 data URI.
-            "logo_data_uri": resolved_logo_url or school_logo_data_uri(),
             "subject": subject,
             "body_html_content": mark_safe(rendered_body),
             "portal_home": portal_home,

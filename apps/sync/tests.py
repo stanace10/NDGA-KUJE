@@ -33,6 +33,7 @@ from apps.cbt.models import (
     QuestionBank,
 )
 from apps.elections.models import Election, ElectionStatus, VoterGroup
+from apps.results.models import ResultSheet, ResultSheetStatus, StudentSubjectScore
 from apps.setup_wizard.models import SetupStateCode, SystemSetupState
 from apps.sync.models import (
     SyncContentChange,
@@ -62,7 +63,7 @@ from apps.sync.services import (
     queue_vote_submission_sync,
 )
 from apps.sync.content_sync import register_cbt_content_change
-from apps.sync.model_sync import apply_generic_model_payload
+from apps.sync.model_sync import apply_generic_model_payload, queue_generic_model_change
 from apps.sync.models import SyncContentOperation
 
 
@@ -2563,3 +2564,142 @@ class GenericModelSyncTests(TestCase):
         row = SyncQueue.objects.get(idempotency_key="generic-open-election-block")
         self.assertEqual(row.status, SyncQueueStatus.RETRY)
         self.assertFalse(VoterGroup.objects.filter(name="Blocked Group").exists())
+
+
+@override_settings(**SYNC_TEST_HOST_SETTINGS)
+class LanResultsOnlyModeTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.role_student = Role.objects.get(code=ROLE_STUDENT)
+        cls.session = AcademicSession.objects.create(name="2031/2032")
+        cls.term = Term.objects.create(session=cls.session, name="THIRD")
+        cls.academic_class = AcademicClass.objects.create(code="JS2B", display_name="JS2 Blue")
+        cls.subject = Subject.objects.create(name="English Language", code="ENGX")
+
+    def setUp(self):
+        SyncQueue.objects.all().delete()
+        SyncModelBinding.objects.all().delete()
+
+    def _make_student(self, username="results-only-student"):
+        user = User.objects.create_user(
+            username=username,
+            password="Password123!",
+            primary_role=self.role_student,
+            must_change_password=False,
+        )
+        StudentProfile.objects.create(
+            user=user,
+            student_number=f"NDGA/{user.id}/RO",
+            guardian_email="guardian@example.com",
+        )
+        return user
+
+    @override_settings(SYNC_NODE_ROLE="LAN", SYNC_LAN_RESULTS_ONLY_MODE=True)
+    def test_results_only_mode_skips_student_registration_queue(self):
+        student = self._make_student(username="results-only-registration")
+        StudentClassEnrollment.objects.create(
+            student=student,
+            academic_class=self.academic_class,
+            session=self.session,
+            is_active=True,
+        )
+        StudentSubjectEnrollment.objects.create(
+            student=student,
+            subject=self.subject,
+            session=self.session,
+            is_active=True,
+        )
+
+        result = queue_student_registration_sync(user=student, raw_password="TempPass123")
+
+        self.assertIsNone(result)
+        self.assertEqual(SyncQueue.objects.count(), 0)
+
+    @override_settings(SYNC_NODE_ROLE="LAN", SYNC_LAN_RESULTS_ONLY_MODE=True)
+    def test_results_only_mode_queues_published_result_scores_only(self):
+        student = self._make_student(username="results-only-score")
+        result_sheet = ResultSheet.objects.create(
+            academic_class=self.academic_class,
+            subject=self.subject,
+            session=self.session,
+            term=self.term,
+            status=ResultSheetStatus.DRAFT,
+        )
+        score = StudentSubjectScore.objects.create(
+            result_sheet=result_sheet,
+            student=student,
+            ca1=Decimal("8.00"),
+            objective=Decimal("20.00"),
+        )
+
+        blocked = queue_generic_model_change(instance=score)
+        self.assertIsNone(blocked)
+        self.assertEqual(SyncQueue.objects.count(), 0)
+
+        result_sheet.status = ResultSheetStatus.PUBLISHED
+        result_sheet.save(update_fields=["status", "updated_at"])
+
+        queued = queue_generic_model_change(instance=score)
+
+        self.assertIsNotNone(queued)
+        row, created = queued
+        self.assertTrue(created)
+        self.assertEqual(row.operation_type, SyncOperationType.MODEL_RECORD_UPSERT)
+        self.assertEqual(row.payload["model"], "results.studentsubjectscore")
+
+    @override_settings(SYNC_NODE_ROLE="LAN", SYNC_LAN_RESULTS_ONLY_MODE=True)
+    def test_results_only_mode_fails_existing_disallowed_queue_rows(self):
+        row, _ = queue_sync_operation(
+            operation_type=SyncOperationType.STUDENT_REGISTRATION_UPSERT,
+            payload={"student_number": "NDGA/RO/1"},
+            object_ref="student:NDGA/RO/1",
+            idempotency_key="results-only-block-existing-row",
+        )
+
+        with patch("apps.sync.services._dispatch_to_cloud") as mocked_dispatch:
+            result = process_queue_row(row)
+
+        row.refresh_from_db()
+        mocked_dispatch.assert_not_called()
+        self.assertTrue(result["processed"])
+        self.assertEqual(row.status, SyncQueueStatus.FAILED)
+        self.assertIn("results-only", row.last_error.lower())
+
+    @override_settings(
+        SYNC_NODE_ROLE="LAN",
+        SYNC_LAN_RESULTS_ONLY_MODE=True,
+        SYNC_CLOUD_ENDPOINT="https://sync.example/sync/api",
+        SYNC_PULL_ENABLED=True,
+    )
+    def test_results_only_mode_disables_remote_outbox_pull(self):
+        summary = pull_remote_outbox_updates(limit=20, max_pages=1)
+
+        self.assertFalse(summary["triggered"])
+        self.assertEqual(summary["reason"], "lan_results_only_mode")
+
+    @override_settings(SYNC_NODE_ROLE="LAN", SYNC_LAN_RESULTS_ONLY_MODE=True)
+    def test_results_only_mode_rejects_inbound_remote_outbox_events(self):
+        with self.assertRaises(ValidationError):
+            ingest_remote_outbox_event(
+                envelope={
+                    "idempotency_key": "results-only-inbound-block",
+                    "operation_type": SyncOperationType.MODEL_RECORD_UPSERT,
+                    "object_ref": "academics.subject:cloud-node:1",
+                    "conflict_rule": SyncConflictRule.LAST_WRITE_WINS,
+                    "conflict_key": "academics.subject:cloud-node:1",
+                    "local_node_id": "cloud-node",
+                    "payload": {
+                        "model": "academics.subject",
+                        "identity": {
+                            "model": "academics.subject",
+                            "source_node_id": "cloud-node",
+                            "source_pk": "1",
+                            "lookup": {"code": "ENGX"},
+                        },
+                        "fields": {"name": "English Language", "code": "ENGX"},
+                        "m2m": {},
+                    },
+                }
+            )
+
+        self.assertEqual(SyncQueue.objects.count(), 0)

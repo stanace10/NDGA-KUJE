@@ -133,8 +133,8 @@
     </article>
 
     <article class="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h2 class="text-base font-semibold text-slate-900">Psychomotor, Attendance Summary & Form Teacher Comment</h2>
-      <p class="mt-1 text-sm text-slate-600">The form teacher records the psychomotor ratings and writes the form teacher comment for this student.</p>
+      <h2 class="text-base font-semibold text-slate-900">Form Teacher Comment & Class Record</h2>
+      <p class="mt-1 text-sm text-slate-600">Write the class comment directly here and keep the student record clean and focused.</p>
       {% if is_read_only %}
         <p class="mt-2 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
           This record is read-only because this term is closed or already published.
@@ -143,6 +143,18 @@
       <form method="post" id="cumulative-form" class="mt-4 space-y-4">
         {% csrf_token %}
         <input id="behavior_rating" type="hidden" name="behavior_rating" value="{{ behavior_rating }}">
+        <div class="rounded-3xl border border-[rgba(11,31,58,0.08)] bg-[#fdfaf3] p-4 sm:p-5">
+          <label class="mb-2 block text-sm font-semibold text-slate-800" for="teacher_comment">Form Teacher Comment</label>
+          <textarea
+            id="teacher_comment"
+            name="teacher_comment"
+            rows="5"
+            class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm leading-7"
+            placeholder="Write the final form teacher comment for this student."
+            {% if is_read_only %}readonly{% endif %}
+          >{{ record.teacher_comment }}</textarea>
+          <p class="mt-2 text-xs text-slate-500">You can type your own comment or use one of the optional suggestions below.</p>
+        </div>
         <div class="grid gap-3 md:grid-cols-2">
           {% for metric in behavior_metrics %}
             <div class="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
@@ -160,17 +172,7 @@
             </div>
           {% endfor %}
         </div>
-        <div>
-          <label class="mb-1 block text-sm font-semibold text-slate-700" for="teacher_comment">Form Teacher Comment</label>
-          <textarea
-            id="teacher_comment"
-            name="teacher_comment"
-            rows="4"
-            class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-            {% if is_read_only %}readonly{% endif %}
-          >{{ record.teacher_comment }}</textarea>
-        </div>
-        <div class="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+        <div class="grid gap-3 lg:grid-cols-2">
           <div>
             <label class="mb-1 block text-sm font-semibold text-slate-700" for="club_membership">Club / Society</label>
             <input id="club_membership" name="club_membership" type="text" value="{{ record.club_membership }}" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" {% if is_read_only %}readonly{% endif %}>
@@ -179,33 +181,9 @@
             <label class="mb-1 block text-sm font-semibold text-slate-700" for="office_held">Office Held</label>
             <input id="office_held" name="office_held" type="text" value="{{ record.office_held }}" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" {% if is_read_only %}readonly{% endif %}>
           </div>
-          <div>
-            <label class="mb-1 block text-sm font-semibold text-slate-700" for="medical_incidents">Medical Incidents</label>
-            <input id="medical_incidents" name="medical_incidents" type="number" min="0" value="{{ record.medical_incidents }}" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" {% if is_read_only %}readonly{% endif %}>
-          </div>
-          <div>
-            <label class="mb-1 block text-sm font-semibold text-slate-700" for="height_start_cm">Height Start (cm)</label>
-            <input id="height_start_cm" name="height_start_cm" type="number" step="0.1" value="{{ record.height_start_cm|default_if_none:'' }}" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" {% if is_read_only %}readonly{% endif %}>
-          </div>
-          <div>
-            <label class="mb-1 block text-sm font-semibold text-slate-700" for="height_end_cm">Height End (cm)</label>
-            <input id="height_end_cm" name="height_end_cm" type="number" step="0.1" value="{{ record.height_end_cm|default_if_none:'' }}" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" {% if is_read_only %}readonly{% endif %}>
-          </div>
-          <div>
-            <label class="mb-1 block text-sm font-semibold text-slate-700" for="weight_start_kg">Weight Start (kg)</label>
-            <input id="weight_start_kg" name="weight_start_kg" type="number" step="0.1" value="{{ record.weight_start_kg|default_if_none:'' }}" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" {% if is_read_only %}readonly{% endif %}>
-          </div>
-          <div>
-            <label class="mb-1 block text-sm font-semibold text-slate-700" for="weight_end_kg">Weight End (kg)</label>
-            <input id="weight_end_kg" name="weight_end_kg" type="number" step="0.1" value="{{ record.weight_end_kg|default_if_none:'' }}" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" {% if is_read_only %}readonly{% endif %}>
-          </div>
           <div class="xl:col-span-2">
             <label class="mb-1 block text-sm font-semibold text-slate-700" for="notable_contribution">Significant Contribution</label>
             <textarea id="notable_contribution" name="notable_contribution" rows="3" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" {% if is_read_only %}readonly{% endif %}>{{ record.notable_contribution }}</textarea>
-          </div>
-          <div class="xl:col-span-3">
-            <label class="mb-1 block text-sm font-semibold text-slate-700" for="doctor_remark">Doctor's Remark</label>
-            <textarea id="doctor_remark" name="doctor_remark" rows="3" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" {% if is_read_only %}readonly{% endif %}>{{ record.doctor_remark }}</textarea>
           </div>
         </div>
         <div class="space-y-3">
@@ -223,10 +201,6 @@
                 <div class="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-500">No suggestion available.</div>
               {% endfor %}
             </div>
-          </div>
-          <div class="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
-            <p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Principal Comment Preview</p>
-            <p class="mt-1 text-sm text-slate-700">{{ comment_bundle.principal_comment }}</p>
           </div>
         </div>
         <div class="flex flex-wrap gap-2">

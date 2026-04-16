@@ -6,8 +6,10 @@ from django.contrib import messages
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.db import transaction
 from django.db.models import Q
+from django.urls import reverse
 from django.shortcuts import get_object_or_404, redirect
 from django.utils import timezone
+from django.views import View
 from django.views.generic import TemplateView
 
 from apps.accounts.constants import ROLE_BURSAR, ROLE_IT_MANAGER, ROLE_PRINCIPAL, ROLE_STUDENT, ROLE_VP
@@ -19,11 +21,14 @@ from apps.accounts.forms import (
 from apps.accounts.models import Role, StudentProfile, User
 from apps.academics.models import AcademicClass, StudentClassEnrollment
 from apps.dashboard.models import (
+    PublicAdmissionPaymentMode,
     PublicAdmissionPaymentStatus,
     PublicAdmissionWorkflowStatus,
     PublicSiteSubmission,
     PublicSubmissionType,
 )
+from apps.dashboard.public_admission_utils import build_public_admission_snapshot
+from apps.dashboard.public_views import _public_admission_pdf_response
 from apps.dashboard.views import PortalPageView
 from apps.setup_wizard.services import get_setup_state
 
@@ -115,6 +120,8 @@ class AdmissionsWorkflowBaseView(PortalPageView, UserPassesTestMixin):
     board_mode = "admin"
     portal_name = "Admissions Workflow"
     portal_description = "Review online admission applications and fee status."
+    list_url_name = ""
+    detail_url_name = ""
 
     def test_func(self):
         return any(self.request.user.has_role(code) for code in self.allowed_roles)
@@ -123,15 +130,32 @@ class AdmissionsWorkflowBaseView(PortalPageView, UserPassesTestMixin):
         messages.error(self.request, "You do not have access to the admissions workflow.")
         return redirect("dashboard:landing")
 
-    def _filtered_rows(self):
-        rows = (
+    def _base_rows(self):
+        return (
             PublicSiteSubmission.objects.filter(submission_type=PublicSubmissionType.ADMISSION)
             .select_related("reviewed_by", "linked_student", "linked_student__student_profile")
+            .prefetch_related("payment_transactions")
             .order_by("-created_at")
         )
+
+    def _class_options(self):
+        rows = (
+            self._base_rows()
+            .exclude(intended_class__isnull=True)
+            .exclude(intended_class__exact="")
+            .values_list("intended_class", flat=True)
+            .distinct()
+        )
+        return sorted(rows)
+
+    def _filtered_rows(self):
+        rows = self._base_rows()
+        class_filter = (self.request.GET.get("class") or "").strip()
         workflow_filter = (self.request.GET.get("workflow") or "").strip().upper()
         payment_filter = (self.request.GET.get("payment") or "").strip().upper()
         query = (self.request.GET.get("q") or "").strip()
+        if class_filter:
+            rows = rows.filter(intended_class__iexact=class_filter)
         if workflow_filter in {value for value, _label in PublicAdmissionWorkflowStatus.choices}:
             rows = rows.filter(admissions_status=workflow_filter)
         if payment_filter in {value for value, _label in PublicAdmissionPaymentStatus.choices}:
@@ -153,26 +177,25 @@ class AdmissionsWorkflowBaseView(PortalPageView, UserPassesTestMixin):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         submissions = list(self._filtered_rows()[:150])
-        all_rows = PublicSiteSubmission.objects.filter(
-            submission_type=PublicSubmissionType.ADMISSION
-        )
+        for row in submissions:
+            row.admission_snapshot = build_public_admission_snapshot(row)
+            row.staff_download_url = reverse("dashboard:staff-admission-form-download", args=[row.id])
+            row.detail_url = reverse(self.detail_url_name, args=[row.id])
+        all_rows = self._base_rows()
         context.update(
             {
                 "board_mode": self.board_mode,
                 "submissions": submissions,
                 "query": (self.request.GET.get("q") or "").strip(),
+                "class_filter": (self.request.GET.get("class") or "").strip(),
+                "class_options": self._class_options(),
                 "workflow_filter": (self.request.GET.get("workflow") or "").strip().upper(),
                 "payment_filter": (self.request.GET.get("payment") or "").strip().upper(),
                 "counts": {
                     "new": all_rows.filter(admissions_status=PublicAdmissionWorkflowStatus.NEW).count(),
                     "pending": all_rows.filter(admissions_status=PublicAdmissionWorkflowStatus.PENDING).count(),
                     "approved": all_rows.filter(admissions_status=PublicAdmissionWorkflowStatus.APPROVED).count(),
-                    "declined": all_rows.filter(admissions_status=PublicAdmissionWorkflowStatus.DECLINED).count(),
-                    "paid": all_rows.filter(payment_status=PublicAdmissionPaymentStatus.PAID).count(),
-                    "unpaid": all_rows.filter(payment_status=PublicAdmissionPaymentStatus.UNPAID).count(),
                 },
-                "workflow_options": PublicAdmissionWorkflowStatus.choices,
-                "payment_options": PublicAdmissionPaymentStatus.choices,
                 "can_review": self.board_mode == "admin",
                 "can_manage_payment": self.board_mode == "bursar",
             }
@@ -180,27 +203,16 @@ class AdmissionsWorkflowBaseView(PortalPageView, UserPassesTestMixin):
         return context
 
 
-class AdmissionsWorkflowAdminView(AdmissionsWorkflowBaseView):
-    allowed_roles = {ROLE_IT_MANAGER, ROLE_VP, ROLE_PRINCIPAL}
-    board_mode = "admin"
-    portal_description = (
-        "New registrations, pending admissions, and approved applicants are tracked here."
-    )
-
-    def post(self, request, *args, **kwargs):
+class AdmissionsWorkflowAdminMixin:
+    def _handle_admin_action(self, request, submission):
         action = (request.POST.get("action") or "").strip().lower()
-        submission = get_object_or_404(
-            PublicSiteSubmission,
-            pk=request.POST.get("submission_id"),
-            submission_type=PublicSubmissionType.ADMISSION,
-        )
         if action == "mark_pending":
             submission.admissions_status = PublicAdmissionWorkflowStatus.PENDING
             submission.reviewed_by = request.user
             submission.reviewed_at = timezone.now()
             submission.save(update_fields=["admissions_status", "reviewed_by", "reviewed_at", "updated_at"])
             messages.success(request, "Applicant moved to pending review.")
-            return redirect(request.path)
+            return True
         if action == "decline":
             submission.admissions_status = PublicAdmissionWorkflowStatus.DECLINED
             submission.reviewed_by = request.user
@@ -216,7 +228,7 @@ class AdmissionsWorkflowAdminView(AdmissionsWorkflowBaseView):
                 ]
             )
             messages.success(request, "Applicant marked as declined.")
-            return redirect(request.path)
+            return True
         if action == "approve":
             with transaction.atomic():
                 student_user = submission.linked_student
@@ -241,24 +253,32 @@ class AdmissionsWorkflowAdminView(AdmissionsWorkflowBaseView):
                     ]
                 )
             messages.success(request, f"Applicant approved with admission number {student_number}.")
-            return redirect(request.path)
-        messages.error(request, "Invalid admissions action.")
-        return redirect(request.path)
+            return True
+        return False
 
 
-class AdmissionsWorkflowBursarView(AdmissionsWorkflowBaseView):
-    allowed_roles = {ROLE_BURSAR}
-    board_mode = "bursar"
-    portal_name = "Bursar Portal"
-    portal_description = "Track admission form payments for applicants before full school fees begin."
+class AdmissionsWorkflowAdminView(AdmissionsWorkflowAdminMixin, AdmissionsWorkflowBaseView):
+    allowed_roles = {ROLE_IT_MANAGER, ROLE_VP, ROLE_PRINCIPAL}
+    board_mode = "admin"
+    portal_description = (
+        "New registrations, pending admissions, and approved applicants are tracked here."
+    )
 
     def post(self, request, *args, **kwargs):
-        action = (request.POST.get("action") or "").strip().lower()
         submission = get_object_or_404(
             PublicSiteSubmission,
             pk=request.POST.get("submission_id"),
             submission_type=PublicSubmissionType.ADMISSION,
         )
+        if self._handle_admin_action(request, submission):
+            return redirect(request.path)
+        messages.error(request, "Invalid admissions action.")
+        return redirect(request.path)
+
+
+class AdmissionsWorkflowBursarMixin:
+    def _handle_bursar_action(self, request, submission):
+        action = (request.POST.get("action") or "").strip().lower()
         if action == "mark_paid":
             amount_raw = (request.POST.get("application_fee_amount") or "").strip()
             reference = (request.POST.get("application_fee_reference") or "").strip()
@@ -266,11 +286,14 @@ class AdmissionsWorkflowBursarView(AdmissionsWorkflowBaseView):
                 amount = Decimal(amount_raw or "0")
             except Exception:
                 messages.error(request, "Enter a valid application fee amount.")
-                return redirect(request.path)
+                return True
             submission.application_fee_amount = amount
             submission.application_fee_reference = reference
             submission.payment_status = PublicAdmissionPaymentStatus.PAID
             submission.application_fee_paid_at = timezone.now()
+            metadata = dict(submission.metadata or {})
+            metadata["application_payment_mode"] = PublicAdmissionPaymentMode.PHYSICAL
+            submission.metadata = metadata
             if submission.admissions_status == PublicAdmissionWorkflowStatus.NEW:
                 submission.admissions_status = PublicAdmissionWorkflowStatus.PENDING
             submission.reviewed_by = request.user
@@ -281,6 +304,7 @@ class AdmissionsWorkflowBursarView(AdmissionsWorkflowBaseView):
                     "application_fee_reference",
                     "payment_status",
                     "application_fee_paid_at",
+                    "metadata",
                     "admissions_status",
                     "reviewed_by",
                     "reviewed_at",
@@ -288,22 +312,43 @@ class AdmissionsWorkflowBursarView(AdmissionsWorkflowBaseView):
                 ]
             )
             messages.success(request, "Applicant form fee recorded as paid.")
-            return redirect(request.path)
+            return True
         if action == "mark_unpaid":
             submission.payment_status = PublicAdmissionPaymentStatus.UNPAID
             submission.application_fee_paid_at = None
+            metadata = dict(submission.metadata or {})
+            metadata.pop("application_payment_mode", None)
+            submission.metadata = metadata
             submission.reviewed_by = request.user
             submission.reviewed_at = timezone.now()
             submission.save(
                 update_fields=[
                     "payment_status",
                     "application_fee_paid_at",
+                    "metadata",
                     "reviewed_by",
                     "reviewed_at",
                     "updated_at",
                 ]
             )
             messages.success(request, "Applicant reset to unpaid form-fee status.")
+            return True
+        return False
+
+
+class AdmissionsWorkflowBursarView(AdmissionsWorkflowBursarMixin, AdmissionsWorkflowBaseView):
+    allowed_roles = {ROLE_BURSAR}
+    board_mode = "bursar"
+    portal_name = "Bursar Portal"
+    portal_description = "Track admission form payments for applicants before full school fees begin."
+
+    def post(self, request, *args, **kwargs):
+        submission = get_object_or_404(
+            PublicSiteSubmission,
+            pk=request.POST.get("submission_id"),
+            submission_type=PublicSubmissionType.ADMISSION,
+        )
+        if self._handle_bursar_action(request, submission):
             return redirect(request.path)
         messages.error(request, "Invalid bursar admissions action.")
         return redirect(request.path)
@@ -311,11 +356,126 @@ class AdmissionsWorkflowBursarView(AdmissionsWorkflowBaseView):
 
 class ITAdmissionsWorkflowView(AdmissionsWorkflowAdminView):
     portal_name = "IT Manager Portal"
+    list_url_name = "dashboard:it-admissions-workflow"
+    detail_url_name = "dashboard:it-admissions-detail"
 
 
 class VPAdmissionsWorkflowView(AdmissionsWorkflowAdminView):
     portal_name = "Vice Principal Portal"
+    list_url_name = "dashboard:vp-admissions-workflow"
+    detail_url_name = "dashboard:vp-admissions-detail"
 
 
 class PrincipalAdmissionsWorkflowView(AdmissionsWorkflowAdminView):
     portal_name = "Principal Portal"
+    list_url_name = "dashboard:principal-admissions-workflow"
+    detail_url_name = "dashboard:principal-admissions-detail"
+
+
+class BursarAdmissionsWorkflowView(AdmissionsWorkflowBursarView):
+    list_url_name = "dashboard:bursar-admissions-workflow"
+    detail_url_name = "dashboard:bursar-admissions-detail"
+
+
+class AdmissionsApplicationDetailBaseView(AdmissionsWorkflowBaseView):
+    template_name = "dashboard/admission_application_detail.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        self.submission = get_object_or_404(
+            PublicSiteSubmission.objects.select_related("reviewed_by", "linked_student", "linked_student__student_profile"),
+            pk=kwargs.get("submission_id"),
+            submission_type=PublicSubmissionType.ADMISSION,
+        )
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        self.submission.admission_snapshot = build_public_admission_snapshot(self.submission)
+        self.submission.staff_download_url = reverse("dashboard:staff-admission-form-download", args=[self.submission.id])
+        context.update(
+            {
+                "submission": self.submission,
+                "back_url": reverse(self.list_url_name),
+                "can_review": self.board_mode == "admin",
+                "can_manage_payment": self.board_mode == "bursar",
+            }
+        )
+        return context
+
+
+class ITAdmissionDetailView(AdmissionsWorkflowAdminMixin, AdmissionsApplicationDetailBaseView):
+    allowed_roles = {ROLE_IT_MANAGER, ROLE_VP, ROLE_PRINCIPAL}
+    portal_name = "IT Manager Portal"
+    board_mode = "admin"
+    list_url_name = "dashboard:it-admissions-workflow"
+    detail_url_name = "dashboard:it-admissions-detail"
+
+    def post(self, request, *args, **kwargs):
+        if self._handle_admin_action(request, self.submission):
+            return redirect(self.detail_url_name, submission_id=self.submission.id)
+        messages.error(request, "Invalid admissions action.")
+        return redirect(self.detail_url_name, submission_id=self.submission.id)
+
+
+class VPAdmissionDetailView(AdmissionsWorkflowAdminMixin, AdmissionsApplicationDetailBaseView):
+    allowed_roles = {ROLE_IT_MANAGER, ROLE_VP, ROLE_PRINCIPAL}
+    portal_name = "Vice Principal Portal"
+    board_mode = "admin"
+    list_url_name = "dashboard:vp-admissions-workflow"
+    detail_url_name = "dashboard:vp-admissions-detail"
+
+    def post(self, request, *args, **kwargs):
+        if self._handle_admin_action(request, self.submission):
+            return redirect(self.detail_url_name, submission_id=self.submission.id)
+        messages.error(request, "Invalid admissions action.")
+        return redirect(self.detail_url_name, submission_id=self.submission.id)
+
+
+class PrincipalAdmissionDetailView(AdmissionsWorkflowAdminMixin, AdmissionsApplicationDetailBaseView):
+    allowed_roles = {ROLE_IT_MANAGER, ROLE_VP, ROLE_PRINCIPAL}
+    portal_name = "Principal Portal"
+    board_mode = "admin"
+    list_url_name = "dashboard:principal-admissions-workflow"
+    detail_url_name = "dashboard:principal-admissions-detail"
+
+    def post(self, request, *args, **kwargs):
+        if self._handle_admin_action(request, self.submission):
+            return redirect(self.detail_url_name, submission_id=self.submission.id)
+        messages.error(request, "Invalid admissions action.")
+        return redirect(self.detail_url_name, submission_id=self.submission.id)
+
+
+class BursarAdmissionDetailView(AdmissionsWorkflowBursarMixin, AdmissionsApplicationDetailBaseView):
+    allowed_roles = {ROLE_BURSAR}
+    portal_name = "Bursar Portal"
+    board_mode = "bursar"
+    list_url_name = "dashboard:bursar-admissions-workflow"
+    detail_url_name = "dashboard:bursar-admissions-detail"
+
+    def post(self, request, *args, **kwargs):
+        if self._handle_bursar_action(request, self.submission):
+            return redirect(self.detail_url_name, submission_id=self.submission.id)
+        messages.error(request, "Invalid bursar admissions action.")
+        return redirect(self.detail_url_name, submission_id=self.submission.id)
+
+
+class StaffAdmissionFormDownloadView(UserPassesTestMixin, View):
+    allowed_roles = {ROLE_BURSAR, ROLE_IT_MANAGER, ROLE_VP, ROLE_PRINCIPAL}
+
+    def test_func(self):
+        return any(self.request.user.has_role(code) for code in self.allowed_roles)
+
+    def handle_no_permission(self):
+        messages.error(self.request, "You do not have access to admission form downloads.")
+        return redirect("dashboard:landing")
+
+    def get(self, request, submission_id, *args, **kwargs):
+        submission = get_object_or_404(
+            PublicSiteSubmission,
+            pk=submission_id,
+            submission_type=PublicSubmissionType.ADMISSION,
+        )
+        if submission.payment_status != PublicAdmissionPaymentStatus.PAID:
+            messages.error(request, "Admission form PDF can only be downloaded after payment is confirmed.")
+            return redirect(request.META.get("HTTP_REFERER") or "dashboard:bursar-admissions-workflow")
+        return _public_admission_pdf_response(submission=submission, request=request)

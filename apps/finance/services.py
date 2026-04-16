@@ -532,6 +532,11 @@ def _paystack_api_request(*, path, method="GET", payload=None):
     headers = {
         "Authorization": f"Bearer {secret_key}",
         "Content-Type": "application/json",
+        "User-Agent": (
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+        ),
+        "Accept": "application/json",
     }
     body = None
     if payload is not None:
@@ -618,16 +623,10 @@ def _student_full_name(student):
 
 
 def resolve_payment_plan_amount(*, overview, payment_plan, fee_item="", percentage=None, custom_amount=None):
-    payment_plan = (payment_plan or "FULL").strip().upper()
+    payment_plan = (payment_plan or "FEE_ITEM").strip().upper()
     total_outstanding = _money((overview or {}).get("total_outstanding"))
     if total_outstanding <= Decimal("0.00"):
         raise ValidationError("There is no outstanding balance to pay.")
-
-    if payment_plan == "FULL":
-        return total_outstanding, {
-            "payment_plan": "FULL",
-            "label": "Full outstanding bundle",
-        }
 
     if payment_plan == "FEE_ITEM":
         selected_item = (fee_item or "").strip()
@@ -646,33 +645,10 @@ def resolve_payment_plan_amount(*, overview, payment_plan, fee_item="", percenta
         return outstanding, {
             "payment_plan": "FEE_ITEM",
             "fee_item": match.get("category"),
-            "label": f"{match.get('category')} only",
+            "label": match.get("category") or "Selected fee item",
         }
 
-    if payment_plan == "PERCENTAGE":
-        if percentage in {None, ""}:
-            raise ValidationError("Select the percentage payment to apply.")
-        percentage_value = int(percentage)
-        if percentage_value not in {25, 50, 75, 100}:
-            raise ValidationError("Unsupported percentage payment option.")
-        amount = _money(total_outstanding * Decimal(percentage_value) / Decimal("100"))
-        if amount <= Decimal("0.00"):
-            raise ValidationError("Computed percentage payment is too small.")
-        return amount, {
-            "payment_plan": "PERCENTAGE",
-            "percentage": percentage_value,
-            "label": f"{percentage_value}% of outstanding balance",
-        }
-
-    amount = _money(custom_amount)
-    if amount <= Decimal("0.00"):
-        raise ValidationError("Enter a valid payment amount.")
-    if amount > total_outstanding:
-        raise ValidationError("Custom amount cannot be more than the outstanding balance.")
-    return amount, {
-        "payment_plan": "CUSTOM",
-        "label": "Custom amount",
-    }
+    raise ValidationError("Select a posted fee item to continue.")
 
 
 def _remitta_amount_string(value):
@@ -1223,6 +1199,9 @@ def _finance_payment_export_url():
     configured = (getattr(settings, "FINANCE_CLOUD_EXPORT_ENDPOINT", "") or "").strip()
     if configured:
         return configured
+    manual_base = (getattr(settings, "MANUAL_UPDATE_REMOTE_BASE_URL", "") or "").strip().rstrip("/")
+    if manual_base:
+        return f"{manual_base}/finance/api/manual-export/payments/"
     base = (getattr(settings, "SYNC_CLOUD_ENDPOINT", "") or "").strip()
     if not base:
         return ""
@@ -1232,6 +1211,13 @@ def _finance_payment_export_url():
 
 def finance_sync_signing_secrets():
     secrets = []
+    manual_token = (getattr(settings, "MANUAL_UPDATE_TOKEN", "") or "").strip()
+    if manual_token:
+        secrets.append(manual_token)
+    for item in getattr(settings, "MANUAL_UPDATE_TOKEN_FALLBACKS", []) or []:
+        token = (item or "").strip()
+        if token and token not in secrets:
+            secrets.append(token)
     primary = (getattr(settings, "SYNC_PAYLOAD_SIGNING_SECRET", "") or "").strip()
     if primary:
         secrets.append(primary)
@@ -1756,19 +1742,22 @@ def debtor_rows(*, session, term=None):
     for row in charges_qs.filter(student__isnull=False).values("student_id").annotate(total=Sum("amount")):
         student_charge_map[int(row["student_id"])] = _money(row["total"])
 
-    class_charge_rows = list(
-        charges_qs.filter(academic_class__isnull=False).values("academic_class_id").annotate(total=Sum("amount"))
-    )
-    class_charge_map = {
-        int(row["academic_class_id"]): _money(row["total"])
-        for row in class_charge_rows
-    }
+    class_charge_map = {}
+    for charge in charges_qs.filter(academic_class__isnull=False).select_related("academic_class", "academic_class__base_class"):
+        instructional = charge.academic_class.instructional_class
+        class_charge_map[instructional.id] = _money(
+            class_charge_map.get(instructional.id, Decimal("0.00")) + _money(charge.amount)
+        )
 
     enrollment_qs = StudentClassEnrollment.objects.filter(session=session, is_active=True).select_related(
         "student",
         "academic_class",
+        "academic_class__base_class",
     )
-    student_class_map = {row.student_id: row.academic_class_id for row in enrollment_qs}
+    student_class_map = {
+        row.student_id: row.academic_class.instructional_class.id
+        for row in enrollment_qs
+    }
 
     payment_map = {}
     for row in payments_qs.values("student_id").annotate(total=Sum("amount")):
@@ -1809,17 +1798,18 @@ def debtor_rows(*, session, term=None):
 
 
 def student_finance_overview(*, student, session, term=None):
-    class_ids = list(
-        StudentClassEnrollment.objects.filter(
-            student=student,
-            session=session,
-            is_active=True,
-        ).values_list("academic_class_id", flat=True)
-    )
+    class_ids = set()
+    enrollments = StudentClassEnrollment.objects.filter(
+        student=student,
+        session=session,
+        is_active=True,
+    ).select_related("academic_class", "academic_class__base_class")
+    for enrollment in enrollments:
+        class_ids.update(enrollment.academic_class.instructional_class.cohort_class_ids())
 
     charge_filter = (
         Q(target_type=ChargeTargetType.STUDENT, student=student)
-        | Q(target_type=ChargeTargetType.CLASS, academic_class_id__in=class_ids)
+        | Q(target_type=ChargeTargetType.CLASS, academic_class_id__in=list(class_ids))
     )
     charges_qs = StudentCharge.objects.filter(
         session=session,

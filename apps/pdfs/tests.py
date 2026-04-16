@@ -22,6 +22,11 @@ from apps.academics.models import (
     Term,
 )
 from apps.dashboard.models import SchoolProfile
+from apps.finance.models import (
+    TranscriptRequest,
+    TranscriptRequestApprovalStatus,
+    TranscriptRequestPaymentStatus,
+)
 from apps.pdfs.models import PDFArtifact, PDFDocumentType
 from apps.pdfs.services import upsert_transcript_session_record
 from apps.results.models import (
@@ -171,6 +176,19 @@ class PDFStageEightTests(TestCase):
             client.force_login(user)
         return client
 
+    def _grant_transcript_access(self):
+        return TranscriptRequest.objects.create(
+            student=self.student,
+            session=self.session,
+            requested_by=self.student,
+            amount=Decimal("15000.00"),
+            payment_status=TranscriptRequestPaymentStatus.PAID,
+            approval_status=TranscriptRequestApprovalStatus.APPROVED,
+            approved_by=self.vp_user,
+            approved_at=timezone.now(),
+            released_at=timezone.now(),
+        )
+
     @patch("apps.pdfs.services.qr_code_data_uri", return_value="data:image/png;base64,AA==")
     @patch("apps.pdfs.services.render_pdf_bytes", return_value=b"%PDF-1.4 fake")
     def test_student_can_view_and_download_published_term_report(self, *_mocks):
@@ -291,6 +309,7 @@ class PDFStageEightTests(TestCase):
     @patch("apps.pdfs.services.qr_code_data_uri", return_value="data:image/png;base64,AA==")
     @patch("apps.pdfs.services.render_pdf_bytes", return_value=b"%PDF-1.4 fake")
     def test_transcript_download_for_student_and_vp(self, *_mocks):
+        self._grant_transcript_access()
         student_client = self._client("student.ndgakuje.org", self.student)
         student_response = student_client.get("/pdfs/student/transcript/download/")
         self.assertEqual(student_response.status_code, 200)
@@ -302,6 +321,7 @@ class PDFStageEightTests(TestCase):
     @patch("apps.pdfs.services.qr_code_data_uri", return_value="data:image/png;base64,AA==")
     @patch("apps.pdfs.services.render_pdf_bytes", return_value=b"%PDF-1.4 fake")
     def test_session_transcript_download_for_student_and_vp(self, *_mocks):
+        self._grant_transcript_access()
         self.session.is_closed = True
         self.session.save(update_fields=["is_closed", "updated_at"])
         upsert_transcript_session_record(

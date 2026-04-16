@@ -159,6 +159,7 @@ Current model:
 - approved academic data is published from LAN to cloud in controlled releases
 - cloud finance events can be pulled into LAN in controlled deltas
 - updates happen manually by IT when required
+- LAN can run with `SYNC_LAN_RESULTS_ONLY_MODE=True` so only published result-facing records remain eligible for outbound sync
 
 This means:
 - the school database on LAN is treated as the primary operational source
@@ -167,10 +168,13 @@ This means:
 
 ### Authority Split
 
-- LAN is authoritative for academics, attendance, CBT, operational finance work, and internal records
-- Cloud is authoritative for parent-facing online payment events and selected external profile updates
+- LAN is authoritative for academics, attendance, admissions, CBT, elections, operational finance work, and internal records
+- Cloud is authoritative only for parent-facing online payment events and external viewing surfaces
 - Final published results move up to cloud as release data, not as live draft tables
 - Cloud payment events move down to LAN through protected delta export and reconciliation tools
+- Staff, admin, bursar, CBT, election, and admissions operations are intended to run on LAN only
+- Student cloud access should stay limited to profile, attendance, subjects offered, digital ID, transcript, weekly challenge, classroom/LMS, published results, notifications, and payment visibility/initiation
+- Student learning hub, document vault, settings, and broader internal authoring/administrative workflows are intended to stay on LAN
 
 ### Reconciliation and Audit Protection
 

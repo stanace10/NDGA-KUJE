@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <style>
+    @page {
+      size: A4;
+      margin: 16mm 14mm 18mm 14mm;
+    }
+    body {
+      font-family: "DejaVu Serif", "Times New Roman", serif;
+      color: #1e293b;
+      margin: 0;
+      font-size: 12.4px;
+      line-height: 1.72;
+      background: #ffffff;
+    }
+    .page {
+      position: relative;
+    }
+    .watermark {
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0.05;
+      z-index: -1;
+    }
+    .watermark img {
+      width: 380px;
+      height: auto;
+    }
+    .masthead {
+      position: relative;
+      overflow: hidden;
+      border-radius: 22px;
+      background: linear-gradient(135deg, #112f57 0%, #1b487d 62%, #c79a35 100%);
+      color: #ffffff;
+      padding: 22px 24px 20px;
+      margin-bottom: 16px;
+    }
+    .masthead-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .masthead-table td {
+      vertical-align: top;
+    }
+    .logo-wrap {
+      width: 78px;
+    }
+    .logo-badge {
+      width: 66px;
+      height: 66px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.96);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px;
+      box-sizing: border-box;
+    }
+    .logo-badge img {
+      width: 50px;
+      height: 50px;
+      object-fit: contain;
+    }
+    .memo-kicker {
+      display: inline-block;
+      padding: 7px 14px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.18);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+    .school-name {
+      margin: 8px 0 4px;
+      font-size: 25px;
+      font-weight: 700;
+      line-height: 1.15;
+    }
+    .school-subline {
+      margin: 0;
+      color: #e2e8f0;
+      font-size: 11px;
+    }
+    .desk-title {
+      margin: 8px 0 0;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #f7d58b;
+    }
+    .memo-card {
+      border: 1px solid #dbe5f0;
+      border-radius: 18px;
+      padding: 16px 18px;
+      background: #ffffff;
+      margin-bottom: 16px;
+    }
+    .meta-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .meta-table td {
+      vertical-align: top;
+      padding: 0 12px 10px 0;
+      width: 50%;
+    }
+    .meta-label {
+      display: block;
+      font-size: 9.5px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #9a6b08;
+      margin-bottom: 4px;
+    }
+    .meta-value {
+      font-size: 12px;
+      font-weight: 600;
+      color: #0f172a;
+    }
+    .opening {
+      margin: 0 0 14px;
+      font-size: 13.8px;
+      font-weight: 600;
+      color: #334155;
+    }
+    .section {
+      margin-bottom: 14px;
+      page-break-inside: avoid;
+    }
+    .section-title {
+      margin: 0 0 8px;
+      font-size: 12.8px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #163f73;
+    }
+    .section p {
+      margin: 0 0 10px;
+      font-size: 12.2px;
+    }
+    .callout-grid {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0 10px;
+      margin: 2px 0 12px;
+    }
+    .callout-grid td {
+      vertical-align: top;
+    }
+    .callout {
+      border-radius: 16px;
+      padding: 13px 14px;
+      box-sizing: border-box;
+      border: 1px solid #dbe5f0;
+      background: #f8fbff;
+    }
+    .callout h3 {
+      margin: 0 0 7px;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #163f73;
+    }
+    .callout p,
+    .callout ul {
+      margin: 0;
+      font-size: 11.6px;
+      line-height: 1.55;
+      color: #334155;
+    }
+    .callout ul {
+      padding-left: 17px;
+    }
+    .callout li {
+      margin-bottom: 4px;
+    }
+    .callout-warning {
+      background: #fff5f5;
+      border-color: #fecaca;
+    }
+    .callout-warning h3 {
+      color: #9f1239;
+    }
+    .callout-warning p,
+    .callout-warning ul {
+      color: #5b2333;
+    }
+    .quote-box {
+      border-left: 4px solid #c79a35;
+      background: #fffaf0;
+      padding: 12px 14px;
+      border-radius: 0 14px 14px 0;
+      margin: 14px 0;
+    }
+    .quote-box p {
+      margin: 0;
+      font-size: 11.8px;
+      color: #5b4630;
+      font-style: italic;
+    }
+    .signature-block {
+      margin-top: 22px;
+      page-break-inside: avoid;
+    }
+    .signature-image {
+      height: 46px;
+      margin-bottom: 5px;
+    }
+    .signature-image img {
+      max-height: 46px;
+      width: auto;
+    }
+    .signature-line {
+      width: 210px;
+      border-top: 1.5px solid #94a3b8;
+      margin-top: 6px;
+      margin-bottom: 7px;
+    }
+    .signoff-name {
+      font-weight: 700;
+      font-size: 12.8px;
+      color: #0f172a;
+      margin: 0 0 1px;
+    }
+    .signoff-role {
+      margin: 0;
+      color: #475569;
+      font-size: 11.8px;
+    }
+    .footer {
+      margin-top: 18px;
+      padding-top: 10px;
+      border-top: 1px solid #dbe5f0;
+      font-size: 9.8px;
+      color: #64748b;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    {% if logo_data_uri %}
+      <div class="watermark">
+        <img src="{{ logo_data_uri }}" alt="School watermark">
+      </div>
+    {% endif %}
+
+    <div class="masthead">
+      <table class="masthead-table">
+        <tr>
+          <td class="logo-wrap">
+            {% if logo_data_uri %}
+              <div class="logo-badge">
+                <img src="{{ logo_data_uri }}" alt="{{ school_profile.school_name }}">
+              </div>
+            {% endif %}
+          </td>
+          <td>
+            <div class="memo-kicker">Official Memo</div>
+            <div class="school-name">{{ school_profile.school_name|default:"Notre Dame Girls Academy" }}</div>
+            <p class="school-subline">{{ school_address }}</p>
+            <p class="desk-title">From the Principal's Desk</p>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="memo-card">
+      <table class="meta-table">
+        <tr>
+          <td>
+            <span class="meta-label">Date</span>
+            <div class="meta-value">{{ memo_date }}</div>
+          </td>
+          <td>
+            <span class="meta-label">To</span>
+            <div class="meta-value">{{ recipient_line }}</div>
+          </td>
+        </tr>
+        <tr>
+          <td colspan="2">
+            <span class="meta-label">Subject</span>
+            <div class="meta-value">{{ subject }}</div>
+          </td>
+        </tr>
+      </table>
+
+      <p class="opening">{{ salutation }}</p>
+
+      <div class="section">
+        {% for paragraph in opening_paragraphs %}
+          <p>{{ paragraph }}</p>
+        {% endfor %}
+      </div>
+
+      <table class="callout-grid">
+        <tr>
+          <td style="width:50%; padding-right:8px;">
+            <div class="callout">
+              <h3>Gate and Resumption Control</h3>
+              <p>{{ resumption_policy }}</p>
+            </div>
+          </td>
+          <td style="width:50%; padding-left:8px;">
+            <div class="callout callout-warning">
+              <h3>Discipline and Conduct</h3>
+              <p>{{ conduct_policy }}</p>
+            </div>
+          </td>
+        </tr>
+      </table>
+
+      {% for section in body_sections %}
+        <div class="section">
+          <h2 class="section-title">{{ section.title }}</h2>
+          {% for paragraph in section.paragraphs %}
+            <p>{{ paragraph }}</p>
+          {% endfor %}
+        </div>
+      {% endfor %}
+
+      <div class="quote-box">
+        <p>"{{ scripture_text }}" ({{ scripture_reference }})</p>
+      </div>
+
+      <div class="section">
+        {% for paragraph in closing_paragraphs %}
+          <p>{{ paragraph }}</p>
+        {% endfor %}
+      </div>
+
+      <div class="signature-block">
+        <p style="margin:0 0 8px;">Yours faithfully,</p>
+        {% if principal_signature_data_uri %}
+          <div class="signature-image">
+            <img src="{{ principal_signature_data_uri }}" alt="Principal signature">
+          </div>
+        {% endif %}
+        <div class="signature-line"></div>
+        <p class="signoff-name">{{ principal_name }}</p>
+        <p class="signoff-role">{{ principal_role }}</p>
+      </div>
+    </div>
+
+    <div class="footer">
+      {{ school_profile.school_name|default:"Notre Dame Girls Academy" }}
+      {% if school_profile.contact_email %} | {{ school_profile.contact_email }}{% endif %}
+      {% if school_profile.contact_phone %} | {{ school_profile.contact_phone }}{% endif %}
+      {% if school_profile.website %} | {{ school_profile.website }}{% endif %}
+    </div>
+  </div>
+</body>
+</html>

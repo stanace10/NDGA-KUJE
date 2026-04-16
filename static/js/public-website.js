@@ -7,21 +7,25 @@
   const searchInput = document.querySelector("[data-search-input]");
   const searchItems = [...document.querySelectorAll("[data-search-item]")];
   const chatbot = document.querySelector("[data-chatbot]");
+  const chatbotPayloadElement = document.getElementById("ndga-chatbot-payload");
   const chatToggleButtons = [...document.querySelectorAll("[data-chatbot-open]")];
-  const supportViews = [...document.querySelectorAll("[data-support-view]")];
-  const supportTabs = [...document.querySelectorAll("[data-support-tab]")];
+  const chatbotScreens = [...document.querySelectorAll("[data-chatbot-screen]")];
+  const chatbotNavButtons = [...document.querySelectorAll("[data-chatbot-nav]")];
+  const chatbotCloseButtons = [...document.querySelectorAll("[data-chatbot-close]")];
+  const chatbotBackButtons = [...document.querySelectorAll("[data-chatbot-back]")];
+  const chatbotOpenMessageButtons = [...document.querySelectorAll("[data-chatbot-open-messages]")];
+  const chatbotHomeActionButtons = [...document.querySelectorAll("[data-chatbot-home-action]")];
+  const chatbotHomeLinkButtons = [...document.querySelectorAll("[data-chatbot-home-link]")];
   const chatbotLog = document.querySelector("[data-chatbot-log]");
   const chatbotForm = document.querySelector("[data-chatbot-form]");
   const chatbotInput = chatbotForm?.querySelector("input");
-  const chatbotEscalation = document.querySelector("[data-chatbot-escalation]");
+  const chatbotStatus = document.querySelector("[data-live-chat-status]");
+  const supportWhatsappLink = document.querySelector(".ndga-support-fab--whatsapp");
   const lightbox = document.querySelector("[data-lightbox]");
   const lightboxImage = document.querySelector("[data-lightbox-target]");
   const lightboxCaption = document.querySelector("[data-lightbox-caption]");
-  const liveChatShell = document.querySelector("[data-live-chat-shell]");
-  const liveChatForm = document.querySelector("[data-live-chat-form]");
-  const liveChatStatus = document.querySelector("[data-live-chat-status]");
-  const supportTicketList = document.querySelector("[data-support-ticket-list]");
   const rotatingGalleries = [...document.querySelectorAll("[data-rotating-gallery]")];
+  const announcementBar = document.querySelector("[data-announcement-bar]");
 
   const lockBody = (locked) => {
     body.style.overflow = locked ? "hidden" : "";
@@ -116,149 +120,396 @@
     });
   });
 
-  const setSupportView = (target) => {
-    if (!target) return;
-    supportViews.forEach((view) => {
-      view.classList.toggle("is-active", view.getAttribute("data-support-view") === target);
+  if (announcementBar) {
+    window.setTimeout(() => {
+      announcementBar.classList.add("is-dismissed");
+    }, 8000);
+  }
+
+  const chatbotPayload = (() => {
+    if (!chatbotPayloadElement) return {};
+    try {
+      return JSON.parse(chatbotPayloadElement.textContent || "{}");
+    } catch (error) {
+      return {};
+    }
+  })();
+
+  const chatbotKnowledge = Array.isArray(chatbotPayload.answers) ? chatbotPayload.answers : [];
+  const chatbotFallback = chatbotPayload.fallback || {};
+  const chatbotLiveChatUrl = chatbot?.getAttribute("data-live-chat-url") || "";
+  const chatbotCsrfToken = chatbot?.getAttribute("data-live-chat-csrf") || "";
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const greetingPattern = /^(hi|hello|hey|good morning|good afternoon|good evening)\b/;
+  const fallbackReplies = [
+    "I did not catch that clearly. Ask me about admissions, boarding, academics, school life, contact details, or the school location.",
+    "I can help best with short NDGA questions like admissions, boarding, subjects, school life, or how to contact the school.",
+    "Try a simple question such as how to apply, what boarding is like, where the school is, or how to contact admissions.",
+  ];
+  const clarificationReplies = [
+    "I am here to answer NDGA questions. Ask about admissions, boarding, academics, school life, safeguarding, contact details, or directions.",
+    "Please type a short school question so I can help properly. For example: how do I apply, what is boarding like, or where is NDGA located?",
+  ];
+  let fallbackReplyIndex = 0;
+  let clarificationReplyIndex = 0;
+  let contactFlow = { active: false, step: null, data: {} };
+
+  const normalizeText = (value) =>
+    (value || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const setChatStatus = (text = "") => {
+    if (chatbotStatus) chatbotStatus.textContent = text;
+  };
+
+  const setActiveChatScreen = (screen) => {
+    chatbotScreens.forEach((panel) => {
+      panel.classList.toggle("is-active", panel.getAttribute("data-chatbot-screen") === screen);
     });
-    supportTabs.forEach((tab) => {
-      tab.classList.toggle("is-active", tab.getAttribute("data-support-tab") === target);
+    chatbotNavButtons.forEach((button) => {
+      button.classList.toggle("is-active", button.getAttribute("data-chatbot-nav") === screen);
     });
   };
 
-  const openChatbot = (targetView = "home") => {
+  const openChatbot = (screen = "home") => {
     if (!chatbot) return;
-    chatbot?.classList.add("is-open");
-    setSupportView(targetView);
+    chatbot.classList.add("is-open");
+    setActiveChatScreen(screen);
+    if (screen === "messages") {
+      window.setTimeout(() => chatbotInput?.focus(), 120);
+    }
   };
+
   const closeChatbot = () => {
     chatbot?.classList.remove("is-open");
-    setSupportView("home");
-    toggleEscalationPrompt(false);
-    if (liveChatShell) {
-      liveChatShell.hidden = true;
-    }
-    if (liveChatStatus) {
-      liveChatStatus.textContent = "";
-    }
+    setChatStatus("");
     chatbotInput?.blur();
   };
 
+  const scrollChatToEnd = () => {
+    if (!chatbotLog) return;
+    chatbotLog.scrollTop = chatbotLog.scrollHeight;
+  };
+
   const addChatMessage = (text, sender, options = {}) => {
-    if (!chatbotLog || !text) return;
+    if (!chatbotLog || !text) return null;
     const article = document.createElement("article");
     article.className = `public-live-chat-bubble is-${sender}`;
     const title = document.createElement("strong");
-    title.textContent = options.label || (sender === "user" ? "Visitor" : "Smart Julie");
+    title.textContent = options.label || (sender === "user" ? "You" : "Smart NDGA");
     const body = document.createElement("p");
     body.textContent = text;
     article.append(title, body);
     chatbotLog.appendChild(article);
-    chatbotLog.scrollTop = chatbotLog.scrollHeight;
+    scrollChatToEnd();
+    return article;
   };
 
-  const toggleEscalationPrompt = (visible) => {
-    if (!chatbotEscalation) return;
-    chatbotEscalation.hidden = !visible;
+  const addTypingIndicator = () => {
+    if (!chatbotLog) return null;
+    const article = document.createElement("article");
+    article.className = "public-live-chat-bubble is-agent is-typing";
+    const title = document.createElement("strong");
+    title.textContent = "Smart NDGA";
+    const dots = document.createElement("div");
+    dots.className = "ndga-support-typing-dots";
+    dots.innerHTML = "<span></span><span></span><span></span>";
+    article.append(title, dots);
+    chatbotLog.appendChild(article);
+    scrollChatToEnd();
+    return article;
   };
 
-  const supportKnowledge = [
-    {
-      matches: ["apply", "application", "admission", "register", "registration", "form"],
-      reply:
-        "Begin from the online registration page. Applicants provide student details, boarding preference, and supporting documents before screening and approval.",
-    },
-    {
-      matches: ["exam", "screening", "screen", "entrance"],
-      reply:
-        "Entrance screening covers English Language, Mathematics, and General Paper. The admissions team confirms each screening date after registration review.",
-    },
-    {
-      matches: ["boarding", "hostel", "boarder"],
-      reply:
-        "NDGA is a boarding school with supervised hostel routine, prep, welfare guidance, and structured daily care for students.",
-    },
-    {
-      matches: ["fee", "fees", "payment", "pay", "bursar"],
-      reply:
-        "The fees page shows the class-by-class structure, while admissions and bursary guidance confirm the latest approved figures for each admission cycle.",
-    },
-    {
-      matches: ["subject", "curriculum", "academic", "waec", "neco", "class", "jss", "ss"],
-      reply:
-        "NDGA offers junior and senior secondary learning with core subjects, exam preparation, ICT exposure, and structured academic follow-up across the term.",
-    },
-    {
-      matches: ["club", "sports", "music", "jets", "activities", "co-curricular"],
-      reply:
-        "Student life includes clubs, sports, leadership opportunities, faith formation, and school activities that support balanced development.",
-    },
-    {
-      matches: ["location", "map", "direction", "address", "where"],
-      reply:
-        "The school is just after SS Simon and Jude Minor Seminary, Kuchiyako, Kuje-Abuja. Use the map link in this panel for direct navigation.",
-    },
-    {
-      matches: ["contact", "email", "phone", "office"],
-      reply:
-        "You can reach the school through +234 902 940 5413, +234 813 341 3127, or office@ndgakuje.org.",
-    },
-    {
-      matches: ["facebook", "twitter", "x", "social"],
-      reply:
-        "School updates are published through the NDGA website news area, direct admissions support, and management follow-up when needed. You can also use WhatsApp for a quick external contact option.",
-    },
-    {
-      matches: ["principal", "welcome", "hallmark", "history", "sisters", "catholic"],
-      reply:
-        "NDGA is a Catholic girls' secondary school of the Sisters of Notre Dame de Namur, shaped by learning, discipline, community, service, faith formation, and the dignity of the girl child.",
-    },
-    {
-      matches: ["safeguarding", "safety", "child protection", "welfare"],
-      reply:
-        "Student safety and welfare are taken seriously. NDGA's safeguarding commitment recognises the dignity of every child and supports a safe, caring environment in partnership with parents and guardians.",
-    },
-    {
-      matches: ["term", "resumption", "resume", "calendar"],
-      reply:
-        "Third term for the 2025/2026 session is set to begin on April 20, 2026. Earlier term records remain viewable through portal filters.",
-    },
-    {
-      matches: ["portal", "result", "download", "performance"],
-      reply:
-        "Students and parents can use the portal to view results, download reports, check finance visibility, and follow approved school updates.",
-    },
-    {
-      matches: ["transcript", "certificate", "document"],
-      reply:
-        "Transcript access is processed through the student portal after payment and management approval. Students are notified when the transcript is ready.",
-    },
+  const addQuickReplies = (items = []) => {
+    if (!chatbotLog || !items.length) return;
+    const wrap = document.createElement("div");
+    wrap.className = "ndga-support-quickreplies";
+    items.slice(0, 3).forEach((item) => {
+      if (!item?.label) return;
+      if (item.url) {
+        const anchor = document.createElement("a");
+        anchor.href = item.url;
+        anchor.textContent = item.label;
+        if (/^https?:\/\//i.test(item.url)) {
+          anchor.target = "_blank";
+          anchor.rel = "noreferrer";
+        }
+        wrap.appendChild(anchor);
+        return;
+      }
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = item.label;
+      button.dataset.chatbotAction = item.action || "query";
+      if (item.value) button.dataset.chatbotValue = item.value;
+      wrap.appendChild(button);
+    });
+    chatbotLog.appendChild(wrap);
+    scrollChatToEnd();
+  };
+
+  const baseQuickReplies = () => [
+    { label: "Start Admission", url: "/admissions/registration/" },
+    { label: "Ask a Question", action: "focus" },
+    { label: "Talk to School", action: "lead" },
   ];
 
+  const suggestionQuickReplies = (payload) => {
+    const replies = [];
+    (payload?.links || []).slice(0, 1).forEach((link) => {
+      if (link?.label && link?.url) replies.push({ label: link.label, url: link.url });
+    });
+    if (replies.length < 3 && payload?.suggestions?.[0]) {
+      replies.push({ label: payload.suggestions[0], action: "query", value: payload.suggestions[0] });
+    }
+    while (replies.length < 3) {
+      const fallback = baseQuickReplies()[replies.length];
+      if (!fallback) break;
+      replies.push(fallback);
+    }
+    return replies;
+  };
+
+  const ensureChatIntro = () => {
+    if (!chatbotLog || chatbotLog.querySelector(".public-live-chat-bubble")) return;
+    addChatMessage("Hi. Ask me about admissions, boarding, school life, or contact details.", "agent");
+    addQuickReplies(baseQuickReplies());
+  };
+
+  const nextFallbackReply = () => {
+    const reply = fallbackReplies[fallbackReplyIndex % fallbackReplies.length];
+    fallbackReplyIndex += 1;
+    return reply;
+  };
+
+  const nextClarificationReply = () => {
+    const reply = clarificationReplies[clarificationReplyIndex % clarificationReplies.length];
+    clarificationReplyIndex += 1;
+    return reply;
+  };
+
+  const scoreKnowledgeEntry = (query, entry) => {
+    const normalizedQuery = normalizeText(query);
+    if (!normalizedQuery) return -1;
+    let score = 0;
+
+    (entry.phrases || []).forEach((phrase) => {
+      const normalizedPhrase = normalizeText(phrase);
+      if (!normalizedPhrase) return;
+      if (normalizedQuery === normalizedPhrase) score += 140;
+      else if (normalizedQuery.includes(normalizedPhrase)) score += 72;
+    });
+
+    let keywordMatches = 0;
+    (entry.keywords || []).forEach((keyword) => {
+      const normalizedKeyword = normalizeText(keyword);
+      if (!normalizedKeyword) return;
+      if (normalizedQuery.includes(normalizedKeyword)) {
+        keywordMatches += 1;
+        score += normalizedKeyword.includes(" ") ? 18 : 9;
+      }
+    });
+
+    if (keywordMatches === 1 && score < 20) score -= 6;
+    return score;
+  };
+
   const resolveSupportReply = (message) => {
-    const text = message.toLowerCase();
-    const directEscalation =
-      text.includes("management") ||
-      text.includes("human") ||
-      text.includes("agent") ||
-      text.includes("live chat");
-    if (directEscalation) {
+    const normalizedMessage = normalizeText(message);
+    const compactMessage = normalizedMessage.replace(/\s+/g, "");
+    const tokenCount = normalizedMessage ? normalizedMessage.split(" ").filter(Boolean).length : 0;
+    const explicitHumanRequest = /(^|\s)(talk to admissions|talk to school|talk to management|speak to someone|speak with someone|human agent|live chat|contact school|complaint|complain|report an issue|report issue)(\s|$)/.test(normalizedMessage);
+    if (explicitHumanRequest) {
       return {
-        reply: "I can connect you with management. Would you like me to open the management chat window?",
-        escalate: true,
+        reply: "I can help you send this directly to the school. What is your full name?",
+        human: true,
       };
     }
-    const match = supportKnowledge.find((entry) =>
-      entry.matches.some((token) => text.includes(token))
-    );
-    if (match) {
-      return { reply: match.reply, escalate: false };
+
+    if (!normalizedMessage) {
+      return {
+        ...chatbotFallback,
+        reply: nextClarificationReply(),
+      };
     }
+
+    if (greetingPattern.test(normalizedMessage)) {
+      return {
+        reply: "Hello. I can help with NDGA admissions, boarding, academics, school life, contact details, and directions. What would you like to know?",
+        suggestions: [
+          "How do I apply?",
+          "Tell me about NDGA.",
+          "What is boarding like?",
+        ],
+        links: [
+          { label: "Admissions Overview", "url": "/admissions/" },
+        ],
+      };
+    }
+
+    if (compactMessage.length <= 2 || (/^[a-z]+$/.test(compactMessage) && compactMessage.length <= 5 && !/[aeiou]/.test(compactMessage))) {
+      return {
+        ...chatbotFallback,
+        reply: nextClarificationReply(),
+      };
+    }
+
+    const ranked = chatbotKnowledge
+      .map((entry) => ({ entry, score: scoreKnowledgeEntry(normalizedMessage, entry) }))
+      .sort((left, right) => right.score - left.score);
+
+    if (ranked[0] && ranked[0].score >= 18) return ranked[0].entry;
+    if (ranked[0] && ranked[0].score >= 10 && tokenCount <= 4) return ranked[0].entry;
+
     return {
-      reply:
-        "I may not have the exact answer to that yet. Would you like to chat with management so your enquiry can be handled directly?",
-      escalate: true,
+      ...chatbotFallback,
+      reply: nextFallbackReply(),
     };
+  };
+
+  const deliverSupportReply = (payload) => {
+    const typingBubble = addTypingIndicator();
+    window.setTimeout(() => {
+      typingBubble?.remove();
+      addChatMessage(payload.reply || chatbotFallback.reply || "Ask me anything about NDGA.", "agent");
+      addQuickReplies(suggestionQuickReplies(payload));
+      chatbotInput?.focus();
+    }, 260);
+  };
+
+  const openMessagesView = () => {
+    openChatbot("messages");
+    ensureChatIntro();
+  };
+
+  const startAdmissionsConversation = () => {
+    openMessagesView();
+    contactFlow = { active: true, step: "name", data: {} };
+    addChatMessage("I can help you send this directly to the school. What is your full name?", "agent");
+    chatbotInput?.focus();
+  };
+
+  const submitAdmissionsLead = async () => {
+    setChatStatus("Creating your ticket...");
+    const typingBubble = addTypingIndicator();
+    const payload = new FormData();
+    payload.append("contact_name", contactFlow.data.contact_name || "");
+    payload.append("contact_email", contactFlow.data.contact_email || "");
+    payload.append("contact_phone", contactFlow.data.contact_phone || "");
+    payload.append("message", contactFlow.data.message || "");
+
+    try {
+      const response = await fetch(chatbotLiveChatUrl, {
+        method: "POST",
+        body: payload,
+        headers: {
+          "X-Requested-With": "XMLHttpRequest",
+          "X-CSRFToken": chatbotCsrfToken,
+        },
+      });
+      const data = await response.json();
+      typingBubble?.remove();
+      if (!response.ok || !data.ok) {
+        addChatMessage(
+          "I could not create that ticket right now. Please try again here, use the contact page, or send a WhatsApp message.",
+          "agent"
+        );
+        addQuickReplies([
+          { label: "Talk to School", action: "lead" },
+          { label: "Contact Page", url: "/contact/" },
+          { label: "WhatsApp", url: supportWhatsappLink?.href || "/contact/" },
+        ]);
+        setChatStatus("Ticket not created yet.");
+        return;
+      }
+
+      addChatMessage(
+        data.ticket_reference
+          ? `Ticket created. Reference: ${data.ticket_reference}. A confirmation email has been sent to you and the school has received your message.`
+          : data.message || "Ticket created and the school has received your message.",
+        "agent"
+      );
+      addQuickReplies(baseQuickReplies());
+      setChatStatus("Ticket created.");
+      contactFlow = { active: false, step: null, data: {} };
+    } catch (error) {
+      typingBubble?.remove();
+      addChatMessage(
+        "I could not complete that request right now. Please try again or use the contact page.",
+        "agent"
+      );
+      addQuickReplies([
+        { label: "Talk to School", action: "lead" },
+        { label: "Contact Page", url: "/contact/" },
+        { label: "WhatsApp", url: supportWhatsappLink?.href || "/contact/" },
+      ]);
+      setChatStatus("Network error while creating ticket.");
+    }
+  };
+
+  const advanceAdmissionsConversation = async (text) => {
+    if (!contactFlow.active) return false;
+
+    if (contactFlow.step === "name") {
+      if (text.trim().length < 2) {
+        addChatMessage("Please enter your full name so admissions can identify your enquiry.", "agent");
+        return true;
+      }
+      contactFlow.data.contact_name = text.trim();
+      contactFlow.step = "email";
+      addChatMessage("Thank you. What email address should admissions reply to?", "agent");
+      return true;
+    }
+
+    if (contactFlow.step === "email") {
+      if (!emailPattern.test(text.trim())) {
+        addChatMessage("Please enter a valid email address.", "agent");
+        return true;
+      }
+      contactFlow.data.contact_email = text.trim();
+      contactFlow.step = "phone";
+      addChatMessage("What phone number should the school use? You can type skip if you prefer not to add one.", "agent");
+      return true;
+    }
+
+    if (contactFlow.step === "phone") {
+      contactFlow.data.contact_phone = /^skip$/i.test(text.trim()) ? "" : text.trim();
+      contactFlow.step = "message";
+      addChatMessage("Please type your message. You can send an enquiry, complaint, or support request.", "agent");
+      return true;
+    }
+
+    if (contactFlow.step === "message") {
+      if (text.trim().length < 6) {
+        addChatMessage("Please add a little more detail so the school can help you properly.", "agent");
+        return true;
+      }
+      contactFlow.data.message = text.trim();
+      contactFlow.step = "sending";
+      await submitAdmissionsLead();
+      return true;
+    }
+
+    return false;
+  };
+
+  const handleChatQuestion = async (text) => {
+    if (!text) return;
+    openMessagesView();
+    addChatMessage(text, "user");
+    if (await advanceAdmissionsConversation(text)) {
+      chatbotInput?.focus();
+      return;
+    }
+    const payload = resolveSupportReply(text);
+    if (payload.human) {
+      startAdmissionsConversation();
+      return;
+    }
+    deliverSupportReply(payload);
   };
 
   chatToggleButtons.forEach((button) => {
@@ -267,50 +518,89 @@
         closeChatbot();
         return;
       }
-      openChatbot(button.getAttribute("data-support-target") || "home");
+      openChatbot("home");
     });
-  });
-  document.querySelector("[data-chatbot-close]")?.addEventListener("click", closeChatbot);
-  document.addEventListener("click", (event) => {
-    if (!chatbot?.classList.contains("is-open")) return;
-    if (chatbot.contains(event.target)) return;
-    if (event.target.closest("[data-chatbot-open]")) return;
-    closeChatbot();
-  });
-  supportTabs.forEach((tab) => {
-    tab.addEventListener("click", () => {
-      openChatbot(tab.getAttribute("data-support-tab"));
-    });
-  });
-  document.querySelector("[data-support-open-messages]")?.addEventListener("click", () => {
-    openChatbot("messages");
-    chatbotInput?.focus();
   });
 
-  const handleChatQuestion = (text) => {
-    if (!text) return;
-    openChatbot("messages");
-    addChatMessage(text, "user");
-    const payload = resolveSupportReply(text);
-    addChatMessage(payload.reply, "agent");
-    toggleEscalationPrompt(payload.escalate);
-    if (!payload.escalate) {
-      window.setTimeout(() => chatbotInput?.focus(), 120);
+  chatbotOpenMessageButtons.forEach((button) => {
+    button.addEventListener("click", openMessagesView);
+  });
+
+  chatbotHomeActionButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const action = button.getAttribute("data-chatbot-home-action");
+      if (action === "lead") {
+        startAdmissionsConversation();
+        return;
+      }
+      openMessagesView();
+      chatbotInput?.focus();
+    });
+  });
+
+  chatbotHomeLinkButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const href = button.getAttribute("data-chatbot-home-link");
+      if (href) window.location.href = href;
+    });
+  });
+
+  chatbotNavButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      if (button.getAttribute("data-chatbot-nav") === "messages") {
+        openMessagesView();
+        return;
+      }
+      openChatbot("home");
+    });
+  });
+
+  chatbotBackButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      openChatbot("home");
+    });
+  });
+
+  chatbotCloseButtons.forEach((button) => {
+    button.addEventListener("click", closeChatbot);
+  });
+
+  chatbotLog?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-chatbot-action]");
+    if (!button) return;
+    const action = button.getAttribute("data-chatbot-action");
+    const value = button.getAttribute("data-chatbot-value") || "";
+
+    if (action === "focus") {
+      openMessagesView();
+      chatbotInput?.focus();
+      return;
     }
-  };
 
-  document.querySelectorAll("[data-chatbot-chip]").forEach((chip) => {
-    chip.addEventListener("click", () => {
-      handleChatQuestion(chip.getAttribute("data-chatbot-chip") || "");
-    });
+    if (action === "lead") {
+      startAdmissionsConversation();
+      return;
+    }
+
+    if (action === "query" && value) {
+      handleChatQuestion(value);
+    }
   });
-  chatbotForm?.addEventListener("submit", (event) => {
+
+  chatbotForm?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const text = chatbotInput?.value.trim();
     if (!text) return;
-    handleChatQuestion(text);
     chatbotInput.value = "";
+    await handleChatQuestion(text);
   });
+
+  const chatbotMode = new URLSearchParams(window.location.search).get("chatbot");
+  if (chatbotMode === "home") {
+    openChatbot("home");
+  } else if (chatbotMode === "messages") {
+    openMessagesView();
+  }
 
   const openLightbox = (button) => {
     if (!lightbox || !lightboxImage) return;
@@ -334,102 +624,6 @@
     if (event.target === lightbox) closeLightbox();
   });
 
-  const LIVE_CHAT_STORAGE_KEY = "ndga_public_live_chat_messages";
-  const TICKET_STORAGE_KEY = "ndga_public_live_chat_tickets";
-
-  const appendLiveChatBubble = (text, sender, label) => {
-    addChatMessage(text, sender, { label: label || (sender === "user" ? "Visitor" : "Management") });
-  };
-
-  const saveLiveChatMessages = () => {
-    if (!chatbotLog || !window.sessionStorage) return;
-    const payload = [...chatbotLog.querySelectorAll(".public-live-chat-bubble")].slice(1).map((item) => ({
-      sender: item.classList.contains("is-user") ? "user" : "agent",
-      label: item.querySelector("strong")?.textContent || "",
-      text: item.querySelector("p")?.textContent || "",
-    }));
-    window.sessionStorage.setItem(LIVE_CHAT_STORAGE_KEY, JSON.stringify(payload));
-  };
-
-  const loadLiveChatMessages = () => {
-    if (!chatbotLog || !window.sessionStorage) return;
-    try {
-      const raw = window.sessionStorage.getItem(LIVE_CHAT_STORAGE_KEY);
-      if (!raw) return;
-      const messages = JSON.parse(raw);
-      messages.forEach((message) => appendLiveChatBubble(message.text, message.sender, message.label));
-    } catch (error) {
-      window.sessionStorage.removeItem(LIVE_CHAT_STORAGE_KEY);
-    }
-  };
-
-  const renderTickets = () => {
-    if (!supportTicketList || !window.sessionStorage) return;
-    const raw = window.sessionStorage.getItem(TICKET_STORAGE_KEY);
-    const tickets = raw ? JSON.parse(raw) : [];
-    if (!tickets.length) {
-      supportTicketList.innerHTML =
-        '<article class="ndga-support-ticket-card is-empty"><strong>No open tickets yet</strong><p>When a management request is submitted, the reference and status will appear here during your visit.</p></article>';
-      return;
-    }
-    supportTicketList.innerHTML = "";
-    tickets.forEach((ticket) => {
-      const card = document.createElement("article");
-      card.className = "ndga-support-ticket-card";
-      card.innerHTML = `<strong>${ticket.reference}</strong><p>${ticket.summary}</p><small>${ticket.status}</small>`;
-      supportTicketList.appendChild(card);
-    });
-  };
-
-  const pushTicket = (reference, summary) => {
-    if (!window.sessionStorage) return;
-    const raw = window.sessionStorage.getItem(TICKET_STORAGE_KEY);
-    const tickets = raw ? JSON.parse(raw) : [];
-    tickets.unshift({
-      reference,
-      summary,
-      status: "Awaiting management reply",
-    });
-    window.sessionStorage.setItem(TICKET_STORAGE_KEY, JSON.stringify(tickets.slice(0, 5)));
-    renderTickets();
-  };
-
-  const connectToManagement = () => {
-    const waitText =
-      chatbot?.getAttribute("data-chat-management-wait") ||
-      "Connecting you to management. Please wait...";
-    toggleEscalationPrompt(false);
-    openChatbot("messages");
-    appendLiveChatBubble(waitText, "agent", "System");
-    if (liveChatShell) {
-      liveChatShell.hidden = false;
-    }
-      window.setTimeout(() => {
-      appendLiveChatBubble(
-        "If no management agent is immediately available, your message will be saved as a ticket and the reply will be sent to your email.",
-        "agent",
-        "Management"
-      );
-      liveChatForm?.querySelector("input[name='contact_email']")?.focus();
-      saveLiveChatMessages();
-    }, 1400);
-  };
-
-  loadLiveChatMessages();
-  renderTickets();
-
-  document.querySelectorAll("[data-chatbot-escalate]").forEach((button) => {
-    button.addEventListener("click", () => {
-      if (button.getAttribute("data-chatbot-escalate") === "yes") {
-        connectToManagement();
-        return;
-      }
-      toggleEscalationPrompt(false);
-      appendLiveChatBubble("No problem. You can continue here and I will keep helping.", "agent");
-      saveLiveChatMessages();
-    });
-  });
-
   rotatingGalleries.forEach((gallery) => {
     const images = [...gallery.querySelectorAll("img")];
     if (images.length < 2) return;
@@ -441,78 +635,41 @@
     }, 3200);
   });
 
-  liveChatForm?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    if (!liveChatForm || !liveChatStatus) return;
-    const emailInput = liveChatForm.querySelector("input[name='contact_email']");
-    const messageInput = liveChatForm.querySelector("textarea[name='message']");
-    const emailValue = emailInput?.value.trim();
-    const messageText = messageInput?.value.trim();
-    if (!emailValue) {
-      liveChatStatus.textContent = "Email address is required so management can reply to you.";
-      emailInput?.focus();
-      return;
-    }
-    if (messageText) {
-      appendLiveChatBubble(messageText, "user");
-      saveLiveChatMessages();
-    }
-    liveChatStatus.textContent = "Sending...";
-    const formData = new FormData(liveChatForm);
-    try {
-      const response = await fetch(liveChatForm.action, {
-        method: "POST",
-        body: formData,
-        headers: { "X-Requested-With": "XMLHttpRequest" },
-      });
-      const payload = await response.json();
-      if (!response.ok || !payload.ok) {
-        liveChatStatus.textContent =
-          payload.errors?.contact_email?.[0]?.message || "Please complete the required fields and try again.";
-        if (chatbotLog) {
-          const bubbles = chatbotLog.querySelectorAll(".public-live-chat-bubble.is-user");
-          bubbles[bubbles.length - 1]?.remove();
-          saveLiveChatMessages();
-        }
-        return;
-      }
-      liveChatForm.reset();
-      appendLiveChatBubble(
-        payload.message || "Your message has been sent to management.",
-        "agent",
-        "Management"
-      );
-      if (payload.ticket_reference) {
-        pushTicket(payload.ticket_reference, messageText || "Management enquiry");
-      }
-      saveLiveChatMessages();
-      liveChatStatus.textContent = payload.ticket_reference
-        ? `Ticket ${payload.ticket_reference} created. Replies will be sent to your email.`
-        : payload.message || "Your message has been sent.";
-    } catch (error) {
-      liveChatStatus.textContent = "Unable to send right now. Please try again.";
-      if (chatbotLog) {
-        const bubbles = chatbotLog.querySelectorAll(".public-live-chat-bubble.is-user");
-        bubbles[bubbles.length - 1]?.remove();
-        saveLiveChatMessages();
-      }
-    }
-  });
-
   const form = document.querySelector("[data-multi-step-form]");
   if (form) {
     const steps = [...form.querySelectorAll("[data-form-step]")];
     const nextButton = form.querySelector("[data-step-next]");
     const backButton = form.querySelector("[data-step-back]");
     const submitButton = form.querySelector("[data-step-submit]");
+    const progressBar = document.querySelector("[data-registration-progress]");
+    const indicators = [...document.querySelectorAll("[data-step-indicator]")];
     let stepIndex = 0;
+    const currentStepFields = () =>
+      [...steps[stepIndex].querySelectorAll("input, select, textarea")]
+        .filter((field) => !field.disabled && field.type !== "hidden");
+    const stepIsValid = () => {
+      let valid = true;
+      currentStepFields().forEach((field) => {
+        if (!field.checkValidity()) {
+          if (valid) field.reportValidity();
+          valid = false;
+        }
+      });
+      return valid;
+    };
     const updateSteps = () => {
       steps.forEach((step, index) => step.classList.toggle("is-active", index === stepIndex));
+      indicators.forEach((step, index) => step.classList.toggle("is-active", index === stepIndex));
+      if (progressBar) {
+        const width = `${((stepIndex + 1) / Math.max(steps.length, 1)) * 100}%`;
+        progressBar.style.width = width;
+      }
       if (backButton) backButton.hidden = stepIndex === 0;
       if (nextButton) nextButton.hidden = stepIndex === steps.length - 1;
       if (submitButton) submitButton.hidden = stepIndex !== steps.length - 1;
     };
     nextButton?.addEventListener("click", () => {
+      if (!stepIsValid()) return;
       if (stepIndex < steps.length - 1) {
         stepIndex += 1;
         updateSteps();
@@ -522,6 +679,11 @@
       if (stepIndex > 0) {
         stepIndex -= 1;
         updateSteps();
+      }
+    });
+    form.addEventListener("submit", (event) => {
+      if (!stepIsValid()) {
+        event.preventDefault();
       }
     });
     updateSteps();

@@ -15,6 +15,10 @@ from django.db import models
 from django.utils.dateparse import parse_date, parse_datetime, parse_time
 
 from apps.sync.models import SyncConflictRule, SyncModelBinding, SyncOperationType
+from apps.sync.policies import (
+    generic_model_sync_allowed_for_instance,
+    generic_model_sync_allowed_for_payload,
+)
 from apps.sync.services import (
     active_session_authority_enforced,
     build_idempotency_key,
@@ -54,6 +58,8 @@ GENERIC_MODEL_SYNC_CONFIG = {
     "dashboard.schoolprofile": {"lookup_fields": ["singleton_key"]},
     "dashboard.club": {"lookup_fields": ["code"]},
     "dashboard.studentclubmembership": {"lookup_fields": ["student", "club", "session"]},
+    "dashboard.publicsitesubmission": {},
+    "dashboard.publicadmissionpaymenttransaction": {"lookup_fields": ["reference"]},
     "elections.election": {"lookup_fields": ["title", "session"]},
     "elections.position": {"lookup_fields": ["election", "name"]},
     "elections.candidate": {"lookup_fields": ["position", "user"]},
@@ -331,7 +337,11 @@ def queue_generic_model_change(*, instance=None, operation="UPSERT", payload_ove
     if payload is None:
         if instance is None or not is_generic_sync_model(instance):
             return None
+        if not generic_model_sync_allowed_for_instance(instance):
+            return None
         payload = serialize_generic_model_instance(instance)
+    elif not generic_model_sync_allowed_for_payload(payload):
+        return None
     operation_type = (
         SyncOperationType.MODEL_RECORD_DELETE
         if operation == "DELETE"

@@ -1,78 +1,650 @@
 {% extends "website/base_public.html" %}
 {% load static %}
 
+{% block extra_head %}
+  <style>
+    .registration-page-hero {
+      min-height: 30rem;
+    }
+    .registration-page-hero .public-page-hero-content {
+      padding-top: 154px;
+      padding-bottom: 42px;
+      max-width: 52rem;
+    }
+    .registration-flow-shell {
+      max-width: 1120px;
+      margin: 0 auto;
+    }
+    .registration-flow-top {
+      display: grid;
+      gap: 1.1rem;
+      margin-bottom: 1.5rem;
+    }
+    .registration-intro-copy {
+      margin: .5rem 0 0;
+      color: #526071;
+      line-height: 1.75;
+      max-width: 46rem;
+    }
+    .registration-progress-bar {
+      height: .6rem;
+      border-radius: 999px;
+      background: rgba(11,31,58,.08);
+      overflow: hidden;
+    }
+    .registration-progress-bar span {
+      display: block;
+      height: 100%;
+      width: 20%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #0b1f3a, #c89b3c);
+      transition: width .25s ease;
+    }
+    .registration-stage-rail {
+      display: flex;
+      gap: .9rem;
+      overflow-x: auto;
+      padding: .2rem 0 .4rem;
+      scrollbar-width: thin;
+    }
+    .registration-step-card {
+      min-width: 188px;
+      padding: 1rem 1.05rem;
+      border-radius: 1.2rem;
+      border: 1px solid rgba(11,31,58,.09);
+      background: linear-gradient(180deg, #ffffff, #f8fbff);
+      box-shadow: 0 18px 42px rgba(7,25,53,.08);
+      scroll-snap-align: start;
+      transition: transform .22s ease, border-color .22s ease, background .22s ease;
+    }
+    .registration-step-card strong {
+      display: block;
+      color: #0b1f3a;
+      font-size: .98rem;
+    }
+    .registration-step-card span {
+      display: block;
+      margin-top: .35rem;
+      color: #66758a;
+      font-size: .88rem;
+      line-height: 1.55;
+    }
+    .registration-step-card.is-active {
+      border-color: rgba(200,155,60,.62);
+      background: linear-gradient(180deg, #fffaf0, #fff3d8);
+      transform: translateY(-2px);
+    }
+    .registration-top-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1rem;
+    }
+    .registration-info-card {
+      padding: 1rem 1.05rem;
+      border-radius: 1.15rem;
+      border: 1px solid rgba(11,31,58,.08);
+      background: #f9fbfd;
+    }
+    .registration-info-card strong {
+      display: block;
+      color: #0b1f3a;
+      font-size: .98rem;
+    }
+    .registration-info-card p {
+      margin: .45rem 0 0;
+      color: #5b687a;
+      line-height: 1.7;
+    }
+    .registration-info-list {
+      display: grid;
+      gap: .5rem;
+      margin-top: .75rem;
+      color: #334155;
+      font-size: .94rem;
+    }
+    .registration-info-list span {
+      display: flex;
+      gap: .65rem;
+      align-items: flex-start;
+    }
+    .registration-info-list span::before {
+      content: "";
+      width: .55rem;
+      height: .55rem;
+      margin-top: .38rem;
+      border-radius: 50%;
+      background: #c89b3c;
+      flex: 0 0 auto;
+    }
+    .registration-banner {
+      margin-bottom: 1rem;
+      padding: 1rem 1.1rem;
+      border-radius: 1rem;
+      border: 1px solid rgba(154,52,18,.18);
+      background: #fff7ed;
+      color: #9a3412;
+    }
+    .registration-banner ul {
+      margin: .65rem 0 0 1rem;
+    }
+    .public-form-grid {
+      display: block;
+    }
+    .public-form-step {
+      display: none;
+    }
+    .public-form-step.is-active {
+      display: block;
+    }
+    .registration-section-title {
+      margin: 0 0 .55rem;
+      font-size: 1.28rem;
+      color: #0b1f3a;
+    }
+    .registration-section-copy {
+      margin: 0 0 1rem;
+      color: #617182;
+      line-height: 1.72;
+    }
+    .registration-grid {
+      display: grid;
+      gap: 1rem;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .registration-grid .is-full {
+      grid-column: 1 / -1;
+    }
+    .registration-field label {
+      display: block;
+      margin-bottom: .48rem;
+      font-size: .86rem;
+      font-weight: 800;
+      color: #0f172a;
+      letter-spacing: .01em;
+    }
+    .registration-field input:not([type="checkbox"]):not([type="file"]),
+    .registration-field select,
+    .registration-field textarea {
+      width: 100%;
+      min-height: 58px;
+      border-radius: 16px;
+      border: 1px solid rgba(11,31,58,.12);
+      background: #fff;
+      padding: .92rem 1rem;
+      color: #0f172a;
+      transition: border-color .22s ease, box-shadow .22s ease, background .22s ease;
+    }
+    .registration-field textarea {
+      min-height: 132px;
+      resize: vertical;
+    }
+    .registration-field input[type="file"] {
+      width: 100%;
+      min-height: 60px;
+      border-radius: 16px;
+      border: 1px solid rgba(11,31,58,.12);
+      background: #f8fafc;
+      padding: .75rem .9rem;
+      color: #334155;
+    }
+    .registration-field input[type="file"]::file-selector-button {
+      margin-right: .85rem;
+      border: 0;
+      border-radius: 999px;
+      padding: .72rem 1rem;
+      background: #0b1f3a;
+      color: #fff;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .registration-field input:not([type="checkbox"]):focus,
+    .registration-field select:focus,
+    .registration-field textarea:focus,
+    .registration-field input[type="file"]:focus {
+      outline: none;
+      border-color: rgba(200,155,60,.82);
+      box-shadow: 0 0 0 4px rgba(200,155,60,.16);
+      background: #fffdfa;
+    }
+    .registration-check-control {
+      display: flex;
+      align-items: flex-start;
+      gap: .9rem;
+      padding: 1rem 1.05rem;
+      border-radius: 1rem;
+      border: 1px solid rgba(11,31,58,.08);
+      background: #f9fbfd;
+    }
+    .registration-check-control input[type="checkbox"] {
+      appearance: none;
+      -webkit-appearance: none;
+      width: 1.25rem;
+      height: 1.25rem;
+      margin: .15rem 0 0;
+      border-radius: .38rem;
+      border: 1.5px solid #9fb0c7;
+      background: #fff;
+      position: relative;
+      flex: 0 0 auto;
+      cursor: pointer;
+      transition: border-color .18s ease, background .18s ease, box-shadow .18s ease;
+    }
+    .registration-check-control input[type="checkbox"]:checked {
+      background: #0b1f3a;
+      border-color: #0b1f3a;
+      box-shadow: 0 10px 20px rgba(11,31,58,.18);
+    }
+    .registration-check-control input[type="checkbox"]:checked::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='none' stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M3.5 8.5 6.5 11.5 12.5 4.5'/%3E%3C/svg%3E") center/14px 14px no-repeat;
+    }
+    .registration-check-copy strong {
+      display: block;
+      color: #0f172a;
+      font-size: .96rem;
+    }
+    .registration-check-copy span {
+      display: block;
+      margin-top: .22rem;
+      color: #64748b;
+      line-height: 1.65;
+      font-size: .92rem;
+    }
+    .registration-note-panel {
+      padding: 1rem 1.1rem;
+      border-radius: 1rem;
+      background: #fff8ea;
+      border: 1px solid rgba(200,155,60,.2);
+      color: #5f4a1d;
+      line-height: 1.72;
+    }
+    .registration-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: .75rem;
+      overflow: hidden;
+      border-radius: 1rem;
+    }
+    .registration-table th,
+    .registration-table td {
+      border: 1px solid rgba(11,31,58,.08);
+      padding: .68rem;
+      text-align: left;
+      font-size: .92rem;
+      vertical-align: top;
+      background: #fff;
+    }
+    .registration-table th {
+      background: #f8f6f2;
+      color: #0b1f3a;
+      font-weight: 800;
+    }
+    .registration-table input {
+      min-height: 48px !important;
+      border-radius: 12px !important;
+      padding: .7rem .78rem !important;
+    }
+    .registration-doc-list {
+      display: grid;
+      gap: .65rem;
+      margin-top: .75rem;
+    }
+    .registration-doc-list article {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: .9rem 1rem;
+      border-radius: 1rem;
+      background: #fff;
+      border: 1px solid rgba(11,31,58,.08);
+    }
+    .registration-doc-list article span {
+      color: #64748b;
+    }
+    .registration-doc-list article strong {
+      color: #0b1f3a;
+      max-width: 28rem;
+      text-align: right;
+    }
+    .registration-review-grid {
+      display: grid;
+      gap: 1rem;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .registration-review-card {
+      padding: 1.05rem 1.1rem;
+      border-radius: 1rem;
+      background: #fff;
+      border: 1px solid rgba(11,31,58,.08);
+    }
+    .registration-review-card h3 {
+      margin: 0 0 .72rem;
+      color: #0b1f3a;
+      font-size: 1rem;
+    }
+    .registration-review-card p {
+      margin: .45rem 0 0;
+      color: #4b5563;
+      line-height: 1.68;
+    }
+    .registration-review-card strong {
+      color: #111827;
+    }
+    .public-form-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      position: sticky;
+      bottom: .75rem;
+      z-index: 4;
+      margin-top: 1.5rem;
+      padding: 1rem 1.1rem;
+      border-radius: 1.15rem;
+      background: rgba(255,255,255,.96);
+      border: 1px solid rgba(11,31,58,.08);
+      box-shadow: 0 24px 50px rgba(7,25,53,.12);
+      backdrop-filter: blur(16px);
+    }
+    .public-form-actions [hidden] {
+      display: none !important;
+    }
+    .registration-nav-button {
+      min-width: 138px;
+      background: #fff;
+      border: 1px solid rgba(11,31,58,.14);
+      color: #0b1f3a;
+      box-shadow: 0 12px 28px rgba(7,25,53,.08);
+    }
+    .registration-nav-button:hover {
+      background: #fff8ea;
+      border-color: rgba(200,155,60,.5);
+      color: #0b1f3a;
+    }
+    .registration-submit-button {
+      min-width: 198px;
+    }
+    @media (max-width: 920px) {
+      .registration-page-hero {
+        min-height: 22rem;
+      }
+      .registration-page-hero .public-page-hero-content {
+        padding-top: 138px;
+        padding-bottom: 30px;
+      }
+      .registration-top-grid,
+      .registration-grid,
+      .registration-review-grid,
+      .registration-doc-list article {
+        grid-template-columns: 1fr;
+      }
+      .registration-doc-list article {
+        justify-content: flex-start;
+      }
+      .registration-doc-list article strong {
+        text-align: left;
+      }
+      .registration-table,
+      .registration-table thead,
+      .registration-table tbody,
+      .registration-table tr,
+      .registration-table th,
+      .registration-table td {
+        display: block;
+        width: 100%;
+      }
+      .registration-table thead {
+        display: none;
+      }
+      .registration-table tr {
+        margin-bottom: .8rem;
+      }
+      .public-form-actions {
+        bottom: .35rem;
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .public-form-actions > div {
+        display: grid !important;
+        grid-template-columns: 1fr;
+      }
+      .registration-nav-button,
+      .registration-submit-button {
+        width: 100%;
+      }
+    }
+  </style>
+{% endblock %}
+
 {% block content %}
-<section class="public-page-hero" style="background-image:url('{% static public_images.hero_students %}')">
+<section class="public-page-hero registration-page-hero" style="background-image:url('{% static public_images.hero_students %}')">
   <div class="public-page-hero-overlay"></div>
   <div class="public-container public-page-hero-content" data-reveal>
     <span class="public-eyebrow">Admissions Form</span>
     <h1>Online Registration</h1>
-    <p>Complete the admission form, choose the intended class, indicate boarding preference, and upload the required school records.</p>
+    <p>Complete the admission form online, move through each stage, and finish on the payment-choice screen.</p>
   </div>
 </section>
 
 <section class="public-section">
-  <div class="public-container public-registration-layout" data-reveal>
-    <aside class="public-registration-sidebar">
-      <span class="public-eyebrow">Steps</span>
-      <h2>Admissions journey</h2>
-      <ol>
-        {% for step in registration_steps %}
-          <li>{{ step }}</li>
-        {% endfor %}
-      </ol>
-      <div class="public-registration-note">
-        <strong>Required documents</strong>
-        {% for item in required_documents %}
-          <span>{{ item }}</span>
-        {% endfor %}
+  <div class="public-container" data-reveal>
+    <div class="registration-flow-shell public-form-panel">
+      <div class="registration-flow-top">
+        <div>
+          <span class="public-eyebrow">Registration Steps</span>
+          <h2>Complete the application form</h2>
+          <p class="registration-intro-copy">Fill each stage in order, review the details carefully, and submit to continue to payment choice.</p>
+        </div>
+        <div class="registration-progress-bar"><span data-registration-progress></span></div>
+        <div class="registration-stage-rail">
+          {% for step in registration_steps %}
+            <article class="registration-step-card {% if forloop.first %}is-active{% endif %}" data-step-indicator="{{ forloop.counter0 }}">
+              <strong>{{ forloop.counter }}. {{ step }}</strong>
+              <span>
+                {% if forloop.counter == 1 %}Student details and medical information{% endif %}
+                {% if forloop.counter == 2 %}Religious background and school placement{% endif %}
+                {% if forloop.counter == 3 %}Parents, guardians, and emergency contact{% endif %}
+                {% if forloop.counter == 4 %}Personal statement and declaration{% endif %}
+                {% if forloop.counter == 5 %}Documents, review, and submission{% endif %}
+              </span>
+            </article>
+          {% endfor %}
+        </div>
+        <div class="registration-top-grid">
+          <article class="registration-info-card">
+            <strong>Required documents</strong>
+            <div class="registration-info-list">
+              {% for item in required_documents %}
+                <span>{{ item }}</span>
+              {% endfor %}
+            </div>
+          </article>
+        </div>
       </div>
-      <div class="public-registration-note">
-        <strong>Application form fee</strong>
-        <span>NGN {{ public_application_form_fee_amount }}</span>
-        {% if public_application_form_fee_note %}<span>{{ public_application_form_fee_note }}</span>{% endif %}
-      </div>
-    </aside>
 
-    <div class="public-form-panel">
-      {% if submitted %}
-        <div class="public-success-banner">Registration submitted successfully. The admissions office will review the details and communicate the next step.</div>
+      {% if form_error_summary or form.errors %}
+        <div class="registration-banner">
+          <strong>{{ form_error_summary|default:"Please review the highlighted admission details below." }}</strong>
+          {% if form.errors %}
+            <ul>
+              {% for field in form %}
+                {% for error in field.errors %}
+                  <li>{{ field.label }}: {{ error }}</li>
+                {% endfor %}
+              {% endfor %}
+              {% for error in form.non_field_errors %}
+                <li>{{ error }}</li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+        </div>
       {% endif %}
-      <form method="post" enctype="multipart/form-data" class="public-form-grid" data-multi-step-form>
+
+      <form method="post" enctype="multipart/form-data" class="public-form-grid" data-multi-step-form data-total-steps="5">
         {% csrf_token %}
+
         <div class="public-form-step is-active" data-form-step="1">
-          <div>{{ form.applicant_name.label_tag }}{{ form.applicant_name }}</div>
-          <div>{{ form.applicant_date_of_birth.label_tag }}{{ form.applicant_date_of_birth }}</div>
-          <div>{{ form.intended_class.label_tag }}{{ form.intended_class }}</div>
-          <div>{{ form.boarding_option.label_tag }}{{ form.boarding_option }}</div>
-        </div>
-        <div class="public-form-step" data-form-step="2">
-          <div>{{ form.guardian_name.label_tag }}{{ form.guardian_name }}</div>
-          <div>{{ form.guardian_email.label_tag }}{{ form.guardian_email }}</div>
-          <div>{{ form.guardian_phone.label_tag }}{{ form.guardian_phone }}</div>
-          <div class="is-full">{{ form.residential_address.label_tag }}{{ form.residential_address }}</div>
-          <div class="is-full">{{ form.previous_school.label_tag }}{{ form.previous_school }}</div>
-        </div>
-        <div class="public-form-step" data-form-step="3">
-          <div>{{ form.passport_photo.label_tag }}{{ form.passport_photo }}</div>
-          <div>{{ form.birth_certificate.label_tag }}{{ form.birth_certificate }}</div>
-          <div>{{ form.school_result.label_tag }}{{ form.school_result }}</div>
-          <div class="is-full">{{ form.medical_notes.label_tag }}{{ form.medical_notes }}</div>
-        </div>
-        <div class="public-form-step" data-form-step="4">
-          <div class="is-full public-review-panel">
-            <h2>Before you submit</h2>
-            <p>Check the applicant name, class level, boarding option, and parent or guardian contact details carefully before you submit.</p>
-            <p>After registration, the school communicates the next step for screening, examination, and payment guidance.</p>
+          <h2 class="registration-section-title">1. Student's Details</h2>
+          <p class="registration-section-copy">Enter the applicant's details exactly as they should appear on the admission form.</p>
+          <div class="registration-grid">
+            <div class="registration-field">{{ form.surname.label_tag }}{{ form.surname }}</div>
+            <div class="registration-field">{{ form.first_name.label_tag }}{{ form.first_name }}</div>
+            <div class="registration-field is-full">{{ form.middle_name.label_tag }}{{ form.middle_name }}</div>
+            <div class="registration-field is-full">{{ form.residential_address.label_tag }}{{ form.residential_address }}</div>
+            <div class="registration-field">{{ form.applicant_date_of_birth.label_tag }}{{ form.applicant_date_of_birth }}</div>
+            <div class="registration-field">{{ form.nationality.label_tag }}{{ form.nationality }}</div>
+            <div class="registration-field">{{ form.state_of_origin.label_tag }}{{ form.state_of_origin }}</div>
+            <div class="registration-field">{{ form.local_government_area.label_tag }}{{ form.local_government_area }}</div>
+            <div class="registration-field">{{ form.home_town.label_tag }}{{ form.home_town }}</div>
+            <div class="registration-field is-full">
+              <div class="registration-check-control">
+                {{ form.has_disability_or_learning_difficulty }}
+                <div class="registration-check-copy">
+                  <strong>Please tick if the applicant has a disability or learning difficulty.</strong>
+                  <span>This helps the school prepare the right support from the start.</span>
+                </div>
+              </div>
+            </div>
+            <div class="registration-field is-full">{{ form.medical_notes.label_tag }}{{ form.medical_notes }}</div>
+            <div class="registration-note-panel is-full">
+              The first passport photograph will appear on the final admission PDF after payment. The second passport photograph is uploaded in the last stage.
+            </div>
           </div>
         </div>
-        {% if form.errors %}
-          <div class="public-form-errors is-full">{{ form.errors }}</div>
-        {% endif %}
+
+        <div class="public-form-step" data-form-step="2">
+          <h2 class="registration-section-title">2. Religious Background & School Placement</h2>
+          <p class="registration-section-copy">Provide the applicant's faith background, proposed class, and school history.</p>
+          <div class="registration-grid">
+            <div class="registration-field">{{ form.religion.label_tag }}{{ form.religion }}</div>
+            <div class="registration-field">{{ form.parish_name.label_tag }}{{ form.parish_name }}</div>
+            <div class="registration-field">{{ form.boarding_option.label_tag }}{{ form.boarding_option }}</div>
+            <div class="registration-field">{{ form.intended_class.label_tag }}{{ form.intended_class }}</div>
+            <div class="registration-field is-full">{{ form.sibling_details.label_tag }}{{ form.sibling_details }}</div>
+            <div class="registration-field is-full">{{ form.present_school.label_tag }}{{ form.present_school }}</div>
+            <div class="registration-field">{{ form.head_teacher_name.label_tag }}{{ form.head_teacher_name }}</div>
+            <div class="registration-field">{{ form.head_teacher_signature_stamp.label_tag }}{{ form.head_teacher_signature_stamp }}</div>
+            <div class="registration-field">{{ form.head_teacher_date.label_tag }}{{ form.head_teacher_date }}</div>
+            <div class="registration-field is-full">
+              <label>Educational Institutions Attended with Dates</label>
+              <table class="registration-table">
+                <thead>
+                  <tr>
+                    <th>Name of School</th>
+                    <th>Year of Entry</th>
+                    <th>Year of Leaving</th>
+                    <th>Reason for Leaving</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>{{ form.previous_school_1_name }}</td>
+                    <td>{{ form.previous_school_1_year_of_entry }}</td>
+                    <td>{{ form.previous_school_1_year_of_leaving }}</td>
+                    <td>{{ form.previous_school_1_reason_for_leaving }}</td>
+                  </tr>
+                  <tr>
+                    <td>{{ form.previous_school_2_name }}</td>
+                    <td>{{ form.previous_school_2_year_of_entry }}</td>
+                    <td>{{ form.previous_school_2_year_of_leaving }}</td>
+                    <td>{{ form.previous_school_2_reason_for_leaving }}</td>
+                  </tr>
+                  <tr>
+                    <td>{{ form.previous_school_3_name }}</td>
+                    <td>{{ form.previous_school_3_year_of_entry }}</td>
+                    <td>{{ form.previous_school_3_year_of_leaving }}</td>
+                    <td>{{ form.previous_school_3_reason_for_leaving }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="public-form-step" data-form-step="3">
+          <h2 class="registration-section-title">3. Parents / Guardians' Details</h2>
+          <p class="registration-section-copy">Add the parent and guardian details the school will use for follow-up and emergency contact.</p>
+          <div class="registration-grid">
+            <div class="registration-field">{{ form.guardian_name.label_tag }}{{ form.guardian_name }}</div>
+            <div class="registration-field">{{ form.guardian_phone.label_tag }}{{ form.guardian_phone }}</div>
+            <div class="registration-field is-full">{{ form.guardian_email.label_tag }}{{ form.guardian_email }}</div>
+            <div class="registration-field">{{ form.father_full_name.label_tag }}{{ form.father_full_name }}</div>
+            <div class="registration-field">{{ form.father_phone.label_tag }}{{ form.father_phone }}</div>
+            <div class="registration-field is-full">{{ form.father_contact_address.label_tag }}{{ form.father_contact_address }}</div>
+            <div class="registration-field">{{ form.father_occupation.label_tag }}{{ form.father_occupation }}</div>
+            <div class="registration-field">{{ form.father_place_of_work.label_tag }}{{ form.father_place_of_work }}</div>
+            <div class="registration-field is-full">{{ form.father_email.label_tag }}{{ form.father_email }}</div>
+            <div class="registration-field">{{ form.mother_full_name.label_tag }}{{ form.mother_full_name }}</div>
+            <div class="registration-field">{{ form.mother_phone.label_tag }}{{ form.mother_phone }}</div>
+            <div class="registration-field is-full">{{ form.mother_contact_address.label_tag }}{{ form.mother_contact_address }}</div>
+            <div class="registration-field">{{ form.mother_occupation.label_tag }}{{ form.mother_occupation }}</div>
+            <div class="registration-field">{{ form.mother_place_of_work.label_tag }}{{ form.mother_place_of_work }}</div>
+            <div class="registration-field is-full">{{ form.mother_email.label_tag }}{{ form.mother_email }}</div>
+            <div class="registration-field">{{ form.emergency_contact_name.label_tag }}{{ form.emergency_contact_name }}</div>
+            <div class="registration-field">{{ form.emergency_contact_phone.label_tag }}{{ form.emergency_contact_phone }}</div>
+            <div class="registration-field is-full">{{ form.emergency_contact_address.label_tag }}{{ form.emergency_contact_address }}</div>
+          </div>
+        </div>
+
+        <div class="public-form-step" data-form-step="4">
+          <h2 class="registration-section-title">4. How You Found Us & Declaration</h2>
+          <p class="registration-section-copy">Complete the personal statement and declaration details.</p>
+          <div class="registration-grid">
+            <div class="registration-field">{{ form.how_found_us.label_tag }}{{ form.how_found_us }}</div>
+            <div class="registration-field">{{ form.how_found_us_other.label_tag }}{{ form.how_found_us_other }}</div>
+            <div class="registration-field is-full">{{ form.personal_statement.label_tag }}{{ form.personal_statement }}</div>
+            <div class="registration-field">{{ form.parent_guardian_declaration_name.label_tag }}{{ form.parent_guardian_declaration_name }}</div>
+            <div class="registration-field">{{ form.parent_guardian_signature.label_tag }}{{ form.parent_guardian_signature }}</div>
+            <div class="registration-field">{{ form.parent_guardian_date.label_tag }}{{ form.parent_guardian_date }}</div>
+            <div class="registration-field">{{ form.student_declaration_name.label_tag }}{{ form.student_declaration_name }}</div>
+            <div class="registration-field">{{ form.student_signature.label_tag }}{{ form.student_signature }}</div>
+            <div class="registration-field">{{ form.student_declaration_date.label_tag }}{{ form.student_declaration_date }}</div>
+          </div>
+        </div>
+
+        <div class="public-form-step" data-form-step="5">
+          <h2 class="registration-section-title">5. Documents, Review & Submit</h2>
+          <p class="registration-section-copy">Upload the required documents, review the details, and submit the application.</p>
+          <div class="registration-grid">
+            <div class="registration-field">{{ form.passport_photo.label_tag }}{{ form.passport_photo }}</div>
+            <div class="registration-field">{{ form.supporting_passport_photo.label_tag }}{{ form.supporting_passport_photo }}</div>
+            <div class="registration-field">{{ form.birth_certificate.label_tag }}{{ form.birth_certificate }}</div>
+            <div class="registration-field">{{ form.school_result.label_tag }}{{ form.school_result }}</div>
+            <div class="registration-field is-full">{{ form.medical_fitness_report.label_tag }}{{ form.medical_fitness_report }}</div>
+            <div class="registration-note-panel is-full">
+              <strong>Payment choice</strong>
+              <div class="registration-doc-list">
+                <article><span>Online payment</span><strong>Pay NGN {{ public_application_form_fee_amount }} and download the PDF after successful payment.</strong></article>
+                <article><span>Physical payment at school</span><strong>The bursary confirms payment at school before the form is downloaded for records.</strong></article>
+              </div>
+            </div>
+            <div class="is-full public-review-panel">
+              <h2>Before you submit</h2>
+              <div class="registration-review-grid">
+                <article class="registration-review-card">
+                  <h3>Student</h3>
+                  <p><strong>Name details:</strong> Enter them exactly as they should appear on the admission form.</p>
+                  <p><strong>Class and place type:</strong> Choose the proposed class and whether the applicant is boarding or day.</p>
+                </article>
+                <article class="registration-review-card">
+                  <h3>Contact</h3>
+                  <p><strong>Main follow-up contact:</strong> The primary parent or guardian phone number is used first by the school.</p>
+                  <p><strong>Email for payment:</strong> Online checkout should use a working parent or guardian email address.</p>
+                </article>
+              </div>
+              <p style="margin-top:1rem;">Review all details carefully before submitting the application.</p>
+            </div>
+          </div>
+        </div>
+
         <div class="is-full public-form-actions">
-          <button type="button" class="public-secondary-cta" data-step-back>Back</button>
-          <button type="button" class="public-secondary-cta" data-step-next>Continue</button>
-          <button type="submit" class="public-cta magnetic" data-step-submit>Submit Registration</button>
+          <button type="button" class="public-secondary-cta registration-nav-button" data-step-back>Back</button>
+          <div style="display:flex; gap:.75rem; flex-wrap:wrap;">
+            <button type="button" class="public-secondary-cta registration-nav-button" data-step-next>Next</button>
+            <button type="submit" class="public-cta magnetic registration-submit-button" data-step-submit>Submit Registration</button>
+          </div>
         </div>
       </form>
     </div>

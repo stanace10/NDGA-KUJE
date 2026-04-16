@@ -3,6 +3,7 @@ import json
 from io import StringIO
 from unittest.mock import patch
 
+from django.core import signing
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.management import call_command
 from django.test import Client, TestCase, override_settings
@@ -32,6 +33,8 @@ from apps.dashboard.models import (
     LMSModule,
     PortalDocument,
     PrincipalSignature,
+    PublicAdmissionGatewayStatus,
+    PublicAdmissionPaymentTransaction,
     PublicAdmissionPaymentStatus,
     PublicAdmissionWorkflowStatus,
     PublicSiteSubmission,
@@ -74,7 +77,12 @@ class StudentDashboardAttendanceTests(TestCase):
         )
         session = AcademicSession.objects.create(name="2025/2026")
         term = Term.objects.create(session=session, name="FIRST")
+        second_term = Term.objects.create(session=session, name="SECOND")
         academic_class = AcademicClass.objects.create(code="SS1A", display_name="SS1A")
+        cls.session = session
+        cls.term_first = term
+        cls.term_second = second_term
+        cls.academic_class = academic_class
         subject = Subject.objects.create(name="Biology", code="BIO")
         ClassSubject.objects.create(academic_class=academic_class, subject=subject, is_active=True)
         TeacherSubjectAssignment.objects.create(
@@ -91,6 +99,12 @@ class StudentDashboardAttendanceTests(TestCase):
             start_date=date(2026, 1, 5),
             end_date=date(2026, 1, 9),
         )
+        second_calendar = SchoolCalendar.objects.create(
+            session=session,
+            term=second_term,
+            start_date=date(2026, 5, 4),
+            end_date=date(2026, 5, 8),
+        )
         StudentClassEnrollment.objects.create(
             student=cls.student,
             academic_class=academic_class,
@@ -103,6 +117,14 @@ class StudentDashboardAttendanceTests(TestCase):
             student=cls.student,
             date=date(2026, 1, 5),
             status=AttendanceStatus.PRESENT,
+            marked_by=None,
+        )
+        AttendanceRecord.objects.create(
+            calendar=second_calendar,
+            academic_class=academic_class,
+            student=cls.student,
+            date=date(2026, 5, 4),
+            status=AttendanceStatus.ABSENT,
             marked_by=None,
         )
         compilation = ClassResultCompilation.objects.create(
@@ -134,15 +156,30 @@ class StudentDashboardAttendanceTests(TestCase):
         response = client.get("/")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Welcome back")
-        self.assertContains(response, "Quick Access")
         self.assertContains(response, "Attendance")
-        self.assertContains(response, "Attendance Metrics")
-        self.assertContains(response, "Classroom LMS")
+        self.assertContains(response, "Recent Activity")
+        self.assertNotContains(response, "Quick Access")
+        self.assertNotContains(response, "Attendance Metrics")
+        self.assertNotContains(response, "Classroom LMS")
         self.assertNotContains(response, "Practice CBT")
         self.assertNotContains(response, "CBT Entry")
         self.assertNotContains(response, "Election Entry")
         self.assertNotContains(response, "CBT:")
         self.assertNotContains(response, "Election:")
+
+    def test_student_attendance_filter_supports_previous_term(self):
+        client = Client(HTTP_HOST="student.ndgakuje.org")
+        login = client.post(
+            "/auth/login/?audience=student",
+            {"username": "student-dash", "password": "Password123!"},
+        )
+        self.assertEqual(login.status_code, 302)
+        response = client.get(
+            f"/portal/student/attendance/?session_id={self.session.id}&term_id={self.term_second.id}"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Attendance overview")
+        self.assertContains(response, "Absent days")
 
     def test_staff_portal_shows_role_specific_menu_cards(self):
         client = Client(HTTP_HOST="staff.ndgakuje.org")
@@ -153,7 +190,7 @@ class StudentDashboardAttendanceTests(TestCase):
         self.assertEqual(login.status_code, 302)
         response = client.get("/")
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Quick Access")
+        self.assertContains(response, "Action Center")
         self.assertContains(response, "Profile")
         self.assertContains(response, "CBT Entry")
         self.assertContains(response, "Result Entry")
@@ -603,12 +640,13 @@ class DashboardIntelligenceTests(TestCase):
         self.assertIn("fee_payment_rate", payload)
         self.assertIn("exam_participation_rate", payload)
 
-    def test_student_portal_renders_academic_analytics_panel(self):
+    def test_student_portal_uses_recent_activity_instead_of_analytics_panel(self):
         client = Client(HTTP_HOST="student.ndgakuje.org")
         client.force_login(self.student)
         response = client.get("/portal/student/")
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Academic Analytics")
+        self.assertContains(response, "Recent Activity")
+        self.assertNotContains(response, "Academic Analytics")
         self.assertNotContains(response, "Practice CBT")
 
     def test_staff_portal_renders_teacher_performance_dashboard(self):
@@ -616,7 +654,8 @@ class DashboardIntelligenceTests(TestCase):
         client.force_login(self.teacher)
         response = client.get("/portal/staff/")
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Teacher Performance Dashboard")
+        self.assertContains(response, "Action Center")
+        self.assertContains(response, "Dean and form-teacher duties now live in their own dedicated portals")
 
     def test_principal_portal_renders_school_data_intelligence(self):
         client = Client(HTTP_HOST="principal.ndgakuje.org")
@@ -1008,22 +1047,167 @@ class PublicWebsiteLanViewTests(TestCase):
         response = client.post(
             "/admissions/registration/",
             {
-                "applicant_name": "Mary James",
+                "surname": "James",
+                "first_name": "Mary",
+                "middle_name": "Ada",
                 "applicant_date_of_birth": "2013-05-17",
+                "nationality": "Nigerian",
+                "state_of_origin": "FCT",
+                "local_government_area": "Kuje",
+                "home_town": "Kuje",
                 "intended_class": "JSS1",
+                "religion": "Catholic",
+                "parish_name": "St. Mary's Parish",
                 "guardian_name": "Grace James",
                 "guardian_email": "grace@example.com",
                 "guardian_phone": "08011111111",
                 "residential_address": "Kuje, Abuja",
-                "previous_school": "Good Shepherd School",
+                "present_school": "Good Shepherd School",
                 "boarding_option": "BOARDING",
                 "medical_notes": "",
+                "how_found_us": "FRIENDS",
+                "parent_guardian_declaration_name": "Grace James",
+                "parent_guardian_signature": "Grace James",
+                "student_declaration_name": "Mary James",
+                "student_signature": "Mary James",
+            },
+        )
+        self.assertIn(response.status_code, {200, 302})
+        submission = (
+            PublicSiteSubmission.objects.filter(submission_type=PublicSubmissionType.ADMISSION)
+            .order_by("-created_at", "-id")
+            .first()
+        )
+        self.assertIsNotNone(submission)
+        self.assertEqual(submission.applicant_name, "James Mary Ada")
+        self.assertEqual(submission.intended_class, "JSS1")
+        self.assertEqual(submission.admission_form_payload()["religious_background"]["parish_name"], "St. Mary's Parish")
+        self.assertEqual(str(submission.application_fee_amount), "5500.00")
+        if response.status_code == 302:
+            self.assertIn("/admissions/registration/status/", response.url)
+        self.assertTrue(submission.application_fee_reference.startswith("NDGA-APP-"))
+
+    @override_settings(PAYSTACK_SECRET_KEY="sk_test_public_admission")
+    @patch("apps.dashboard.public_views._paystack_api_request")
+    def test_registration_status_can_initialize_online_payment(self, mock_paystack_request):
+        client = Client(HTTP_HOST="ndgakuje.org")
+        mock_paystack_request.return_value = {
+            "status": True,
+            "data": {
+                "authorization_url": "https://checkout.example/pay",
+                "reference": "PS-REF-001",
+                "access_code": "ACCESS-001",
+            },
+        }
+        submission = PublicSiteSubmission.objects.create(
+            submission_type=PublicSubmissionType.ADMISSION,
+            contact_name="Grace James",
+            contact_email="grace@example.com",
+            contact_phone="08011111111",
+            applicant_name="Mary James",
+            intended_class="JSS1",
+            guardian_name="Grace James",
+            guardian_email="grace@example.com",
+            guardian_phone="08011111111",
+            residential_address="Kuje, Abuja",
+            boarding_option="BOARDING",
+            application_fee_amount="5500.00",
+            application_fee_reference="NDGA-APP-2026-00001",
+        )
+        status_response = client.get(f"/admissions/registration/status/?access={self._access_token(submission)}")
+        self.assertEqual(status_response.status_code, 200)
+        response = client.post(
+            "/admissions/registration/status/",
+            {
+                "action": "init_application_payment",
+                "access_token": self._access_token(submission),
+                "provider": "PAYSTACK",
             },
         )
         self.assertEqual(response.status_code, 302)
-        submission = PublicSiteSubmission.objects.get(submission_type=PublicSubmissionType.ADMISSION)
-        self.assertEqual(submission.applicant_name, "Mary James")
-        self.assertEqual(submission.intended_class, "JSS1")
+        self.assertEqual(response.url, "https://checkout.example/pay")
+        payment_row = PublicAdmissionPaymentTransaction.objects.get(submission=submission)
+        self.assertEqual(payment_row.status, PublicAdmissionGatewayStatus.INITIALIZED)
+        self.assertEqual(str(payment_row.amount), "5500.00")
+
+    @override_settings(PAYSTACK_SECRET_KEY="sk_test_public_admission")
+    @patch("apps.dashboard.public_views.send_email_event")
+    @patch("apps.dashboard.public_views._paystack_api_request")
+    def test_public_payment_callback_marks_submission_paid(self, mock_paystack_request, mock_send_email_event):
+        client = Client(HTTP_HOST="ndgakuje.org")
+        mock_paystack_request.return_value = {
+            "status": True,
+            "data": {
+                "status": "success",
+                "amount": 550000,
+                "reference": "NDGA-APPPAY-TEST-001",
+            },
+        }
+        submission = PublicSiteSubmission.objects.create(
+            submission_type=PublicSubmissionType.ADMISSION,
+            contact_name="Grace James",
+            contact_email="grace@example.com",
+            contact_phone="08011111111",
+            applicant_name="Mary James",
+            intended_class="JSS1",
+            guardian_name="Grace James",
+            guardian_email="grace@example.com",
+            guardian_phone="08011111111",
+            residential_address="Kuje, Abuja",
+            boarding_option="BOARDING",
+            application_fee_amount="5500.00",
+            application_fee_reference="NDGA-APP-2026-00001",
+        )
+        payment_row = PublicAdmissionPaymentTransaction.objects.create(
+            submission=submission,
+            reference="NDGA-APPPAY-TEST-001",
+            provider="PAYSTACK",
+            amount="5500.00",
+            callback_url="https://ndgakuje.org/admissions/registration/payment/callback/",
+        )
+        response = client.get("/admissions/registration/payment/callback/?reference=NDGA-APPPAY-TEST-001")
+        self.assertEqual(response.status_code, 302)
+        submission.refresh_from_db()
+        payment_row.refresh_from_db()
+        self.assertEqual(submission.payment_status, PublicAdmissionPaymentStatus.PAID)
+        self.assertEqual(submission.admissions_status, PublicAdmissionWorkflowStatus.PENDING)
+        self.assertEqual(payment_row.status, PublicAdmissionGatewayStatus.PAID)
+        self.assertTrue(mock_send_email_event.called)
+        self.assertIn("payment=success", response.url)
+
+    @patch("apps.dashboard.public_views.render_pdf_bytes", return_value=b"%PDF-1.4 admission")
+    def test_public_pdf_download_requires_successful_online_payment(self, _mock_render_pdf):
+        client = Client(HTTP_HOST="ndgakuje.org")
+        submission = PublicSiteSubmission.objects.create(
+            submission_type=PublicSubmissionType.ADMISSION,
+            contact_name="Grace James",
+            contact_email="grace@example.com",
+            contact_phone="08011111111",
+            applicant_name="Mary James",
+            intended_class="JSS1",
+            guardian_name="Grace James",
+            guardian_email="grace@example.com",
+            guardian_phone="08011111111",
+            residential_address="Kuje, Abuja",
+            boarding_option="BOARDING",
+            payment_status=PublicAdmissionPaymentStatus.PAID,
+            application_fee_amount="5500.00",
+            application_fee_reference="NDGA-APP-2026-00001",
+            metadata={"application_payment_mode": "ONLINE"},
+        )
+        response = client.get(
+            f"/admissions/registration/form/download/?access={self._access_token(submission)}"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/pdf")
+
+        submission.metadata = {"application_payment_mode": "PHYSICAL"}
+        submission.save(update_fields=["metadata", "updated_at"])
+        blocked = client.get(
+            f"/admissions/registration/form/download/?access={self._access_token(submission)}"
+        )
+        self.assertEqual(blocked.status_code, 302)
+        self.assertIn("/admissions/registration/status/", blocked.url)
 
     def test_live_chat_requires_email_and_returns_ticket_reference(self):
         client = Client(HTTP_HOST="ndgakuje.org")
@@ -1039,20 +1223,51 @@ class PublicWebsiteLanViewTests(TestCase):
         self.assertEqual(missing_email.status_code, 400)
         self.assertIn("contact_email", missing_email.json()["errors"])
 
-        response = client.post(
-            "/live-chat/",
-            {
-                "contact_name": "Visitor",
-                "contact_email": "visitor@example.com",
-                "contact_phone": "08022222222",
-                "message": "I need help with admission screening.",
-            },
-            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
-        )
+        with patch("apps.dashboard.public_views.send_email_event") as mock_send_email:
+            response = client.post(
+                "/live-chat/",
+                {
+                    "contact_name": "Visitor",
+                    "contact_email": "visitor@example.com",
+                    "contact_phone": "08022222222",
+                    "message": "I need help with admission screening.",
+                },
+                HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+            )
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertTrue(payload["ok"])
         self.assertTrue(payload["ticket_reference"].startswith("NDGA-CHAT-"))
+        self.assertEqual(payload["category"], "Admissions")
+        self.assertIn("Ticket created", payload["message"])
+        submission = PublicSiteSubmission.objects.get(submission_type=PublicSubmissionType.CONTACT)
+        self.assertEqual(submission.category, "Admissions")
+        self.assertEqual(mock_send_email.call_count, 2)
+        recipients = [call.kwargs["to_emails"][0] for call in mock_send_email.call_args_list]
+        self.assertIn("visitor@example.com", recipients)
+        self.assertIn("office@ndgakuje.org", recipients)
+
+    def test_live_chat_can_store_complaint_messages(self):
+        client = Client(HTTP_HOST="ndgakuje.org")
+        with patch("apps.dashboard.public_views.send_email_event"):
+            response = client.post(
+                "/live-chat/",
+                {
+                    "contact_name": "Visitor",
+                    "contact_email": "visitor@example.com",
+                    "contact_phone": "08022222222",
+                    "message": "I want to make a complaint about the hostel issue.",
+                },
+                HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+            )
+        self.assertEqual(response.status_code, 200)
+        submission = PublicSiteSubmission.objects.latest("id")
+        self.assertEqual(submission.category, "Complaint")
+        self.assertEqual(submission.subject, "Live Chat Complaint")
+
+    @staticmethod
+    def _access_token(submission):
+        return signing.dumps({"submission_id": submission.id}, salt="public-admission-access")
 
 
 @override_settings(
@@ -1139,4 +1354,16 @@ class AdmissionsWorkflowTests(TestCase):
         self.assertTrue(self.submission.generated_admission_number.startswith("NDGAK/"))
         self.assertIsNotNone(self.submission.linked_student)
         self.assertTrue(StudentProfile.objects.filter(user=self.submission.linked_student).exists())
+
+    @patch("apps.dashboard.public_views.render_pdf_bytes", return_value=b"%PDF-1.4 admission")
+    def test_bursar_can_download_paid_physical_admission_pdf(self, _mock_render_pdf):
+        self.submission.payment_status = PublicAdmissionPaymentStatus.PAID
+        self.submission.application_fee_amount = "5500.00"
+        self.submission.metadata = {"application_payment_mode": "PHYSICAL"}
+        self.submission.save(update_fields=["payment_status", "application_fee_amount", "metadata", "updated_at"])
+        client = Client(HTTP_HOST="localhost:8000")
+        client.force_login(self.bursar)
+        response = client.get(f"/portal/admissions/{self.submission.id}/form-download/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/pdf")
 

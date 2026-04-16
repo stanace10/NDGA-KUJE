@@ -4,7 +4,7 @@ from urllib.parse import urlencode
 from django.conf import settings
 from django.utils import timezone
 
-from apps.accounts.constants import ROLE_HOME_PORTAL, STAFF_ROLE_CODES
+from apps.accounts.constants import ROLE_HOME_PORTAL, ROLE_STUDENT, STAFF_ROLE_CODES
 
 _LOCAL_HOSTS = {"localhost", "127.0.0.1", "[::1]"}
 _LOCAL_SIMPLE_PORTAL_ROOTS = {
@@ -12,6 +12,8 @@ _LOCAL_SIMPLE_PORTAL_ROOTS = {
     "portal": "/",
     "student": "/portal/student/",
     "staff": "/portal/staff/",
+    "dean": "/portal/dean/",
+    "form": "/portal/form/",
     "it": "/portal/it/",
     "bursar": "/portal/bursar/",
     "vp": "/portal/vp/",
@@ -27,7 +29,7 @@ _LOCAL_SIMPLE_PATH_PORTAL_HINTS = (
     ("/cbt/attempts/", "cbt"),
     ("/cbt/it/", "it"),
     ("/cbt/authoring/", "cbt"),
-    ("/cbt/dean/", "cbt"),
+    ("/cbt/dean/", "dean"),
     ("/cbt/marking/", "cbt"),
     ("/cbt/simulator/", "cbt"),
     ("/cbt/", "cbt"),
@@ -41,10 +43,13 @@ _LOCAL_SIMPLE_PATH_PORTAL_HINTS = (
     ("/results/vp/", "vp"),
     ("/results/principal/", "principal"),
     ("/results/grade-entry/", "staff"),
-    ("/results/dean/", "staff"),
-    ("/results/form/", "staff"),
+    ("/results/dean/", "dean"),
+    ("/results/form/", "form"),
+    ("/attendance/form/", "form"),
     ("/portal/student/", "student"),
     ("/portal/staff/", "staff"),
+    ("/portal/dean/", "dean"),
+    ("/portal/form/", "form"),
     ("/portal/it/", "it"),
     ("/portal/bursar/", "bursar"),
     ("/portal/vp/", "vp"),
@@ -54,38 +59,43 @@ _LOCAL_SIMPLE_PATH_PORTAL_HINTS = (
 )
 
 CLOUD_LAN_ONLY_OPERATION_PREFIXES = (
+    "/academics/",
     "/attendance/",
+    "/audit/",
     "/auth/it/",
-    "/notifications/media/",
+    "/notifications/",
+    "/portal/",
+    "/results/",
     "/setup/",
-    "/results/approval/",
-    "/results/grade-entry/",
-    "/results/dean/",
-    "/results/form/",
-    "/results/report/send-results/",
-    "/results/settings/",
-    "/results/vp/",
-    "/results/principal/",
-    "/results/timeline/",
+    "/sync/",
+    "/pdfs/staff/",
+    "/notifications/media/",
     "/cbt/",
     "/elections/",
-    "/finance/bursar/settings/",
-    "/finance/bursar/charges/",
-    "/finance/bursar/fees/",
-    "/finance/bursar/payments/",
-    "/finance/bursar/debtors/",
-    "/finance/bursar/expenses/",
-    "/finance/bursar/staff-payments/",
-    "/finance/bursar/salaries/",
-    "/finance/bursar/assets/",
-    "/finance/bursar/messaging/",
-    "/finance/bursar/reminders/run/",
+    "/finance/",
 )
 
-CLOUD_ALLOWED_MANAGEMENT_PREFIXES = (
-    "/portal/it/public-website/",
-    "/finance/bursar/settings/",
-    "/finance/bursar/charges/",
+CLOUD_ALLOWED_MANAGEMENT_PREFIXES = ()
+
+CLOUD_STUDENT_PORTAL_ALLOWED_PREFIXES = (
+    "/portal/student/profile/",
+    "/portal/student/attendance/",
+    "/portal/student/subjects/",
+    "/portal/student/transcript/",
+    "/portal/student/lms/",
+    "/portal/student/weekly-challenge/",
+    "/portal/student/id-card/",
+    "/portal/student/finance/",
+    "/finance/student/overview/",
+    "/pdfs/student/reports/",
+    "/pdfs/student/transcript/",
+    "/notifications/",
+)
+
+CLOUD_STUDENT_PORTAL_CONTROLLED_PREFIXES = (
+    "/portal/student/learning-hub/",
+    "/portal/student/documents/",
+    "/portal/student/settings/",
 )
 
 FUTURE_TERM_STAFF_EDIT_PREFIXES = (
@@ -115,6 +125,10 @@ def cloud_staff_operations_lan_only_enabled():
     return bool(getattr(settings, "CLOUD_STAFF_OPERATIONS_LAN_ONLY", False) and sync_node_role() == "CLOUD")
 
 
+def cloud_student_portal_limited_enabled():
+    return bool(getattr(settings, "CLOUD_STUDENT_PORTAL_LIMITED", False) and sync_node_role() == "CLOUD")
+
+
 def user_has_lan_only_operation_roles(user_or_role_codes):
     if user_or_role_codes is None:
         return False
@@ -127,11 +141,32 @@ def user_has_lan_only_operation_roles(user_or_role_codes):
     return bool(role_codes & STAFF_ROLE_CODES)
 
 
+def user_has_cloud_student_portal_role(user_or_role_codes):
+    if user_or_role_codes is None:
+        return False
+    if hasattr(user_or_role_codes, "is_authenticated"):
+        if not getattr(user_or_role_codes, "is_authenticated", False):
+            return False
+        role_codes = set(user_or_role_codes.get_all_role_codes())
+    else:
+        role_codes = set(user_or_role_codes)
+    return ROLE_STUDENT in role_codes
+
+
 def path_is_cloud_lan_only_operation(path):
     request_path = path or "/"
     if any(request_path.startswith(prefix) for prefix in CLOUD_ALLOWED_MANAGEMENT_PREFIXES):
         return False
     return any(request_path.startswith(prefix) for prefix in CLOUD_LAN_ONLY_OPERATION_PREFIXES)
+
+
+def path_is_cloud_student_portal_limited(path):
+    request_path = path or "/"
+    if request_path.rstrip("/") == "/portal/student":
+        return False
+    if any(request_path.startswith(prefix) for prefix in CLOUD_STUDENT_PORTAL_ALLOWED_PREFIXES):
+        return False
+    return any(request_path.startswith(prefix) for prefix in CLOUD_STUDENT_PORTAL_CONTROLLED_PREFIXES)
 
 
 def current_term_staff_edit_lock():
@@ -238,7 +273,6 @@ def _local_simple_portal_key_from_request(request):
     user_portal = _local_simple_portal_key_from_user(user)
     staff_cbt_prefixes = (
         "/cbt/authoring/",
-        "/cbt/dean/",
         "/cbt/marking/",
     )
     if (
@@ -317,7 +351,7 @@ def build_portal_url(request, portal_key, path="/", query=None):
     request_host = request.get_host()
 
     if _local_simple_host_mode_enabled(request):
-        scheme = "http"
+        scheme = "https" if request.is_secure() else "http"
         host = request_host
         normalized_path = _local_simple_root_path(portal_key, path)
     else:

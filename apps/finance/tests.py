@@ -413,6 +413,44 @@ class FinancePortalTests(TestCase):
         self.assertContains(response, "Sports Wear")
         self.assertContains(response, "Outstanding")
 
+    @override_settings(PAYMENT_GATEWAY_PROVIDER="PAYSTACK", PAYSTACK_SECRET_KEY="test-secret")
+    def test_student_finance_overview_can_redirect_to_gateway_checkout(self):
+        StudentCharge.objects.create(
+            item_name="School Fees",
+            description="Core tuition",
+            amount=Decimal("30000"),
+            due_date=self.term.created_at.date(),
+            session=self.session,
+            term=self.term,
+            target_type=ChargeTargetType.CLASS,
+            academic_class=self.academic_class,
+            created_by=self.bursar,
+            is_active=True,
+        )
+        client = self._client("student.ndgakuje.org", self.student)
+        with patch("apps.finance.services._paystack_api_request") as mocked_gateway:
+            mocked_gateway.return_value = {
+                "status": True,
+                "data": {
+                    "authorization_url": "https://pay.example/student-checkout",
+                    "reference": "NDGA-STUDENT-001",
+                    "access_code": "ACCESS-STUDENT-001",
+                },
+            }
+            response = client.post(
+                "/finance/student/overview/",
+                {
+                    "action": "init_gateway_payment",
+                    "student": self.student.id,
+                    "payment_plan": "FEE_ITEM",
+                    "fee_item": "School Fees",
+                    "amount": "30000.00",
+                    "provider": "PAYSTACK",
+                },
+            )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, "https://pay.example/student-checkout")
+
     def test_student_finance_portal_alias_renders_inside_student_portal(self):
         client = self._client("student.ndgakuje.org", self.student)
         response = client.get("/portal/student/finance/")
@@ -588,7 +626,7 @@ class FinancePortalTests(TestCase):
             self.assertEqual(transaction_row.status, PaymentGatewayStatus.INITIALIZED)
             self.assertEqual(transaction_row.authorization_url, "https://checkout.flutterwave.com/pay/ndga-123")
 
-    def test_resolve_payment_plan_amount_supports_full_item_and_percentage(self):
+    def test_resolve_payment_plan_amount_supports_posted_fee_items(self):
         StudentCharge.objects.create(
             item_name="School Fees",
             description="Main fee",
@@ -616,14 +654,6 @@ class FinancePortalTests(TestCase):
             session=self.session,
             term=self.term,
         )
-        amount_full, meta_full = resolve_payment_plan_amount(
-            overview=overview,
-            payment_plan="FULL",
-            custom_amount=Decimal("1"),
-        )
-        self.assertEqual(amount_full, Decimal("30000.00"))
-        self.assertEqual(meta_full["payment_plan"], "FULL")
-
         amount_item, meta_item = resolve_payment_plan_amount(
             overview=overview,
             payment_plan="FEE_ITEM",
@@ -633,14 +663,12 @@ class FinancePortalTests(TestCase):
         self.assertEqual(amount_item, Decimal("10000.00"))
         self.assertEqual(meta_item["fee_item"], "Hostel")
 
-        amount_pct, meta_pct = resolve_payment_plan_amount(
-            overview=overview,
-            payment_plan="PERCENTAGE",
-            percentage=50,
-            custom_amount=Decimal("1"),
-        )
-        self.assertEqual(amount_pct, Decimal("15000.00"))
-        self.assertEqual(meta_pct["percentage"], 50)
+        with self.assertRaises(ValidationError):
+            resolve_payment_plan_amount(
+                overview=overview,
+                payment_plan="FULL",
+                custom_amount=Decimal("1"),
+            )
 
     def test_scheduled_finance_reminders_dispatch_overdue_notice(self):
         due_date = timezone.localdate() - timedelta(days=1)

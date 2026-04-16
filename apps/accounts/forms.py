@@ -70,12 +70,32 @@ def _singleton_role_account_preset(role_code):
             "password": "bursar1804",
         },
         ROLE_DEAN: {
-            "username": f"dean@{domain}",
-            "staff_id": "NDGAK/DEAN",
-            "password": "admin",
+            "username": "ndgak/staff/dean",
+            "staff_id": "NDGAK/STAFF/DEAN",
+            "password": "NDGAK/DEAN",
         },
     }
     return presets.get(role_code)
+
+
+def _form_teacher_role_account_preset(form_class):
+    if not form_class:
+        return None
+    academic_class = form_class.instructional_class if hasattr(form_class, "instructional_class") else form_class
+    class_code = ((getattr(academic_class, "code", "") or "").strip().upper())
+    if not class_code:
+        return None
+    return {
+        "username": f"ndgak/staff/{class_code.lower()}",
+        "staff_id": f"NDGAK/STAFF/{class_code}",
+        "password": f"NDGAK/{class_code}",
+    }
+
+
+def _role_account_preset(role_code, *, form_class=None):
+    if role_code == ROLE_FORM_TEACHER:
+        return _form_teacher_role_account_preset(form_class)
+    return _singleton_role_account_preset(role_code)
 
 
 def _actor_can_manage_users(actor):
@@ -238,7 +258,7 @@ def resolve_user_by_login_identifier(raw_identifier):
         "NDGAK/VP": ROLE_VP,
         "NDGAK/PRINCIPAL": ROLE_PRINCIPAL,
         "NDGAK/BURSAR": ROLE_BURSAR,
-        "NDGAK/DEAN": ROLE_DEAN,
+        "NDGAK/STAFF/DEAN": ROLE_DEAN,
     }
     normalized = identifier.upper()
     if normalized in singleton_aliases:
@@ -628,8 +648,9 @@ class ITStaffRegistrationForm(forms.Form):
         if primary_role and primary_role.code == ROLE_IT_MANAGER:
             raise forms.ValidationError("Use the dedicated IT bootstrap account. Do not create extra IT managers.")
 
+        form_class = cleaned_data.get("form_class_assignment")
         manual_staff_id = (cleaned_data.get("staff_id") or "").strip().upper()
-        preset = _singleton_role_account_preset(primary_role.code)
+        preset = _role_account_preset(primary_role.code, form_class=form_class)
         resolved_staff_id = preset["staff_id"] if preset else manual_staff_id
         if resolved_staff_id:
             cleaned_data["staff_id"] = resolved_staff_id
@@ -642,7 +663,6 @@ class ITStaffRegistrationForm(forms.Form):
         if preset and User.objects.filter(username__iexact=preset["username"]).exists():
             self.add_error("primary_role", "A staff account already exists for this role.")
 
-        form_class = cleaned_data.get("form_class_assignment")
         if primary_role.code == ROLE_FORM_TEACHER and not form_class:
             raise forms.ValidationError("Form teacher role requires class assignment.")
 
@@ -650,9 +670,10 @@ class ITStaffRegistrationForm(forms.Form):
         also_teaches = cleaned_data.get("also_teaches", False)
         if primary_role.code == ROLE_SUBJECT_TEACHER and not teaching_loads:
             raise forms.ValidationError("Subject teacher must have at least one subject-class load.")
-        if primary_role.code in {ROLE_DEAN, ROLE_FORM_TEACHER}:
-            if also_teaches and not teaching_loads:
-                raise forms.ValidationError("Select teaching loads when 'also teaches' is enabled.")
+        if primary_role.code in {ROLE_DEAN, ROLE_FORM_TEACHER} and (also_teaches or teaching_loads):
+            raise forms.ValidationError(
+                "Dean and form-teacher portals are now dedicated accounts. Create a separate subject-teacher account for teaching loads."
+            )
         if primary_role.code in {ROLE_BURSAR, ROLE_VP, ROLE_PRINCIPAL} and teaching_loads:
             raise forms.ValidationError("Admin roles cannot be assigned teaching loads.")
 
@@ -672,7 +693,8 @@ class ITStaffRegistrationForm(forms.Form):
         first_name = self.cleaned_data["first_name"].strip()
         last_name = self.cleaned_data["last_name"].strip()
         primary_role = self.cleaned_data["primary_role"]
-        preset = _singleton_role_account_preset(primary_role.code)
+        form_class = self.cleaned_data.get("form_class_assignment")
+        preset = _role_account_preset(primary_role.code, form_class=form_class)
         generated_username = (
             preset["username"]
             if preset
@@ -698,12 +720,7 @@ class ITStaffRegistrationForm(forms.Form):
             must_change_password=False,
             password_changed_count=0,
         )
-        auto_secondary_codes = []
         primary_code = primary_role.code
-        if primary_code in {ROLE_DEAN, ROLE_FORM_TEACHER}:
-            auto_secondary_codes.append(ROLE_SUBJECT_TEACHER)
-        if auto_secondary_codes:
-            user.secondary_roles.set(Role.objects.filter(code__in=auto_secondary_codes))
         selected_photo = self.cleaned_data.get("profile_photo")
         webcam_photo = self.cleaned_data.get("decoded_webcam_image")
         StaffProfile.objects.create(
@@ -713,7 +730,6 @@ class ITStaffRegistrationForm(forms.Form):
             profile_photo=selected_photo or webcam_photo,
         )
 
-        form_class = self.cleaned_data.get("form_class_assignment")
         if form_class and user.has_role(ROLE_FORM_TEACHER):
             FormTeacherAssignment.objects.update_or_create(
                 teacher=user,
@@ -723,10 +739,7 @@ class ITStaffRegistrationForm(forms.Form):
             )
 
         teaching_loads = self.cleaned_data.get("teaching_loads")
-        should_apply_teaching = (
-            user.has_role(ROLE_SUBJECT_TEACHER)
-            or (primary_code in {ROLE_DEAN, ROLE_FORM_TEACHER} and self.cleaned_data.get("also_teaches"))
-        )
+        should_apply_teaching = user.has_role(ROLE_SUBJECT_TEACHER)
         if should_apply_teaching and teaching_loads:
             for load in teaching_loads:
                 TeacherSubjectAssignment.objects.update_or_create(
@@ -1107,7 +1120,8 @@ class ITStaffUpdateForm(forms.Form):
         if not primary_role:
             return cleaned_data
 
-        preset = _singleton_role_account_preset(primary_role.code)
+        form_class = cleaned_data.get("form_class_assignment")
+        preset = _role_account_preset(primary_role.code, form_class=form_class)
         if preset:
             requested_staff_id = (cleaned_data.get("staff_id") or "").strip().upper()
             if requested_staff_id and requested_staff_id != preset["staff_id"]:
@@ -1122,9 +1136,10 @@ class ITStaffUpdateForm(forms.Form):
         also_teaches = cleaned_data.get("also_teaches", False)
         if primary_role.code == ROLE_SUBJECT_TEACHER and not teaching_loads:
             raise forms.ValidationError("Subject teacher must have at least one subject-class load.")
-        if primary_role.code in {ROLE_DEAN, ROLE_FORM_TEACHER}:
-            if also_teaches and not teaching_loads:
-                raise forms.ValidationError("Select teaching loads when 'also teaches' is enabled.")
+        if primary_role.code in {ROLE_DEAN, ROLE_FORM_TEACHER} and (also_teaches or teaching_loads):
+            raise forms.ValidationError(
+                "Dean and form-teacher portals are now dedicated accounts. Create a separate subject-teacher account for teaching loads."
+            )
         if primary_role.code in {ROLE_BURSAR, ROLE_VP, ROLE_PRINCIPAL} and teaching_loads:
             raise forms.ValidationError("Admin roles cannot have teaching loads.")
         webcam_data = cleaned_data.get("webcam_image_data")
@@ -1141,7 +1156,10 @@ class ITStaffUpdateForm(forms.Form):
     def save(self):
         previous_staff_id = self.profile_instance.staff_id
         next_staff_id = self.cleaned_data["staff_id"]
-        preset = _singleton_role_account_preset(self.cleaned_data["primary_role"].code)
+        preset = _role_account_preset(
+            self.cleaned_data["primary_role"].code,
+            form_class=self.cleaned_data.get("form_class_assignment"),
+        )
 
         self.user_instance.first_name = self.cleaned_data["first_name"].strip()
         self.user_instance.last_name = self.cleaned_data["last_name"].strip()
@@ -1149,10 +1167,7 @@ class ITStaffUpdateForm(forms.Form):
         self.user_instance.primary_role = self.cleaned_data["primary_role"]
         self.user_instance.save(update_fields=["first_name", "last_name", "email", "primary_role"])
 
-        auto_secondary_codes = []
-        if self.user_instance.primary_role.code in {ROLE_DEAN, ROLE_FORM_TEACHER}:
-            auto_secondary_codes.append(ROLE_SUBJECT_TEACHER)
-        self.user_instance.secondary_roles.set(Role.objects.filter(code__in=auto_secondary_codes))
+        self.user_instance.secondary_roles.set(Role.objects.none())
 
         self.profile_instance.designation = self.cleaned_data.get("designation", "").strip()
         self.profile_instance.phone_number = self.cleaned_data.get("phone_number", "").strip()
@@ -1208,10 +1223,7 @@ class ITStaffUpdateForm(forms.Form):
 
         teaching_loads = self.cleaned_data.get("teaching_loads") or []
         role_code = self.user_instance.primary_role.code
-        should_apply_teaching = role_code == ROLE_SUBJECT_TEACHER or (
-            role_code in {ROLE_DEAN, ROLE_FORM_TEACHER}
-            and self.cleaned_data.get("also_teaches")
-        )
+        should_apply_teaching = role_code == ROLE_SUBJECT_TEACHER
         if not should_apply_teaching:
             TeacherSubjectAssignment.objects.filter(
                 teacher=self.user_instance,

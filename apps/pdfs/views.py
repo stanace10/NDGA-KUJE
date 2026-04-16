@@ -80,6 +80,41 @@ def _student_result_pin_required(*, request, compilation):
     ) is not None
 
 
+def _featured_result_summary(*, student, compilation):
+    payload = build_term_report_payload(student=student, compilation=compilation)
+    ranked_rows = sorted(payload.get("subject_rows", []), key=lambda row: row.get("total") or 0, reverse=True)
+    subject_rows = []
+    for row in ranked_rows:
+        score = row.get("total") or 0
+        subject_rows.append(
+            {
+                "subject": row.get("subject"),
+                "score": score,
+                "grade": row.get("grade"),
+                "status": "Strong" if score >= 70 else "Stable" if score >= 50 else "Needs attention",
+                "tone": (
+                    "bg-emerald-50 text-emerald-700"
+                    if score >= 70
+                    else "bg-amber-50 text-amber-700"
+                    if score >= 50
+                    else "bg-rose-50 text-rose-700"
+                ),
+            }
+        )
+    return {
+        "average": payload.get("average"),
+        "class_position": payload.get("class_position"),
+        "class_size": payload.get("class_size"),
+        "subject_count": payload.get("subject_count"),
+        "session_name": payload.get("session_name"),
+        "term_name": payload.get("term_name"),
+        "published_at": payload.get("published_at"),
+        "best_subject": ranked_rows[0] if ranked_rows else None,
+        "worst_subject": ranked_rows[-1] if ranked_rows else None,
+        "subject_rows": subject_rows,
+    }
+
+
 def _ensure_student_report_access(request, *, compilation):
     if not SchoolProfile.load().require_result_access_pin:
         return True
@@ -170,15 +205,21 @@ class StudentReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         compilations, available_sessions, available_terms, selected_session, selected_term = self._filtered_compilations()
         school_profile = SchoolProfile.load()
         compilation_rows = []
+        featured_compilation = None
+        featured_locked = False
         for compilation in compilations:
             pin_required = _student_result_pin_required(request=self.request, compilation=compilation)
+            pin_verified = _student_result_pin_is_verified(self.request, compilation=compilation) if pin_required else True
             compilation_rows.append(
                 {
                     "compilation": compilation,
                     "pin_required": pin_required,
-                    "pin_verified": _student_result_pin_is_verified(self.request, compilation=compilation) if pin_required else True,
+                    "pin_verified": pin_verified,
                 }
             )
+            if featured_compilation is None:
+                featured_compilation = compilation
+                featured_locked = pin_required and not pin_verified
 
         context["compilation_rows"] = compilation_rows
         context["available_sessions"] = available_sessions
@@ -186,6 +227,13 @@ class StudentReportsView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
         context["selected_session"] = selected_session
         context["selected_term"] = selected_term
         context["school_profile"] = school_profile
+        context["featured_compilation"] = featured_compilation
+        context["featured_compilation_locked"] = featured_locked
+        context["featured_result_summary"] = (
+            _featured_result_summary(student=self.request.user, compilation=featured_compilation)
+            if featured_compilation is not None and not featured_locked
+            else None
+        )
         return context
 
     def post(self, request, *args, **kwargs):

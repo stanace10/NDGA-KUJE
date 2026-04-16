@@ -5,6 +5,7 @@ from apps.dashboard.models import (
     LessonPlanDraft,
     PortalDocument,
     PrincipalSignature,
+    PublicAdmissionPaymentTransaction,
     PublicAdmissionWorkflowStatus,
     PublicEventPost,
     PublicGalleryCategory,
@@ -82,6 +83,13 @@ class PublicSiteSubmissionAdmin(admin.ModelAdmin):
         queryset.filter(submission_type="ADMISSION").update(
             admissions_status=PublicAdmissionWorkflowStatus.PENDING
         )
+
+
+@admin.register(PublicAdmissionPaymentTransaction)
+class PublicAdmissionPaymentTransactionAdmin(admin.ModelAdmin):
+    list_display = ("reference", "submission", "provider", "status", "amount", "created_at")
+    list_filter = ("provider", "status")
+    search_fields = ("reference", "gateway_reference", "submission__applicant_name", "submission__application_fee_reference")
 
 
 @admin.register(PublicWebsiteSettings)

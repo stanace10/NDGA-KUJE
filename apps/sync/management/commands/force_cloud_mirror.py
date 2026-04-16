@@ -8,6 +8,7 @@ from django.core.exceptions import ValidationError
 from apps.sync.content_sync import _fetch_cbt_content_feed, apply_cbt_content_changes
 from apps.sync.inbound_sync import ingest_remote_outbox_event
 from apps.sync.models import SyncContentStream, SyncOperationType, SyncPullCursor
+from apps.sync.policies import lan_results_only_mode_enabled
 from apps.sync.services import _cloud_endpoint, _fetch_remote_outbox_feed
 
 
@@ -66,6 +67,10 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        if lan_results_only_mode_enabled():
+            raise CommandError(
+                "force_cloud_mirror is disabled while LAN results-only mode is active."
+            )
         endpoint = _cloud_endpoint()
         if not endpoint:
             raise CommandError("SYNC_CLOUD_ENDPOINT is not configured.")

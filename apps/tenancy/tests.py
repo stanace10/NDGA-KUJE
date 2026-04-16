@@ -278,7 +278,7 @@ class StageTwoHostRoutingTests(TestCase):
         SYNC_NODE_ROLE="CLOUD",
         CLOUD_STAFF_OPERATIONS_LAN_ONLY=True,
     )
-    def test_cloud_staff_operations_require_school_lan_but_profile_stays_available(self):
+    def test_cloud_staff_operations_require_school_lan_including_profile_access(self):
         client = Client(HTTP_HOST="localhost:8000")
         client.force_login(self.teacher_user)
 
@@ -286,31 +286,27 @@ class StageTwoHostRoutingTests(TestCase):
         self.assertEqual(blocked.status_code, 403)
         self.assertIn("school LAN", blocked.content.decode())
 
-        allowed = client.get("/portal/staff/profile/")
-        self.assertEqual(allowed.status_code, 200)
-        self.assertContains(allowed, "Staff Profile")
+        blocked_profile = client.get("/portal/staff/profile/")
+        self.assertEqual(blocked_profile.status_code, 403)
+        self.assertIn("school LAN", blocked_profile.content.decode())
 
-        readonly_results = client.get("/portal/staff/results-overview/")
-        self.assertEqual(readonly_results.status_code, 200)
-        self.assertContains(readonly_results, "Results Overview")
+        blocked_results = client.get("/portal/staff/results-overview/")
+        self.assertEqual(blocked_results.status_code, 403)
+        self.assertIn("school LAN", blocked_results.content.decode())
 
     @override_settings(
         NDGA_LOCAL_SIMPLE_HOST_MODE=True,
         SYNC_NODE_ROLE="CLOUD",
         CLOUD_STAFF_OPERATIONS_LAN_ONLY=True,
     )
-    def test_cloud_staff_navigation_hides_lan_only_actions(self):
+    def test_cloud_staff_portal_is_fully_lan_only(self):
         client = Client(HTTP_HOST="localhost:8000")
         client.force_login(self.teacher_user)
 
         response = client.get("/portal/staff/")
 
-        self.assertEqual(response.status_code, 200)
-        self.assertNotContains(response, "Result Entry")
-        self.assertNotContains(response, "CBT Entry")
-        self.assertContains(response, "Results Overview")
-        self.assertContains(response, "Profile")
-        self.assertContains(response, "Settings")
+        self.assertEqual(response.status_code, 403)
+        self.assertIn("school LAN", response.content.decode())
 
     @override_settings(
         NDGA_LOCAL_SIMPLE_HOST_MODE=True,
@@ -348,7 +344,81 @@ class StageTwoHostRoutingTests(TestCase):
         self.assertIn("school LAN", blocked.content.decode())
 
         blocked_sync = client.get("/sync/dashboard/")
-        self.assertEqual(blocked_sync.status_code, 404)
+        self.assertEqual(blocked_sync.status_code, 403)
+        self.assertIn("school LAN", blocked_sync.content.decode())
+
+    @override_settings(
+        NDGA_LOCAL_SIMPLE_HOST_MODE=True,
+        SYNC_NODE_ROLE="CLOUD",
+        CLOUD_STAFF_OPERATIONS_LAN_ONLY=True,
+        CLOUD_STUDENT_PORTAL_LIMITED=True,
+    )
+    def test_cloud_student_portal_shows_only_read_payment_surfaces(self):
+        client = Client(HTTP_HOST="localhost:8000")
+        client.force_login(self.student)
+
+        response = client.get("/portal/student/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Profile")
+        self.assertContains(response, "Attendance")
+        self.assertContains(response, "Results")
+        self.assertContains(response, "Transcript")
+        self.assertContains(response, "Subjects")
+        self.assertContains(response, "LMS Classroom")
+        self.assertContains(response, "Weekly Challenge")
+        self.assertContains(response, "Digital ID")
+        self.assertContains(response, "Finance")
+        self.assertContains(response, "Notifications")
+        self.assertNotContains(response, "Learning Hub")
+        self.assertNotContains(response, "Document Vault")
+        self.assertNotContains(response, "Settings")
+
+    @override_settings(
+        NDGA_LOCAL_SIMPLE_HOST_MODE=True,
+        SYNC_NODE_ROLE="CLOUD",
+        CLOUD_STAFF_OPERATIONS_LAN_ONLY=True,
+        CLOUD_STUDENT_PORTAL_LIMITED=True,
+    )
+    def test_cloud_student_portal_blocks_lan_only_learning_features(self):
+        client = Client(HTTP_HOST="localhost:8000")
+        client.force_login(self.student)
+
+        allowed_attendance = client.get("/portal/student/attendance/")
+        self.assertEqual(allowed_attendance.status_code, 200)
+
+        allowed_finance = client.get("/portal/student/finance/")
+        self.assertEqual(allowed_finance.status_code, 200)
+
+        allowed_results = client.get("/pdfs/student/reports/")
+        self.assertEqual(allowed_results.status_code, 200)
+
+        allowed_lms = client.get("/portal/student/lms/")
+        self.assertEqual(allowed_lms.status_code, 200)
+
+        allowed_transcript = client.get("/portal/student/transcript/")
+        self.assertEqual(allowed_transcript.status_code, 200)
+
+        allowed_subjects = client.get("/portal/student/subjects/")
+        self.assertEqual(allowed_subjects.status_code, 200)
+
+        allowed_weekly_challenge = client.get("/portal/student/weekly-challenge/")
+        self.assertEqual(allowed_weekly_challenge.status_code, 200)
+
+        allowed_id = client.get("/portal/student/id-card/")
+        self.assertEqual(allowed_id.status_code, 200)
+
+        blocked_learning_hub = client.get("/portal/student/learning-hub/")
+        self.assertEqual(blocked_learning_hub.status_code, 403)
+        self.assertIn("school LAN", blocked_learning_hub.content.decode())
+
+        blocked_documents = client.get("/portal/student/documents/")
+        self.assertEqual(blocked_documents.status_code, 403)
+        self.assertIn("school LAN", blocked_documents.content.decode())
+
+        blocked_settings = client.get("/portal/student/settings/")
+        self.assertEqual(blocked_settings.status_code, 403)
+        self.assertIn("school LAN", blocked_settings.content.decode())
     def test_staff_login_page_copy_is_staff_only(self):
         client = Client(HTTP_HOST="staff.ndgakuje.org")
         response = client.get("/auth/login/?audience=staff")

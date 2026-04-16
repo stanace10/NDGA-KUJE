@@ -75,7 +75,7 @@ from apps.audit.services import (
 from apps.cbt.services import finalize_cbt_attempts_on_logout
 from apps.pdfs.services import qr_code_data_uri
 from apps.sync.services import queue_student_registration_sync
-from apps.tenancy.utils import build_portal_url
+from apps.tenancy.utils import build_portal_url, cloud_staff_operations_lan_only_enabled
 from core.upload_scan import validate_image_upload
 
 logger = logging.getLogger(__name__)
@@ -182,10 +182,19 @@ def _next_url_matches_primary_portal(*, user, request, next_url):
         "staff": (
             "/portal/staff/",
             "/results/grade-entry/",
-            "/results/dean/",
-            "/attendance/form/",
-            "/results/report/",
             "/cbt/authoring/",
+            "/portal/staff/lesson-planner/",
+            "/portal/staff/lms/",
+        ),
+        "dean": (
+            "/portal/dean/",
+            "/results/dean/",
+            "/cbt/dean/",
+        ),
+        "form": (
+            "/portal/form/",
+            "/attendance/form/",
+            "/results/form/",
         ),
         "vp": (
             "/portal/vp/",
@@ -296,6 +305,18 @@ class LoginView(FormView):
 
     def get(self, request, *args, **kwargs):
         portal_hint = (request.GET.get("audience", "") or "").strip().lower()
+        if cloud_staff_operations_lan_only_enabled() and portal_hint in {
+            "staff",
+            "dean",
+            "form",
+            "it",
+            "bursar",
+            "vp",
+            "principal",
+            "cbt",
+            "election",
+        }:
+            return HttpResponseBadRequest("This login audience is not available here.")
         fresh_requested = (request.GET.get("fresh", "") or "").strip().lower() in {
             "1",
             "true",
@@ -354,7 +375,7 @@ class LoginView(FormView):
                 "Staff/Admin accounts must sign in from the Staff Portal.",
             )
             return redirect(self._staff_login_url())
-        if portal_hint == "staff" and user.has_role(ROLE_STUDENT):
+        if portal_hint in {"staff", "dean", "form", "it", "vp", "principal", "bursar"} and user.has_role(ROLE_STUDENT):
             messages.error(
                 self.request,
                 "Student accounts must sign in from the Student Portal.",
@@ -525,6 +546,8 @@ class LogoutView(RedirectView):
             "election": ("election", "election"),
             "student": ("student", "student"),
             "staff": ("staff", "staff"),
+            "dean": ("dean", "dean"),
+            "form": ("form", "form"),
             "it": ("it", "staff"),
             "bursar": ("bursar", "staff"),
             "vp": ("vp", "staff"),

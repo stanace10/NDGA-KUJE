@@ -55,7 +55,9 @@ STAFF_ROLE_ID_PREFIX = {
 
 PORTAL_ROLE_ACCESS = {
     "student": {ROLE_STUDENT},
-    "staff": {ROLE_DEAN, ROLE_FORM_TEACHER, ROLE_SUBJECT_TEACHER},
+    "staff": {ROLE_SUBJECT_TEACHER},
+    "dean": {ROLE_DEAN},
+    "form": {ROLE_FORM_TEACHER},
     "it": {ROLE_IT_MANAGER},
     "bursar": {ROLE_BURSAR},
     "vp": {ROLE_VP},
@@ -71,7 +73,7 @@ ROLE_HOME_PORTAL = {
     ROLE_BURSAR: "bursar",
     ROLE_VP: "vp",
     ROLE_PRINCIPAL: "principal",
-    ROLE_DEAN: "staff",
-    ROLE_FORM_TEACHER: "staff",
+    ROLE_DEAN: "dean",
+    ROLE_FORM_TEACHER: "form",
     ROLE_SUBJECT_TEACHER: "staff",
 }

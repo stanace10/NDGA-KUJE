@@ -42,7 +42,7 @@ class _StyledFormMixin:
 
 class StudentChargeForm(_StyledFormMixin, forms.ModelForm):
     academic_class = forms.ModelChoiceField(
-        queryset=AcademicClass.objects.order_by("code"),
+        queryset=AcademicClass.objects.filter(is_active=True, base_class__isnull=True).order_by("code"),
         required=True,
     )
 
@@ -108,10 +108,7 @@ class PaymentForm(_StyledFormMixin, forms.ModelForm):
 
 class GatewayPaymentInitForm(_StyledFormMixin, forms.Form):
     class PaymentPlan(models.TextChoices):
-        FULL = "FULL", "Full Outstanding"
         FEE_ITEM = "FEE_ITEM", "Single Fee Item"
-        PERCENTAGE = "PERCENTAGE", "Percentage Payment"
-        CUSTOM = "CUSTOM", "Custom Amount"
 
     student = forms.ModelChoiceField(
         queryset=User.objects.filter(primary_role__code="STUDENT", is_active=True).order_by("username"),
@@ -120,14 +117,9 @@ class GatewayPaymentInitForm(_StyledFormMixin, forms.Form):
     amount = forms.DecimalField(max_digits=12, decimal_places=2, min_value=0.01)
     payment_plan = forms.ChoiceField(
         choices=PaymentPlan.choices,
-        initial=PaymentPlan.FULL,
+        initial=PaymentPlan.FEE_ITEM,
     )
     fee_item = forms.CharField(required=False, max_length=140)
-    percentage = forms.TypedChoiceField(
-        required=False,
-        coerce=int,
-        choices=[("", "Select percentage"), (25, "25%"), (50, "50%"), (75, "75%"), (100, "100%")],
-    )
     provider = forms.ChoiceField(
         choices=PaymentGatewayProvider.choices,
         initial=PaymentGatewayProvider.PAYSTACK,

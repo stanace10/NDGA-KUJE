@@ -40,6 +40,10 @@ env = environ.Env(
     MOBILE_CAPTURE_PUBLIC_BASE_URL=(str, ""),
     PAYMENT_GATEWAY_CALLBACK_URL=(str, ""),
     PAYMENT_GATEWAY_TIMEOUT_SECONDS=(int, 12),
+    MANUAL_UPDATE_REMOTE_BASE_URL=(str, ""),
+    MANUAL_UPDATE_TOKEN=(str, ""),
+    MANUAL_UPDATE_TOKEN_FALLBACKS=(str, ""),
+    MANUAL_UPDATE_ALLOWED_IPS=(str, ""),
     WHATSAPP_PROVIDER=(str, "disabled"),
     WHATSAPP_GRAPH_API_BASE_URL=(str, "https://graph.facebook.com/v23.0"),
     WHATSAPP_ACCESS_TOKEN=(str, ""),
@@ -78,6 +82,8 @@ env = environ.Env(
     SYNC_PULL_TIMEOUT_SECONDS=(int, 5),
     SYNC_PULL_BEAT_ENABLED=(bool, False),
     SYNC_PULL_BEAT_INTERVAL_SECONDS=(int, 5),
+    SYNC_LAN_RESULTS_ONLY_MODE=(bool, False),
+    CLOUD_STUDENT_PORTAL_LIMITED=(bool, False),
     LAN_RUNTIME_RESTRICT_PORTALS=(bool, False),
     CLOUD_STAFF_OPERATIONS_LAN_ONLY=(bool, False),
     MONITOR_CELERY_QUEUE_NAMES=(str, "celery"),
@@ -413,6 +419,8 @@ PORTAL_SUBDOMAINS = {
     "portal": env("NDGA_PORTAL_HOST", default=f"portal.{NDGA_BASE_DOMAIN}"),
     "student": env("NDGA_STUDENT_HOST", default=f"student.{NDGA_BASE_DOMAIN}"),
     "staff": env("NDGA_STAFF_HOST", default=f"staff.{NDGA_BASE_DOMAIN}"),
+    "dean": env("NDGA_DEAN_HOST", default=f"dean.{NDGA_BASE_DOMAIN}"),
+    "form": env("NDGA_FORM_HOST", default=f"form.{NDGA_BASE_DOMAIN}"),
     "it": env("NDGA_IT_HOST", default=f"it.{NDGA_BASE_DOMAIN}"),
     "bursar": env("NDGA_BURSAR_HOST", default=f"bursar.{NDGA_BASE_DOMAIN}"),
     "vp": env("NDGA_VP_HOST", default=f"vp.{NDGA_BASE_DOMAIN}"),
@@ -463,6 +471,18 @@ MOBILE_CAPTURE_PUBLIC_BASE_URL = (
 )
 PAYMENT_GATEWAY_CALLBACK_URL = env("PAYMENT_GATEWAY_CALLBACK_URL", default="")
 PAYMENT_GATEWAY_TIMEOUT_SECONDS = env.int("PAYMENT_GATEWAY_TIMEOUT_SECONDS", default=12)
+MANUAL_UPDATE_REMOTE_BASE_URL = env("MANUAL_UPDATE_REMOTE_BASE_URL", default="").strip().rstrip("/")
+MANUAL_UPDATE_TOKEN = env("MANUAL_UPDATE_TOKEN", default="").strip()
+MANUAL_UPDATE_TOKEN_FALLBACKS = [
+    item.strip()
+    for item in env("MANUAL_UPDATE_TOKEN_FALLBACKS", default="").split(",")
+    if item.strip()
+]
+MANUAL_UPDATE_ALLOWED_IPS = [
+    item.strip()
+    for item in env("MANUAL_UPDATE_ALLOWED_IPS", default="").split(",")
+    if item.strip()
+]
 WHATSAPP_PROVIDER = env("WHATSAPP_PROVIDER", default="disabled")
 WHATSAPP_GRAPH_API_BASE_URL = env(
     "WHATSAPP_GRAPH_API_BASE_URL",
@@ -549,6 +569,14 @@ SYNC_PULL_BEAT_ENABLED = env.bool(
     default=False,
 )
 SYNC_PULL_BEAT_INTERVAL_SECONDS = env.int("SYNC_PULL_BEAT_INTERVAL_SECONDS", default=5)
+SYNC_LAN_RESULTS_ONLY_MODE = env.bool(
+    "SYNC_LAN_RESULTS_ONLY_MODE",
+    default=(SYNC_NODE_ROLE == "LAN"),
+)
+CLOUD_STUDENT_PORTAL_LIMITED = env.bool(
+    "CLOUD_STUDENT_PORTAL_LIMITED",
+    default=(SYNC_NODE_ROLE == "CLOUD"),
+)
 LAN_RUNTIME_RESTRICT_PORTALS = env.bool(
     "LAN_RUNTIME_RESTRICT_PORTALS",
     default=False,

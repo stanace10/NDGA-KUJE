@@ -28,6 +28,7 @@ from apps.sync.models import (
     SyncTransferBatch,
     SyncTransferDirection,
 )
+from apps.sync.policies import lan_results_only_mode_enabled, outbound_queue_row_allowed
 
 PENDING_SYNC_STATES = (SyncQueueStatus.PENDING, SyncQueueStatus.RETRY)
 _CONNECTIVITY_CACHE_KEY = "sync_cloud_connectivity_v1"
@@ -92,6 +93,8 @@ def _as_int(value, *, fallback=0):
 def _connectivity_cache_ttl_seconds():
     value = _as_int(getattr(settings, "SYNC_CONNECTIVITY_CACHE_TTL_SECONDS", 2), fallback=2)
     return max(value, 1)
+
+
 def sync_policy_for_operation(operation_type):
     return SYNC_DOMAIN_POLICIES.get(operation_type, {"domain": "General", "policy": "Idempotent queued sync with retry/backoff."})
 
@@ -117,6 +120,17 @@ def _record_sync_queue_event(*, queue_row, event_type, from_status="", to_status
         message=(message or "")[:255],
         metadata=metadata or {},
     )
+
+
+def _outbound_runtime_allows_operation(operation_type):
+    if not bool(getattr(settings, "SYNC_LOCAL_NODE_ENABLED", True)):
+        return False
+    if not lan_results_only_mode_enabled():
+        return True
+    return operation_type in {
+        SyncOperationType.MODEL_RECORD_UPSERT,
+        SyncOperationType.MODEL_RECORD_DELETE,
+    }
 
 
 def compute_backoff_seconds(retry_count):
@@ -161,6 +175,8 @@ def queue_sync_operation(
     is_manual_import=False,
     local_node_id="",
 ):
+    if not bool(getattr(settings, "SYNC_LOCAL_NODE_ENABLED", True)):
+        return None, False
     payload = _coerce_payload(payload)
     valid_operations = {choice for choice, _ in SyncOperationType.choices}
     if operation_type not in valid_operations:
@@ -223,6 +239,8 @@ def queue_sync_operation(
 
 
 def queue_exam_attempt_sync(*, attempt, event_type="ATTEMPT_UPSERT"):
+    if not _outbound_runtime_allows_operation(SyncOperationType.CBT_EXAM_ATTEMPT):
+        return None
     payload = {
         "event_type": event_type,
         "attempt_id": str(attempt.id),
@@ -256,6 +274,8 @@ def queue_exam_attempt_sync(*, attempt, event_type="ATTEMPT_UPSERT"):
 
 
 def queue_simulation_attempt_sync(*, record, event_type="SIMULATION_UPSERT"):
+    if not _outbound_runtime_allows_operation(SyncOperationType.CBT_SIMULATION_ATTEMPT):
+        return None
     payload = {
         "event_type": event_type,
         "record_id": str(record.id),
@@ -307,6 +327,8 @@ def _file_field_to_data_url(file_field):
 
 
 def queue_cbt_content_change_sync(*, change):
+    if not _outbound_runtime_allows_operation(SyncOperationType.CBT_CONTENT_CHANGE):
+        return None
     payload = {
         "id": int(change.id),
         "stream": change.stream,
@@ -333,6 +355,8 @@ def queue_cbt_content_change_sync(*, change):
 
 
 def queue_student_registration_sync(*, user, raw_password=""):
+    if not _outbound_runtime_allows_operation(SyncOperationType.STUDENT_REGISTRATION_UPSERT):
+        return None
     from apps.accounts.models import StudentProfile
 
     profile = StudentProfile.objects.select_related("user").get(user=user)
@@ -401,6 +425,8 @@ def queue_vote_submission_sync(
     payload,
     idempotency_key="",
 ):
+    if not _outbound_runtime_allows_operation(SyncOperationType.ELECTION_VOTE_SUBMISSION):
+        return None
     normalized_payload = _coerce_payload(payload)
     conflict_key = f"{election_id}:{position_id}:{voter_id}"
     if not idempotency_key:
@@ -593,9 +619,20 @@ def build_outbox_feed(*, after_id=0, limit=200, exclude_origin_node_id=""):
     normalized_exclude = (exclude_origin_node_id or "").strip()
     if normalized_exclude:
         queryset = queryset.exclude(local_node_id=normalized_exclude)
-    rows = list(queryset[:safe_limit])
+    rows = []
+    scan_after_id = safe_after_id
+    while len(rows) < safe_limit:
+        batch = list(queryset.filter(id__gt=scan_after_id)[:safe_limit])
+        if not batch:
+            break
+        for row in batch:
+            scan_after_id = max(scan_after_id, row.id)
+            if outbound_queue_row_allowed(row):
+                rows.append(row)
+                if len(rows) >= safe_limit:
+                    break
     next_after_id = rows[-1].id if rows else safe_after_id
-    has_more = queryset.filter(id__gt=next_after_id).exists()
+    has_more = any(outbound_queue_row_allowed(row) for row in queryset.filter(id__gt=next_after_id)[:safe_limit])
     return {
         "stream": SyncContentStream.OUTBOX_EVENTS,
         "after_id": safe_after_id,
@@ -663,6 +700,15 @@ def _fetch_remote_outbox_feed(*, after_id, limit):
 
 
 def pull_remote_outbox_updates(*, limit=None, max_pages=None):
+    if lan_results_only_mode_enabled():
+        return {
+            "triggered": False,
+            "reason": "lan_results_only_mode",
+            "applied": 0,
+            "duplicates": 0,
+            "blocked": 0,
+            "pages": 0,
+        }
     if not bool(getattr(settings, "SYNC_PULL_ENABLED", True)):
         return {"triggered": False, "reason": "pull_disabled", "applied": 0, "duplicates": 0, "blocked": 0, "pages": 0}
     if not _cloud_endpoint():
@@ -766,6 +812,30 @@ def pull_remote_outbox_updates(*, limit=None, max_pages=None):
 def process_queue_row(queue_row):
     if queue_row.status in {SyncQueueStatus.SYNCED, SyncQueueStatus.CONFLICT}:
         return {"processed": False, "status": queue_row.status}
+    if not outbound_queue_row_allowed(queue_row):
+        from_status = queue_row.status
+        queue_row.status = SyncQueueStatus.FAILED
+        queue_row.next_retry_at = None
+        queue_row.last_attempt_at = timezone.now()
+        queue_row.last_error = "Blocked by LAN results-only sync policy."
+        queue_row.save(
+            update_fields=[
+                "status",
+                "next_retry_at",
+                "last_attempt_at",
+                "last_error",
+                "updated_at",
+            ]
+        )
+        _record_sync_queue_event(
+            queue_row=queue_row,
+            event_type="STATUS_TRANSITION",
+            from_status=from_status,
+            to_status=queue_row.status,
+            message=queue_row.last_error,
+            metadata={"policy": "lan_results_only"},
+        )
+        return {"processed": True, "status": queue_row.status}
 
     from_status = queue_row.status
     queue_row.last_attempt_at = timezone.now()

@@ -22,6 +22,7 @@ from apps.sync.models import (
     SyncContentStream,
     SyncPullCursor,
 )
+from apps.sync.policies import lan_results_only_mode_enabled
 from apps.sync.services import queue_cbt_content_change_sync
 
 _THREAD_LOCAL = local()
@@ -277,6 +278,16 @@ def register_cbt_content_change(*, instance, operation=SyncContentOperation.UPSE
 
 
 def build_cbt_content_feed(*, after_id=0, limit=200):
+    if lan_results_only_mode_enabled():
+        return {
+            "stream": SyncContentStream.CBT_CONTENT,
+            "after_id": max(_as_int(after_id, fallback=0), 0),
+            "next_after_id": max(_as_int(after_id, fallback=0), 0),
+            "has_more": False,
+            "count": 0,
+            "generated_at": timezone.now().isoformat(),
+            "changes": [],
+        }
     safe_after_id = max(_as_int(after_id, fallback=0), 0)
     safe_limit = max(min(_as_int(limit, fallback=200), 500), 1)
     rows = list(
@@ -745,6 +756,8 @@ def _fetch_cbt_content_feed(*, after_id, limit):
 
 
 def pull_cbt_content_updates(*, limit=None, max_pages=None):
+    if lan_results_only_mode_enabled():
+        return {"triggered": False, "reason": "lan_results_only_mode", "applied": 0, "pages": 0}
     if not bool(getattr(settings, "SYNC_PULL_ENABLED", True)):
         return {"triggered": False, "reason": "pull_disabled", "applied": 0, "pages": 0}
     if not _sync_cloud_endpoint():

@@ -13,13 +13,31 @@
   </video>
   <div class="public-hero-overlay"></div>
   <div class="public-container public-hero-content" data-reveal>
-    <span class="public-eyebrow public-hero-kicker">Welcome to</span>
-    <p class="public-hero-school-name">{{ public_contact.school_name }}</p>
+    <p class="public-hero-school-line">Welcome to Notre Dame Girls Academy</p>
     <h1>{{ public_site_settings.hero_title }}</h1>
     <p class="public-hero-subline">{{ public_site_settings.hero_subtitle }}</p>
+    <div class="public-marketing-badges public-marketing-badges-hero">
+      <span>Educating Girls for Life</span>
+      <span>Faith, Character, Academic Strength</span>
+      <span>Boarding Structure with Care</span>
+    </div>
     <div class="public-hero-actions">
       <a href="/admissions/registration/" class="public-cta magnetic">Apply Now</a>
-      <a href="/auth/login/?audience=student" class="public-secondary-cta magnetic">School Portal</a>
+      <a href="/contact/" class="public-secondary-cta magnetic">Book a Visit</a>
+    </div>
+    <div class="public-hero-proof">
+      <article>
+        <strong>Purposeful Learning</strong>
+        <span>Clear academic preparation from junior to senior secondary.</span>
+      </article>
+      <article>
+        <strong>Pastoral Care</strong>
+        <span>A girls' environment shaped by dignity, discipline, and guidance.</span>
+      </article>
+      <article>
+        <strong>Structured School Life</strong>
+        <span>A school rhythm that supports growth, confidence, and responsibility.</span>
+      </article>
     </div>
   </div>
 </section>
@@ -37,23 +55,62 @@
       </article>
       <article class="public-quickfact-card">
         <strong>Admissions made clear</strong>
-        <p>Registration, screening, boarding, and fee guidance are easy to follow.</p>
+        <p>Registration, screening, and boarding guidance are easy to follow.</p>
       </article>
+    </div>
+  </div>
+</section>
+
+<section class="public-section public-section-soft">
+  <div class="public-container" data-reveal>
+    <div class="public-section-heading">
+      <span class="public-eyebrow">Life In Motion</span>
+      <h2>Moments that give the school a stronger visual identity</h2>
+      <p>Study, campus life, achievement, and formation come together here in one more expressive view of the NDGA experience.</p>
+    </div>
+    <div class="public-orbit-showcase">
+      <div class="public-orbit-copy">
+        <article>
+          <strong>Quiet Study Culture</strong>
+          <p>Spaces that support focus, prep, discipline, and healthy routine.</p>
+        </article>
+        <article>
+          <strong>Visible School Growth</strong>
+          <p>A campus environment that signals structure, ambition, and ongoing development.</p>
+        </article>
+        <article>
+          <strong>Student Achievement</strong>
+          <p>Celebrating girls who are learning, competing, growing, and standing out.</p>
+        </article>
+      </div>
+      <div class="public-orbit-stage" aria-hidden="true">
+        <div class="public-orbit-ring public-orbit-ring-lg"></div>
+        <div class="public-orbit-ring public-orbit-ring-sm"></div>
+        <figure class="public-orbit-photo public-orbit-photo-left">
+          <img src="{% static public_images.hostel %}" alt="Student in focused reading time">
+        </figure>
+        <figure class="public-orbit-photo public-orbit-photo-center">
+          <img src="{% static public_images.campus_round_view %}" alt="NDGA campus building">
+        </figure>
+        <figure class="public-orbit-photo public-orbit-photo-right">
+          <img src="{% static public_images.pioneers_alt %}" alt="Students receiving awards">
+        </figure>
+      </div>
     </div>
   </div>
 </section>
 
 <section class="public-section">
   <div class="public-container public-split" data-reveal>
+    <div class="public-image-frame public-image-frame-home-about">
+      <img src="{% static public_images.about_student %}" alt="Notre Dame Girls' Academy student learning in class">
+    </div>
     <div class="public-copy">
       <span class="public-eyebrow">{{ home_about.eyebrow }}</span>
       <h2>An education shaped by faith, discipline, purpose, and the dignity of the girl child</h2>
       <p>Notre Dame Girls' Academy is owned and managed by the Sisters of Notre Dame de Namur and belongs to a wider educational tradition inspired by St. Julie Billiart, who urged educators to teach children whatever they need for life.</p>
       <p>At NDGA, that vision appears through Catholic Gospel values, purposeful learning, pastoral care, boarding structure, and the all-round formation of every girl in our care.</p>
       <a href="/about/" class="public-text-link">Learn more about NDGA</a>
-    </div>
-    <div class="public-image-frame">
-      <img src="{% static public_images.about_student %}" alt="Notre Dame Girls' Academy student learning in class">
     </div>
   </div>
 </section>
@@ -91,8 +148,52 @@
         </article>
       {% endfor %}
     </div>
-    <div class="public-inline-note public-inline-note-accent">
-      Child safeguarding remains part of the school's duty of care. NDGA recognises every child as a gift from God and works with parents and guardians to protect student welfare, dignity, and safety.
+  </div>
+</section>
+
+<section class="public-section public-section-soft">
+  <div class="public-container" data-reveal>
+    <div class="public-section-heading">
+      <span class="public-eyebrow">Why Families Choose NDGA</span>
+      <h2>Care, dignity, and a school culture families can trust</h2>
+      <p>Families choose NDGA not only for academics, but for the kind of environment in which girls are protected, known, guided, and helped to grow with confidence.</p>
+    </div>
+    <div class="public-assurance-grid">
+      <article class="public-assurance-card public-assurance-card-feature">
+        <span class="public-assurance-kicker">Child Safeguarding</span>
+        <h3>Every child is recognised as a gift from God.</h3>
+        <p>Child safeguarding remains part of the school's duty of care. NDGA works with parents and guardians to protect student welfare, dignity, and safety in school life, boarding life, and the wider learning environment.</p>
+      </article>
+      <article class="public-assurance-card">
+        <h3>Parent Partnership</h3>
+        <p>Parents and guardians are treated as partners in formation, discipline, communication, and student wellbeing.</p>
+      </article>
+      <article class="public-assurance-card">
+        <h3>Safe Daily Structure</h3>
+        <p>Boarding routine, supervised study, pastoral presence, and ordered school life create a dependable environment for growth.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="public-section">
+  <div class="public-container" data-reveal>
+    <div class="public-section-heading">
+      <span class="public-eyebrow">NDGA Voices</span>
+      <h2>Short reflections from students across the school</h2>
+      <p>A clearer sense of student experience helps the public site feel more grounded, believable, and human.</p>
+    </div>
+    <div class="public-testimonial-grid">
+      {% for item in home_testimonials|slice:":3" %}
+        <article class="public-testimonial-card">
+          <div class="public-testimonial-mark">&ldquo;</div>
+          <p>{{ item.quote }}</p>
+          <div class="public-testimonial-meta">
+            <strong>{{ item.name }}</strong>
+            {% if item.role %}<span>{{ item.role }}</span>{% endif %}
+          </div>
+        </article>
+      {% endfor %}
     </div>
   </div>
 </section>
@@ -156,11 +257,11 @@
   <div class="public-container public-two-column-band" data-reveal>
     <div>
       <div class="public-section-heading">
-        <span class="public-eyebrow">Fees & Boarding</span>
-        <h2>Class-by-class structure with clear boarding access</h2>
+        <span class="public-eyebrow">Boarding & Care</span>
+        <h2>Boarding structure, student welfare, and daily routine</h2>
       </div>
       <div class="public-card-grid public-card-grid-three">
-        {% for card in home_fee_highlights %}
+        {% for card in home_support_highlights %}
           <article class="public-media-card public-academic-preview-card">
             <div class="public-academic-orb public-academic-orb-lg" data-rotating-gallery>
               {% for image in card.images %}
@@ -176,13 +277,13 @@
         {% endfor %}
       </div>
       <div class="public-inline-cta">
-        <a href="/fees/" class="public-text-link">Open the fee page</a>
+        <a href="/hostel-boarding/" class="public-text-link">View hostel details</a>
       </div>
     </div>
     <div class="public-copy">
-      <p>Boarding guidance, application fee structure, and school fees remain visible before admission is completed. Families can move from enquiry to registration with fewer unanswered questions.</p>
-      <p>The bursary and admissions workflow also keeps application charges separate from normal student school fees, so each stage is easier to understand.</p>
-      <a href="/hostel-boarding/" class="public-text-link">View hostel details</a>
+      <p>Boarding life at NDGA combines supervision, rest, study time, pastoral presence, and ordered routines that help girls settle and grow with confidence.</p>
+      <p>Families can review boarding life, student welfare, and admissions guidance clearly while keeping the focus on learning, discipline, and care.</p>
+      <a href="/contact/" class="public-text-link">Speak with the school</a>
     </div>
   </div>
 </section>
@@ -292,6 +393,16 @@
       {% for point in credibility_points %}
         <article>{{ point }}</article>
       {% endfor %}
+    </div>
+    <div class="public-story-promo">
+      <div>
+        <span class="public-eyebrow">Take The Next Step</span>
+        <h3>Give your daughter an education shaped by faith, discipline, and future-ready learning.</h3>
+      </div>
+      <div class="public-button-row">
+        <a href="/admissions/registration/" class="public-cta magnetic">Start Admission</a>
+        <a href="/contact/" class="public-secondary-cta magnetic">Speak with Admissions</a>
+      </div>
     </div>
   </div>
 </section>

@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.contrib import messages
+from django.http import HttpResponseNotFound
 from django.shortcuts import redirect, render
 from django.urls import reverse
 
@@ -21,18 +22,22 @@ from apps.setup_wizard.feature_flags import get_feature_flag
 from apps.setup_wizard.services import setup_is_ready
 from apps.tenancy.utils import (
     build_portal_url,
+    cloud_student_portal_limited_enabled,
     cloud_staff_operations_lan_only_enabled,
     current_term_staff_edit_lock,
     current_portal_key,
     lan_runtime_restrictions_enabled,
     path_is_cloud_lan_only_operation,
+    path_is_cloud_student_portal_limited,
     path_is_future_term_staff_edit_operation,
+    user_has_cloud_student_portal_role,
     user_has_lan_only_operation_roles,
 )
 
 
 class PortalAccessMiddleware:
     PROVISIONING_ROLE_CODES = {ROLE_IT_MANAGER, ROLE_VP, ROLE_PRINCIPAL}
+    CLOUD_HIDDEN_PORTAL_KEYS = {"staff", "dean", "form", "it", "bursar", "vp", "principal", "cbt", "election"}
     PUBLIC_PATH_PREFIXES = ("/static/", "/media/", "/favicon.ico", "/robots.txt", "/sitemap.xml")
     AUTH_BYPASS_PREFIXES = (
         "/auth/login/",
@@ -182,6 +187,8 @@ class PortalAccessMiddleware:
         },
         "/portal/student/": PORTAL_ROLE_ACCESS["student"],
         "/portal/staff/": PORTAL_ROLE_ACCESS["staff"],
+        "/portal/dean/": PORTAL_ROLE_ACCESS["dean"],
+        "/portal/form/": PORTAL_ROLE_ACCESS["form"],
         "/portal/it/": PORTAL_ROLE_ACCESS["it"],
         "/portal/bursar/": PORTAL_ROLE_ACCESS["bursar"],
         "/portal/vp/": PORTAL_ROLE_ACCESS["vp"],
@@ -200,10 +207,18 @@ class PortalAccessMiddleware:
         if self._is_feature_disabled_portal(request.portal_key):
             return self._render_unavailable(request)
 
+        response = self._enforce_hidden_cloud_portals(request)
+        if response is not None:
+            return response
+
         if request.path.startswith(self.AUTH_BYPASS_PREFIXES):
             return self.get_response(request)
 
         response = self._enforce_cloud_operation_restrictions(request)
+        if response is not None:
+            return response
+
+        response = self._enforce_cloud_student_portal_restrictions(request)
         if response is not None:
             return response
 
@@ -246,6 +261,33 @@ class PortalAccessMiddleware:
 
         return self.get_response(request)
 
+    def _enforce_hidden_cloud_portals(self, request):
+        if not cloud_staff_operations_lan_only_enabled():
+            return None
+        if request.portal_key in self.CLOUD_HIDDEN_PORTAL_KEYS:
+            return HttpResponseNotFound("Not found")
+        if request.path.startswith("/auth/login/"):
+            audience = (request.GET.get("audience") or "").strip().lower()
+            if audience in self.CLOUD_HIDDEN_PORTAL_KEYS:
+                return HttpResponseNotFound("Not found")
+        hidden_prefixes = (
+            "/portal/staff/",
+            "/portal/dean/",
+            "/portal/form/",
+            "/portal/it/",
+            "/portal/bursar/",
+            "/portal/vp/",
+            "/portal/principal/",
+            "/portal/cbt/",
+            "/portal/election/",
+            "/auth/it/",
+            "/setup/",
+            "/sync/",
+        )
+        if any(request.path.startswith(prefix) for prefix in hidden_prefixes):
+            return HttpResponseNotFound("Not found")
+        return None
+
     def _enforce_cloud_operation_restrictions(self, request):
         if not cloud_staff_operations_lan_only_enabled():
             return None
@@ -259,12 +301,12 @@ class PortalAccessMiddleware:
             "restriction_title": "School LAN Only",
             "restriction_heading": "This action can only be completed on the school LAN.",
             "restriction_message": (
-                "Staff and admin operational work now runs from the school network so results, "
-                "attendance, finance records, CBT activity, and approvals stay aligned on the school LAN."
+                "Staff and admin operational work now runs from the school network so academics, "
+                "attendance, finance records, admissions, CBT activity, elections, and approvals stay aligned on the school LAN."
             ),
             "allowed_summary": (
-                "Still available here: profile updates, account security, notifications, "
-                "messaging, student access, and payment callbacks."
+                "Still available here: public website access, student portal access, published result visibility, "
+                "fee payment flows, and payment callbacks."
             ),
             "current_node_label": "Cloud",
         }
@@ -293,6 +335,31 @@ class PortalAccessMiddleware:
                 "and the approved local workflows for this node."
             ),
             "current_node_label": "LAN",
+        }
+        return render(request, "dashboard/lan_restricted.html", context=context, status=403)
+
+    def _enforce_cloud_student_portal_restrictions(self, request):
+        if not cloud_student_portal_limited_enabled():
+            return None
+        if not getattr(request.user, "is_authenticated", False):
+            return None
+        if not user_has_cloud_student_portal_role(request.user):
+            return None
+        if not path_is_cloud_student_portal_limited(request.path):
+            return None
+        context = {
+            "restriction_title": "Cloud Student View Limited",
+            "restriction_heading": "This student feature is available on the school LAN only.",
+            "restriction_message": (
+                "Cloud student access is limited to profile, attendance, subjects, digital ID, weekly challenge, "
+                "classroom/LMS, transcript, published results, notifications, and fee payment while internal authoring "
+                "and school operations stay on the school LAN."
+            ),
+            "allowed_summary": (
+                "Still available here: student profile, attendance view, subjects offered, digital ID, transcript, "
+                "weekly challenge, classroom/LMS view, published result view, notifications, and payment pages."
+            ),
+            "current_node_label": "Cloud",
         }
         return render(request, "dashboard/lan_restricted.html", context=context, status=403)
 

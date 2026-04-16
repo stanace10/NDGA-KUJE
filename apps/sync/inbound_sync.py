@@ -12,6 +12,7 @@ from django.utils.dateparse import parse_date, parse_datetime
 
 from apps.sync.models import SyncOperationType, SyncQueue, SyncQueueStatus
 from apps.sync.model_sync import apply_generic_model_payload
+from apps.sync.policies import inbound_remote_outbox_allowed
 from apps.sync.services import (
     active_session_authority_enforced,
     current_local_node_id,
@@ -408,6 +409,10 @@ def _apply_remote_operation(*, operation_type, payload, object_ref="", conflict_
 
 
 def ingest_remote_outbox_event(*, envelope, force_reapply=False):
+    if not inbound_remote_outbox_allowed():
+        raise ValidationError(
+            "Cloud-to-LAN outbox sync is disabled in LAN results-only mode. Pull payment deltas instead."
+        )
     payload = envelope.get("payload")
     operation_type = (envelope.get("operation_type") or "").strip()
     idempotency_key = (envelope.get("idempotency_key") or "").strip()

@@ -7,7 +7,7 @@
   <div class="public-container public-page-hero-content" data-reveal>
     <span class="public-eyebrow">Contact</span>
     <h1>We are here to help with admissions and school enquiries.</h1>
-    <p>Send an enquiry, ask Smart Julie, call the school, or open directions to campus.</p>
+    <p>Send an enquiry, ask Smart NDGA, call the school, or open directions to campus.</p>
   </div>
 </section>
 
@@ -31,6 +31,15 @@
         <span class="public-eyebrow">Location</span>
         <h2>Kuchiyako, Kuje-Abuja</h2>
         <p>{{ public_contact.address }}</p>
+      </div>
+      <div class="public-contact-card">
+        <span class="public-eyebrow">Follow NDGA</span>
+        <h2>Social Media</h2>
+        <p>
+          <a href="{{ public_contact.facebook_url }}" target="_blank" rel="noreferrer">Facebook</a><br>
+          <a href="{{ public_contact.x_url }}" target="_blank" rel="noreferrer">X</a><br>
+          <a href="{{ public_contact.tiktok_url }}" target="_blank" rel="noreferrer">TikTok</a>
+        </p>
       </div>
     </div>
   </div>
@@ -62,11 +71,14 @@
       <h2>Need quick guidance?</h2>
       <div class="public-support-links">
         <a href="/admissions/">Admissions</a>
-        <a href="/fees/">Fees</a>
         <a href="/hostel-boarding/">Boarding</a>
+        <a href="/events/">School Calendar</a>
         <a href="{{ public_contact.maps_url }}" target="_blank" rel="noreferrer">Open directions</a>
-        <button type="button" data-chatbot-open>Ask Smart Julie</button>
+        <button type="button" data-chatbot-open>Ask Smart NDGA</button>
         <a href="{{ public_contact.whatsapp_url }}" target="_blank" rel="noreferrer">WhatsApp</a>
+        <a href="{{ public_contact.facebook_url }}" target="_blank" rel="noreferrer">Facebook</a>
+        <a href="{{ public_contact.x_url }}" target="_blank" rel="noreferrer">X</a>
+        <a href="{{ public_contact.tiktok_url }}" target="_blank" rel="noreferrer">TikTok</a>
       </div>
     </div>
   </div>

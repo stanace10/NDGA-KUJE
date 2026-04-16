@@ -1,0 +1,361 @@
+{% extends "website/base_public.html" %}
+{% load static %}
+
+{% block extra_head %}
+  <style>
+    .admission-status-grid { display:grid; gap:1.5rem; grid-template-columns:minmax(0, 1.15fr) minmax(300px, .85fr); }
+    .admission-panel { background:#fffdf8; border:1px solid rgba(11,31,58,.08); border-radius:1.25rem; padding:1.5rem; box-shadow:0 18px 40px rgba(11,31,58,.06); }
+    .admission-kpi { display:grid; gap:1rem; grid-template-columns:repeat(3, minmax(0,1fr)); margin-top:1rem; }
+    .admission-kpi-card { border:1px solid rgba(11,31,58,.08); border-radius:1rem; padding:1rem 1.1rem; background:#fff; }
+    .admission-kpi-card span { display:block; font-size:.76rem; text-transform:uppercase; letter-spacing:.12em; color:#6b7280; }
+    .admission-kpi-card strong { display:block; margin-top:.35rem; font-size:1.05rem; color:#0b1f3a; }
+    .admission-badge { display:inline-flex; align-items:center; gap:.45rem; padding:.45rem .8rem; border-radius:999px; font-size:.82rem; font-weight:700; }
+    .admission-badge.is-paid { background:#ecfdf3; color:#166534; }
+    .admission-badge.is-unpaid { background:#fff7ed; color:#9a3412; }
+    .admission-badge.is-pending { background:#eff6ff; color:#1d4ed8; }
+    .status-callout { margin-top:1rem; padding:1rem 1.1rem; border-radius:1rem; background:#f8f6f2; border:1px solid rgba(11,31,58,.08); }
+    .status-callout h3 { margin:0 0 .35rem; font-size:1rem; color:#0b1f3a; }
+    .status-callout p { margin:0; color:#4b5563; }
+    .status-actions { display:flex; flex-wrap:wrap; gap:.85rem; margin-top:1.25rem; }
+    .gateway-stack { display:grid; gap:.85rem; margin-top:1rem; }
+    .gateway-btn { width:100%; display:flex; justify-content:space-between; align-items:center; gap:1rem; border:1px solid rgba(11,31,58,.12); border-radius:1rem; background:#fff; padding:1rem 1.1rem; font:inherit; text-align:left; cursor:pointer; }
+    .gateway-btn strong { display:block; color:#0b1f3a; }
+    .gateway-btn span { display:block; font-size:.92rem; color:#6b7280; margin-top:.2rem; }
+    .gateway-btn[disabled] { opacity:.55; cursor:not-allowed; }
+    .gateway-chip { display:inline-flex; align-items:center; justify-content:center; min-width:2.25rem; height:2.25rem; border-radius:.8rem; background:#0b1f3a; color:#f8f6f2; font-size:.82rem; font-weight:700; }
+    .status-inline-note { margin-top:.9rem; font-size:.92rem; color:#7c2d12; }
+    .admission-meta { display:grid; gap:.9rem; grid-template-columns:repeat(2, minmax(0,1fr)); margin-top:1.2rem; }
+    .admission-meta article { padding:.95rem 1rem; border-radius:1rem; border:1px solid rgba(11,31,58,.08); background:#fff; }
+    .admission-meta span { display:block; font-size:.78rem; text-transform:uppercase; letter-spacing:.12em; color:#6b7280; }
+    .admission-meta strong { display:block; margin-top:.4rem; color:#111827; }
+    .document-list { display:grid; gap:.75rem; margin-top:1rem; }
+    .document-list article { display:flex; align-items:center; justify-content:space-between; gap:1rem; border:1px solid rgba(11,31,58,.08); border-radius:1rem; background:#fff; padding:.9rem 1rem; }
+    .document-list strong { display:block; color:#0b1f3a; }
+    .document-list span { display:block; margin-top:.2rem; color:#6b7280; font-size:.9rem; }
+    .payment-choice-modal { position:fixed; inset:0; display:none; align-items:center; justify-content:center; padding:1.25rem; background:rgba(3, 15, 32, .66); z-index:80; }
+    .payment-choice-modal.is-open { display:flex; }
+    .payment-choice-card { width:min(100%, 720px); border-radius:1.4rem; background:#fffdf8; border:1px solid rgba(11,31,58,.08); box-shadow:0 28px 60px rgba(11,31,58,.22); padding:1.4rem; }
+    .payment-choice-grid { display:grid; gap:1rem; grid-template-columns:repeat(2, minmax(0,1fr)); margin-top:1rem; }
+    .payment-choice-panel { border:1px solid rgba(11,31,58,.08); border-radius:1.15rem; padding:1.15rem; background:#fff; }
+    .payment-choice-panel h3 { margin:0 0 .45rem; color:#0b1f3a; }
+    .payment-choice-panel p { margin:0; color:#4b5563; }
+    .payment-choice-panel form { margin-top:1rem; }
+    .payment-choice-close { border:0; background:transparent; color:#6b7280; font:inherit; cursor:pointer; }
+    @media (max-width: 920px) {
+      .admission-status-grid,
+      .admission-kpi,
+      .admission-meta,
+      .payment-choice-grid { grid-template-columns:1fr; }
+    }
+    @media print {
+      .public-header, .public-footer-shell, .ndga-support-shell, .status-actions, .gateway-stack, .public-page-hero, .payment-choice-modal { display:none !important; }
+      .admission-panel { box-shadow:none; border-color:#d1d5db; }
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+<section class="public-page-hero" style="background-image:url('{% static public_images.hero_students %}')">
+  <div class="public-page-hero-overlay"></div>
+  <div class="public-container public-page-hero-content" data-reveal>
+    <span class="public-eyebrow">Admissions Acknowledgement</span>
+    <h1>Registration Received</h1>
+    <p>Your application code is ready. Physical payment at school is active now, while online payment will appear here after live gateway setup is completed.</p>
+  </div>
+</section>
+
+<section class="public-section">
+  <div class="public-container admission-status-grid" data-reveal>
+    <section class="admission-panel">
+      <span class="public-eyebrow">Applicant Record</span>
+      <h2 style="margin-top:.45rem;">{{ submission.applicant_name }}</h2>
+      <p style="margin:.45rem 0 0; color:#6b7280;">Keep this page with the printed admission form for bursary and admissions follow-up.</p>
+
+      <div class="admission-kpi">
+        <div class="admission-kpi-card">
+          <span>Application Code</span>
+          <strong>{{ submission.application_fee_reference }}</strong>
+        </div>
+        <div class="admission-kpi-card">
+          <span>Application Fee</span>
+          <strong>NGN {{ application_fee_amount }}</strong>
+        </div>
+        <div class="admission-kpi-card">
+          <span>Payment Route</span>
+          <strong>{{ admission_snapshot.payment.mode_badge }}</strong>
+        </div>
+      </div>
+
+      <div style="margin-top:1rem;">
+        {% if submission.payment_status == "PAID" %}
+          <span class="admission-badge is-paid">Payment confirmed</span>
+        {% elif payment_choice == "physical" %}
+          <span class="admission-badge is-pending">Awaiting physical payment at school</span>
+        {% else %}
+          <span class="admission-badge is-unpaid">Awaiting payment</span>
+        {% endif %}
+      </div>
+
+      {% if payment_status_flag == "success" %}
+        <div class="status-callout">
+          <h3>Payment confirmed</h3>
+          <p>Your application fee has been confirmed successfully. Your admission PDF is now available for immediate download below.</p>
+        </div>
+      {% elif payment_error %}
+        <div class="status-callout">
+          <h3>Payment not confirmed yet</h3>
+          <p>{{ payment_error }}</p>
+        </div>
+      {% elif payment_choice == "physical" %}
+        <div class="status-callout">
+          <h3>Physical payment selected</h3>
+          <p>The admission record has been saved. Please pay at the school bursary with the application code above. The bursar will download the PDF after payment is confirmed.</p>
+        </div>
+      {% endif %}
+
+      <div class="admission-meta">
+        <article>
+          <span>Intended Class</span>
+          <strong>{{ admission_snapshot.school_placement.intended_class|default:"-" }}</strong>
+        </article>
+        <article>
+          <span>Type of Place</span>
+          <strong>{{ admission_snapshot.school_placement.boarding_option|default:"-" }}</strong>
+        </article>
+        <article>
+          <span>Primary Guardian</span>
+          <strong>{{ admission_snapshot.parents.primary_guardian_name|default:"-" }}</strong>
+        </article>
+        <article>
+          <span>Guardian Phone</span>
+          <strong>{{ admission_snapshot.parents.primary_guardian_phone|default:"-" }}</strong>
+        </article>
+        <article>
+          <span>Present School</span>
+          <strong>{{ admission_snapshot.school_placement.present_school|default:"-" }}</strong>
+        </article>
+        <article>
+          <span>Submitted On</span>
+          <strong>{{ submission.created_at|date:"j M Y, g:i A" }}</strong>
+        </article>
+      </div>
+
+      {% if public_download_allowed %}
+        <div class="status-actions">
+          <a href="{{ download_url }}" class="public-cta" data-auto-download-url="{{ download_url }}">Download Admission PDF</a>
+          <a href="#" onclick="window.print(); return false;" class="public-secondary-cta">Print This Page</a>
+        </div>
+      {% else %}
+        <div class="status-actions">
+          <a href="{% url 'dashboard:public-registration' %}" class="public-secondary-cta">Register Another Applicant</a>
+          <a href="#" onclick="window.print(); return false;" class="public-cta">Print Acknowledgement</a>
+        </div>
+      {% endif %}
+
+      <div class="document-list">
+        {% for document in admission_snapshot.documents %}
+          <article>
+            <div>
+              <strong>{{ document.label }}</strong>
+              <span>{% if document.name %}{{ document.name }}{% else %}Not uploaded yet{% endif %}</span>
+            </div>
+            {% if document.url %}
+              <a href="{{ document.url }}" target="_blank" rel="noopener" class="public-text-link">Open</a>
+            {% endif %}
+          </article>
+        {% endfor %}
+      </div>
+    </section>
+
+    <aside class="admission-panel">
+      <span class="public-eyebrow">Next Step</span>
+      <h2 style="margin-top:.45rem;">Choose how payment will happen</h2>
+      <p style="margin:.45rem 0 0; color:#6b7280;">Physical payment at school is active now. Online payment will show here once the live gateway keys are ready.</p>
+
+      {% if init_error %}
+        <p class="status-inline-note">{{ init_error }}</p>
+      {% endif %}
+
+      {% if submission.payment_status != "PAID" %}
+        <div class="gateway-stack">
+          {% if gateway_enabled and default_provider %}
+            <form method="post">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="init_application_payment">
+              <input type="hidden" name="access_token" value="{{ access_token }}">
+              <input type="hidden" name="provider" value="{{ default_provider }}">
+              <button type="submit" class="gateway-btn">
+                <div style="display:flex; align-items:center; gap:.85rem;">
+                  <span class="gateway-chip">NGN</span>
+                  <div>
+                    <strong>Pay Now Online</strong>
+                    <span>Open the secure gateway and pay NGN {{ application_fee_amount }} now.</span>
+                  </div>
+                </div>
+                <span style="font-weight:700; color:#0b1f3a;">Continue</span>
+              </button>
+            </form>
+          {% else %}
+            <button type="button" class="gateway-btn" disabled style="opacity:.65; cursor:not-allowed;">
+              <div style="display:flex; align-items:center; gap:.85rem;">
+                <span class="gateway-chip">WEB</span>
+                <div>
+                  <strong>Pay Online</strong>
+                  <span>Coming soon. Online admission payment will open after live gateway activation.</span>
+                </div>
+              </div>
+              <span style="font-weight:700; color:#0b1f3a;">Coming Soon</span>
+            </button>
+          {% endif %}
+
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="choose_physical_payment">
+            <input type="hidden" name="access_token" value="{{ access_token }}">
+            <button type="submit" class="gateway-btn">
+              <div style="display:flex; align-items:center; gap:.85rem;">
+                <span class="gateway-chip">SCH</span>
+                <div>
+                  <strong>Pay at School</strong>
+                  <span>Save the registration now and complete payment physically at the bursary.</span>
+                </div>
+              </div>
+              <span style="font-weight:700; color:#0b1f3a;">Select</span>
+            </button>
+          </form>
+        </div>
+
+        {% if provider_cards %}
+          <div class="status-callout">
+            <h3>Choose online gateway</h3>
+            <div style="display:grid; gap:.75rem; margin-top:.9rem;">
+              {% for gateway in provider_cards %}
+                <form method="post">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="init_application_payment">
+                  <input type="hidden" name="access_token" value="{{ access_token }}">
+                  <input type="hidden" name="provider" value="{{ gateway.code }}">
+                  <button
+                    type="submit"
+                    class="gateway-btn"
+                    {% if not gateway.enabled %}disabled{% endif %}
+                    style="{% if not gateway.enabled %}opacity:.6; cursor:not-allowed;{% endif %}"
+                  >
+                    <div style="display:flex; align-items:center; gap:.85rem;">
+                      <span class="gateway-chip">
+                        {% if gateway.code == "PAYSTACK" %}PS{% elif gateway.code == "FLUTTERWAVE" %}FW{% else %}{{ gateway.label|slice:":2"|upper }}{% endif %}
+                      </span>
+                      <div>
+                        <strong>{{ gateway.label }}</strong>
+                        <span>
+                          {% if gateway.enabled %}
+                            Open {{ gateway.label }} and pay online now.
+                          {% else %}
+                            Coming soon. This online gateway will open after live activation.
+                          {% endif %}
+                        </span>
+                      </div>
+                    </div>
+                    <span style="font-weight:700; color:#0b1f3a;">{% if gateway.enabled %}Continue{% else %}Coming Soon{% endif %}</span>
+                  </button>
+                </form>
+              {% endfor %}
+            </div>
+          </div>
+        {% endif %}
+      {% else %}
+        <div class="status-callout">
+          <h3>No further payment is required</h3>
+          <p>This admission application has already been paid for. Continue with the acknowledgement and PDF record.</p>
+        </div>
+      {% endif %}
+
+      <div class="status-callout">
+        <h3>Offline payment option</h3>
+        <p>Use the application code <strong>{{ submission.application_fee_reference }}</strong> when paying offline. After payment, bring the printed acknowledgement and payment evidence to the school bursary.</p>
+        <p style="margin-top:.7rem;"><strong>Phone:</strong> 0906 330 2377, 08018 932 5729<br><strong>Email:</strong> office@ndgakuje.org</p>
+      </div>
+
+      {% if latest_payment %}
+        <div class="status-callout">
+          <h3>Latest payment record</h3>
+          <p><strong>Reference:</strong> {{ latest_payment.reference }}</p>
+          <p><strong>Gateway:</strong> {{ latest_payment.get_provider_display }}</p>
+          <p><strong>Status:</strong> {{ latest_payment.get_status_display }}</p>
+        </div>
+      {% endif %}
+    </aside>
+  </div>
+</section>
+
+{% if submission.payment_status != "PAID" %}
+  <div class="payment-choice-modal {% if show_payment_prompt %}is-open{% endif %}" data-payment-choice-modal>
+    <div class="payment-choice-card">
+      <div style="display:flex; justify-content:space-between; gap:1rem; align-items:flex-start;">
+        <div>
+          <span class="public-eyebrow">Payment Choice</span>
+          <h2 style="margin:.4rem 0 0;">How would you like to continue?</h2>
+          <p style="margin:.5rem 0 0; color:#6b7280;">Choose the faster online route for immediate PDF download, or select physical payment if the applicant will pay at school.</p>
+        </div>
+        <button type="button" class="payment-choice-close" data-payment-choice-close>Close</button>
+      </div>
+      <div class="payment-choice-grid">
+        <article class="payment-choice-panel">
+          <h3>Pay Online</h3>
+          <p>Coming soon. Online payment will appear here after live gateway activation. For now, complete payment physically at the school bursary with your application code.</p>
+          {% if provider_cards %}
+            <div style="display:grid; gap:.75rem; margin-top:1rem;">
+              {% for gateway in provider_cards %}
+                <form method="post">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="init_application_payment">
+                  <input type="hidden" name="access_token" value="{{ access_token }}">
+                  <input type="hidden" name="provider" value="{{ gateway.code }}">
+                  <button
+                    type="submit"
+                    class="{% if forloop.first %}public-cta{% else %}public-secondary-cta{% endif %}"
+                    style="width:100%;"
+                    {% if not gateway.enabled %}disabled{% endif %}
+                  >
+                    {% if gateway.enabled %}Pay with {{ gateway.label }}{% else %}{{ gateway.label }} coming soon{% endif %}
+                  </button>
+                </form>
+              {% endfor %}
+            </div>
+          {% else %}
+            <p style="margin-top:1rem; color:#9a3412;">Online payment is coming soon. Please use the physical payment option.</p>
+          {% endif %}
+        </article>
+        <article class="payment-choice-panel">
+          <h3>Pay Physical at School</h3>
+          <p>Save the form now and present the application code at the school bursary. The bursar can download the PDF after payment is confirmed physically.</p>
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="choose_physical_payment">
+            <input type="hidden" name="access_token" value="{{ access_token }}">
+            <button type="submit" class="public-secondary-cta" style="width:100%;">Pay at School</button>
+          </form>
+        </article>
+      </div>
+    </div>
+  </div>
+{% endif %}
+
+<script>
+  (() => {
+    const modal = document.querySelector("[data-payment-choice-modal]");
+    const closeButton = document.querySelector("[data-payment-choice-close]");
+    closeButton?.addEventListener("click", () => modal?.classList.remove("is-open"));
+    modal?.addEventListener("click", (event) => {
+      if (event.target === modal) modal.classList.remove("is-open");
+    });
+
+    const autoDownloadUrl = "{{ payment_status_flag }}" === "success" ? "{{ download_url|default:'' }}" : "";
+    if (autoDownloadUrl) {
+      window.setTimeout(() => {
+        window.location.href = autoDownloadUrl;
+      }, 900);
+    }
+  })();
+</script>
+{% endblock %}

@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>NDGA Admission Application</title>
+  <style>
+    @page { size:A4; margin:16mm 14mm; }
+    body { font-family: "DejaVu Sans", sans-serif; color:#142235; font-size:11px; line-height:1.45; }
+    .sheet { border:1px solid #c8d2df; border-radius:16px; overflow:hidden; }
+    .header { padding:16px 18px 12px; background:linear-gradient(135deg, #f8fafc, #e9eff7); border-bottom:2px solid #16324f; }
+    .brand { display:flex; gap:14px; align-items:center; }
+    .brand img { width:62px; height:62px; object-fit:contain; }
+    .brand-copy h1 { margin:0; font-size:24px; letter-spacing:.02em; color:#142235; }
+    .brand-copy h1 span { color:#b8892d; }
+    .brand-copy p { margin:2px 0 0; color:#4d5c70; }
+    .contact-grid { margin-top:10px; display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:10px; }
+    .contact-chip { background:#fff; border:1px solid #d4dce7; border-radius:12px; padding:8px 10px; }
+    .contact-chip strong { display:block; font-size:10px; text-transform:uppercase; color:#6b7788; }
+    .contact-chip span { display:block; margin-top:4px; font-weight:700; color:#142235; }
+    .section { padding:14px 18px 0; }
+    .section-title { margin:0 0 10px; padding:8px 12px; border-radius:12px; background:#17304f; color:#fff; font-size:12px; text-transform:uppercase; letter-spacing:.08em; }
+    .grid { display:grid; gap:10px; grid-template-columns:repeat(2, minmax(0, 1fr)); }
+    .grid.three { grid-template-columns:repeat(3, minmax(0, 1fr)); }
+    .field { background:#fff; border:1px solid #d5dde7; border-radius:12px; padding:9px 10px; min-height:48px; }
+    .field.label-wide { min-height:60px; }
+    .field strong { display:block; font-size:9px; text-transform:uppercase; letter-spacing:.08em; color:#6b7788; }
+    .field span { display:block; margin-top:4px; font-size:11px; color:#142235; }
+    .field.full { grid-column:1 / -1; }
+    .passport-box { border:1px dashed #b8892d; border-radius:14px; padding:8px; min-height:126px; background:#fffdf7; display:flex; align-items:center; justify-content:center; text-align:center; }
+    .passport-box img { max-width:100%; max-height:110px; border-radius:10px; object-fit:cover; }
+    table { width:100%; border-collapse:collapse; margin-top:10px; }
+    th, td { border:1px solid #d5dde7; padding:8px 9px; text-align:left; vertical-align:top; }
+    th { background:#eef3f9; font-size:9px; text-transform:uppercase; letter-spacing:.08em; color:#425164; }
+    .statement { border:1px solid #d5dde7; border-radius:14px; background:#fff; padding:12px; min-height:95px; white-space:pre-wrap; }
+    .docs-list { display:grid; gap:8px; grid-template-columns:repeat(2, minmax(0, 1fr)); }
+    .docs-item { border:1px solid #d5dde7; border-radius:12px; background:#fff; padding:8px 10px; }
+    .docs-item strong { display:block; font-size:9px; text-transform:uppercase; letter-spacing:.08em; color:#6b7788; }
+    .docs-item span { display:block; margin-top:4px; font-size:11px; color:#142235; }
+    .footer-band { margin:14px 18px 18px; padding:10px 12px; border-radius:14px; background:#f5f7fb; border:1px solid #d5dde7; display:flex; justify-content:space-between; gap:14px; align-items:flex-start; }
+    .official-use { margin-top:12px; }
+    .muted { color:#6b7788; }
+  </style>
+</head>
+<body>
+  <div class="sheet">
+    <div class="header">
+      <div class="brand">
+        {% if logo_data_uri %}<img src="{{ logo_data_uri }}" alt="NDGA Logo">{% endif %}
+        <div class="brand-copy">
+          <h1>Notre Dame <span>Girls' Academy</span></h1>
+          <p>Kuje-Abuja</p>
+          <p style="font-weight:700; color:#17304f; margin-top:6px;">Application For Admission</p>
+        </div>
+      </div>
+      <div class="contact-grid">
+        <div class="contact-chip"><strong>Website</strong><span>{{ public_contact.website }}</span></div>
+        <div class="contact-chip"><strong>E-mail</strong><span>{{ public_contact.email }}</span></div>
+        <div class="contact-chip"><strong>Telephone</strong><span>{{ public_contact.phone_primary }}, {{ public_contact.phone_secondary }}</span></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2 class="section-title">1. Student's Details</h2>
+      <div class="grid">
+        <div class="field"><strong>Surname</strong><span>{{ admission.student.surname|default:"-" }}</span></div>
+        <div class="field"><strong>First Name</strong><span>{{ admission.student.first_name|default:"-" }}</span></div>
+        <div class="field"><strong>Middle Name</strong><span>{{ admission.student.middle_name|default:"-" }}</span></div>
+        <div class="passport-box">
+          {% if admission.student.passport_photo_data_uri %}
+            <img src="{{ admission.student.passport_photo_data_uri }}" alt="Applicant passport photograph">
+          {% else %}
+            <span class="muted">Affix Passport Photograph Here</span>
+          {% endif %}
+        </div>
+        <div class="field full label-wide"><strong>Address</strong><span>{{ admission.student.address|default:"-" }}</span></div>
+        <div class="field"><strong>Date of Birth</strong><span>{{ admission.student.date_of_birth|default:"-" }}</span></div>
+        <div class="field"><strong>Nationality</strong><span>{{ admission.student.nationality|default:"-" }}</span></div>
+        <div class="field"><strong>State of Origin</strong><span>{{ admission.student.state_of_origin|default:"-" }}</span></div>
+        <div class="field"><strong>L.G.A.</strong><span>{{ admission.student.local_government_area|default:"-" }}</span></div>
+        <div class="field"><strong>Home Town</strong><span>{{ admission.student.home_town|default:"-" }}</span></div>
+        <div class="field full"><strong>Disability or Learning Difficulty</strong><span>{% if admission.student.has_disability_or_learning_difficulty %}Yes{% else %}No{% endif %}</span></div>
+        <div class="field full label-wide"><strong>Medical Conditions / Notes</strong><span>{{ admission.student.medical_notes|default:"-" }}</span></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2 class="section-title">2. Religious Background</h2>
+      <div class="grid">
+        <div class="field"><strong>Religion</strong><span>{{ admission.religious_background.religion|default:"-" }}</span></div>
+        <div class="field"><strong>Name of Parish</strong><span>{{ admission.religious_background.parish_name|default:"-" }}</span></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2 class="section-title">3. School Placement Information</h2>
+      <div class="grid three">
+        <div class="field"><strong>Type of Place</strong><span>{{ admission.school_placement.boarding_option|default:"-" }}</span></div>
+        <div class="field"><strong>Proposed Class of Entry</strong><span>{{ admission.school_placement.intended_class|default:"-" }}</span></div>
+        <div class="field"><strong>Sibling(s) in this Academy</strong><span>{{ admission.school_placement.sibling_details|default:"-" }}</span></div>
+        <div class="field"><strong>Name of Present School</strong><span>{{ admission.school_placement.present_school|default:"-" }}</span></div>
+        <div class="field"><strong>Head Teacher's Name</strong><span>{{ admission.school_placement.head_teacher_name|default:"-" }}</span></div>
+        <div class="field"><strong>Head Teacher Signature & Stamp</strong><span>{{ admission.school_placement.head_teacher_signature_stamp|default:"-" }}</span></div>
+      </div>
+      <div class="field" style="margin-top:10px;"><strong>Head Teacher Date</strong><span>{{ admission.school_placement.head_teacher_date|default:"-" }}</span></div>
+      <table>
+        <thead>
+          <tr>
+            <th>Name of School</th>
+            <th>Year of Entry</th>
+            <th>Year of Leaving</th>
+            <th>Reason for Leaving</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in admission.school_placement.education_history %}
+            <tr>
+              <td>{{ row.name|default:"-" }}</td>
+              <td>{{ row.year_of_entry|default:"-" }}</td>
+              <td>{{ row.year_of_leaving|default:"-" }}</td>
+              <td>{{ row.reason_for_leaving|default:"-" }}</td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td>-</td>
+              <td>-</td>
+              <td>-</td>
+              <td>-</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <h2 class="section-title">Attached Documents</h2>
+      <div class="docs-list">
+        {% for document in admission.documents %}
+          <div class="docs-item">
+            <strong>{{ document.label }}</strong>
+            <span>{% if document.name %}{{ document.name }}{% else %}Not supplied{% endif %}</span>
+          </div>
+        {% endfor %}
+        <div class="docs-item">
+          <strong>Payment Status</strong>
+          <span>{{ admission.payment.mode_badge }}{% if submission.payment_status == "PAID" %} - Confirmed{% else %} - Pending{% endif %}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2 class="section-title">4. Parents / Guardians' Details</h2>
+      <div class="grid">
+        <div class="field"><strong>Primary Parent / Guardian</strong><span>{{ admission.parents.primary_guardian_name|default:"-" }}</span></div>
+        <div class="field"><strong>Primary Phone</strong><span>{{ admission.parents.primary_guardian_phone|default:"-" }}</span></div>
+        <div class="field full"><strong>Primary Email</strong><span>{{ admission.parents.primary_guardian_email|default:"-" }}</span></div>
+        <div class="field"><strong>Father's Title and Full Name</strong><span>{{ admission.parents.father_full_name|default:"-" }}</span></div>
+        <div class="field"><strong>Father's Mobile Number</strong><span>{{ admission.parents.father_phone|default:"-" }}</span></div>
+        <div class="field full label-wide"><strong>Father's Contact Address</strong><span>{{ admission.parents.father_contact_address|default:"-" }}</span></div>
+        <div class="field"><strong>Father's Occupation</strong><span>{{ admission.parents.father_occupation|default:"-" }}</span></div>
+        <div class="field"><strong>Father's Place of Work</strong><span>{{ admission.parents.father_place_of_work|default:"-" }}</span></div>
+        <div class="field full"><strong>Father's E-mail</strong><span>{{ admission.parents.father_email|default:"-" }}</span></div>
+        <div class="field"><strong>Mother's Title and Full Name</strong><span>{{ admission.parents.mother_full_name|default:"-" }}</span></div>
+        <div class="field"><strong>Mother's Mobile Number</strong><span>{{ admission.parents.mother_phone|default:"-" }}</span></div>
+        <div class="field full label-wide"><strong>Mother's Contact Address</strong><span>{{ admission.parents.mother_contact_address|default:"-" }}</span></div>
+        <div class="field"><strong>Mother's Occupation</strong><span>{{ admission.parents.mother_occupation|default:"-" }}</span></div>
+        <div class="field"><strong>Mother's Place of Work</strong><span>{{ admission.parents.mother_place_of_work|default:"-" }}</span></div>
+        <div class="field full"><strong>Mother's E-mail</strong><span>{{ admission.parents.mother_email|default:"-" }}</span></div>
+        <div class="field"><strong>Emergency Contact Name</strong><span>{{ admission.parents.emergency_contact_name|default:"-" }}</span></div>
+        <div class="field"><strong>Emergency Contact Phone</strong><span>{{ admission.parents.emergency_contact_phone|default:"-" }}</span></div>
+        <div class="field full label-wide"><strong>Emergency Contact Address</strong><span>{{ admission.parents.emergency_contact_address|default:"-" }}</span></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2 class="section-title">5. How You Found Us</h2>
+      <div class="grid">
+        <div class="field"><strong>How You Found NDGA</strong><span>{{ admission.statement.how_found_us|default:"-" }}</span></div>
+        <div class="field"><strong>Application Code</strong><span>{{ submission.application_fee_reference|default:"-" }}</span></div>
+      </div>
+      <div class="statement" style="margin-top:10px;">
+        <strong style="display:block; margin-bottom:6px; font-size:9px; text-transform:uppercase; letter-spacing:.08em; color:#6b7788;">Personal Statement</strong>
+        {{ admission.statement.personal_statement|default:"-" }}
+      </div>
+    </div>
+
+    <div class="section">
+      <h2 class="section-title">6. Declaration</h2>
+      <div class="grid">
+        <div class="field"><strong>Parent / Guardian</strong><span>{{ admission.declaration.parent_guardian_name|default:"-" }}</span></div>
+        <div class="field"><strong>Signature</strong><span>{{ admission.declaration.parent_guardian_signature|default:"-" }}</span></div>
+        <div class="field"><strong>Date</strong><span>{{ admission.declaration.parent_guardian_date|default:"-" }}</span></div>
+        <div class="field"><strong>Student</strong><span>{{ admission.declaration.student_name|default:"-" }}</span></div>
+        <div class="field"><strong>Student Signature</strong><span>{{ admission.declaration.student_signature|default:"-" }}</span></div>
+        <div class="field"><strong>Date</strong><span>{{ admission.declaration.student_date|default:"-" }}</span></div>
+      </div>
+
+      <div class="official-use">
+        <h2 class="section-title">For Official Use Only</h2>
+        <div class="grid three">
+          <div class="field"><strong>Receipt Number</strong><span>{% if submission.payment_status == "PAID" %}{{ submission.application_fee_reference }}{% else %}-{% endif %}</span></div>
+          <div class="field"><strong>Examination Score</strong><span>-</span></div>
+          <div class="field"><strong>Interview</strong><span>-</span></div>
+          <div class="field full label-wide"><strong>Remarks</strong><span>{{ submission.approval_notes|default:"-" }}</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-band">
+      <div>
+        <strong style="display:block; font-size:10px; text-transform:uppercase; color:#6b7788;">Payment Status</strong>
+        <span style="display:block; margin-top:4px; font-weight:700;">{{ submission.get_payment_status_display }} - {{ admission.payment.mode_badge }}</span>
+      </div>
+      <div>
+        <strong style="display:block; font-size:10px; text-transform:uppercase; color:#6b7788;">Generated</strong>
+        <span style="display:block; margin-top:4px;">{{ downloaded_at|date:"d M Y, g:i A" }}</span>
+      </div>
+      <div>
+        <strong style="display:block; font-size:10px; text-transform:uppercase; color:#6b7788;">Reference</strong>
+        <span style="display:block; margin-top:4px;">{{ submission.application_fee_reference|default:"-" }}</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

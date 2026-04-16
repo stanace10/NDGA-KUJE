@@ -79,6 +79,18 @@ def platform_context(request):
             "/auth/login/",
             {"audience": "staff"},
         ),
+        "dean": build_portal_url(
+            request,
+            "dean",
+            "/auth/login/",
+            {"audience": "dean"},
+        ),
+        "form": build_portal_url(
+            request,
+            "form",
+            "/auth/login/",
+            {"audience": "form"},
+        ),
     }
     setup_state_code = "BOOT_EMPTY"
     setup_is_ready = False

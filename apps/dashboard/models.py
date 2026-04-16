@@ -195,6 +195,24 @@ class PublicAdmissionPaymentStatus(models.TextChoices):
     WAIVED = "WAIVED", "Waived"
 
 
+class PublicAdmissionPaymentMode(models.TextChoices):
+    ONLINE = "ONLINE", "Online Payment"
+    PHYSICAL = "PHYSICAL", "Physical at School"
+
+
+class PublicAdmissionGatewayProvider(models.TextChoices):
+    PAYSTACK = "PAYSTACK", "Paystack"
+    FLUTTERWAVE = "FLUTTERWAVE", "Flutterwave"
+
+
+class PublicAdmissionGatewayStatus(models.TextChoices):
+    PENDING = "PENDING", "Pending"
+    INITIALIZED = "INITIALIZED", "Initialized"
+    PAID = "PAID", "Paid"
+    FAILED = "FAILED", "Failed"
+    CANCELLED = "CANCELLED", "Cancelled"
+
+
 class PublicSiteSubmission(TimeStampedModel):
     submission_type = models.CharField(
         max_length=16,
@@ -324,6 +342,92 @@ class PublicSiteSubmission(TimeStampedModel):
     def __str__(self):
         title = self.applicant_name or self.contact_name or "Public submission"
         return f"{self.get_submission_type_display()}: {title}"
+
+    def admission_form_payload(self):
+        return dict((self.metadata or {}).get("admission_form") or {})
+
+    def admission_payment_mode(self):
+        raw = (
+            (self.metadata or {}).get("application_payment_mode")
+            or (self.metadata or {}).get("preferred_payment_mode")
+            or ""
+        )
+        mode = str(raw).strip().upper()
+        if mode in {
+            PublicAdmissionPaymentMode.ONLINE,
+            PublicAdmissionPaymentMode.PHYSICAL,
+        }:
+            return mode
+        if self.payment_status == PublicAdmissionPaymentStatus.PAID:
+            return PublicAdmissionPaymentMode.PHYSICAL
+        return ""
+
+    def payment_mode_badge(self):
+        mode = self.admission_payment_mode()
+        if mode == PublicAdmissionPaymentMode.ONLINE:
+            return "Paid Online"
+        if mode == PublicAdmissionPaymentMode.PHYSICAL:
+            if self.payment_status == PublicAdmissionPaymentStatus.PAID:
+                return "Paid at School"
+            return "Pay at School"
+        return "Awaiting Payment"
+
+    def public_admission_pdf_available(self):
+        return (
+            self.submission_type == PublicSubmissionType.ADMISSION
+            and self.payment_status == PublicAdmissionPaymentStatus.PAID
+            and self.admission_payment_mode() == PublicAdmissionPaymentMode.ONLINE
+        )
+
+
+class PublicAdmissionPaymentTransaction(TimeStampedModel):
+    submission = models.ForeignKey(
+        PublicSiteSubmission,
+        on_delete=models.CASCADE,
+        related_name="payment_transactions",
+    )
+    reference = models.CharField(max_length=80, unique=True)
+    provider = models.CharField(
+        max_length=16,
+        choices=PublicAdmissionGatewayProvider.choices,
+        default=PublicAdmissionGatewayProvider.PAYSTACK,
+    )
+    status = models.CharField(
+        max_length=16,
+        choices=PublicAdmissionGatewayStatus.choices,
+        default=PublicAdmissionGatewayStatus.PENDING,
+    )
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    callback_url = models.CharField(max_length=320, blank=True)
+    authorization_url = models.CharField(max_length=500, blank=True)
+    gateway_reference = models.CharField(max_length=180, blank=True)
+    initialized_at = models.DateTimeField(null=True, blank=True)
+    verified_at = models.DateTimeField(null=True, blank=True)
+    paid_at = models.DateTimeField(null=True, blank=True)
+    failure_reason = models.TextField(blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ("-created_at",)
+        indexes = [
+            models.Index(fields=("reference",)),
+            models.Index(fields=("submission", "status", "created_at")),
+            models.Index(fields=("provider", "status")),
+        ]
+
+    def clean(self):
+        self.reference = (self.reference or "").strip().upper()
+        self.gateway_reference = (self.gateway_reference or "").strip()
+        self.callback_url = (self.callback_url or "").strip()
+        self.authorization_url = (self.authorization_url or "").strip()
+        self.failure_reason = (self.failure_reason or "").strip()
+        if self.amount <= 0:
+            raise ValidationError("Gateway transaction amount must be greater than zero.")
+        if self.submission_id and self.submission.submission_type != PublicSubmissionType.ADMISSION:
+            raise ValidationError("Public admission payments can only attach to admission submissions.")
+
+    def __str__(self):
+        return f"{self.reference} [{self.status}]"
 
 
 class PublicGalleryCategory(TimeStampedModel):

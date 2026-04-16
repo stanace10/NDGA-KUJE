@@ -29,6 +29,7 @@ from apps.academics.models import (
     AcademicClass,
     AcademicSession,
     ClassSubject,
+    FormTeacherAssignment,
     StudentClassEnrollment,
     Subject,
     Term,
@@ -455,7 +456,7 @@ class StageOneAccessTests(TestCase):
             (ROLE_VP, "ADMIN", "Vice", "Principal", "vp@ndgakuje.org", "NDGAK/VP", "admin/vp"),
             (ROLE_PRINCIPAL, "ADMIN", "School", "Principal", "principal@ndgakuje.org", "NDGAK/PRINCIPAL", "admin"),
             (ROLE_BURSAR, "ADMIN", "Main", "Bursar", "bursar@ndgakuje.org", "NDGAK/BURSAR", "bursar1804"),
-            (ROLE_DEAN, "STAFF", "Senior", "Dean", "ndgak/staff/dean", "NDGAK/STAFF/DEAN", "ndgak/dean"),
+            (ROLE_DEAN, "STAFF", "Senior", "Dean", "ndgak/staff/dean", "NDGAK/STAFF/DEAN", "NDGAK/DEAN"),
         ]
 
         for role_code, role_group, first_name, last_name, expected_username, expected_staff_id, expected_password in cases:
@@ -987,6 +988,90 @@ class DefaultPortalAccountBootstrapTests(TestCase):
 
         principal_user.refresh_from_db()
         self.assertTrue(principal_user.check_password("admin"))
+
+
+class OperationalPortalProvisioningTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.roles = {}
+        for code, label in Role._meta.get_field("code").choices:
+            cls.roles[code], _ = Role.objects.get_or_create(code=code, defaults={"name": label})
+
+        cls.session = AcademicSession.objects.create(name="2025/2026")
+        Term.objects.create(session=cls.session, name="THIRD")
+        cls.js1 = AcademicClass.objects.create(code="JS1", display_name="JS1")
+        cls.ss3 = AcademicClass.objects.create(code="SS3", display_name="SS3")
+
+        cls.dean_source = User.objects.create_user(
+            username="gabriel@ndgakuje.org",
+            password="Password123!",
+            primary_role=cls.roles[ROLE_DEAN],
+            first_name="Emmanuel",
+            last_name="Gabriel",
+            must_change_password=False,
+        )
+        cls.dean_source.secondary_roles.add(cls.roles[ROLE_FORM_TEACHER])
+        StaffProfile.objects.create(user=cls.dean_source, staff_id="NDGAK/STAFF/002")
+
+        cls.vp_source = User.objects.create_user(
+            username="vp@ndgakuje.org",
+            password="Password123!",
+            primary_role=cls.roles[ROLE_VP],
+            first_name="Vice",
+            last_name="Principal",
+            must_change_password=False,
+        )
+        cls.vp_source.secondary_roles.add(cls.roles[ROLE_FORM_TEACHER])
+        StaffProfile.objects.create(user=cls.vp_source, staff_id="NDGAK/VP")
+
+        FormTeacherAssignment.objects.create(
+            teacher=cls.vp_source,
+            academic_class=cls.js1,
+            session=cls.session,
+            is_active=True,
+        )
+        FormTeacherAssignment.objects.create(
+            teacher=cls.dean_source,
+            academic_class=cls.ss3,
+            session=cls.session,
+            is_active=True,
+        )
+
+    def test_command_creates_dedicated_dean_and_form_accounts_and_cleans_source_roles(self):
+        call_command("provision_operational_portals")
+
+        dean_portal = User.objects.get(primary_role=self.roles[ROLE_DEAN])
+        self.assertEqual(dean_portal.staff_profile.staff_id, "NDGAK/STAFF/DEAN")
+        self.assertTrue(dean_portal.check_password("NDGAK/DEAN"))
+
+        js1_portal = User.objects.get(staff_profile__staff_id="NDGAK/STAFF/JS1")
+        self.assertEqual(js1_portal.primary_role, self.roles[ROLE_FORM_TEACHER])
+        self.assertTrue(js1_portal.check_password("NDGAK/JS1"))
+
+        ss3_portal = User.objects.get(staff_profile__staff_id="NDGAK/STAFF/SS3")
+        self.assertEqual(ss3_portal.primary_role, self.roles[ROLE_FORM_TEACHER])
+        self.assertTrue(ss3_portal.check_password("NDGAK/SS3"))
+
+        self.dean_source.refresh_from_db()
+        self.vp_source.refresh_from_db()
+
+        self.assertEqual(self.dean_source.primary_role, self.roles[ROLE_SUBJECT_TEACHER])
+        self.assertNotIn(ROLE_DEAN, self.dean_source.get_all_role_codes())
+        self.assertNotIn(ROLE_FORM_TEACHER, self.dean_source.get_all_role_codes())
+        self.assertNotIn(ROLE_FORM_TEACHER, self.vp_source.get_all_role_codes())
+
+        js1_assignment = FormTeacherAssignment.objects.get(
+            academic_class=self.js1,
+            session=self.session,
+            is_active=True,
+        )
+        ss3_assignment = FormTeacherAssignment.objects.get(
+            academic_class=self.ss3,
+            session=self.session,
+            is_active=True,
+        )
+        self.assertEqual(js1_assignment.teacher_id, js1_portal.id)
+        self.assertEqual(ss3_assignment.teacher_id, ss3_portal.id)
 
 
 

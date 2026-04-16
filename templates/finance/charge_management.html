@@ -127,11 +127,36 @@
       </article>
 
       <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 class="text-base font-semibold text-slate-900">Core Student Fees</h2>
+        <p class="mt-1 text-sm text-slate-600">Students should always see these three fee lines. School fees remain class-based, while petty cash and pocket money stay fixed across classes.</p>
+        <div class="mt-4 grid gap-3 md:grid-cols-3">
+          {% for row in core_fee_rows %}
+            <article class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">{{ row.title }}</p>
+              <p class="mt-2 text-lg font-bold text-slate-900">
+                {% if row.configured_amount %}NGN {{ row.configured_amount }}{% else %}Set Per Class{% endif %}
+              </p>
+              <p class="mt-2 text-sm text-slate-600">{{ row.summary }}</p>
+            </article>
+          {% endfor %}
+        </div>
+      </article>
+
+      <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 class="text-base font-semibold text-slate-900">Create Fee Structure</h2>
-        <p class="mt-1 text-sm text-slate-600">Create termly class fees only: school fees, hostel, feeding, transport, uniform, pocket money, others.</p>
+        <p class="mt-1 text-sm text-slate-600">
+          {% if edit_charge %}
+            Update the selected fee amount or class here. Changes reflect on the student side for the same session and term.
+          {% else %}
+            Create termly class fees only. Use the main class level such as JS1, JS2, SS1, or SS2 instead of class arms.
+          {% endif %}
+        </p>
         <form method="post" class="mt-4 space-y-3">
           {% csrf_token %}
-          <input type="hidden" name="action" value="create_charge">
+          <input type="hidden" name="action" value="{% if edit_charge %}update_charge{% else %}create_charge{% endif %}">
+          {% if edit_charge %}
+            <input type="hidden" name="charge_id" value="{{ edit_charge.id }}">
+          {% endif %}
 
           {% if charge_form.non_field_errors %}
             <div class="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
@@ -177,9 +202,14 @@
             <span>Charge is active immediately</span>
           </label>
 
-          <button type="submit" class="ndga-btn ndga-btn-primary" {% if not current_session %}disabled{% endif %}>
-            Save Charge
-          </button>
+          <div class="flex flex-wrap gap-2">
+            <button type="submit" class="ndga-btn ndga-btn-primary" {% if not current_session %}disabled{% endif %}>
+              {% if edit_charge %}Update Charge{% else %}Save Charge{% endif %}
+            </button>
+            {% if edit_charge %}
+              <a href="{% url 'finance:bursar-settings' %}" class="ndga-btn ndga-btn-secondary">Cancel Edit</a>
+            {% endif %}
+          </div>
         </form>
       </article>
 
@@ -199,7 +229,7 @@
           >
             <option value="" {% if not class_filter %}selected{% endif %}>All Classes</option>
             {% for class_row in class_options %}
-              <option value="{{ class_row.id }}" {% if class_filter == class_row.id|stringformat:'s' %}selected{% endif %}>{{ class_row.code }}</option>
+              <option value="{{ class_row.id }}" {% if class_filter == class_row.id|stringformat:'s' %}selected{% endif %}>{{ class_row.display_name|default:class_row.code }}</option>
             {% endfor %}
           </select>
           <select
@@ -235,7 +265,7 @@
                     <p class="font-semibold text-slate-900">{{ row.item_name }}</p>
                     <p class="text-xs text-slate-500">{{ row.description|default:"-" }}</p>
                   </td>
-                  <td class="px-3 py-2 text-slate-700">{{ row.academic_class.code|default:"-" }}</td>
+                  <td class="px-3 py-2 text-slate-700">{{ row.academic_class.level_display_name|default:row.academic_class.display_name|default:row.academic_class.code|default:"-" }}</td>
                   <td class="px-3 py-2 font-semibold text-slate-800">{{ row.amount }}</td>
                   <td class="px-3 py-2 text-slate-700">{% if row.term %}{{ row.term.get_name_display }}{% else %}-{% endif %}</td>
                   <td class="px-3 py-2">
@@ -245,6 +275,9 @@
                   </td>
                   <td class="px-3 py-2">
                     <div class="flex flex-wrap gap-2">
+                      <a href="{% url 'finance:bursar-settings' %}?edit={{ row.id }}" class="ndga-btn ndga-btn-secondary !rounded-lg !px-3 !py-1.5 !text-xs">
+                        Edit
+                      </a>
                       <form method="post">
                         {% csrf_token %}
                         <input type="hidden" name="action" value="toggle_charge">

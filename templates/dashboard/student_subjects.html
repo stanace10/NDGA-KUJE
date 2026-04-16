@@ -3,61 +3,71 @@
 {% block title %}Student Subjects{% endblock %}
 
 {% block content %}
-  <section class="mx-auto max-w-[94rem] px-4 py-5 sm:px-6 lg:px-8">
-    <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-      <div class="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h1 class="text-2xl font-bold text-slate-900">Subjects Offered</h1>
-          <p class="mt-1 text-sm text-slate-600">Subjects currently mapped to your enrollment.</p>
+  <section class="mx-auto max-w-[75rem] px-4 py-6 sm:px-6 lg:px-8">
+    <section class="overflow-hidden rounded-[1.75rem] bg-white shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
+      <div class="border-b border-slate-200 px-5 py-5 sm:px-6">
+        <div class="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p class="text-sm font-medium text-slate-500">Academic</p>
+            <h1 class="mt-1 text-3xl font-bold tracking-tight text-slate-900">Subjects</h1>
+          </div>
+          <div class="flex flex-wrap items-end gap-3">
+            <p class="rounded-full bg-slate-100 px-3 py-1.5 text-sm font-semibold text-slate-600">{{ offered_subject_count }} subject{{ offered_subject_count|pluralize }}</p>
+            {% if available_sessions|length > 1 or available_terms|length > 1 %}
+              <form method="get" class="flex flex-wrap items-end gap-2">
+                <div>
+                  <label for="session_id" class="sr-only">Session</label>
+                  <select id="session_id" name="session_id" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800">
+                    {% for session in available_sessions %}
+                      <option value="{{ session.id }}" {% if selected_session and session.id == selected_session.id %}selected{% endif %}>{{ session.name }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div>
+                  <label for="term_id" class="sr-only">Term</label>
+                  <select id="term_id" name="term_id" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800">
+                    {% for term in available_terms %}
+                      <option value="{{ term.id }}" {% if selected_term and term.id == selected_term.id %}selected{% endif %}>{{ term.get_name_display }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <button type="submit" class="ndga-btn ndga-btn-primary">Apply</button>
+              </form>
+            {% endif %}
+          </div>
         </div>
-        <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
-          {{ offered_subject_count }} subject{{ offered_subject_count|pluralize }}
-        </span>
       </div>
 
-      <form method="get" class="mt-4 grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div>
-          <label for="session_id" class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Session</label>
-          <select id="session_id" name="session_id" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
-            {% for session in available_sessions %}
-              <option value="{{ session.id }}" {% if selected_session and session.id == selected_session.id %}selected{% endif %}>
-                {{ session.name }}
-              </option>
+      <div class="px-5 py-5 sm:px-6">
+        {% if offered_subjects %}
+          <div class="grid gap-3 lg:grid-cols-2">
+            {% for subject in offered_subjects %}
+              <div class="rounded-2xl border border-slate-200/80 bg-slate-50/70 px-4 py-4 transition hover:border-slate-300 hover:bg-white hover:shadow-sm">
+                <div class="flex flex-wrap items-start justify-between gap-4">
+                  <div class="min-w-[14rem]">
+                    <p class="text-base font-semibold text-slate-900">{{ subject.name }}</p>
+                    {% if subject.teacher_name %}
+                      <p class="mt-1 text-sm text-slate-600">{{ subject.teacher_name }}</p>
+                    {% endif %}
+                  </div>
+                  <div class="flex flex-wrap items-center gap-3 text-sm text-slate-500">
+                    {% if subject.classroom_url %}
+                      <span class="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">LMS ready</span>
+                    {% endif %}
+                  </div>
+                </div>
+                {% if subject.classroom_url %}
+                  <div class="mt-4 border-t border-slate-200 pt-3">
+                    <a href="{{ subject.classroom_url }}" class="font-semibold text-ndga-navy hover:text-ndga-gold">Open classroom</a>
+                  </div>
+                {% endif %}
+              </div>
             {% endfor %}
-          </select>
-        </div>
-        <div>
-          <label for="term_id" class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Term</label>
-          <select id="term_id" name="term_id" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
-            {% for term in available_terms %}
-              <option value="{{ term.id }}" {% if selected_term and term.id == selected_term.id %}selected{% endif %}>
-                {{ term.get_name_display }}
-              </option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="sm:col-span-2 lg:col-span-2 flex items-end gap-2">
-          <button type="submit" class="ndga-btn ndga-btn-primary">Apply Filter</button>
-          <a href="{% url 'dashboard:student-subjects' %}" class="ndga-btn ndga-btn-secondary">Reset</a>
-        </div>
-      </form>
-
-      {% if offered_subjects %}
-        <div class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {% for enrollment in offered_subjects %}
-            <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p class="text-sm font-semibold text-slate-900">{{ enrollment.subject.name }}</p>
-              <p class="mt-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
-                {{ enrollment.subject.code }}
-              </p>
-            </article>
-          {% endfor %}
-        </div>
-      {% else %}
-        <p class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-          No subjects are assigned yet for your current session.
-        </p>
-      {% endif %}
-    </article>
+          </div>
+        {% else %}
+          <p class="text-sm text-slate-600">No subjects assigned for this term.</p>
+        {% endif %}
+      </div>
+    </section>
   </section>
 {% endblock %}

@@ -1,6 +1,7 @@
 import base64
 import binascii
 import uuid
+from collections import OrderedDict
 from datetime import timedelta
 from pathlib import Path
 
@@ -65,6 +66,7 @@ from apps.setup_wizard.services import get_setup_state, setup_is_ready
 from apps.setup_wizard.feature_flags import FLAG_FIELD_MAP, get_runtime_feature_flags
 from apps.setup_wizard.models import RuntimeFeatureFlags
 from apps.tenancy.utils import (
+    cloud_student_portal_limited_enabled,
     cloud_staff_operations_lan_only_enabled,
     current_portal_key,
     user_has_lan_only_operation_roles,
@@ -85,22 +87,63 @@ from apps.dashboard.intelligence import (
     build_student_academic_analytics,
     build_teacher_performance_analytics,
 )
+from apps.results.analytics import active_result_pin_for_student
 from apps.dashboard.models import (
     PrincipalSignature,
     PublicEventPost,
     PublicGalleryCategory,
     PublicGalleryImage,
     PublicNewsPost,
+    PublicAdmissionPaymentStatus,
+    PublicAdmissionWorkflowStatus,
+    PublicSiteSubmission,
+    PublicSubmissionType,
     PublicWebsiteSettings,
     SchoolProfile,
     StudentClubMembership,
 )
 from apps.dashboard.navigation import build_portal_navigation
+from apps.dashboard.public_admission_utils import build_public_admission_snapshot
+from apps.pdfs.services import build_term_report_payload
 
 
 def _current_window():
     setup_state = get_setup_state()
     return setup_state.current_session, setup_state.current_term
+
+
+def _admissions_dashboard_snapshot(*, limit=6):
+    rows = list(
+        PublicSiteSubmission.objects.filter(submission_type=PublicSubmissionType.ADMISSION)
+        .order_by("-created_at")[:limit]
+    )
+    recent_rows = []
+    for row in rows:
+        snapshot = build_public_admission_snapshot(row)
+        recent_rows.append(
+            {
+                "id": row.id,
+                "applicant_name": row.applicant_name,
+                "intended_class": row.intended_class,
+                "application_code": row.application_fee_reference,
+                "admissions_status": row.get_admissions_status_display(),
+                "payment_status": row.get_payment_status_display(),
+                "payment_mode": row.payment_mode_badge(),
+                "created_at": row.created_at,
+                "guardian_name": snapshot["parents"]["primary_guardian_name"] or row.guardian_name,
+                "guardian_phone": snapshot["parents"]["primary_guardian_phone"] or row.guardian_phone,
+            }
+        )
+
+    queryset = PublicSiteSubmission.objects.filter(submission_type=PublicSubmissionType.ADMISSION)
+    return {
+        "new": queryset.filter(admissions_status=PublicAdmissionWorkflowStatus.NEW).count(),
+        "pending": queryset.filter(admissions_status=PublicAdmissionWorkflowStatus.PENDING).count(),
+        "approved": queryset.filter(admissions_status=PublicAdmissionWorkflowStatus.APPROVED).count(),
+        "paid": queryset.filter(payment_status=PublicAdmissionPaymentStatus.PAID).count(),
+        "unpaid": queryset.filter(payment_status=PublicAdmissionPaymentStatus.UNPAID).count(),
+        "recent_rows": recent_rows,
+    }
 
 
 def _active_class_levels_qs():
@@ -139,8 +182,91 @@ def _calculate_age(date_of_birth):
     return max(years, 0)
 
 
+def _has_display_value(value):
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    return True
+
+
+def _time_based_student_greeting():
+    hour = timezone.localtime().hour
+    if hour < 12:
+        return "Good morning"
+    if hour < 17:
+        return "Good afternoon"
+    return "Good evening"
+
+
+def _compact_timestamp(value):
+    if not value:
+        return ""
+    if hasattr(value, "hour"):
+        return timezone.localtime(value).strftime("%d %b %Y")
+    return value.strftime("%d %b %Y")
+
+
+def _profile_row(label, value):
+    if not _has_display_value(value):
+        return None
+    return {"label": label, "value": value}
+
+
+def _build_student_result_overview(*, student, compilation):
+    if compilation is None:
+        return None
+
+    payload = build_term_report_payload(student=student, compilation=compilation)
+    subject_rows = list(payload.get("subject_rows", []))
+    ranked_rows = sorted(subject_rows, key=lambda row: row.get("total") or 0, reverse=True)
+    best_subject = ranked_rows[0] if ranked_rows else None
+    worst_subject = ranked_rows[-1] if ranked_rows else None
+    summary_rows = []
+    for row in ranked_rows:
+        score = row.get("total") or 0
+        if score >= 70:
+            status = "Strong"
+        elif score >= 50:
+            status = "Stable"
+        else:
+            status = "Needs attention"
+        summary_rows.append(
+            {
+                "subject": row.get("subject"),
+                "score": score,
+                "grade": row.get("grade"),
+                "status": status,
+                "status_tone": (
+                    "bg-emerald-50 text-emerald-700"
+                    if score >= 70
+                    else "bg-amber-50 text-amber-700"
+                    if score >= 50
+                    else "bg-rose-50 text-rose-700"
+                ),
+            }
+        )
+
+    return {
+        "average": payload.get("average"),
+        "class_position": payload.get("class_position"),
+        "class_size": payload.get("class_size"),
+        "subject_count": payload.get("subject_count"),
+        "published_at": payload.get("published_at"),
+        "term_name": payload.get("term_name"),
+        "session_name": payload.get("session_name"),
+        "best_subject": best_subject,
+        "worst_subject": worst_subject,
+        "subject_rows": summary_rows,
+    }
+
+
 def _cloud_staff_admin_lan_only(user):
     return cloud_staff_operations_lan_only_enabled() and user_has_lan_only_operation_roles(user)
+
+
+def _cloud_student_portal_limited():
+    return cloud_student_portal_limited_enabled()
 
 
 def _portal_file_url(file_field):
@@ -262,14 +388,20 @@ def _portal_action_description(label: str):
 
 def _portal_focus_notes(*, portal_key: str, role_codes: set[str]):
     if portal_key == "staff":
-        notes = []
-        if role_codes & {ROLE_SUBJECT_TEACHER, ROLE_DEAN, ROLE_FORM_TEACHER}:
-            notes.append("Subject teachers own score entry and CBT content drafting.")
-        if ROLE_DEAN in role_codes:
-            notes.append("Dean approvals are mandatory before form compilation can proceed.")
-        if ROLE_FORM_TEACHER in role_codes:
-            notes.append("Form teachers own attendance, comments, and class compilation.")
-        return notes or ["Open each workflow from the menu to continue operations."]
+        return [
+            "Subject-teacher portal is now limited to score entry, CBT authoring, lesson planning, and classroom work.",
+            "Dean and form-teacher duties now live in their own dedicated portals to reduce workflow mistakes.",
+        ]
+    if portal_key == "dean":
+        return [
+            "Dean portal is limited to result vetting, question vetting, and approval decisions only.",
+            "Use the normal staff login separately for subject teaching, CBT entry, and score entry.",
+        ]
+    if portal_key == "form":
+        return [
+            "Form-teacher portal is limited to class students, attendance, and result comments after dean approval.",
+            "Use the normal staff or VP login separately for subject teaching and broader school duties.",
+        ]
     if portal_key == "it":
         return [
             "Use this portal for provisioning, setup, toggles, and governance controls.",
@@ -463,6 +595,9 @@ def _build_portal_priority_actions(
 
 
 def _student_dashboard_payload(request, user):
+    from apps.finance.models import Payment
+    from apps.finance.services import student_finance_overview
+
     current_session, current_term = _current_window()
     student_profile = getattr(user, "student_profile", None)
     attendance_snapshot = get_current_student_attendance_snapshot(user)
@@ -582,9 +717,26 @@ def _student_dashboard_payload(request, user):
 
     attendance_label, attendance_tone_class = _attendance_tone(attendance_snapshot)
 
+    finance_summary = {
+        "total_charged": 0,
+        "total_paid_applied": 0,
+        "total_outstanding": 0,
+        "unallocated_credit": 0,
+    }
+    finance_session = current_session or getattr(current_enrollment, "session", None)
+    finance_term = current_term if current_session and finance_session and current_session.id == finance_session.id else None
+    if finance_session:
+        finance_summary = student_finance_overview(
+            student=user,
+            session=finance_session,
+            term=finance_term,
+        )
+
     reports_center_url = reverse("pdfs:student-reports")
     transcript_url = reverse("dashboard:student-transcript")
     notifications_center_url = reverse("notifications:center")
+    finance_url = reverse("finance:student-overview")
+    attendance_url = reverse("dashboard:student-attendance")
     term_report_view_url = result_status.get("term_report_view_url", "")
     term_report_url = result_status.get("term_report_url", "")
 
@@ -645,18 +797,6 @@ def _student_dashboard_payload(request, user):
             "badge": "Subjects",
         },
         {
-            "label": "Finance",
-            "description": "Check fee categories, paid and outstanding balances.",
-            "url": reverse("finance:student-overview"),
-            "badge": "Fees",
-        },
-        {
-            "label": "Learning Hub",
-            "description": "Open assignments, study materials, past questions, and AI tutor help.",
-            "url": reverse("dashboard:student-learning-hub"),
-            "badge": "Learn",
-        },
-        {
             "label": "Classroom LMS",
             "description": "Open your subject classrooms, complete modules, and submit assignments.",
             "url": reverse("dashboard:student-lms"),
@@ -675,16 +815,10 @@ def _student_dashboard_payload(request, user):
             "badge": "ID",
         },
         {
-            "label": "Document Vault",
-            "description": "View certificates, transcripts, and official records shared to you.",
-            "url": reverse("dashboard:student-document-vault"),
-            "badge": "Vault",
-        },
-        {
-            "label": "Settings",
-            "description": "Manage dashboard display name and password.",
-            "url": reverse("dashboard:student-settings"),
-            "badge": "Account",
+            "label": "Finance",
+            "description": "Check fee categories, paid and outstanding balances.",
+            "url": finance_url,
+            "badge": "Fees",
         },
         {
             "label": "Notifications",
@@ -693,6 +827,21 @@ def _student_dashboard_payload(request, user):
             "badge": f"{unread_notifications} unread" if unread_notifications else "Inbox",
         },
     ]
+    if not _cloud_student_portal_limited():
+        student_quick_links[8:8] = [
+            {
+                "label": "Learning Hub",
+                "description": "Open assignments, study materials, past questions, and AI tutor help.",
+                "url": reverse("dashboard:student-learning-hub"),
+                "badge": "Learn",
+            },
+            {
+                "label": "Settings",
+                "description": "Manage dashboard display name and password.",
+                "url": reverse("dashboard:student-settings"),
+                "badge": "Account",
+            },
+        ]
 
     student_analytics = build_student_academic_analytics(
         student=user,
@@ -700,9 +849,73 @@ def _student_dashboard_payload(request, user):
         current_term=current_term,
     )
 
+    latest_payment = (
+        Payment.objects.filter(student=user, is_void=False)
+        .select_related("receipt", "session", "term")
+        .order_by("-payment_date", "-created_at")
+        .first()
+    )
+    latest_notification = _visible_notification_queryset(user).order_by("-created_at").first()
+
+    recent_activity = []
+    if latest_payment:
+        recent_activity.append(
+            {
+                "label": "Last payment",
+                "title": f"{latest_payment.amount} received",
+                "meta": _compact_timestamp(latest_payment.payment_date or latest_payment.created_at),
+                "description": (
+                    latest_payment.receipt.receipt_number
+                    if getattr(latest_payment, "receipt", None)
+                    else "Payment recorded successfully."
+                ),
+                "url": finance_url,
+            }
+        )
+    if latest_published:
+        recent_activity.append(
+            {
+                "label": "Last result update",
+                "title": f"{latest_published.term.get_name_display()} result published",
+                "meta": _compact_timestamp(latest_published.published_at or latest_published.updated_at),
+                "description": latest_published.session.name,
+                "url": term_report_view_url or reports_center_url,
+            }
+        )
+    if latest_notification:
+        recent_activity.append(
+            {
+                "label": "Announcement",
+                "title": latest_notification.title,
+                "meta": _compact_timestamp(latest_notification.created_at),
+                "description": (latest_notification.message or "")[:100],
+                "url": latest_notification.action_url or notifications_center_url,
+            }
+        )
+
+    student_dashboard_actions = [
+        {
+            "label": "View Results",
+            "description": "Open current term reports and performance analysis.",
+            "url": term_report_view_url or reports_center_url,
+        },
+        {
+            "label": "Pay Fees",
+            "description": "Review balance and continue to secure payment.",
+            "url": finance_url,
+        },
+        {
+            "label": "Open Learning Hub",
+            "description": "Open published resources, assignments, and classroom links.",
+            "url": reverse("dashboard:student-learning-hub"),
+        },
+    ]
+
     return {
         "current_session": current_session,
         "current_term": current_term,
+        "student_portal_greeting": _time_based_student_greeting(),
+        "student_portal_subtext": "Here's what you need today.",
         "student_age": student_age,
         "current_class_code": current_class_code,
         "attendance_snapshot": attendance_snapshot,
@@ -723,6 +936,9 @@ def _student_dashboard_payload(request, user):
         "unread_notifications": unread_notifications,
         "student_next_action": student_next_action,
         "student_quick_links": student_quick_links,
+        "student_dashboard_actions": student_dashboard_actions,
+        "student_recent_activity": recent_activity,
+        "student_finance_summary": finance_summary,
         "student_analytics": student_analytics,
     }
 
@@ -1033,6 +1249,113 @@ def _staff_results_readonly_payload(user):
             "submitted": len([row for row in rows if row["status_code"] == ResultSheetStatus.SUBMITTED_TO_DEAN]),
             "published": published_count,
         },
+    }
+
+
+def _dean_portal_payload(user):
+    current_session, current_term = _current_window()
+    pending_results = 0
+    pending_questions = 0
+    if current_session and current_term:
+        pending_results = ResultSheet.objects.filter(
+            session=current_session,
+            term=current_term,
+            status=ResultSheetStatus.SUBMITTED_TO_DEAN,
+        ).count()
+        pending_questions = Exam.objects.filter(
+            session=current_session,
+            term=current_term,
+            status=CBTExamStatus.PENDING_DEAN,
+        ).count()
+    pending_simulations = SimulationWrapper.objects.filter(
+        status=CBTSimulationWrapperStatus.PENDING_DEAN,
+        is_active=True,
+    ).count()
+    return {
+        "portal_stat_cards": [
+            {
+                "label": "Pending Results",
+                "value": pending_results,
+                "meta": "Submitted score sheets waiting for dean review.",
+            },
+            {
+                "label": "Pending Questions",
+                "value": pending_questions,
+                "meta": "CBT exams waiting for vetting.",
+            },
+            {
+                "label": "Pending Simulations",
+                "value": pending_simulations,
+                "meta": "Simulation bundles still awaiting approval.",
+            },
+        ],
+    }
+
+
+def _form_teacher_portal_payload(user):
+    current_session, current_term = _current_window()
+    assignment_qs = FormTeacherAssignment.objects.filter(teacher=user, is_active=True).select_related(
+        "academic_class",
+        "session",
+    )
+    if current_session:
+        assignment_qs = assignment_qs.filter(session=current_session)
+    assignments = list(assignment_qs.order_by("academic_class__code"))
+    class_ids = [row.academic_class_id for row in assignments]
+    student_count = 0
+    attendance_days = 0
+    ready_comment_sheets = 0
+    if current_session and class_ids:
+        student_count = StudentClassEnrollment.objects.filter(
+            academic_class_id__in=class_ids,
+            session=current_session,
+            is_active=True,
+        ).values("student_id").distinct().count()
+        attendance_days = AttendanceRecord.objects.filter(
+            academic_class_id__in=class_ids,
+            calendar__session=current_session,
+        ).values("date").distinct().count()
+    if current_session and current_term and class_ids:
+        ready_comment_sheets = ResultSheet.objects.filter(
+            academic_class_id__in=class_ids,
+            session=current_session,
+            term=current_term,
+            status=ResultSheetStatus.APPROVED_BY_DEAN,
+        ).count()
+    class_label = ""
+    if len(assignments) == 1:
+        assigned_class = assignments[0].academic_class
+        class_label = assigned_class.display_name or assigned_class.code
+    return {
+        "assigned_form_classes": assignments,
+        "form_attendance_days": attendance_days,
+        "form_portal_description_override": (
+            f"Manage students, attendance, and result comments for {class_label}."
+            if class_label
+            else ""
+        ),
+        "portal_stat_cards": [
+            {
+                "label": "Assigned Class",
+                "value": class_label or len(assignments),
+                "meta": "The class currently under your form-teacher care.",
+            },
+            {
+                "label": "Students",
+                "value": student_count,
+                "meta": "Students currently enrolled in your assigned class.",
+            },
+            {
+                "label": "Attendance Days",
+                "value": attendance_days,
+                "meta": "School days with attendance already marked.",
+            },
+            {
+                "label": "Dean-Approved Subjects",
+                "value": ready_comment_sheets,
+                "meta": "Subject sheets now ready for form comments.",
+            },
+        ],
     }
 
 
@@ -1410,6 +1733,78 @@ class StudentPortalView(PortalPageView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context.update(_student_dashboard_payload(self.request, self.request.user))
+        latest_published_compilation = context.get("latest_published_compilation")
+        pin_locked = bool(
+            latest_published_compilation
+            and SchoolProfile.load().require_result_access_pin
+            and active_result_pin_for_student(
+                student=self.request.user,
+                session=latest_published_compilation.session,
+                term=latest_published_compilation.term,
+            )
+        )
+        result_overview = (
+            None
+            if pin_locked
+            else _build_student_result_overview(
+                student=self.request.user,
+                compilation=latest_published_compilation,
+            )
+        )
+        finance_summary = context.get("student_finance_summary") or {}
+        outstanding_total = finance_summary.get("total_outstanding") or 0
+        attendance_snapshot = context.get("attendance_snapshot")
+        attendance_value = (
+            f"{attendance_snapshot.get('percentage', 0)}%"
+            if attendance_snapshot
+            else "No record yet"
+        )
+        result_value = (
+            f"{result_overview['average']}%"
+            if result_overview
+            else "Published"
+            if latest_published_compilation
+            else "No result yet"
+        )
+        result_meta = (
+            f"{result_overview['term_name']} | {result_overview['session_name']}"
+            if result_overview
+            else f"{latest_published_compilation.term.get_name_display()} | Open results to view details"
+            if latest_published_compilation
+            else "Results will appear here when published."
+        )
+        context["dashboard_summary_cards"] = [
+            {
+                "label": "Attendance",
+                "value": attendance_value,
+                "meta": context.get("attendance_label") or "No record yet",
+                "tone": "text-slate-900",
+            },
+            {
+                "label": "Outstanding Fees",
+                "value": outstanding_total,
+                "meta": "Payment needed" if outstanding_total else "No outstanding balance",
+                "tone": "text-rose-700" if outstanding_total else "text-emerald-700",
+            },
+            {
+                "label": "Latest Result",
+                "value": result_value,
+                "meta": result_meta,
+                "tone": "text-slate-900",
+            },
+            {
+                "label": "Subjects",
+                "value": context.get("offered_subject_count") or 0,
+                "meta": "Mapped to your current enrollment",
+                "tone": "text-slate-900",
+            },
+        ]
+        context["student_result_overview"] = result_overview
+        if _cloud_student_portal_limited():
+            context["portal_description"] = (
+                "Cloud access shows profile, attendance, subjects, transcript, digital ID, weekly challenge, "
+                "classroom/LMS, published results, notifications, and payments. Internal school operations stay on the school LAN."
+            )
         context["portal_priority_actions"] = _build_portal_priority_actions(
             portal_key=context["portal_key"],
             portal_action_items=context.get("portal_action_items", []),
@@ -1434,34 +1829,64 @@ class StudentProfileView(StudentPortalBaseView):
     portal_description = "Student biodata and guardian information."
 
     def get_context_data(self, **kwargs):
-        from django.db.models import Sum
-
-        from apps.dashboard.models import StudentClubMembership
-        from apps.finance.models import ChargeTargetType, Payment, StudentCharge
-
         context = super().get_context_data(**kwargs)
         payload = _student_dashboard_payload(self.request, self.request.user)
         context.update(payload)
-        current_session = payload.get("current_session")
-        current_enrollment = payload.get("current_enrollment")
-        memberships = StudentClubMembership.objects.filter(student=self.request.user, is_active=True).select_related("club", "session")
-        if current_session:
-            memberships = memberships.filter(session=current_session)
-        charge_qs = StudentCharge.objects.filter(student=self.request.user, is_active=True)
-        if current_enrollment is not None:
-            charge_qs = charge_qs | StudentCharge.objects.filter(
-                target_type=ChargeTargetType.CLASS,
-                academic_class=current_enrollment.academic_class,
-                is_active=True,
-            )
-        total_charged = charge_qs.aggregate(total=Sum("amount"))["total"] or 0
-        total_paid = Payment.objects.filter(student=self.request.user, is_void=False).aggregate(total=Sum("amount"))["total"] or 0
-        context["club_memberships"] = memberships
-        context["finance_snapshot"] = {
-            "charged": total_charged,
-            "paid": total_paid,
-            "outstanding": max(total_charged - total_paid, 0),
-        }
+        student_profile = context.get("student_profile")
+        lifecycle_label = (
+            student_profile.get_lifecycle_state_display()
+            if student_profile and getattr(student_profile, "lifecycle_state", "")
+            else "Active"
+        )
+        lifecycle_tone = (
+            "bg-emerald-50 text-emerald-700"
+            if str(lifecycle_label).strip().lower() in {"active", "enrolled", "continuing"}
+            else "bg-amber-50 text-amber-700"
+        )
+        student_age = _calculate_age(getattr(student_profile, "date_of_birth", None))
+        identity_rows = [
+            _profile_row("Full name", self.request.user.get_full_name() or self.request.user.display_name or self.request.user.username),
+            _profile_row("First name", self.request.user.first_name),
+            _profile_row("Last name", self.request.user.last_name),
+            _profile_row("Middle name", getattr(student_profile, "middle_name", "")),
+            _profile_row("Student ID", context.get("user_identifier")),
+            _profile_row("Portal username", self.request.user.username),
+            _profile_row("Status", lifecycle_label),
+            _profile_row("Gender", student_profile.get_gender_display() if student_profile and student_profile.gender else ""),
+            _profile_row("Date of birth", getattr(student_profile, "date_of_birth", None)),
+            _profile_row("Age", f"{student_age} years" if student_age is not None else ""),
+        ]
+        academic_rows = [
+            _profile_row("Class", context.get("current_class_code")),
+            _profile_row("Session", getattr(context.get("current_session"), "name", "")),
+            _profile_row("Term", context.get("current_term").get_name_display() if context.get("current_term") else ""),
+            _profile_row("Admission date", getattr(student_profile, "admission_date", None)),
+            _profile_row("Nationality", getattr(student_profile, "nationality", "")),
+            _profile_row("State of origin", getattr(student_profile, "state_of_origin", "")),
+        ]
+        contact_rows = [
+            _profile_row("Student email", self.request.user.email),
+            _profile_row("Home address", getattr(student_profile, "address", "")),
+        ]
+        guardian_rows = [
+            _profile_row("Parent / Guardian", getattr(student_profile, "guardian_name", "")),
+            _profile_row("Parent phone", getattr(student_profile, "guardian_phone", "")),
+            _profile_row("Parent email", getattr(student_profile, "guardian_email", "")),
+        ]
+        secondary_sections = []
+        for title, value in [
+            ("Student note", getattr(student_profile, "lifecycle_note", "")),
+            ("Medical notes", getattr(student_profile, "medical_notes", "")),
+            ("Disciplinary notes", getattr(student_profile, "disciplinary_notes", "")),
+        ]:
+            if _has_display_value(value):
+                secondary_sections.append({"title": title, "value": value})
+        context["student_status_badge"] = {"label": lifecycle_label, "tone": lifecycle_tone}
+        context["profile_identity_rows"] = [row for row in identity_rows if row]
+        context["profile_academic_rows"] = [row for row in academic_rows if row]
+        context["profile_contact_rows"] = [row for row in contact_rows if row]
+        context["profile_guardian_rows"] = [row for row in guardian_rows if row]
+        context["profile_secondary_sections"] = secondary_sections
         return context
 
 
@@ -1515,6 +1940,47 @@ class StudentAttendanceView(StudentPortalBaseView):
         for row in bar_rows:
             row["bar_percent"] = round((row["count"] / max_count) * 100, 2)
 
+        trend_map = OrderedDict()
+        for row in attendance_records:
+            label = row["date"].strftime("%b")
+            bucket = trend_map.setdefault(label, {"label": label, "present": 0, "marked": 0, "status_counts": {}})
+            bucket["status_counts"][row["status"]] = bucket["status_counts"].get(row["status"], 0) + 1
+            bucket["marked"] += 1
+            if row["status"] == AttendanceStatus.PRESENT:
+                bucket["present"] += 1
+        trend_rows = []
+        for bucket in trend_map.values():
+            marked = bucket["marked"]
+            percentage = round((bucket["present"] / marked) * 100, 1) if marked else 0
+            trend_rows.append(
+                {
+                    "label": bucket["label"],
+                    "percentage": percentage,
+                    "present": bucket["present"],
+                    "marked": marked,
+                }
+            )
+        trend_max = max([row["percentage"] for row in trend_rows] + [1])
+        for row in trend_rows:
+            row["bar_percent"] = round((row["percentage"] / trend_max) * 100, 2) if trend_max else 0
+
+        attendance_log_rows = []
+        for row in reversed(attendance_records[-40:]):
+            status = (row["status"] or "").upper()
+            attendance_log_rows.append(
+                {
+                    "date": row["date"],
+                    "status": status.title(),
+                    "tone": (
+                        "bg-emerald-50 text-emerald-700"
+                        if status == AttendanceStatus.PRESENT
+                        else "bg-rose-50 text-rose-700"
+                        if status == AttendanceStatus.ABSENT
+                        else "bg-slate-100 text-slate-600"
+                    ),
+                }
+            )
+
         context.update(
             {
                 "attendance_snapshot": snapshot,
@@ -1523,6 +1989,8 @@ class StudentAttendanceView(StudentPortalBaseView):
                 "attendance_absent_days": absent_days,
                 "attendance_records": attendance_records,
                 "attendance_bar_rows": bar_rows,
+                "attendance_trend_rows": trend_rows,
+                "attendance_log_rows": attendance_log_rows,
                 **filter_window,
             }
         )
@@ -1534,6 +2002,8 @@ class StudentSubjectsView(StudentPortalBaseView):
     portal_description = "Subjects mapped to your current enrollment."
 
     def get_context_data(self, **kwargs):
+        from apps.dashboard.models import LMSClassroom
+
         context = super().get_context_data(**kwargs)
         context.update(_student_dashboard_payload(self.request, self.request.user))
 
@@ -1556,6 +2026,7 @@ class StudentSubjectsView(StudentPortalBaseView):
             ).select_related("subject")
 
             term_subject_ids = set()
+            class_enrollment = None
             if selected_term:
                 class_enrollment = (
                     StudentClassEnrollment.objects.select_related("academic_class")
@@ -1579,7 +2050,58 @@ class StudentSubjectsView(StudentPortalBaseView):
             if term_subject_ids:
                 enrollment_qs = enrollment_qs.filter(subject_id__in=term_subject_ids)
 
-            offered_subjects = list(enrollment_qs.order_by("subject__name"))
+            enrollments = list(enrollment_qs.order_by("subject__name"))
+            assignment_map = {}
+            classroom_map = {}
+            if class_enrollment and selected_term:
+                assignment_rows = list(
+                    TeacherSubjectAssignment.objects.filter(
+                        session=selected_session,
+                        term=selected_term,
+                        academic_class=class_enrollment.academic_class.instructional_class,
+                        is_active=True,
+                        subject_id__in=[row.subject_id for row in enrollments],
+                    ).select_related("teacher", "subject")
+                )
+                assignment_map = {row.subject_id: row for row in assignment_rows}
+                classroom_rows = list(
+                    LMSClassroom.objects.filter(
+                        teacher_assignment_id__in=[row.id for row in assignment_rows],
+                        is_published=True,
+                    ).select_related("teacher_assignment", "teacher_assignment__subject").annotate(
+                        module_total=Count("modules", distinct=True),
+                        assignment_total=Count("assignments", distinct=True),
+                    )
+                )
+                classroom_map = {row.teacher_assignment.subject_id: row for row in classroom_rows}
+
+            for enrollment in enrollments:
+                assignment = assignment_map.get(enrollment.subject_id)
+                classroom = classroom_map.get(enrollment.subject_id)
+                offered_subjects.append(
+                    {
+                        "name": enrollment.subject.name,
+                        "code": enrollment.subject.code,
+                        "teacher_name": (
+                            assignment.teacher.get_full_name()
+                            or assignment.teacher.display_name
+                            or assignment.teacher.username
+                        )
+                        if assignment
+                        else "",
+                        "classroom_title": classroom.title if classroom else "",
+                        "classroom_url": (
+                            f"{reverse('dashboard:student-lms')}?classroom={classroom.id}"
+                            if classroom
+                            else ""
+                        ),
+                        "overview": classroom.overview if classroom and classroom.overview else "",
+                        "module_total": classroom.module_total if classroom else 0,
+                        "assignment_total": classroom.assignment_total if classroom else 0,
+                        "term_name": selected_term.get_name_display() if selected_term else "",
+                        "session_name": selected_session.name if selected_session else "",
+                    }
+                )
 
         context.update(
             {
@@ -1946,10 +2468,54 @@ class StaffPortalBaseView(PortalPageView):
     def dispatch(self, request, *args, **kwargs):
         if not has_any_role(
             request.user,
-            {ROLE_SUBJECT_TEACHER, ROLE_FORM_TEACHER, ROLE_DEAN},
+            {ROLE_SUBJECT_TEACHER},
         ):
             return redirect("dashboard:landing")
         return super().dispatch(request, *args, **kwargs)
+
+
+class DeanPortalBaseView(PortalPageView):
+    portal_name = "Dean Portal"
+    portal_description = "Vet questions, review submitted results, and approve or reject academic work."
+
+    def dispatch(self, request, *args, **kwargs):
+        if not has_any_role(request.user, {ROLE_DEAN}):
+            return redirect("dashboard:landing")
+        return super().dispatch(request, *args, **kwargs)
+
+
+class DeanPortalView(DeanPortalBaseView):
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(_dean_portal_payload(self.request.user))
+        context["portal_priority_actions"] = _build_portal_priority_actions(
+            portal_key=context["portal_key"],
+            portal_action_items=context.get("portal_action_items", []),
+        )
+        return context
+
+
+class FormTeacherPortalBaseView(PortalPageView):
+    portal_name = "Form Teacher Portal"
+    portal_description = "Manage assigned students, attendance, and class result comments."
+
+    def dispatch(self, request, *args, **kwargs):
+        if not has_any_role(request.user, {ROLE_FORM_TEACHER}):
+            return redirect("dashboard:landing")
+        return super().dispatch(request, *args, **kwargs)
+
+
+class FormTeacherPortalView(FormTeacherPortalBaseView):
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context.update(_form_teacher_portal_payload(self.request.user))
+        if context.get("form_portal_description_override"):
+            context["portal_description"] = context["form_portal_description_override"]
+        context["portal_priority_actions"] = _build_portal_priority_actions(
+            portal_key=context["portal_key"],
+            portal_action_items=context.get("portal_action_items", []),
+        )
+        return context
 
 
 class StaffProfileView(StaffPortalBaseView):
@@ -2139,6 +2705,7 @@ class ITPortalView(PortalPageView):
         school_profile = SchoolProfile.load()
         current_session, _current_term = _current_window()
         visible_class_total = _class_list_total()
+        admissions_snapshot = _admissions_dashboard_snapshot()
         context["it_metrics"] = {
             "campuses_total": Campus.objects.filter(is_active=True).count(),
             "classes_total": visible_class_total,
@@ -2152,6 +2719,29 @@ class ITPortalView(PortalPageView):
             "result_pin_required": school_profile.require_result_access_pin,
             "notifications_unread": _visible_notification_queryset(self.request.user).filter(read_at__isnull=True).count(),
         }
+        context["admissions_snapshot"] = admissions_snapshot
+        context["portal_stat_cards"] = [
+            {
+                "label": "New Applicants",
+                "value": admissions_snapshot["new"],
+                "meta": "Fresh online registrations awaiting review.",
+            },
+            {
+                "label": "Pending Review",
+                "value": admissions_snapshot["pending"],
+                "meta": "Applicants already moved into admissions workflow.",
+            },
+            {
+                "label": "Paid Forms",
+                "value": admissions_snapshot["paid"],
+                "meta": "Applicants with confirmed application form payment.",
+            },
+            {
+                "label": "Unpaid Forms",
+                "value": admissions_snapshot["unpaid"],
+                "meta": "Applicants still awaiting payment confirmation.",
+            },
+        ]
         context["it_enrollment_snapshot"] = _it_enrollment_snapshot(current_session=current_session)
         context["runtime_flags"] = runtime_flags
         if _cloud_staff_admin_lan_only(self.request.user):
@@ -2182,6 +2772,8 @@ class VPPortalView(PortalPageView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context.update(_leadership_dashboard_payload(self.request))
+        context["admissions_snapshot"] = _admissions_dashboard_snapshot()
+        context["admissions_page_url"] = reverse("dashboard:vp-admissions-workflow")
         cloud_staff_admin_lan_only = _cloud_staff_admin_lan_only(self.request.user)
         context["show_finance_summary"] = False
         context["show_election_summary"] = False
@@ -2209,6 +2801,8 @@ class PrincipalPortalView(PortalPageView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context.update(_leadership_dashboard_payload(self.request))
+        context["admissions_snapshot"] = _admissions_dashboard_snapshot()
+        context["admissions_page_url"] = reverse("dashboard:principal-admissions-workflow")
         cloud_staff_admin_lan_only = _cloud_staff_admin_lan_only(self.request.user)
         current_session, current_term = _current_window()
         context["show_finance_summary"] = bool(current_session) and not cloud_staff_admin_lan_only
@@ -2773,7 +3367,7 @@ class PortalSummaryFragmentView(LoginRequiredMixin, TemplateView):
         portal_key = current_portal_key(self.request)
         if portal_key == "student":
             return ["dashboard/partials/student_live_cards.html"]
-        if portal_key in {"staff", "vp", "principal"}:
+        if portal_key in {"staff", "dean", "form", "vp", "principal"}:
             return ["dashboard/partials/staff_live_cards.html"]
         return ["dashboard/partials/empty_live_cards.html"]
 
@@ -2782,7 +3376,7 @@ class PortalSummaryFragmentView(LoginRequiredMixin, TemplateView):
         portal_key = current_portal_key(self.request)
         if portal_key == "student":
             context.update(_student_dashboard_payload(self.request, self.request.user))
-        elif portal_key in {"staff", "vp", "principal"}:
+        elif portal_key in {"staff", "dean", "form", "vp", "principal"}:
             context.update(_staff_dashboard_payload(self.request.user))
         return context
 
@@ -2802,6 +3396,8 @@ class PortalRootView(View):
             "portal": LandingPageView.as_view(),
             "student": StudentPortalView.as_view(),
             "staff": StaffPortalView.as_view(),
+            "dean": DeanPortalView.as_view(),
+            "form": FormTeacherPortalView.as_view(),
             "it": ITPortalView.as_view(),
             "bursar": BursarPortalView.as_view(),
             "vp": VPPortalView.as_view(),

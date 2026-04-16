@@ -28,13 +28,22 @@
   {% endif %}
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{% static 'css/public-website.css' %}?v=20260408g">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Cormorant+Garamond:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/public-website.css' %}?v=20260415h">
   {% block extra_head %}{% endblock %}
 </head>
 <body class="public-body {% if page_key == 'home' %}public-body-home{% endif %}">
   <div class="site-shell">
     <header class="public-header {% if page_key == 'home' %}is-home{% endif %}" data-public-header>
+      <div class="public-announcement-bar" data-announcement-bar>
+        <div class="public-container public-announcement-track">
+          <div class="public-announcement-copy">
+            <strong>Admissions Open</strong>
+            <span>Faith-led learning, disciplined boarding culture, and guided online registration now open.</span>
+          </div>
+          <a href="{{ public_apply_url }}" class="public-announcement-link">Start Admission</a>
+        </div>
+      </div>
       <div class="public-header-inner">
         <a href="/" class="public-brand" aria-label="Notre Dame Girls' Academy home">
           <img src="{% static public_images.logo %}" alt="Notre Dame Girls' Academy logo">
@@ -134,6 +143,49 @@
       {% block content %}{% endblock %}
     </main>
 
+    <section class="public-global-cta">
+      <div class="public-container public-global-cta-grid">
+        <div class="public-global-cta-copy">
+          <span class="public-eyebrow">Why Families Choose NDGA</span>
+          <h2>A calm, disciplined, faith-filled learning environment for girls.</h2>
+          <p>Families meet strong academics, Catholic formation, boarding support, and a school culture built on dignity, order, and care.</p>
+          <div class="public-marketing-badges">
+            <span>Girls' Catholic Education</span>
+            <span>Boarding & Day Options</span>
+            <span>Safe Learning Culture</span>
+            <span>Simple Online Admission</span>
+          </div>
+          <div class="public-button-row">
+            <a href="{{ public_apply_url }}" class="public-cta magnetic">Start Admission</a>
+            <a href="/contact/" class="public-secondary-cta magnetic">Book a Visit</a>
+            <a href="/hostel-boarding/" class="public-secondary-cta magnetic">Hostel & Boarding</a>
+          </div>
+        </div>
+        <article class="public-global-cta-card">
+          <p class="public-global-cta-label">Admissions Support</p>
+          <h3>Talk to the school directly</h3>
+          <div class="public-global-cta-points">
+            <article>
+              <strong>Call</strong>
+              <span>{{ public_contact.phone_primary }}</span>
+            </article>
+            <article>
+              <strong>Alternative Line</strong>
+              <span>{{ public_contact.phone_secondary }}</span>
+            </article>
+            <article>
+              <strong>Email</strong>
+              <span>{{ public_contact.email }}</span>
+            </article>
+            <article>
+              <strong>Location</strong>
+              <span>{{ public_contact.address }}</span>
+            </article>
+          </div>
+        </article>
+      </div>
+    </section>
+
     <footer class="public-footer">
       <div class="public-container public-footer-top">
         <div class="public-footer-brand">
@@ -178,6 +230,15 @@
       <div class="public-container public-footer-bottom">
         <p>Copyright &copy; {% now "Y" %} NDGA</p>
         <div class="public-footer-socials">
+          <a href="{{ public_contact.facebook_url }}" target="_blank" rel="noreferrer" aria-label="Open Facebook">
+            <span>Facebook</span>
+          </a>
+          <a href="{{ public_contact.x_url }}" target="_blank" rel="noreferrer" aria-label="Open X">
+            <span>X</span>
+          </a>
+          <a href="{{ public_contact.tiktok_url }}" target="_blank" rel="noreferrer" aria-label="Open TikTok">
+            <span>TikTok</span>
+          </a>
           <a href="{{ public_contact.maps_url }}" target="_blank" rel="noreferrer" aria-label="Open map">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5.13 5.7 11.57 6.35 12.29a.87.87 0 0 0 1.3 0C13.3 20.57 19 14.13 19 9a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5Z"/></svg>
             <span>Map</span>
@@ -205,7 +266,7 @@
         <h2>Find a page</h2>
         <button type="button" data-search-close>Close</button>
       </div>
-      <input type="search" placeholder="Search admissions, fees, boarding, academics..." data-search-input>
+      <input type="search" placeholder="Search admissions, boarding, academics, contact..." data-search-input>
       <div class="public-search-results" data-search-results>
         {% for link in public_search_links %}
           <a href="{{ link.url }}" data-search-item>
@@ -218,7 +279,7 @@
   </div>
 
   <div class="ndga-support-dock">
-    <button type="button" class="ndga-support-fab ndga-support-fab--chat" data-chatbot-open aria-label="Open Smart Julie">
+    <button type="button" class="ndga-support-fab ndga-support-fab--chat" data-chatbot-open aria-label="Open Smart NDGA">
       <img src="{% static public_images.logo %}" alt="NDGA chat">
     </button>
     <a href="{{ public_contact.whatsapp_url }}" class="ndga-support-fab ndga-support-fab--whatsapp" target="_blank" rel="noreferrer" aria-label="Open WhatsApp chat">
@@ -226,149 +287,95 @@
     </a>
   </div>
 
+  {{ public_chatbot_payload|json_script:"ndga-chatbot-payload" }}
   <section
     class="ndga-support-panel"
     data-chatbot
     data-chat-management-wait="{{ public_site_settings.chat_management_wait_text }}"
+    data-live-chat-url="{{ public_live_chat_url }}"
+    data-live-chat-csrf="{{ csrf_token }}"
   >
-    <header class="ndga-support-header">
-      <div class="ndga-support-header-top">
-        <div class="ndga-support-brand-row">
-          <strong>Smart Julie</strong>
-          <div class="ndga-support-avatars" aria-hidden="true">
-            <span></span>
-            <span></span>
-            <span></span>
+    <section class="ndga-support-screen ndga-support-screen-home is-active" data-chatbot-screen="home">
+      <header class="ndga-support-home-header">
+        <div class="ndga-support-home-top">
+          <div class="ndga-support-home-brand">
+            <div class="ndga-support-brand-mark">
+              <img src="{% static public_images.logo %}" alt="Smart NDGA">
+            </div>
+            <div class="ndga-support-brand-copy">
+              <strong>Smart NDGA</strong>
+              <span>School assistant - Online</span>
+            </div>
           </div>
+          <button type="button" class="ndga-support-close" data-chatbot-close aria-label="Close support panel">&times;</button>
         </div>
-        <button type="button" class="ndga-support-close" data-chatbot-close aria-label="Close support panel">&times;</button>
-      </div>
-      <div class="ndga-support-header-copy">
-        <h3>Hi there. How can we help?</h3>
-        <p>Admissions, boarding, fees, portal support, and directions.</p>
-      </div>
-    </header>
+        <div class="ndga-support-home-copy">
+          <h3>Ask anything about NDGA.</h3>
+        </div>
+      </header>
 
-    <div class="ndga-support-body">
-      <section class="ndga-support-view is-active" data-support-view="home">
-        <button type="button" class="ndga-support-primary" data-support-open-messages>
-          <div>
-            <strong>Send us a message</strong>
-            <small>Ask Julie first</small>
-          </div>
+      <div class="ndga-support-home-body">
+        <button type="button" class="ndga-support-home-primary" data-chatbot-open-messages>
+          <span>Start chat</span>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l8 7-8 7v-4.8L13.2 12 8 9.8V5Z"/></svg>
         </button>
-        <div class="ndga-support-mini-grid">
-          <button type="button" class="ndga-support-mini-card" data-support-open-messages>
-            <strong>Help Centre</strong>
-            <small>Quick answers</small>
-          </button>
-          <a href="/news/" class="ndga-support-mini-card">
-            <strong>Blog</strong>
-            <small>School updates</small>
-          </a>
-          <a href="{{ public_contact.whatsapp_url }}" class="ndga-support-mini-card" target="_blank" rel="noreferrer">
-            <strong>WhatsApp</strong>
-            <small>Optional shortcut</small>
-          </a>
-          <button type="button" class="ndga-support-mini-card" data-chatbot-chip="How can I follow NDGA updates on Facebook and X?">
-            <strong>Facebook / X</strong>
-            <small>Social support</small>
-          </button>
-        </div>
-        <div class="ndga-support-topic-grid">
-          <button type="button" class="ndga-support-topic-card" data-chatbot-chip="How do I apply?">
-            <strong>Admission</strong>
-            <small>Forms, screening, fees</small>
-          </button>
-          <button type="button" class="ndga-support-topic-card" data-chatbot-chip="Tell me about the school.">
-            <strong>About School</strong>
-            <small>Mission, values, boarding</small>
-          </button>
-          <a href="{{ public_portal_url }}" class="ndga-support-topic-card ndga-support-topic-card--link">
-            <strong>School Portal</strong>
-            <small>Open portal access</small>
-          </a>
-        </div>
-        <div class="ndga-support-home-grid">
-          {% for prompt in chatbot_prompts %}
-            <button type="button" class="ndga-support-chip" data-chatbot-chip="{{ prompt }}">
-              <span>{{ prompt }}</span>
-            </button>
-          {% endfor %}
-        </div>
-      </section>
 
-      <section class="ndga-support-view" data-support-view="messages">
-        <div class="ndga-support-subhead">
+        <article class="ndga-support-home-card">
+          <strong>Quick Help</strong>
+          <div class="ndga-support-home-list">
+            <button type="button" data-chatbot-home-link="/admissions/registration/">Start Admission</button>
+            <button type="button" data-chatbot-home-action="focus">Ask a Question</button>
+            <button type="button" data-chatbot-home-action="lead">Talk to School</button>
+          </div>
+        </article>
+      </div>
+
+      <nav class="ndga-support-nav">
+        <button type="button" class="is-active" data-chatbot-nav="home">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.6 4 10v9.4h5.5v-6h5v6H20V10l-8-6.4Z"/></svg>
+          <span>Home</span>
+        </button>
+        <button type="button" data-chatbot-nav="messages">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.75 4.5h14.5A2.25 2.25 0 0 1 21.5 6.75v7.5a2.25 2.25 0 0 1-2.25 2.25H9.4l-4.34 3.46a.75.75 0 0 1-1.21-.59V6.75A2.25 2.25 0 0 1 4.75 4.5Z"/></svg>
           <span>Messages</span>
-          <small>Julie replies first. Management is offered only when needed.</small>
-        </div>
-        <div class="ndga-support-thread" data-chatbot-log>
-          <article class="public-live-chat-bubble is-agent">
-            <strong>Smart Julie</strong>
-            <p>Ask about admissions, boarding, fees, school life, portal access, or directions.</p>
-          </article>
-        </div>
-        <div class="ndga-support-escalation" data-chatbot-escalation hidden>
-          <p>Would you like to chat with management?</p>
-          <div class="ndga-support-escalation-actions">
-            <button type="button" class="ndga-support-action" data-chatbot-escalate="yes">Yes, connect me</button>
-            <button type="button" class="ndga-support-action ndga-support-action--muted" data-chatbot-escalate="no">No, continue here</button>
+        </button>
+      </nav>
+    </section>
+
+    <section class="ndga-support-screen ndga-support-screen-messages" data-chatbot-screen="messages">
+      <header class="ndga-support-chat-header">
+        <button type="button" class="ndga-support-back" data-chatbot-back aria-label="Back to help">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 5.3 8 12l6.7 6.7 1.1-1.1L10.2 12l5.6-5.6-1.1-1.1Z"/></svg>
+        </button>
+        <div class="ndga-support-chat-brand">
+          <div class="ndga-support-brand-mark">
+            <img src="{% static public_images.logo %}" alt="Smart NDGA">
+          </div>
+          <div class="ndga-support-chat-copy">
+            <strong>Smart NDGA</strong>
+            <span>NDGA Assistant</span>
           </div>
         </div>
-        <form class="ndga-support-question-form" data-chatbot-form>
-          <input type="text" placeholder="Ask Julie a question">
-          <button type="submit">Send</button>
-        </form>
-        <div class="ndga-support-management-shell" data-live-chat-shell hidden>
-          <div class="ndga-support-management-note">
-            <strong>Management follow-up</strong>
-            <p>If no one is free right away, your message becomes a ticket and replies go to your email.</p>
-          </div>
-          <form class="ndga-support-management-form" data-live-chat-form method="post" action="{{ public_live_chat_url }}">
-            {% csrf_token %}
-            <input type="text" name="contact_name" placeholder="Your name" required>
-            <input type="email" name="contact_email" placeholder="Email address" required>
-            <input type="tel" name="contact_phone" placeholder="Phone number">
-            <textarea name="message" rows="4" placeholder="Type your message here" required></textarea>
-            <button type="submit" class="ndga-support-send">Send message</button>
+        <button type="button" class="ndga-support-close ndga-support-close-dark" data-chatbot-close aria-label="Close support panel">&times;</button>
+      </header>
+
+        <div class="ndga-support-body">
+          <div class="ndga-support-thread" data-chatbot-log></div>
+
+          <div class="ndga-support-composer">
+            <form class="ndga-support-question-form" data-chatbot-form>
+              <input type="text" placeholder="Type your message" autocomplete="off">
+              <button type="submit" aria-label="Send question">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.75 11.25 19.5 4.5l-4.69 15-3.47-5.59-5.59-2.66Z"/></svg>
+              </button>
+            </form>
             <p class="ndga-support-status" data-live-chat-status></p>
-          </form>
+          </div>
         </div>
-      </section>
-
-      <section class="ndga-support-view" data-support-view="tickets">
-        <div class="ndga-support-subhead">
-          <span>Tickets</span>
-          <small>Follow-up requests from management.</small>
-        </div>
-        <div class="ndga-support-ticket-list" data-support-ticket-list>
-          <article class="ndga-support-ticket-card is-empty">
-            <strong>No open tickets yet</strong>
-            <p>When a management request is submitted, the reference and status will appear here during your visit.</p>
-          </article>
-        </div>
-      </section>
-    </div>
-
-    <nav class="ndga-support-tabs" aria-label="Support navigation">
-      <button type="button" class="is-active" data-support-tab="home">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.6 4 10v9.4h5.5v-6h5v6H20V10l-8-6.4Z"/></svg>
-        <span>Home</span>
-      </button>
-      <button type="button" data-support-tab="messages">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.75 4.5h14.5A2.25 2.25 0 0 1 21.5 6.75v7.5a2.25 2.25 0 0 1-2.25 2.25H9.4l-4.34 3.46a.75.75 0 0 1-1.21-.59V6.75A2.25 2.25 0 0 1 4.75 4.5Z"/></svg>
-        <span>Messages</span>
-      </button>
-      <button type="button" data-support-tab="tickets">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 4.5h11A2.5 2.5 0 0 1 20 7v3a1 1 0 0 0 0 2v3a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 15v-3a1 1 0 0 0 0-2V7a2.5 2.5 0 0 1 2.5-2.5Zm0 1.5A1 1 0 0 0 5.5 7v2.13a2.5 2.5 0 0 1 0 4.74V15a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-1.13a2.5 2.5 0 0 1 0-4.74V7a1 1 0 0 0-1-1h-11Zm2.5 3.25h6a.75.75 0 0 1 0 1.5H9a.75.75 0 0 1 0-1.5Zm0 3h4a.75.75 0 0 1 0 1.5H9a.75.75 0 0 1 0-1.5Z"/></svg>
-        <span>Tickets</span>
-      </button>
-    </nav>
+    </section>
   </section>
 
-  <script src="{% static 'js/public-website.js' %}?v=20260408g"></script>
+  <script src="{% static 'js/public-website.js' %}?v=20260415h"></script>
   {% block extra_js %}{% endblock %}
 </body>
 </html>

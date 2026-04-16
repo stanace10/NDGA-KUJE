@@ -1,73 +1,71 @@
-# Manual Sync Rule
+# Manual Update Runbook
 
-This project now runs on manual sync only.
+NDGA now uses a strict LAN-first manual update model. This replaces automatic sync.
 
 ## Ownership
 
-- `LAN` owns:
-  - CBT runtime
-  - CBT attempts
-  - CBT score writeback
-  - elections
-- `Cloud` owns:
-  - manual CA
-  - theory
-  - normal result entry workflow
-  - student/staff/admin profile changes
-  - finance
+- `LAN` is the operational source of truth for:
+  - staff and admin work
+  - student profile updates
+  - attendance entry and correction
+  - result entry, vetting, approval, and publication
+  - CBT authoring and school operations
+  - bursary processing and receipts
+  - internal admissions review
+- `Cloud` is for:
+  - the public website
+  - student portal access
+  - student online payment events
+  - public admission registration intake
 
-## Hard Rule
+## What Moves From LAN To Cloud
 
-Teachers must not enter the same score component on both sides.
+Push these manually when school work has been confirmed:
 
-- CBT-owned score parts come from `LAN`
-- Manual-owned score parts come from `Cloud`
+- published results
+- attendance updates
+- student profile and enrolment updates
+- theory and other staff-entered academic record changes that affect published student output
+- bursary receipts
 
-## Daily Safe Flow
-
-### 1. After CBT closes for the day
-
-Run on the LAN machine:
-
-```powershell
-.\scripts\sync_lan_to_cloud_cbt.ps1
-```
-
-This will:
-
-1. repair CBT writebacks locally
-2. push CBT-owned rows to cloud
-3. print the LAN sync queue summary
-
-### 2. Before the next day or after manual score entry on cloud
-
-Run on the LAN machine:
+Command:
 
 ```powershell
-.\scripts\sync_cloud_to_lan_results.ps1
+docker exec ndga-web-1 python manage.py push_lan_updates_to_cloud
 ```
 
-This will pull only the cloud-owned result models needed for teacher score visibility on LAN.
+## What Moves From Cloud To LAN
 
-## Optional Admin/Profile Pulls
+Pull these manually into LAN:
 
-Do **not** run broad profile or setup pulls by default.
+- student payment records
+- public admission registrations
+- public admission payment status
 
-If there is a special case like:
+Commands:
 
-- new student created on cloud
-- staff profile corrected on cloud
-- admin account change needed on LAN
+```powershell
+docker exec ndga-web-1 python manage.py pull_cloud_payments_delta
+docker exec ndga-web-1 python manage.py pull_cloud_admissions_delta
+```
 
-handle that as a supervised one-off pull so academic structure and stale cloud setup data do not come back.
+Combined command:
+
+```powershell
+docker exec ndga-web-1 python manage.py pull_cloud_updates_to_lan
+```
+
+## Hard Rules
+
+- Do not re-enable background sync.
+- Do not use cloud as a second staff/admin operations database.
+- Do not expose staff, admin, bursar, CBT, or election portals on cloud.
+- Do not push draft result rows to cloud.
+- Do not pull staff/admin workflow data back from cloud.
 
 ## Goal
 
-The queue does not need to stay empty forever.
-
-The real goal is:
-
-- no automatic background sync
-- no double entry for the same score component
-- manual batches only when requested
-- queue returns clean after each manual run
+- LAN remains the school's working system.
+- Cloud stays limited to public and student-facing access.
+- Payments and public admissions still flow back into LAN deliberately.
+- Result, attendance, profile, and receipt updates move to cloud deliberately.

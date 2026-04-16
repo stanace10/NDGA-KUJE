@@ -1,52 +1,45 @@
 {% extends "layouts/base.html" %}
 
-{% block title %}Student Document Vault{% endblock %}
+{% block title %}Student Documents{% endblock %}
 
 {% block content %}
-  <section class="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
-    <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-      <div class="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 class="text-2xl font-bold text-slate-900">Document Vault</h1>
-          <p class="mt-1 text-sm text-slate-600">Transcripts, certificates, and official records shared to your account.</p>
-        </div>
-        <form method="get" class="flex items-center gap-2">
-          <select name="category" class="rounded-xl border border-slate-300 px-3 py-2 text-sm">
-            <option value="">All Categories</option>
-            <option value="TRANSCRIPT" {% if selected_category == "TRANSCRIPT" %}selected{% endif %}>Transcript</option>
-            <option value="CERTIFICATE" {% if selected_category == "CERTIFICATE" %}selected{% endif %}>Certificate</option>
-            <option value="STUDENT_RECORD" {% if selected_category == "STUDENT_RECORD" %}selected{% endif %}>Student Record</option>
-            <option value="GRADUATION_RECORD" {% if selected_category == "GRADUATION_RECORD" %}selected{% endif %}>Graduation Record</option>
-          </select>
-          <button type="submit" class="ndga-btn ndga-btn-secondary">Filter</button>
-        </form>
+  <section class="mx-auto max-w-[75rem] px-4 py-6 sm:px-6 lg:px-8">
+    <section class="overflow-hidden rounded-[1.75rem] bg-white shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
+      <div class="border-b border-slate-200 px-5 py-5 sm:px-6">
+        <p class="text-sm font-medium text-slate-500">Documents</p>
+        <h1 class="mt-1 text-3xl font-bold tracking-tight text-slate-900">Official files</h1>
       </div>
-      <div class="mt-5 overflow-x-auto">
-        <table class="min-w-full divide-y divide-slate-200 text-sm">
-          <thead>
-            <tr class="text-left text-slate-500">
-              <th class="px-3 py-2">Title</th>
-              <th class="px-3 py-2">Category</th>
-              <th class="px-3 py-2">Session / Term</th>
-              <th class="px-3 py-2">Class</th>
-              <th class="px-3 py-2">Action</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-100">
-            {% for row in document_rows %}
-              <tr>
-                <td class="px-3 py-3 font-semibold text-slate-900">{{ row.title }}</td>
-                <td class="px-3 py-3 text-slate-700">{{ row.get_category_display }}</td>
-                <td class="px-3 py-3 text-slate-700">{% if row.session %}{{ row.session.name }}{% else %}-{% endif %}{% if row.term %} | {{ row.term.get_name_display }}{% endif %}</td>
-                <td class="px-3 py-3 text-slate-700">{% if row.academic_class %}{{ row.academic_class.code }}{% else %}-{% endif %}</td>
-                <td class="px-3 py-3"><a href="{{ row.document_file.url }}" class="font-semibold text-ndga-navy hover:text-ndga-gold">Open</a></td>
-              </tr>
-            {% empty %}
-              <tr><td colspan="5" class="px-3 py-6 text-center text-slate-500">No documents shared to your account yet.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
+      <div class="px-5 py-5 sm:px-6">
+        {% if document_rows %}
+          <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+              <thead class="border-b border-slate-200 text-left text-slate-500">
+                <tr>
+                  <th class="pb-4 pr-4 font-semibold">Name</th>
+                  <th class="pb-4 pr-4 font-semibold">Type</th>
+                  <th class="pb-4 pr-4 font-semibold">Date</th>
+                  <th class="pb-4 font-semibold">Download</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                {% for row in document_rows %}
+                  <tr>
+                    <td class="py-4 pr-4">
+                      <p class="font-semibold text-slate-900">{{ row.title }}</p>
+                      {% if row.notes %}<p class="mt-1 text-sm text-slate-500">{{ row.notes }}</p>{% endif %}
+                    </td>
+                    <td class="py-4 pr-4 text-slate-700">{{ row.get_category_display }}</td>
+                    <td class="py-4 pr-4 text-slate-700">{{ row.created_at|date:"d M Y" }}</td>
+                    <td class="py-4"><a href="{{ row.document_file.url }}" class="font-semibold text-ndga-navy hover:text-ndga-gold">Download</a></td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="text-sm text-slate-600">No documents available yet.</p>
+        {% endif %}
       </div>
-    </article>
+    </section>
   </section>
 {% endblock %}

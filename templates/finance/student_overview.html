@@ -3,722 +3,429 @@
 
 {% block title %}Student Finance{% endblock %}
 
-{% block extra_head %}
-  <style>
-    .student-finance-shell,
-    .student-finance-shell * {
-      box-sizing: border-box;
-    }
-    .student-finance-shell article,
-    .student-finance-shell aside,
-    .student-finance-shell section,
-    .student-finance-shell div,
-    .student-finance-shell form {
-      min-width: 0;
-    }
-    .student-finance-shell h1,
-    .student-finance-shell h2,
-    .student-finance-shell h3,
-    .student-finance-shell p,
-    .student-finance-shell span,
-    .student-finance-shell td,
-    .student-finance-shell th {
-      overflow-wrap: anywhere;
-      word-break: break-word;
-    }
-    @media (max-width: 768px) {
-      .student-finance-shell {
-        overflow-x: hidden;
-      }
-    }
-  </style>
-{% endblock %}
-
 {% block content %}
-  <section class="student-finance-shell mx-auto max-w-[95rem] px-3 py-4 sm:px-6 lg:px-8">
-    <article class="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
-      <div class="grid gap-0 xl:grid-cols-[340px_minmax(0,1fr)]">
-        <aside class="border-b border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(201,150,40,0.15),_transparent_40%),linear-gradient(180deg,_#0f2747_0%,_#173a66_100%)] p-5 text-white xl:border-b-0 xl:border-r">
-          <p class="text-xs font-semibold uppercase tracking-[0.22em] text-white/70">Finance</p>
-          <div class="mt-5 flex justify-center xl:justify-start">
-            {% if student_photo_url %}
-              <div class="relative">
-                <img
-                  src="{{ student_photo_url }}"
-                  alt="{{ student_name }}"
-                  class="h-28 w-28 rounded-full border-4 border-white/30 object-cover shadow-lg sm:h-32 sm:w-32"
-                  onerror="this.style.display='none'; this.nextElementSibling.style.display='grid';"
-                >
-                <div class="hidden h-28 w-28 place-items-center rounded-full border-4 border-white/30 bg-white/10 text-4xl font-bold text-white sm:h-32 sm:w-32">
-                  {{ student_name|slice:":1"|upper }}
-                </div>
-              </div>
-            {% else %}
-              <div class="grid h-28 w-28 place-items-center rounded-full border-4 border-white/30 bg-white/10 text-4xl font-bold text-white sm:h-32 sm:w-32">
-                {{ student_name|slice:":1"|upper }}
-              </div>
+  <section class="mx-auto max-w-[75rem] px-4 py-6 sm:px-6 lg:px-8">
+    <section class="ndga-page-surface">
+      <div class="ndga-page-header">
+        <div class="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p class="ndga-eyebrow">Finance</p>
+            <h1 class="ndga-heading mt-2">Finance</h1>
+          </div>
+          <div class="flex flex-wrap gap-2 text-sm font-semibold text-slate-600">
+            {% if selected_session %} 
+              <span class="rounded-full border border-[rgba(11,31,58,0.08)] bg-[#fbf7ee] px-3 py-1.5">{{ selected_session.name }}</span>
+            {% endif %}
+            {% if selected_term %}
+              <span class="rounded-full border border-[rgba(11,31,58,0.08)] bg-[#fbf7ee] px-3 py-1.5">{{ selected_term.get_name_display }}</span>
             {% endif %}
           </div>
-          <div class="mt-5">
-            <h1 class="text-2xl font-bold leading-tight">{{ student_name }}</h1>
-            <p class="mt-1 text-sm text-white/75">{{ student_admission_number }}</p>
+        </div>
+      </div>
+
+      <div class="px-5 py-6 sm:px-6">
+        <form method="get" class="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+          <div>
+            <label for="finance-session" class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Session</label>
+            <select id="finance-session" name="session_id" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm">
+              {% for session in available_sessions %}
+                <option value="{{ session.id }}" {% if selected_session and selected_session.id == session.id %}selected{% endif %}>{{ session.name }}</option>
+              {% endfor %}
+            </select>
           </div>
-          <div class="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-            <div class="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-sm">
-              <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/70">Class Level</p>
-              <p class="mt-1 text-base font-semibold text-white">{{ current_class_label }}</p>
-            </div>
-            <div class="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-sm">
-              <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/70">Current Session / Term</p>
-              <p class="mt-1 text-base font-semibold text-white">
-                {% if current_term %}{{ current_term.get_name_display }}{% else %}-{% endif %}
-              </p>
-              <p class="text-sm text-white/75">
-                {% if current_session %}{{ current_session.name }}{% else %}-{% endif %}
-              </p>
-            </div>
-            <div class="rounded-2xl border border-emerald-300/30 bg-emerald-400/10 p-4 backdrop-blur-sm">
-              <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-100">Outstanding Balance</p>
-              <p class="mt-1 text-2xl font-bold text-white">{{ total_outstanding }}</p>
-              <p class="mt-1 text-xs text-emerald-100/90">This is the amount still due for the selected session and term.</p>
-            </div>
-            <div class="rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur-sm">
-              <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/70">Next Action</p>
-              <p class="mt-1 text-sm font-semibold text-white">
-                {% if total_outstanding > 0 %}
-                  Review charges, then continue to payment.
-                {% else %}
-                  Account is clear for this window.
-                {% endif %}
-              </p>
-            </div>
+          <div>
+            <label for="finance-term" class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Term</label>
+            <select id="finance-term" name="term_id" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm">
+              {% for term in available_terms %}
+                <option value="{{ term.id }}" {% if selected_term and selected_term.id == term.id %}selected{% endif %}>{{ term.get_name_display }}</option>
+              {% endfor %}
+            </select>
           </div>
-        </aside>
-
-        <div class="p-4 sm:p-6 lg:p-7">
-          <div class="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Finance</p>
-              <h2 class="mt-1 text-2xl font-bold text-slate-900 sm:text-3xl">View charges, pay fees, and track receipts</h2>
-              <p class="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
-                First understand the account summary for this term, then choose what you want to pay and continue to secure checkout.
-              </p>
-            </div>
-            <div class="flex flex-wrap gap-2">
-              <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700">
-                Session:
-                {% if selected_session %}{{ selected_session.name }}{% elif current_session %}{{ current_session.name }}{% else %}-{% endif %}
-              </span>
-              <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700">
-                Term:
-                {% if selected_term %}{{ selected_term.get_name_display }}{% elif current_term %}{{ current_term.get_name_display }}{% else %}-{% endif %}
-              </span>
-            </div>
+          <div class="flex items-end">
+            <button type="submit" class="ndga-btn ndga-btn-secondary">Open Window</button>
           </div>
+        </form>
 
-          <div class="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <article class="rounded-2xl border border-rose-200 bg-rose-50 p-4">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-rose-700">Outstanding</p>
-              <p class="mt-2 text-2xl font-bold text-rose-800">{{ total_outstanding }}</p>
-            </article>
-            <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Total Charged</p>
-              <p class="mt-2 text-2xl font-bold text-slate-900">{{ total_charged }}</p>
-            </article>
-            <article class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700">Total Paid</p>
-              <p class="mt-2 text-2xl font-bold text-emerald-800">{{ total_paid_applied }}</p>
-            </article>
-            <article class="rounded-2xl border border-indigo-200 bg-indigo-50 p-4">
-              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-indigo-700">Credit Balance</p>
-              <p class="mt-2 text-2xl font-bold text-indigo-800">{{ unallocated_credit }}</p>
-            </article>
+        <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div class="ndga-metric-card px-4 py-4 sm:px-5">
+            <p class="ndga-label">Outstanding Balance</p>
+            <p class="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">NGN</p>
+            <p class="mt-1 text-3xl font-bold leading-none {% if total_outstanding > 0 %}text-rose-700{% else %}text-emerald-700{% endif %} sm:text-[2.2rem]">{{ total_outstanding|naira }}</p>
           </div>
+          <div class="ndga-metric-card px-4 py-4 sm:px-5">
+            <p class="ndga-label">Total Charged</p>
+            <p class="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">NGN</p>
+            <p class="mt-1 text-3xl font-bold leading-none text-slate-900 sm:text-[2.2rem]">{{ total_charged|naira }}</p>
+          </div>
+          <div class="ndga-metric-card px-4 py-4 sm:px-5">
+            <p class="ndga-label">Total Paid</p>
+            <p class="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">NGN</p>
+            <p class="mt-1 text-3xl font-bold leading-none text-emerald-700 sm:text-[2.2rem]">{{ total_paid_applied|naira }}</p>
+          </div>
+          {% if unallocated_credit and unallocated_credit > 0 %}
+            <div class="ndga-metric-card px-4 py-4 sm:px-5">
+              <p class="ndga-label">Credit Balance</p>
+              <p class="mt-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">NGN</p>
+              <p class="mt-1 text-3xl font-bold leading-none text-slate-900 sm:text-[2.2rem]">{{ unallocated_credit|naira }}</p>
+            </div>
+          {% endif %}
+        </div>
 
-          <div class="mt-6 grid gap-4 2xl:grid-cols-[minmax(0,1.55fr)_minmax(320px,0.9fr)]">
-            <article class="rounded-3xl border border-slate-200 bg-slate-50/70 p-4 sm:p-5">
-              <div class="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <h3 class="text-lg font-semibold text-slate-900">Make a payment</h3>
-                  <p class="mt-1 text-sm text-slate-600">
-                    Choose what you want to pay, confirm the amount, then continue to secure checkout.
-                  </p>
-                </div>
-                {% if not gateway_enabled %}
-                  <span class="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800">
-                    Online gateways are not fully configured yet
-                  </span>
-                {% endif %}
-              </div>
-
-              <form method="post" id="studentFinanceGatewayForm" class="mt-5 space-y-5">
-                {% csrf_token %}
-                <input type="hidden" name="action" value="init_gateway_payment">
-                {{ gateway_form.student }}
-                <div class="sr-only">
-                  {{ gateway_form.payment_plan }}
-                  {{ gateway_form.provider }}
-                </div>
-
-                <div>
-                  <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">1. What do you want to pay?</p>
-                  <div class="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                    <button type="button" data-plan-button data-plan-value="FULL" class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left transition hover:border-ndga-navy/40 hover:shadow-sm">
-                      <span class="block text-sm font-semibold text-slate-900">Full Bundle</span>
-                      <span class="mt-1 block text-xs leading-5 text-slate-500">Pay the full outstanding balance at once.</span>
-                    </button>
-                    <button type="button" data-plan-button data-plan-value="FEE_ITEM" class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left transition hover:border-ndga-navy/40 hover:shadow-sm">
-                      <span class="block text-sm font-semibold text-slate-900">Single Item</span>
-                      <span class="mt-1 block text-xs leading-5 text-slate-500">Pay one fee item like school fees or feeding.</span>
-                    </button>
-                    <button type="button" data-plan-button data-plan-value="PERCENTAGE" class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left transition hover:border-ndga-navy/40 hover:shadow-sm">
-                      <span class="block text-sm font-semibold text-slate-900">Percentage</span>
-                      <span class="mt-1 block text-xs leading-5 text-slate-500">Pay a portion such as 25%, 50%, 75%, or 100%.</span>
-                    </button>
-                    <button type="button" data-plan-button data-plan-value="CUSTOM" class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left transition hover:border-ndga-navy/40 hover:shadow-sm">
-                      <span class="block text-sm font-semibold text-slate-900">Custom Amount</span>
-                      <span class="mt-1 block text-xs leading-5 text-slate-500">Enter a precise amount approved for this payment.</span>
-                    </button>
-                  </div>
-                </div>
-
-                <div class="grid gap-4 lg:grid-cols-2">
-                  <div id="student_gateway_fee_item_wrap">
-                    <label class="mb-1.5 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ gateway_form.fee_item.id_for_label }}">Fee Item</label>
-                    <select id="{{ gateway_form.fee_item.id_for_label }}" name="{{ gateway_form.fee_item.html_name }}" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800">
-                      <option value="">Select fee item</option>
-                      {% for row in gateway_fee_items %}
-                        <option value="{{ row.category }}" data-outstanding="{{ row.outstanding }}">{{ row.category }} (Outstanding: {{ row.outstanding }})</option>
-                      {% endfor %}
-                    </select>
-                  </div>
-                  <div id="student_gateway_percentage_wrap">
-                    <label class="mb-1.5 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ gateway_form.percentage.id_for_label }}">{{ gateway_form.percentage.label }}</label>
-                    {{ gateway_form.percentage }}
-                  </div>
-                </div>
-
-                <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
-                  <div>
-                    <label class="mb-1.5 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ gateway_form.amount.id_for_label }}">2. Amount</label>
-                    {{ gateway_form.amount }}
-                    <p class="mt-2 text-xs leading-5 text-slate-500">
-                      Use full payment for everything outstanding, single item for one charge, or percentage for approved part payment.
-                    </p>
-                  </div>
-                  <div>
-                    <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">3. Payment Method</p>
-                    <div class="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                      {% for provider in gateway_provider_cards %}
-                        <button
-                          type="button"
-                          data-provider-button
-                          data-provider-value="{{ provider.code }}"
-                          data-provider-enabled="{% if provider.enabled %}true{% else %}false{% endif %}"
-                          class="rounded-2xl border px-4 py-3 text-left transition {% if provider.enabled %}border-slate-200 bg-white hover:border-ndga-navy/40 hover:shadow-sm{% else %}border-slate-200 bg-slate-100 text-slate-400{% endif %}"
-                        >
-                          <span class="block text-sm font-semibold {% if provider.enabled %}text-slate-900{% else %}text-slate-500{% endif %}">{{ provider.label }}</span>
-                          <span class="mt-1 block text-xs {% if provider.enabled %}text-slate-500{% else %}text-slate-400{% endif %}">
-                            {% if provider.enabled %}Secure checkout is available{% else %}Coming soon{% endif %}
-                          </span>
-                        </button>
-                      {% endfor %}
+        <div class="mt-6 border-t border-slate-200 pt-5">
+          <h2 class="ndga-section-title">Payment Options</h2>
+          {% if payment_option_rows %}
+            <div class="mt-4 grid gap-3 lg:grid-cols-3">
+              {% for option in payment_option_rows %}
+                <article class="ndga-panel px-4 py-4 transition hover:-translate-y-0.5 hover:shadow-[0_18px_32px_rgba(11,31,58,0.08)] sm:px-5">
+                  <div class="flex items-start justify-between gap-3">
+                    <div>
+                      <p class="text-base font-semibold text-slate-900">{{ option.title }}</p>
+                      <p class="mt-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Outstanding</p>
+                      <p class="mt-1 text-[2rem] font-bold leading-none text-slate-900 sm:text-[2.15rem]">{{ option.amount|naira }}</p>
                     </div>
+                    <span class="inline-flex rounded-full border border-[rgba(11,31,58,0.08)] px-2.5 py-1 text-[10px] font-semibold {{ option.status_tone }}">{{ option.status_label }}</span>
                   </div>
-                </div>
-
-                <div class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">
-                  <p class="font-semibold text-slate-900">Selected gateway</p>
-                  <p class="mt-1" id="studentSelectedGatewayText">
-                    {% if gateway_provider_label %}{{ gateway_provider_label }}{% else %}No gateway selected{% endif %}
-                  </p>
-                </div>
-
-                <div class="flex flex-wrap items-center gap-3">
+                  <p class="mt-2 min-h-[2.75rem] text-sm leading-6 text-slate-600">{{ option.summary }}</p>
                   <button
                     type="button"
-                    id="financePaymentPreviewTrigger"
-                    class="ndga-btn ndga-btn-primary"
-                    {% if total_outstanding <= 0 %}disabled{% endif %}
+                    class="mt-4 ndga-btn ndga-btn-primary w-full justify-center"
+                    data-payment-open
+                    data-payment-code="{{ option.code }}"
+                    data-payment-title="{{ option.title }}"
+                    data-payment-fee-item="{{ option.fee_item }}"
+                    data-payment-amount="{{ option.amount }}"
+                    data-payment-label="{{ option.action_label }}"
+                    {% if not option.can_pay %}disabled{% endif %}
                   >
-                    Continue To Secure Checkout
+                    {{ option.action_label }}
                   </button>
-                  <span class="text-xs leading-5 text-slate-500">
-                    The final amount is confirmed before redirecting to the payment gateway.
-                  </span>
-                </div>
-              </form>
-            </article>
-
-            <article class="rounded-3xl border border-slate-200 bg-white p-4 sm:p-5">
-              <div class="flex items-start justify-between gap-3">
-                <div>
-                  <h3 class="text-lg font-semibold text-slate-900">Filter records</h3>
-                  <p class="mt-1 text-sm text-slate-600">Open another session or term when you want to review older charges, payments, and receipts.</p>
-                </div>
-                <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
-                  {{ category_examples }}
-                </span>
-              </div>
-
-              <form method="get" class="mt-5 space-y-4">
-                <div>
-                  <label for="session_id" class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Session</label>
-                  <select id="session_id" name="session_id" class="mt-1.5 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800">
-                    {% for session in available_sessions %}
-                      <option value="{{ session.id }}" {% if selected_session and session.id == selected_session.id %}selected{% endif %}>
-                        {{ session.name }}
-                      </option>
-                    {% empty %}
-                      <option value="">Current session not yet available</option>
-                    {% endfor %}
-                  </select>
-                </div>
-                <div>
-                  <label for="term_id" class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Term</label>
-                  <select id="term_id" name="term_id" class="mt-1.5 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800">
-                    {% for term in available_terms %}
-                      <option value="{{ term.id }}" {% if selected_term and term.id == selected_term.id %}selected{% endif %}>
-                        {{ term.get_name_display }}
-                      </option>
-                    {% empty %}
-                      <option value="">Current term not yet available</option>
-                    {% endfor %}
-                  </select>
-                </div>
-                <div>
-                  <label for="status" class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Status</label>
-                  <select id="status" name="status" class="mt-1.5 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800">
-                    <option value="all" {% if status_filter == "all" %}selected{% endif %}>All</option>
-                    <option value="paid" {% if status_filter == "paid" %}selected{% endif %}>Paid</option>
-                    <option value="partial" {% if status_filter == "partial" %}selected{% endif %}>Partial</option>
-                    <option value="owing" {% if status_filter == "owing" %}selected{% endif %}>Owing</option>
-                  </select>
-                </div>
-                <div class="flex flex-wrap gap-2 pt-1">
-                  <button type="submit" class="ndga-btn ndga-btn-primary">Apply Filter</button>
-                  <a href="{% url 'finance:student-overview' %}" class="ndga-btn ndga-btn-secondary">Reset</a>
-                </div>
-              </form>
-            </article>
-          </div>
-        </div>
-      </div>
-    </article>
-
-    <article class="mt-4 rounded-3xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 class="text-lg font-semibold text-slate-900">Payment history and receipts</h2>
-          <p class="mt-1 text-sm text-slate-600">Successful payments appear here first, with receipt download links where available.</p>
-        </div>
-        <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
-          Total payments: {{ total_payments }}
-        </span>
-      </div>
-
-      <div class="mt-4 grid gap-3 xl:grid-cols-2">
-        {% for row in recent_payments %}
-          <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <div class="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <h3 class="text-base font-semibold text-slate-900">{{ row.amount }}</h3>
-                <p class="mt-1 text-sm text-slate-600">{{ row.get_payment_method_display }} | {{ row.payment_date }}</p>
-                <p class="mt-1 text-xs text-slate-500">
-                  {% if row.term %}{{ row.term.get_name_display }}{% else %}General{% endif %}
-                  {% if row.session %}| {{ row.session.name }}{% endif %}
-                </p>
-              </div>
-              {% if row.receipt %}
-                <a href="{% url 'finance:receipt-download' row.receipt.id %}" class="ndga-btn ndga-btn-secondary !rounded-full !px-4 !py-2 !text-xs">Download PDF</a>
-              {% else %}
-                <span class="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-500">Receipt pending</span>
-              {% endif %}
-            </div>
-            {% if row.note %}
-              <p class="mt-3 text-sm leading-6 text-slate-600">{{ row.note }}</p>
-            {% endif %}
-            {% if row.receipt %}
-              <p class="mt-3 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Receipt {{ row.receipt.receipt_number }}</p>
-            {% endif %}
-          </article>
-        {% empty %}
-          <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500 xl:col-span-2">
-            No payments have been confirmed for this window yet.
-          </div>
-        {% endfor %}
-      </div>
-    </article>
-
-    <div class="mt-4 grid gap-4 2xl:grid-cols-[minmax(0,0.86fr)_minmax(0,1.14fr)]">
-      <article class="rounded-3xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
-        <h2 class="text-lg font-semibold text-slate-900">Fee categories</h2>
-        <p class="mt-1 text-sm text-slate-600">Grouped view of bursar charges by category.</p>
-        <div class="mt-4 space-y-3 md:hidden">
-          {% for row in category_rows %}
-            <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div class="flex items-start justify-between gap-3">
-                <div>
-                  <h3 class="text-sm font-semibold text-slate-900">{{ row.category }}</h3>
-                  <p class="mt-1 text-xs text-slate-500">{{ row.items }} item{{ row.items|pluralize }}</p>
-                </div>
-                <span class="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700">
-                  {{ row.outstanding }}
-                </span>
-              </div>
-              <dl class="mt-3 grid grid-cols-2 gap-3 text-sm">
-                <div><dt class="text-xs uppercase tracking-[0.12em] text-slate-500">Charged</dt><dd class="mt-1 font-semibold text-slate-900">{{ row.charged }}</dd></div>
-                <div><dt class="text-xs uppercase tracking-[0.12em] text-slate-500">Paid</dt><dd class="mt-1 font-semibold text-slate-900">{{ row.paid }}</dd></div>
-              </dl>
-            </article>
-          {% empty %}
-            <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">No charge groups are available for the selected term yet.</div>
-          {% endfor %}
-        </div>
-        <div class="mt-4 hidden overflow-x-auto rounded-2xl border border-slate-200 md:block">
-          <table class="min-w-full divide-y divide-slate-200 text-sm">
-            <thead class="bg-slate-50">
-              <tr>
-                <th class="px-3 py-2 text-left font-semibold text-slate-700">Category</th>
-                <th class="px-3 py-2 text-left font-semibold text-slate-700">Items</th>
-                <th class="px-3 py-2 text-left font-semibold text-slate-700">Charged</th>
-                <th class="px-3 py-2 text-left font-semibold text-slate-700">Paid</th>
-                <th class="px-3 py-2 text-left font-semibold text-slate-700">Outstanding</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100 bg-white">
-              {% for row in category_rows %}
-                <tr>
-                  <td class="px-3 py-2 font-semibold text-slate-900">{{ row.category }}</td>
-                  <td class="px-3 py-2 text-slate-700">{{ row.items }}</td>
-                  <td class="px-3 py-2 text-slate-700">{{ row.charged }}</td>
-                  <td class="px-3 py-2 text-slate-700">{{ row.paid }}</td>
-                  <td class="px-3 py-2 text-slate-700">{{ row.outstanding }}</td>
-                </tr>
-              {% empty %}
-                <tr>
-                  <td colspan="5" class="px-3 py-6 text-center text-slate-500">No charge groups are available for the selected term yet.</td>
-                </tr>
+                </article>
               {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </article>
-
-      <article class="rounded-3xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
-        <h2 class="text-lg font-semibold text-slate-900">Charge details</h2>
-        <p class="mt-1 text-sm text-slate-600">Detailed line-by-line breakdown of billed items and their payment status.</p>
-        <div class="mt-4 space-y-3 md:hidden">
-          {% for row in charge_rows %}
-            <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div class="flex items-start justify-between gap-3">
-                <div>
-                  <h3 class="text-sm font-semibold text-slate-900">{{ row.item_name }}</h3>
-                  <p class="mt-1 text-xs text-slate-500">{{ row.target_label }}</p>
-                </div>
-                {% if row.status == "PAID" %}
-                  <span class="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800">Paid</span>
-                {% elif row.status == "PARTIAL" %}
-                  <span class="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">Partial</span>
-                {% else %}
-                  <span class="rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-800">Owing</span>
-                {% endif %}
-              </div>
-              {% if row.description %}
-                <p class="mt-2 text-sm text-slate-600">{{ row.description }}</p>
-              {% endif %}
-              <dl class="mt-3 grid grid-cols-2 gap-3 text-sm">
-                <div><dt class="text-xs uppercase tracking-[0.12em] text-slate-500">Due date</dt><dd class="mt-1 text-slate-900">{% if row.due_date %}{{ row.due_date }}{% else %}-{% endif %}</dd></div>
-                <div><dt class="text-xs uppercase tracking-[0.12em] text-slate-500">Amount</dt><dd class="mt-1 font-semibold text-slate-900">{{ row.amount }}</dd></div>
-                <div><dt class="text-xs uppercase tracking-[0.12em] text-slate-500">Paid</dt><dd class="mt-1 text-slate-900">{{ row.paid_applied }}</dd></div>
-                <div><dt class="text-xs uppercase tracking-[0.12em] text-slate-500">Owing</dt><dd class="mt-1 font-semibold text-slate-900">{{ row.outstanding }}</dd></div>
-              </dl>
-            </article>
-          {% empty %}
-            <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">No charges have been posted for this term yet.</div>
-          {% endfor %}
-        </div>
-        <div class="mt-4 hidden overflow-x-auto rounded-2xl border border-slate-200 md:block">
-          <table class="min-w-full divide-y divide-slate-200 text-sm">
-            <thead class="bg-slate-50">
-              <tr>
-                <th class="px-3 py-2 text-left font-semibold text-slate-700">Item</th>
-                <th class="px-3 py-2 text-left font-semibold text-slate-700">Target</th>
-                <th class="px-3 py-2 text-left font-semibold text-slate-700">Due Date</th>
-                <th class="px-3 py-2 text-left font-semibold text-slate-700">Amount</th>
-                <th class="px-3 py-2 text-left font-semibold text-slate-700">Paid</th>
-                <th class="px-3 py-2 text-left font-semibold text-slate-700">Owing</th>
-                <th class="px-3 py-2 text-left font-semibold text-slate-700">Status</th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100 bg-white">
-              {% for row in charge_rows %}
-                <tr>
-                  <td class="px-3 py-2">
-                    <p class="font-semibold text-slate-900">{{ row.item_name }}</p>
-                    {% if row.description %}
-                      <p class="mt-0.5 text-xs text-slate-500">{{ row.description }}</p>
-                    {% endif %}
-                  </td>
-                  <td class="px-3 py-2 text-slate-700">{{ row.target_label }}</td>
-                  <td class="px-3 py-2 text-slate-700">{% if row.due_date %}{{ row.due_date }}{% else %}-{% endif %}</td>
-                  <td class="px-3 py-2 text-slate-700">{{ row.amount }}</td>
-                  <td class="px-3 py-2 text-slate-700">{{ row.paid_applied }}</td>
-                  <td class="px-3 py-2 text-slate-700">{{ row.outstanding }}</td>
-                  <td class="px-3 py-2">
-                    {% if row.status == "PAID" %}
-                      <span class="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800">Paid</span>
-                    {% elif row.status == "PARTIAL" %}
-                      <span class="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-800">Partial</span>
-                    {% else %}
-                      <span class="rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-800">Owing</span>
-                    {% endif %}
-                  </td>
-                </tr>
-              {% empty %}
-                <tr>
-                  <td colspan="7" class="px-3 py-6 text-center text-slate-500">No charges have been posted for this term yet.</td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </article>
-    </div>
-
-    <article class="mt-4 rounded-3xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
-      <h2 class="text-lg font-semibold text-slate-900">Gateway activity</h2>
-      <p class="mt-1 text-sm text-slate-600">Track initialized payment references, status, and plan type.</p>
-      <div class="mt-4 space-y-3 md:hidden">
-        {% for row in gateway_transactions %}
-          <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-            <div class="flex items-start justify-between gap-3">
-              <div>
-                <h3 class="text-sm font-semibold text-slate-900">{{ row.reference }}</h3>
-                <p class="mt-1 text-xs text-slate-500">{{ row|payment_plan_label }}</p>
-              </div>
-              <span class="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700">{{ row.get_status_display }}</span>
             </div>
-            <dl class="mt-3 grid grid-cols-2 gap-3 text-sm">
-              <div><dt class="text-xs uppercase tracking-[0.12em] text-slate-500">Amount</dt><dd class="mt-1 font-semibold text-slate-900">{{ row.amount }}</dd></div>
-              <div><dt class="text-xs uppercase tracking-[0.12em] text-slate-500">Created</dt><dd class="mt-1 text-slate-900">{{ row.created_at|date:"Y-m-d H:i" }}</dd></div>
-            </dl>
-            <p class="mt-3 text-xs text-slate-500">{{ row|payment_plan_summary }}</p>
-          </article>
-        {% empty %}
-          <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">Gateway payment attempts will appear here after you start an online payment.</div>
-        {% endfor %}
+          {% else %}
+            <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-600">
+              No class fees have been posted by bursary for this session and term yet.
+            </div>
+          {% endif %}
+        </div>
+
+        {% if recent_payments %}
+          <div class="mt-6 border-t border-slate-200 pt-5">
+            <h2 class="text-lg font-semibold text-slate-900">Payment History</h2>
+            <div class="mt-4 overflow-x-auto">
+              <table class="min-w-full text-sm">
+                <thead class="border-b border-slate-200 text-left text-slate-500">
+                  <tr>
+                    <th class="pb-3 pr-4 font-semibold">Date</th>
+                    <th class="pb-3 pr-4 font-semibold">Payment Type</th>
+                    <th class="pb-3 pr-4 font-semibold">Amount</th>
+                    <th class="pb-3 pr-4 font-semibold">Status</th>
+                    <th class="pb-3 font-semibold">Receipt</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                  {% for row in recent_payments %}
+                    <tr>
+                      <td class="py-4 pr-4 text-slate-700">{{ row.payment_date|default:row.created_at|date:"d M Y" }}</td>
+                      <td class="py-4 pr-4 font-semibold text-slate-900">
+                        {% if row.gateway_transaction %}
+                          {{ row.gateway_transaction|payment_plan_label }}
+                        {% else %}
+                          Payment
+                        {% endif %}
+                      </td>
+                      <td class="py-4 pr-4 text-slate-700">NGN {{ row.amount|naira }}</td>
+                      <td class="py-4 pr-4">
+                        <span class="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">Paid</span>
+                      </td>
+                      <td class="py-4">
+                        {% if row.receipt %}
+                          <a href="{% url 'finance:receipt-download' row.receipt.id %}" class="font-semibold text-ndga-navy hover:text-ndga-gold">Download receipt</a>
+                        {% endif %}
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        {% endif %}
+
+        {% if other_charge_rows %}
+          <div class="mt-6 border-t border-slate-200 pt-5">
+            <details>
+              <summary class="cursor-pointer list-none text-sm font-semibold text-slate-900">Other Term Charges</summary>
+              <div class="mt-4 overflow-x-auto">
+                <table class="min-w-full text-sm">
+                  <thead class="border-b border-slate-200 text-left text-slate-500">
+                    <tr>
+                      <th class="pb-3 pr-4 font-semibold">Item</th>
+                      <th class="pb-3 pr-4 font-semibold">Amount</th>
+                      <th class="pb-3 pr-4 font-semibold">Balance</th>
+                      <th class="pb-3 font-semibold">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100">
+                    {% for row in other_charge_rows %}
+                      <tr>
+                        <td class="py-4 pr-4 font-semibold text-slate-900">{{ row.item_name }}</td>
+                        <td class="py-4 pr-4 text-slate-700">NGN {{ row.amount|naira }}</td>
+                        <td class="py-4 pr-4 text-slate-700">NGN {{ row.outstanding|naira }}</td>
+                        <td class="py-4">
+                          {% if row.status == "PAID" %}
+                            <span class="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">Paid</span>
+                          {% elif row.status == "PARTIAL" %}
+                            <span class="inline-flex rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">Partial</span>
+                          {% else %}
+                            <span class="inline-flex rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700">Unpaid</span>
+                          {% endif %}
+                        </td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          </div>
+        {% endif %}
       </div>
-      <div class="mt-4 hidden overflow-x-auto rounded-2xl border border-slate-200 md:block">
-        <table class="min-w-full divide-y divide-slate-200 text-sm">
-          <thead class="bg-slate-50">
-            <tr>
-              <th class="px-3 py-2 text-left font-semibold text-slate-700">Reference</th>
-              <th class="px-3 py-2 text-left font-semibold text-slate-700">Plan</th>
-              <th class="px-3 py-2 text-left font-semibold text-slate-700">Amount</th>
-              <th class="px-3 py-2 text-left font-semibold text-slate-700">Status</th>
-              <th class="px-3 py-2 text-left font-semibold text-slate-700">Created</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-100 bg-white">
-            {% for row in gateway_transactions %}
-              <tr>
-                <td class="px-3 py-2 text-slate-800">{{ row.reference }}</td>
-                <td class="px-3 py-2 text-slate-700">{{ row|payment_plan_label }}</td>
-                <td class="px-3 py-2 text-slate-700">{{ row.amount }}</td>
-                <td class="px-3 py-2 text-slate-700">{{ row.get_status_display }}</td>
-                <td class="px-3 py-2 text-slate-600">{{ row.created_at|date:"Y-m-d H:i" }}</td>
-              </tr>
-            {% empty %}
-              <tr><td colspan="5" class="px-3 py-6 text-center text-slate-500">Gateway payment attempts will appear here after you start an online payment.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </article>
+    </section>
   </section>
 
-  <div id="financeConfirmModal" class="fixed inset-0 z-[90] hidden bg-slate-950/60 px-3 py-6 sm:px-6">
-    <div class="mx-auto flex min-h-full max-w-xl items-center justify-center">
-      <article class="w-full rounded-[2rem] border border-slate-200 bg-white p-5 shadow-2xl sm:p-6">
-        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Confirm Payment</p>
-        <h2 class="mt-2 text-2xl font-bold text-slate-900">Review before redirect</h2>
-        <p class="mt-2 text-sm leading-6 text-slate-600">
-          Please confirm the payment details below. Once you continue, you will be redirected to the selected secure gateway.
-        </p>
-        <div class="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-          <dl class="grid gap-3 text-sm sm:grid-cols-2">
-            <div><dt class="text-xs uppercase tracking-[0.12em] text-slate-500">Ward</dt><dd class="mt-1 font-semibold text-slate-900">{{ student_name }}</dd></div>
-            <div><dt class="text-xs uppercase tracking-[0.12em] text-slate-500">Admission No</dt><dd class="mt-1 font-semibold text-slate-900">{{ student_admission_number }}</dd></div>
-            <div><dt class="text-xs uppercase tracking-[0.12em] text-slate-500">Payment Plan</dt><dd class="mt-1 font-semibold text-slate-900" id="financeConfirmPlan">-</dd></div>
-            <div><dt class="text-xs uppercase tracking-[0.12em] text-slate-500">Gateway</dt><dd class="mt-1 font-semibold text-slate-900" id="financeConfirmProvider">-</dd></div>
-            <div><dt class="text-xs uppercase tracking-[0.12em] text-slate-500">Fee Item</dt><dd class="mt-1 font-semibold text-slate-900" id="financeConfirmItem">-</dd></div>
-            <div><dt class="text-xs uppercase tracking-[0.12em] text-slate-500">Amount</dt><dd class="mt-1 text-xl font-bold text-ndga-navy" id="financeConfirmAmount">-</dd></div>
-          </dl>
+  <div id="studentPaymentModal" class="hidden items-center justify-center p-4" style="position: fixed; inset: 0; z-index: 9999; background: rgba(7, 22, 42, 0.62); backdrop-filter: blur(4px);">
+    <article class="ndga-checkout-card relative mx-auto w-full p-4 sm:p-5" style="max-width: 22rem; z-index: 10000;">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <p class="ndga-eyebrow">Checkout</p>
+            <h2 id="studentPaymentModalTitle" class="mt-2 text-[1.45rem] font-bold text-ndga-navy" style="font-family: var(--ndga-font-display);">Payment</h2>
+            <p id="studentPaymentModalHint" class="mt-1.5 text-sm text-slate-600">Choose a checkout method for this fixed payment.</p>
+          </div>
+          <button type="button" id="studentPaymentModalClose" class="rounded-full border border-[rgba(11,31,58,0.08)] px-3 py-1.5 text-sm font-semibold text-slate-500">Close</button>
         </div>
-        <div class="mt-5 flex flex-wrap justify-end gap-2">
-          <button type="button" id="financeConfirmCancel" class="ndga-btn ndga-btn-secondary">Go Back</button>
-          <button type="button" id="financeConfirmSubmit" class="ndga-btn ndga-btn-primary">Proceed To Gateway</button>
-        </div>
+
+        <form method="post" action="{% url 'finance:student-overview' %}" id="studentFinanceGatewayForm" class="mt-4 space-y-4">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="init_gateway_payment">
+          {{ gateway_form.student }}
+          <div class="hidden">
+            {{ gateway_form.payment_plan }}
+            {{ gateway_form.fee_item }}
+            {{ gateway_form.provider }}
+            {{ gateway_form.amount }}
+            {% if gateway_form.auto_email_link %}{{ gateway_form.auto_email_link }}{% endif %}
+          </div>
+
+          <div class="rounded-[1.1rem] border border-[rgba(11,31,58,0.08)] bg-[#fbf7ee] px-4 py-3.5">
+            <p class="ndga-label">Selected Payment</p>
+            <div class="mt-2 flex items-end justify-between gap-3">
+              <div>
+                <p id="studentPaymentModalSelection" class="text-base font-bold text-slate-900">Payment</p>
+                <p class="mt-1 text-xs uppercase tracking-[0.18em] text-slate-500">Fixed school amount</p>
+              </div>
+              <p id="studentPaymentModalAmountPreview" class="text-[1.55rem] font-bold text-ndga-navy sm:text-[1.75rem]">0.00</p>
+            </div>
+          </div>
+
+          <div>
+            <p class="ndga-label">Choose Payment Method</p>
+            <div class="mt-3 space-y-2">
+              {% for gateway in gateway_provider_cards %}
+                <button
+                  type="button"
+                  class="student-provider-card ndga-provider-option group flex items-center justify-between gap-3 px-3.5 py-3 text-left {% if not gateway.enabled %}opacity-60{% endif %}"
+                  data-provider-card
+                  data-provider-code="{{ gateway.code }}"
+                  data-active="false"
+                  {% if not gateway.enabled %}disabled{% endif %}
+                >
+                  <div class="flex min-w-0 items-center gap-3">
+                    <span class="ndga-provider-logo">
+                      {% if gateway.code == "PAYSTACK" %}
+                        PS
+                      {% elif gateway.code == "FLUTTERWAVE" %}
+                        FW
+                      {% elif gateway.code == "GOOGLE_PAY" %}
+                        GP
+                      {% else %}
+                        {{ gateway.label|slice:":2"|upper }}
+                      {% endif %}
+                    </span>
+                    <div class="min-w-0">
+                      <p class="text-sm font-semibold text-slate-900">{{ gateway.label }}</p>
+                      <p class="mt-1 text-[11px] leading-5 text-slate-500">
+                        {% if gateway.enabled %}
+                          Open {{ gateway.label }} checkout.
+                        {% elif gateway.coming_soon %}
+                          Coming soon.
+                        {% else %}
+                          Coming soon.
+                        {% endif %}
+                      </p>
+                    </div>
+                  </div>
+                  <span data-provider-badge class="ndga-provider-badge bg-slate-100 text-slate-600">
+                    {% if gateway.enabled %}Select{% else %}Soon{% endif %}
+                  </span>
+                </button>
+              {% endfor %}
+            </div>
+            <p id="studentPaymentModalAmountHelp" class="mt-3 text-xs text-slate-500">This payment uses the approved school amount.</p>
+          </div>
+
+          <button
+            type="button"
+            id="studentPaymentModalSubmit"
+            class="ndga-btn ndga-btn-primary w-full justify-center"
+            {% if not gateway_enabled %}disabled{% endif %}
+          >
+            {% if gateway_enabled %}Proceed to Payment{% else %}Coming Soon{% endif %}
+          </button>
+        </form>
       </article>
-    </div>
   </div>
 {% endblock %}
 
 {% block extra_scripts %}
   <script>
     (function () {
-      const form = document.getElementById("studentFinanceGatewayForm");
-      if (!form) return;
-
-      const planField = document.getElementById("{{ gateway_form.payment_plan.id_for_label }}");
+      const modal = document.getElementById("studentPaymentModal");
+      const closeButton = document.getElementById("studentPaymentModalClose");
+      const openButtons = Array.from(document.querySelectorAll("[data-payment-open]"));
+      const providerButtons = Array.from(document.querySelectorAll("[data-provider-card]"));
+      const formNode = document.getElementById("studentFinanceGatewayForm");
+      const titleNode = document.getElementById("studentPaymentModalTitle");
+      const hintNode = document.getElementById("studentPaymentModalHint");
+      const selectionNode = document.getElementById("studentPaymentModalSelection");
+      const amountPreviewNode = document.getElementById("studentPaymentModalAmountPreview");
+      const amountHelpNode = document.getElementById("studentPaymentModalAmountHelp");
+      const submitNode = document.getElementById("studentPaymentModalSubmit");
       const amountField = document.getElementById("{{ gateway_form.amount.id_for_label }}");
-      const itemField = document.getElementById("{{ gateway_form.fee_item.id_for_label }}");
-      const percentageField = document.getElementById("{{ gateway_form.percentage.id_for_label }}");
       const providerField = document.getElementById("{{ gateway_form.provider.id_for_label }}");
-      const itemWrap = document.getElementById("student_gateway_fee_item_wrap");
-      const percentageWrap = document.getElementById("student_gateway_percentage_wrap");
-      const payTrigger = document.getElementById("financePaymentPreviewTrigger");
-      const modal = document.getElementById("financeConfirmModal");
-      const cancelButton = document.getElementById("financeConfirmCancel");
-      const submitButton = document.getElementById("financeConfirmSubmit");
-      const selectedGatewayText = document.getElementById("studentSelectedGatewayText");
-      const totalOutstanding = parseFloat("{{ total_outstanding|default:'0' }}") || 0;
-      const planButtons = Array.from(document.querySelectorAll("[data-plan-button]"));
-      const providerButtons = Array.from(document.querySelectorAll("[data-provider-button]"));
-      const confirmPlan = document.getElementById("financeConfirmPlan");
-      const confirmProvider = document.getElementById("financeConfirmProvider");
-      const confirmItem = document.getElementById("financeConfirmItem");
-      const confirmAmount = document.getElementById("financeConfirmAmount");
+      const planField = document.getElementById("{{ gateway_form.payment_plan.id_for_label }}");
+      const feeItemField = document.getElementById("{{ gateway_form.fee_item.id_for_label }}");
+      const defaultProvider = "{{ gateway_form.provider.value|default:''|escapejs }}";
+      const gatewayEnabled = {{ gateway_enabled|yesno:"true,false" }};
 
-      function highlightPlanButtons() {
-        const activeValue = (planField?.value || "FULL").toUpperCase();
-        planButtons.forEach((button) => {
-          const isActive = button.dataset.planValue === activeValue;
-          button.classList.toggle("border-ndga-navy", isActive);
-          button.classList.toggle("bg-ndga-navy", isActive);
-          button.classList.toggle("text-white", isActive);
-          button.classList.toggle("shadow-sm", isActive);
-          const spans = button.querySelectorAll("span");
-          spans.forEach((span, index) => {
-            span.classList.toggle("text-white", isActive);
-            if (!isActive) {
-              span.classList.toggle("text-slate-900", index === 0);
-              span.classList.toggle("text-slate-500", index === 1);
-            }
-          });
-        });
+      if (modal && modal.parentElement !== document.body) {
+        document.body.appendChild(modal);
       }
 
-      function highlightProviderButtons() {
-        const activeValue = (providerField?.value || "").toUpperCase();
+      function formatAmount(value) {
+        const parsed = Number.parseFloat(value || "0");
+        if (Number.isNaN(parsed)) return value || "0.00";
+        return `NGN ${parsed.toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      }
+
+      function setActiveProvider(providerCode) {
+        if (providerField) {
+          providerField.value = providerCode || "";
+        }
         providerButtons.forEach((button) => {
-          const enabled = button.dataset.providerEnabled === "true";
-          const isActive = enabled && button.dataset.providerValue === activeValue;
+          const isActive = button.dataset.providerCode === providerCode;
+          button.dataset.active = isActive ? "true" : "false";
           button.classList.toggle("border-ndga-navy", isActive);
-          button.classList.toggle("bg-ndga-navy", isActive);
-          button.classList.toggle("text-white", isActive);
-          button.classList.toggle("shadow-sm", isActive);
-          const spans = button.querySelectorAll("span");
-          spans.forEach((span) => {
-            span.classList.toggle("text-white", isActive);
-          });
+          const badge = button.querySelector("[data-provider-badge]");
+          if (badge && !button.disabled) {
+            badge.textContent = isActive ? "Selected" : "Select";
+            badge.classList.toggle("bg-slate-100", !isActive);
+            badge.classList.toggle("text-slate-600", !isActive);
+            badge.classList.toggle("bg-ndga-navy", isActive);
+            badge.classList.toggle("text-white", isActive);
+          }
         });
-        const activeButton = providerButtons.find((button) => button.dataset.providerValue === activeValue);
-        if (selectedGatewayText) {
-          selectedGatewayText.textContent = activeButton
-            ? activeButton.querySelector("span")?.textContent || activeValue
-            : "No gateway selected";
-        }
       }
 
-      function updatePaymentMode() {
-        const mode = (planField?.value || "FULL").toUpperCase();
-        const showItem = mode === "FEE_ITEM";
-        const showPercentage = mode === "PERCENTAGE";
-        if (itemWrap) itemWrap.classList.toggle("hidden", !showItem);
-        if (percentageWrap) percentageWrap.classList.toggle("hidden", !showPercentage);
-
-        if (!amountField) return;
-        amountField.readOnly = mode !== "CUSTOM";
-        if (mode === "FULL") {
-          amountField.value = totalOutstanding.toFixed(2);
-        } else if (mode === "FEE_ITEM" && itemField) {
-          const selected = itemField.options[itemField.selectedIndex];
-          amountField.value = (parseFloat(selected?.dataset.outstanding || "0") || 0).toFixed(2);
-        } else if (mode === "PERCENTAGE" && percentageField) {
-          const pct = parseFloat(percentageField.value || "0") || 0;
-          amountField.value = ((totalOutstanding * pct) / 100).toFixed(2);
-        }
-        highlightPlanButtons();
-      }
-
-      planButtons.forEach((button) => {
-        button.addEventListener("click", () => {
-          if (!planField) return;
-          planField.value = button.dataset.planValue || "FULL";
-          updatePaymentMode();
-        });
-      });
-
-      providerButtons.forEach((button) => {
-        button.addEventListener("click", () => {
-          if (button.dataset.providerEnabled !== "true" || !providerField) return;
-          const targetValue = button.dataset.providerValue || "";
-          const option = Array.from(providerField.options).find((row) => row.value === targetValue);
-          if (!option) return;
-          providerField.value = targetValue;
-          highlightProviderButtons();
-        });
-      });
-
-      function openModal() {
-        if (!modal) return;
-        const activePlanButton = planButtons.find((button) => button.dataset.planValue === (planField?.value || "FULL").toUpperCase());
-        const activeProviderButton = providerButtons.find((button) => button.dataset.providerValue === (providerField?.value || "").toUpperCase());
-        const selectedItem = itemField?.options[itemField.selectedIndex]?.textContent || "Not applicable";
-        if (confirmPlan) confirmPlan.textContent = activePlanButton?.querySelector("span")?.textContent || planField?.value || "-";
-        if (confirmProvider) confirmProvider.textContent = activeProviderButton?.querySelector("span")?.textContent || providerField?.value || "-";
-        if (confirmItem) confirmItem.textContent = selectedItem;
-        if (confirmAmount) confirmAmount.textContent = amountField?.value || "0.00";
+      function openModal(button) {
+        if (!modal || !formNode || !amountField || !planField || !feeItemField || !providerField) return;
+        const title = button.dataset.paymentTitle || "Payment";
+        const actionLabel = button.dataset.paymentLabel || "Proceed to Payment";
+        const feeItem = button.dataset.paymentFeeItem || "";
+        const amount = button.dataset.paymentAmount || "0.00";
+        if (titleNode) titleNode.textContent = title;
+        if (selectionNode) selectionNode.textContent = title;
+        if (hintNode) hintNode.textContent = gatewayEnabled
+          ? "Choose a checkout method for this fixed payment."
+          : "Online payment is coming soon. You can preview the available gateways here.";
+        if (amountHelpNode) amountHelpNode.textContent = gatewayEnabled
+          ? "This payment uses the approved school amount."
+          : "Gateway buttons are disabled until live activation.";
+        if (submitNode) submitNode.textContent = gatewayEnabled ? actionLabel : "Coming Soon";
+        if (submitNode) submitNode.disabled = !gatewayEnabled;
+        amountField.value = amount;
+        if (amountPreviewNode) amountPreviewNode.textContent = formatAmount(amount);
+        planField.value = "FEE_ITEM";
+        feeItemField.value = feeItem;
+        formNode.setAttribute("action", "{% url 'finance:student-overview' %}");
         modal.classList.remove("hidden");
+        modal.classList.add("flex");
+        modal.style.display = "flex";
         document.body.classList.add("overflow-hidden");
+        setActiveProvider(defaultProvider || (providerButtons.find((row) => !row.disabled)?.dataset.providerCode || ""));
+        window.requestAnimationFrame(() => {
+          providerButtons.find((row) => row.dataset.providerCode === providerField.value)?.focus();
+        });
+      }
+
+      function handleEscape(event) {
+        if (event.key === "Escape") {
+          closeModal();
+        }
       }
 
       function closeModal() {
         if (!modal) return;
         modal.classList.add("hidden");
+        modal.classList.remove("flex");
+        modal.style.display = "none";
         document.body.classList.remove("overflow-hidden");
       }
 
-      if (planField) planField.addEventListener("change", updatePaymentMode);
-      if (itemField) itemField.addEventListener("change", updatePaymentMode);
-      if (percentageField) percentageField.addEventListener("change", updatePaymentMode);
-      if (providerField) providerField.addEventListener("change", highlightProviderButtons);
-      if (payTrigger) {
-        payTrigger.addEventListener("click", () => {
-          if (!providerField?.value) return;
-          openModal();
+      openButtons.forEach((button) => {
+        button.addEventListener("click", () => openModal(button));
+      });
+      providerButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          if (button.disabled) return;
+          setActiveProvider(button.dataset.providerCode);
+        });
+      });
+      function submitGatewayForm() {
+        if (!formNode || !providerField || !feeItemField || !amountField) return;
+        const fallbackProvider = defaultProvider || (providerButtons.find((row) => !row.disabled)?.dataset.providerCode || "");
+        if (!providerField.value) {
+          providerField.value = fallbackProvider;
+        }
+        if (!providerField.value || !feeItemField.value || !amountField.value) {
+          if (hintNode) hintNode.textContent = "Please choose a payment method and try again.";
+          return;
+        }
+        if (!gatewayEnabled) {
+          if (hintNode) hintNode.textContent = "Online payment is coming soon. Please check back after live activation.";
+          return;
+        }
+        if (submitNode) {
+          submitNode.disabled = true;
+          submitNode.textContent = "Redirecting...";
+        }
+        formNode.submit();
+      }
+
+      if (formNode) {
+        formNode.addEventListener("submit", (event) => {
+          event.preventDefault();
+          submitGatewayForm();
         });
       }
-      if (cancelButton) cancelButton.addEventListener("click", closeModal);
+      if (submitNode) {
+        submitNode.addEventListener("click", submitGatewayForm);
+      }
+      if (closeButton) closeButton.addEventListener("click", closeModal);
       if (modal) {
         modal.addEventListener("click", (event) => {
           if (event.target === modal) closeModal();
         });
       }
-      if (submitButton) {
-        submitButton.addEventListener("click", () => {
-          if (form.requestSubmit) {
-            form.requestSubmit();
-            return;
-          }
-          form.submit();
-        });
-      }
-
-      updatePaymentMode();
-      highlightProviderButtons();
+      document.addEventListener("keydown", handleEscape);
     })();
   </script>
 {% endblock %}

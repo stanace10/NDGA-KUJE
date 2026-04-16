@@ -14,6 +14,10 @@
     <span class="public-eyebrow">{{ public_page.eyebrow }}</span>
     <h1>{{ public_page.title }}</h1>
     <p>{{ public_page.description }}</p>
+    <div class="public-button-row">
+      <a href="/admissions/registration/" class="public-cta magnetic">Start Admission</a>
+      <a href="/contact/" class="public-secondary-cta magnetic">Book a Visit</a>
+    </div>
   </div>
 </section>
 
@@ -87,7 +91,7 @@
               </div>
             {% endif %}
           </div>
-          <div class="public-image-frame">
+          <div class="public-image-frame{% if page_key == 'leadership' %} public-image-frame-contain{% endif %}">
             <img src="{% static section.image %}" alt="{{ section.title }}">
           </div>
         </div>
@@ -99,7 +103,11 @@
         <div class="public-card-grid public-card-grid-three">
           {% for card in section.cards %}
             <article class="public-media-card">
-              {% if card.image %}<img src="{% static card.image %}" alt="{{ card.title }}">{% endif %}
+              {% if card.image %}
+                <div class="public-page-card-orb">
+                  <img src="{% static card.image %}" alt="{{ card.title }}">
+                </div>
+              {% endif %}
               <div>
                 <h3>{{ card.title }}</h3>
                 <p>{{ card.text }}</p>
@@ -130,7 +138,7 @@
           <h2>{{ section.title }}</h2>
           {% if section.button_label and section.button_url %}
             <div class="public-inline-cta">
-              <a href="{{ section.button_url }}" class="public-text-link">{{ section.button_label }}</a>
+              <a href="{{ section.button_url }}" class="public-cta magnetic">{{ section.button_label }}</a>
             </div>
           {% endif %}
         </div>

@@ -1,179 +1,168 @@
 {% extends "layouts/base.html" %}
 
-{% block title %}Student Result PDFs{% endblock %}
+{% block title %}Student Results{% endblock %}
 
 {% block content %}
-  <section class="mx-auto max-w-[94rem] px-4 py-8 sm:px-6 lg:px-8">
-    <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-      <div class="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Academic Records</p>
-          <h1 class="mt-2 text-2xl font-bold text-ndga-navy">Term Result PDFs</h1>
-          <p class="mt-1 text-sm text-slate-600">View only termly published results and download official PDF copies.</p>
+  <section class="mx-auto max-w-[75rem] px-4 py-6 sm:px-6 lg:px-8">
+    <section class="overflow-hidden rounded-[1.75rem] bg-white shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
+      <div class="border-b border-slate-200 px-5 py-5 sm:px-6">
+        <div class="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p class="text-sm font-medium text-slate-500">Results</p>
+            <h1 class="mt-1 text-3xl font-bold tracking-tight text-slate-900">Published results</h1>
+          </div>
+          {% if available_sessions|length > 1 or available_terms|length > 1 %}
+            <form method="get" class="flex flex-wrap items-end gap-3">
+              <div>
+                <label for="session_id" class="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Session</label>
+                <select id="session_id" name="session_id" class="mt-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800">
+                  {% for session in available_sessions %}
+                    <option value="{{ session.id }}" {% if selected_session and selected_session.id == session.id %}selected{% endif %}>{{ session.name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div>
+                <label for="term_id" class="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Term</label>
+                <select id="term_id" name="term_id" class="mt-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800">
+                  {% for term in available_terms %}
+                    <option value="{{ term.id }}" {% if selected_term and selected_term.id == term.id %}selected{% endif %}>{{ term.get_name_display }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <button type="submit" class="ndga-btn ndga-btn-primary">Apply</button>
+            </form>
+          {% endif %}
         </div>
-        {% if school_profile.require_result_access_pin %}
-          <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            Result PIN is enabled. Unlock each report with the PIN issued for that term.
+      </div>
+
+      <div class="px-5 py-5 sm:px-6">
+        {% if featured_compilation %}
+          {% if featured_compilation_locked %}
+            <p class="text-sm text-slate-600">This result has been published, but it is locked until the result PIN is entered.</p>
+          {% elif featured_result_summary %}
+            <div>
+              <div class="grid gap-4 md:grid-cols-3">
+                <div class="rounded-2xl bg-slate-50 px-4 py-4">
+                  <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Average Score</p>
+                  <p class="mt-2 text-4xl font-bold text-slate-900">{{ featured_result_summary.average }}%</p>
+                </div>
+                <div class="rounded-2xl bg-slate-50 px-4 py-4">
+                  <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Position</p>
+                  <p class="mt-2 text-2xl font-bold text-slate-900">
+                    {% if featured_result_summary.class_position and featured_result_summary.class_position != "-" %}
+                      {{ featured_result_summary.class_position }}
+                    {% else %}
+                      -
+                    {% endif %}
+                  </p>
+                </div>
+                <div class="rounded-2xl bg-slate-50 px-4 py-4">
+                  <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Result Status</p>
+                  <p class="mt-2 text-2xl font-bold text-emerald-700">Published</p>
+                </div>
+              </div>
+
+              <div class="mt-5 flex flex-wrap items-start justify-between gap-4 border-t border-slate-200 pt-5">
+                <div>
+                  <p class="text-sm text-slate-600">{{ featured_compilation.term.get_name_display }} | {{ featured_compilation.session.name }}</p>
+                </div>
+                <div class="flex flex-wrap gap-3 text-sm">
+                  <a href="{% url 'pdfs:student-term-report-view' featured_compilation.id %}" class="font-semibold text-ndga-navy hover:text-ndga-gold">View Report</a>
+                  <a href="{% url 'pdfs:student-term-report-download' featured_compilation.id %}" class="font-semibold text-ndga-navy hover:text-ndga-gold">Download PDF</a>
+                </div>
+              </div>
+
+              {% if featured_result_summary.best_subject or featured_result_summary.worst_subject %}
+                <div class="mt-4 flex flex-wrap gap-4 text-sm">
+                  {% if featured_result_summary.best_subject %}
+                    <p class="text-emerald-700">Best: <span class="font-semibold">{{ featured_result_summary.best_subject.subject }}</span></p>
+                  {% endif %}
+                  {% if featured_result_summary.worst_subject %}
+                    <p class="text-amber-700">Needs attention: <span class="font-semibold">{{ featured_result_summary.worst_subject.subject }}</span></p>
+                  {% endif %}
+                </div>
+              {% endif %}
+
+              <div class="mt-6 border-t border-slate-200 pt-5">
+                <h2 class="text-lg font-semibold text-slate-900">Subject Results</h2>
+                <div class="mt-4 overflow-x-auto">
+                  <table class="min-w-full text-sm">
+                    <thead class="border-b border-slate-200 text-left text-slate-500">
+                      <tr>
+                        <th class="pb-3 pr-4 font-semibold">Subject</th>
+                        <th class="pb-3 pr-4 font-semibold">Score</th>
+                        <th class="pb-3 pr-4 font-semibold">Grade</th>
+                        <th class="pb-3 font-semibold">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                      {% for row in featured_result_summary.subject_rows %}
+                        <tr>
+                          <td class="py-4 pr-4 font-semibold text-slate-900">{{ row.subject }}</td>
+                          <td class="py-4 pr-4 text-slate-700">{{ row.score }}%</td>
+                          <td class="py-4 pr-4 text-slate-700">{{ row.grade }}</td>
+                          <td class="py-4"><span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold {{ row.status_tone }}">{{ row.status }}</span></td>
+                        </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          {% endif %}
+        {% else %}
+          <div class="py-10 text-center">
+            <span class="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
+              <svg viewBox="0 0 24 24" fill="none" class="h-5 w-5" aria-hidden="true">
+                <path d="M7 5.5h10M7 9.5h10M7 13.5h7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                <rect x="5" y="3.5" width="14" height="17" rx="2" stroke="currentColor" stroke-width="1.8"/>
+              </svg>
+            </span>
+            <p class="mt-3 text-base font-semibold text-slate-900">No results yet</p>
+            <p class="mt-1 text-sm text-slate-600">Results will appear here once published.</p>
           </div>
         {% endif %}
-      </div>
-    </div>
 
-    <div class="mt-6 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
-      <h2 class="text-lg font-semibold text-slate-900">Filter Term Results</h2>
-      <form method="get" class="mt-3 grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div>
-          <label for="session_id" class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Session</label>
-          <select id="session_id" name="session_id" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
-            {% for session in available_sessions %}
-              <option value="{{ session.id }}" {% if selected_session and selected_session.id == session.id %}selected{% endif %}>{{ session.name }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div>
-          <label for="term_id" class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Term</label>
-          <select id="term_id" name="term_id" class="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm">
-            {% for term in available_terms %}
-              <option value="{{ term.id }}" {% if selected_term and selected_term.id == term.id %}selected{% endif %}>{{ term.get_name_display }} - {{ term.session.name }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="sm:col-span-2 lg:col-span-2 flex flex-col gap-2 sm:flex-row sm:items-end">
-          <button type="submit" class="ndga-btn ndga-btn-primary w-full sm:w-auto">Apply Filter</button>
-          <a href="{% url 'pdfs:student-reports' %}" class="ndga-btn ndga-btn-secondary w-full text-center sm:w-auto">Reset</a>
-        </div>
-      </form>
-    </div>
+        {% if compilation_rows %}
+          <div class="mt-6 border-t border-slate-200 pt-5">
+            <h2 class="text-lg font-semibold text-slate-900">Available Reports</h2>
+            <div class="mt-4 divide-y divide-slate-100">
+              {% for row in compilation_rows %}
+                <div class="py-4 first:pt-0 last:pb-0">
+                  <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p class="text-base font-semibold text-slate-900">{{ row.compilation.term.get_name_display }} | {{ row.compilation.session.name }}</p>
+                      <p class="mt-1 text-sm text-slate-500">{{ row.compilation.academic_class.display_name|default:row.compilation.academic_class.code }}</p>
+                    </div>
+                    {% if row.pin_required and not row.pin_verified %}
+                      <span class="inline-flex rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800">Locked</span>
+                    {% endif %}
+                  </div>
 
-    <div class="mt-6 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
-      <h2 class="text-lg font-semibold text-slate-900">Published Term Reports</h2>
-      <div class="mt-4 space-y-3 md:hidden">
-        {% for row in compilation_rows %}
-          <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
-            <div class="flex items-start justify-between gap-3">
-              <div>
-                <p class="text-sm font-semibold text-slate-900">{{ row.compilation.academic_class.code }}</p>
-                <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">{{ row.compilation.term.get_name_display }}</p>
-              </div>
-              {% if row.compilation.published_at %}
-                <span class="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-800">Published</span>
-              {% else %}
-                <span class="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600">Pending</span>
-              {% endif %}
-            </div>
-            <dl class="mt-3 space-y-2 text-sm">
-              <div class="flex items-center justify-between gap-4">
-                <dt class="text-slate-500">Session</dt>
-                <dd class="font-medium text-slate-800">{{ row.compilation.session.name }}</dd>
-              </div>
-              <div class="flex items-center justify-between gap-4">
-                <dt class="text-slate-500">Published</dt>
-                <dd class="text-right font-medium text-slate-800">{% if row.compilation.published_at %}{{ row.compilation.published_at|date:"d M Y, H:i" }}{% else %}-{% endif %}</dd>
-              </div>
-            </dl>
-
-            <div class="mt-4 rounded-2xl border border-slate-200 bg-white p-3">
-              {% if row.pin_required and not row.pin_verified %}
-                <form method="post" class="space-y-2">
-                  {% csrf_token %}
-                  <input type="hidden" name="action" value="verify_pin">
-                  <input type="hidden" name="compilation_id" value="{{ row.compilation.id }}">
-                  <label class="text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Result PIN</label>
-                  <input type="text" name="pin_code" maxlength="12" placeholder="Enter result PIN" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
-                  <button type="submit" class="ndga-btn ndga-btn-secondary w-full">Unlock</button>
-                </form>
-              {% elif row.pin_required %}
-                <span class="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">Unlocked</span>
-              {% else %}
-                <span class="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700">Open Access</span>
-              {% endif %}
-            </div>
-
-            <div class="mt-4 grid gap-2">
-              {% if row.pin_required and not row.pin_verified %}
-                <span class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-center text-sm font-semibold text-slate-400">Report Locked</span>
-                <span class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-center text-sm font-semibold text-slate-400">Analysis Locked</span>
-                <span class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-center text-sm font-semibold text-slate-400">Download Locked</span>
-              {% else %}
-                <a href="{% url 'pdfs:student-term-report-view' row.compilation.id %}" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-center text-sm font-semibold text-ndga-navy">View Report</a>
-                <a href="{% url 'pdfs:student-performance-analysis-view' row.compilation.id %}" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-center text-sm font-semibold text-sky-700">View Analysis</a>
-                <a href="{% url 'pdfs:student-term-report-download' row.compilation.id %}" class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-center text-sm font-semibold text-emerald-700">Download PDF</a>
-              {% endif %}
-            </div>
-          </article>
-        {% empty %}
-          <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
-            No result for this term. Come back later.
-          </div>
-        {% endfor %}
-      </div>
-
-      <div class="mt-4 hidden overflow-x-auto rounded-2xl border border-slate-200 md:block">
-        <table class="min-w-full divide-y divide-slate-200 text-sm">
-          <thead>
-            <tr class="bg-slate-50 text-left text-slate-500">
-              <th class="px-3 py-2">Session</th>
-              <th class="px-3 py-2">Term</th>
-              <th class="px-3 py-2">Class</th>
-              <th class="px-3 py-2">Published</th>
-              <th class="px-3 py-2">Access</th>
-              <th class="px-3 py-2">View</th>
-              <th class="px-3 py-2">Performance</th>
-              <th class="px-3 py-2">Download</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-100">
-            {% for row in compilation_rows %}
-              <tr>
-                <td class="px-3 py-2 font-semibold text-slate-800">{{ row.compilation.session.name }}</td>
-                <td class="px-3 py-2 text-slate-700">{{ row.compilation.term.get_name_display }}</td>
-                <td class="px-3 py-2 text-slate-700">{{ row.compilation.academic_class.code }}</td>
-                <td class="px-3 py-2 text-slate-700">{% if row.compilation.published_at %}{{ row.compilation.published_at|date:"d M Y, H:i" }}{% else %}-{% endif %}</td>
-                <td class="px-3 py-2">
                   {% if row.pin_required and not row.pin_verified %}
-                    <form method="post" class="space-y-2">
+                    <form method="post" class="mt-3 flex flex-wrap items-end gap-3">
                       {% csrf_token %}
                       <input type="hidden" name="action" value="verify_pin">
                       <input type="hidden" name="compilation_id" value="{{ row.compilation.id }}">
-                      <input type="text" name="pin_code" maxlength="12" placeholder="Enter result PIN" class="w-36 rounded-xl border border-slate-300 px-3 py-2 text-sm">
-                      <button type="submit" class="ndga-btn ndga-btn-secondary !px-3 !py-1.5 !text-xs">Unlock</button>
+                      <div>
+                        <label class="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Result PIN</label>
+                        <input type="text" name="pin_code" maxlength="12" placeholder="Enter result PIN" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm sm:w-56">
+                      </div>
+                      <button type="submit" class="ndga-btn ndga-btn-secondary">Unlock result</button>
                     </form>
-                  {% elif row.pin_required %}
-                    <span class="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">Unlocked</span>
                   {% else %}
-                    <span class="inline-flex rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700">Open Access</span>
+                    <div class="mt-3 flex flex-wrap gap-3 text-sm">
+                      <a href="{% url 'pdfs:student-term-report-view' row.compilation.id %}" class="font-semibold text-ndga-navy hover:text-ndga-gold">View Report</a>
+                      <a href="{% url 'pdfs:student-performance-analysis-view' row.compilation.id %}" class="font-semibold text-ndga-navy hover:text-ndga-gold">View Analysis</a>
+                      <a href="{% url 'pdfs:student-term-report-download' row.compilation.id %}" class="font-semibold text-ndga-navy hover:text-ndga-gold">Download PDF</a>
+                    </div>
                   {% endif %}
-                </td>
-                <td class="px-3 py-2">
-                  {% if row.pin_required and not row.pin_verified %}
-                    <span class="text-xs font-semibold text-slate-400">Locked</span>
-                  {% else %}
-                    <a href="{% url 'pdfs:student-term-report-view' row.compilation.id %}" class="text-sm font-semibold text-ndga-navy hover:text-ndga-gold">View Report</a>
-                  {% endif %}
-                </td>
-                <td class="px-3 py-2">
-                  {% if row.pin_required and not row.pin_verified %}
-                    <span class="text-xs font-semibold text-slate-400">Locked</span>
-                  {% else %}
-                    <a href="{% url 'pdfs:student-performance-analysis-view' row.compilation.id %}" class="text-sm font-semibold text-sky-700 hover:text-sky-900">View Analysis</a>
-                  {% endif %}
-                </td>
-                <td class="px-3 py-2">
-                  {% if row.pin_required and not row.pin_verified %}
-                    <span class="text-xs font-semibold text-slate-400">Locked</span>
-                  {% else %}
-                    <a href="{% url 'pdfs:student-term-report-download' row.compilation.id %}" class="text-sm font-semibold text-emerald-700 hover:text-emerald-900">Download PDF</a>
-                  {% endif %}
-                </td>
-              </tr>
-            {% empty %}
-              <tr>
-                <td colspan="8" class="px-3 py-6 text-center text-slate-500">No result for this term. Come back later.</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+        {% endif %}
       </div>
-    </div>
+    </section>
   </section>
 {% endblock %}
