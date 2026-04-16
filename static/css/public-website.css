@@ -409,6 +409,18 @@ textarea {
   transform: translateY(-2px);
 }
 
+.public-admissions-band .public-secondary-cta {
+  background: var(--public-navy);
+  border-color: var(--public-navy);
+  color: white;
+  box-shadow: 0 16px 34px rgba(3, 21, 45, 0.16);
+}
+
+.public-admissions-band .public-secondary-cta:hover {
+  background: #0b2a55;
+  border-color: #0b2a55;
+}
+
 .public-menu-button {
   display: none;
   width: 48px;

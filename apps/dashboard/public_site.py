@@ -1415,7 +1415,7 @@ def get_public_site_context(*, school_profile=None):
         "public_class_options": deepcopy(PUBLIC_CLASS_OPTIONS),
         "public_apply_url": "/admissions/registration/",
         "public_portal_url": "/auth/login/?audience=student",
-        "public_portal_text": "School Portal",
+        "public_portal_text": "Student Portal",
         "public_live_chat_url": "/live-chat/",
         "public_application_form_fee_amount": application_fee_amount,
         "public_application_form_fee_note": application_fee_note,

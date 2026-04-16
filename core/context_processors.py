@@ -92,6 +92,10 @@ def platform_context(request):
             {"audience": "form"},
         ),
     }
+    if cloud_staff_operations_lan_only:
+        portal_login_urls = {
+            "student": portal_login_urls["student"],
+        }
     setup_state_code = "BOOT_EMPTY"
     setup_is_ready = False
     setup_current_session = None

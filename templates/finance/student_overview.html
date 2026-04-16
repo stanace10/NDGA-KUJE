@@ -343,12 +343,10 @@
         const amount = button.dataset.paymentAmount || "0.00";
         if (titleNode) titleNode.textContent = title;
         if (selectionNode) selectionNode.textContent = title;
-        if (hintNode) hintNode.textContent = gatewayEnabled
-          ? "Choose a checkout method for this fixed payment."
-          : "Online payment is coming soon. You can preview the available gateways here.";
+        if (hintNode) hintNode.textContent = "Choose a checkout method for this fixed payment.";
         if (amountHelpNode) amountHelpNode.textContent = gatewayEnabled
           ? "This payment uses the approved school amount."
-          : "Gateway buttons are disabled until live activation.";
+          : "Gateway options are visible here and will open after activation.";
         if (submitNode) submitNode.textContent = gatewayEnabled ? actionLabel : "Coming Soon";
         if (submitNode) submitNode.disabled = !gatewayEnabled;
         amountField.value = amount;
@@ -400,7 +398,10 @@
           return;
         }
         if (!gatewayEnabled) {
-          if (hintNode) hintNode.textContent = "Online payment is coming soon. Please check back after live activation.";
+          if (submitNode) {
+            submitNode.disabled = true;
+            submitNode.textContent = "Coming Soon";
+          }
           return;
         }
         if (submitNode) {

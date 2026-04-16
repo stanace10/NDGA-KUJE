@@ -303,28 +303,20 @@
         <article class="payment-choice-panel">
           <h3>Pay Online</h3>
           <p>Coming soon. Online payment will appear here after live gateway activation. For now, complete payment physically at the school bursary with your application code.</p>
-          {% if provider_cards %}
-            <div style="display:grid; gap:.75rem; margin-top:1rem;">
-              {% for gateway in provider_cards %}
-                <form method="post">
-                  {% csrf_token %}
-                  <input type="hidden" name="action" value="init_application_payment">
-                  <input type="hidden" name="access_token" value="{{ access_token }}">
-                  <input type="hidden" name="provider" value="{{ gateway.code }}">
-                  <button
-                    type="submit"
-                    class="{% if forloop.first %}public-cta{% else %}public-secondary-cta{% endif %}"
-                    style="width:100%;"
-                    {% if not gateway.enabled %}disabled{% endif %}
-                  >
-                    {% if gateway.enabled %}Pay with {{ gateway.label }}{% else %}{{ gateway.label }} coming soon{% endif %}
-                  </button>
-                </form>
-              {% endfor %}
-            </div>
-          {% else %}
-            <p style="margin-top:1rem; color:#9a3412;">Online payment is coming soon. Please use the physical payment option.</p>
-          {% endif %}
+          <div style="display:grid; gap:.75rem; margin-top:1rem;">
+            {% for gateway in provider_cards %}
+              <button
+                type="button"
+                class="{% if forloop.first %}public-cta{% else %}public-secondary-cta{% endif %}"
+                style="width:100%; opacity:{% if gateway.enabled %}1{% else %}.72{% endif %}; cursor:not-allowed;"
+                disabled
+              >
+                {% if gateway.enabled %}Pay with {{ gateway.label }}{% else %}{{ gateway.label }} coming soon{% endif %}
+              </button>
+            {% empty %}
+              <button type="button" class="public-secondary-cta" style="width:100%; opacity:.72; cursor:not-allowed;" disabled>Gateway coming soon</button>
+            {% endfor %}
+          </div>
         </article>
         <article class="payment-choice-panel">
           <h3>Pay Physical at School</h3>
