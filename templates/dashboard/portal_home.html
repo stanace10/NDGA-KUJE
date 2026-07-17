@@ -1,0 +1,285 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}{{ portal_name }}{% endblock %}
+
+{% block content %}
+  <section class="mx-auto {% if portal_key == 'student' %}max-w-[75rem]{% else %}max-w-[94rem]{% endif %} px-4 py-5 sm:px-6 lg:px-8">
+    {% if portal_key != "student" %}
+      <div class="animate-soft-reveal ndga-page-surface">
+        <div class="px-5 py-5 sm:px-6">
+        <div class="flex flex-wrap items-start justify-between gap-4">
+          <div class="min-w-[220px]">
+            <p class="ndga-eyebrow">Portal Workspace</p>
+            <h1 class="mt-2 text-[2rem] font-bold text-ndga-navy sm:text-[2.45rem]" style="font-family: var(--ndga-font-display);">{{ portal_name }}</h1>
+            <p class="mt-2 max-w-2xl text-sm leading-7 text-slate-600">{{ portal_description }}</p>
+            {% if setup_current_session and setup_current_term %}
+              <p class="mt-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                {{ setup_current_session.name }} | {{ setup_current_term.get_name_display }}
+              </p>
+            {% endif %}
+          </div>
+          <div class="flex items-center gap-3 rounded-2xl border border-[rgba(11,31,58,0.08)] bg-[#fbf7ee] px-4 py-3 text-sm text-slate-700">
+            {% if portal_profile_photo_url %}
+              <img src="{{ portal_profile_photo_url }}" alt="{{ user_display_name }}" class="h-12 w-12 rounded-full border border-slate-200 object-cover">
+            {% else %}
+              <div class="grid h-12 w-12 place-items-center rounded-full border border-slate-200 bg-white text-sm font-bold text-ndga-navy">
+                {{ user_display_name|slice:":1"|upper }}
+              </div>
+            {% endif %}
+            <div>
+              <p class="text-sm font-semibold text-slate-900">{{ user_display_name }}</p>
+              <p class="mt-0.5 text-xs text-slate-500">{{ user_identifier }}</p>
+            </div>
+          </div>
+        </div>
+        </div>
+      </div>
+    {% endif %}
+
+    {% if portal_key == "student" %}
+      <section class="animate-soft-reveal overflow-hidden rounded-[1.75rem] bg-white shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
+        <div class="border-b border-slate-200 px-5 py-5 sm:px-6">
+          <div class="flex flex-wrap items-center justify-between gap-4">
+            <div class="min-w-[16rem]">
+              <p class="sr-only">Welcome back</p>
+              <p class="text-sm font-medium text-slate-500">{{ student_portal_greeting }}</p>
+              <h1 class="mt-1 text-4xl font-bold tracking-tight text-slate-950">{{ user_display_name|default:"Student" }}</h1>
+              <p class="mt-2 text-base text-slate-600">{{ student_portal_subtext }}</p>
+            </div>
+            <div class="flex items-center gap-3 rounded-2xl bg-slate-50 px-4 py-3 shadow-sm">
+              {% if portal_profile_photo_url %}
+                <img src="{{ portal_profile_photo_url }}" alt="{{ user_display_name }}" class="h-14 w-14 rounded-full object-cover">
+              {% else %}
+                <div class="grid h-14 w-14 place-items-center rounded-full bg-slate-100 text-lg font-bold text-ndga-navy">
+                  {{ user_display_name|slice:":1"|upper }}
+                </div>
+              {% endif %}
+              <div class="text-right">
+                <p class="text-sm font-semibold text-slate-900">{{ user_display_name }}</p>
+                <p class="mt-1 text-xs text-slate-500">{{ user_identifier }}</p>
+                <p class="mt-1 text-xs text-slate-500">{{ current_class_code }}</p>
+                {% if current_session and current_term %}
+                  <p class="mt-1 text-xs text-slate-500">{{ current_session.name }} | {{ current_term.get_name_display }}</p>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="px-5 py-5 sm:px-6">
+          <div class="grid gap-3 md:grid-cols-3">
+            {% for card in dashboard_summary_cards|slice:":3" %}
+              <article class="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white px-4 py-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+                <span class="absolute inset-x-0 top-0 h-1.5 {% if card.label == 'Attendance' %}bg-sky-500{% elif card.label == 'Outstanding Fees' %}bg-emerald-500{% else %}bg-slate-300{% endif %}"></span>
+                <div class="flex items-start justify-between gap-3">
+                  <div>
+                    <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{{ card.label }}</p>
+                    <p class="mt-3 text-3xl font-bold {{ card.tone }}">{{ card.value }}</p>
+                    <p class="mt-2 text-sm text-slate-600">{{ card.meta }}</p>
+                  </div>
+                  <span class="inline-flex h-10 w-10 items-center justify-center rounded-2xl {% if card.label == 'Attendance' %}bg-sky-50 text-sky-700{% elif card.label == 'Outstanding Fees' %}bg-emerald-50 text-emerald-700{% else %}bg-slate-100 text-slate-600{% endif %}">
+                    {% if card.label == "Attendance" %}
+                      <svg viewBox="0 0 24 24" fill="none" class="h-5 w-5" aria-hidden="true">
+                        <path d="M4 17.5h16M7 14l3-3 3 2 4-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    {% elif card.label == "Outstanding Fees" %}
+                      <svg viewBox="0 0 24 24" fill="none" class="h-5 w-5" aria-hidden="true">
+                        <rect x="3.5" y="6" width="17" height="12" rx="2" stroke="currentColor" stroke-width="1.8"/>
+                        <circle cx="12" cy="12" r="2.3" stroke="currentColor" stroke-width="1.8"/>
+                      </svg>
+                    {% else %}
+                      <svg viewBox="0 0 24 24" fill="none" class="h-5 w-5" aria-hidden="true">
+                        <path d="M6 5.5h12M6 9.5h12M6 13.5h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                        <rect x="4" y="3.5" width="16" height="17" rx="2" stroke="currentColor" stroke-width="1.8"/>
+                      </svg>
+                    {% endif %}
+                  </span>
+                </div>
+              </article>
+            {% endfor %}
+          </div>
+
+          <div class="mt-5 border-t border-slate-200 pt-5">
+            <div>
+              <h2 class="text-lg font-semibold text-slate-900">Recent Activity</h2>
+              <p class="mt-1 text-sm text-slate-600">Only real updates are shown here.</p>
+            </div>
+            {% if student_recent_activity %}
+              <div class="mt-4 divide-y divide-slate-100">
+                {% for item in student_recent_activity %}
+                  <a href="{{ item.url }}" class="flex flex-wrap items-start justify-between gap-3 rounded-2xl py-4 transition first:pt-0 last:pb-0 hover:bg-slate-50">
+                    <div>
+                      <p class="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{{ item.label }}</p>
+                      <p class="mt-1 text-base font-semibold text-slate-900">{{ item.title }}</p>
+                      <p class="mt-1 text-sm text-slate-600">{{ item.description }}</p>
+                    </div>
+                    <p class="text-xs text-slate-500">{{ item.meta }}</p>
+                  </a>
+                {% endfor %}
+              </div>
+            {% else %}
+              <p class="mt-4 text-sm text-slate-600">No recent updates yet.</p>
+            {% endif %}
+          </div>
+        </div>
+      </section>
+
+    {% else %}
+      <div class="mt-4 space-y-4">
+        {% if portal_stat_cards %}
+          <section class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {% for card in portal_stat_cards %}
+              <article class="ndga-metric-card px-4 py-4 sm:px-5">
+                <p class="ndga-label">{{ card.label }}</p>
+                <p class="mt-3 text-3xl font-bold leading-none text-slate-900 sm:text-[2.15rem]">{{ card.value }}</p>
+                <p class="mt-2 text-sm leading-6 text-slate-600">{{ card.meta }}</p>
+              </article>
+            {% endfor %}
+          </section>
+        {% endif %}
+
+        <div class="{% if portal_key == 'it' %}grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]{% else %}space-y-4{% endif %}">
+        <article class="ndga-panel px-5 py-5">
+          <h2 class="ndga-section-title">Action Center</h2>
+          <p class="mt-1 text-sm text-slate-600">Open each dedicated workflow from here.</p>
+          <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {% for action in portal_priority_actions|default:portal_action_items %}
+              <a href="{{ action.url }}" class="group rounded-2xl border border-[rgba(11,31,58,0.08)] bg-white px-4 py-4 transition hover:-translate-y-0.5 hover:border-[rgba(11,31,58,0.22)] hover:shadow-[0_16px_30px_rgba(11,31,58,0.06)]">
+                <div class="flex items-start gap-3">
+                  <span class="mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[rgba(11,31,58,0.08)] bg-[#fbf7ee] text-ndga-navy">
+                    {% include "dashboard/partials/nav_icon.html" with icon=action.icon %}
+                  </span>
+                  <div class="min-w-0">
+                    <p class="text-sm font-semibold text-slate-900">{{ action.label }}</p>
+                    <p class="mt-1 text-xs text-slate-600">{{ action.description }}</p>
+                  </div>
+                </div>
+              </a>
+            {% empty %}
+              <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 sm:col-span-2 xl:col-span-3">
+                No actions are available for this portal yet.
+              </div>
+            {% endfor %}
+          </div>
+        </article>
+
+        {% if admissions_snapshot and portal_key == "it" %}
+          <article class="ndga-panel px-5 py-5">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 class="ndga-section-title">Admissions Applicants</h2>
+                <p class="mt-1 text-sm text-slate-600">New, pending, paid, and unpaid public registrations now surface directly on the IT dashboard.</p>
+              </div>
+              <a href="/portal/it/admissions/" class="ndga-btn ndga-btn-primary">Open Admissions Page</a>
+            </div>
+            <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <article class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <p class="text-xs uppercase tracking-[0.14em] text-slate-500">New</p>
+                <p class="mt-1 text-2xl font-bold text-slate-900">{{ admissions_snapshot.new }}</p>
+              </article>
+              <article class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+                <p class="text-xs uppercase tracking-[0.14em] text-amber-700">Pending</p>
+                <p class="mt-1 text-2xl font-bold text-amber-900">{{ admissions_snapshot.pending }}</p>
+              </article>
+              <article class="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                <p class="text-xs uppercase tracking-[0.14em] text-emerald-700">Paid</p>
+                <p class="mt-1 text-2xl font-bold text-emerald-900">{{ admissions_snapshot.paid }}</p>
+              </article>
+              <article class="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3">
+                <p class="text-xs uppercase tracking-[0.14em] text-rose-700">Unpaid</p>
+                <p class="mt-1 text-2xl font-bold text-rose-900">{{ admissions_snapshot.unpaid }}</p>
+              </article>
+            </div>
+            <div class="mt-4 overflow-x-auto">
+              <table class="min-w-full divide-y divide-slate-200 text-sm">
+                <thead class="bg-slate-50">
+                  <tr>
+                    <th class="px-3 py-2 text-left font-semibold text-slate-600">Applicant</th>
+                    <th class="px-3 py-2 text-left font-semibold text-slate-600">Class</th>
+                    <th class="px-3 py-2 text-left font-semibold text-slate-600">Workflow</th>
+                    <th class="px-3 py-2 text-left font-semibold text-slate-600">Payment</th>
+                    <th class="px-3 py-2 text-left font-semibold text-slate-600">Route</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 bg-white">
+                  {% for row in admissions_snapshot.recent_rows %}
+                    <tr>
+                      <td class="px-3 py-2">
+                        <p class="font-semibold text-slate-900">{{ row.applicant_name }}</p>
+                        <p class="text-xs text-slate-500">{{ row.guardian_name }}{% if row.guardian_phone %} | {{ row.guardian_phone }}{% endif %}</p>
+                      </td>
+                      <td class="px-3 py-2 text-slate-700">{{ row.intended_class|default:"-" }}</td>
+                      <td class="px-3 py-2 text-slate-700">{{ row.admissions_status }}</td>
+                      <td class="px-3 py-2 text-slate-700">{{ row.payment_status }}</td>
+                      <td class="px-3 py-2 text-slate-700">{{ row.payment_mode }}</td>
+                    </tr>
+                  {% empty %}
+                    <tr><td colspan="5" class="px-3 py-4 text-slate-500">No admission registrations yet.</td></tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </article>
+        {% endif %}
+
+        {% if portal_key == "it" %}
+          <aside class="space-y-4">
+            <article class="rounded-3xl border border-[#d9e2ef] bg-white p-5 shadow-sm">
+              <div class="flex items-center justify-between gap-3">
+                <h2 class="text-base font-black text-[#082449]">Operational Alerts</h2>
+                <span class="h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-600"></span>
+              </div>
+              <div class="mt-3 space-y-2">
+                {% for row in it_alert_rows %}
+                  <a href="{{ row.url }}" class="flex items-center justify-between gap-3 rounded-xl border px-3 py-3 {% if row.tone == 'red' %}border-red-200 bg-red-50{% elif row.tone == 'amber' %}border-amber-200 bg-[#fff7e0]{% else %}border-emerald-200 bg-emerald-50{% endif %}">
+                    <span class="text-sm font-bold text-slate-800">{{ row.label }}</span>
+                    <span class="text-lg font-black {% if row.tone == 'red' %}text-red-700{% elif row.tone == 'amber' %}text-amber-800{% else %}text-emerald-700{% endif %}">{{ row.value }}</span>
+                  </a>
+                {% endfor %}
+              </div>
+            </article>
+
+            <article class="rounded-3xl border border-[#d9e2ef] bg-white p-5 shadow-sm">
+              <h2 class="text-base font-black text-[#082449]">System Health</h2>
+              <div class="mt-3 divide-y divide-slate-100">
+                {% for row in system_health_rows %}
+                  <div class="flex items-center justify-between gap-3 py-2.5">
+                    <span class="text-sm font-semibold text-slate-700">{{ row.label }}</span>
+                    <span class="inline-flex items-center gap-1.5 text-xs font-black {% if row.ok %}text-emerald-700{% else %}text-amber-700{% endif %}"><span class="h-2 w-2 rounded-full {% if row.ok %}bg-emerald-600{% else %}bg-amber-500{% endif %}"></span>{{ row.state }}</span>
+                  </div>
+                {% endfor %}
+              </div>
+            </article>
+
+            <article class="rounded-3xl border border-[#d9e2ef] bg-white p-5 shadow-sm">
+              <div class="flex items-center justify-between gap-3"><h2 class="text-base font-black text-[#082449]">Recent Admin Actions</h2><a href="/audit/events/" class="text-xs font-black text-[#082449]">Audit log</a></div>
+              <div class="mt-3 space-y-3">
+                {% for event in recent_admin_actions %}
+                  <div class="border-l-2 border-[#d6a21e] pl-3">
+                    <p class="text-xs font-black text-slate-800">{{ event.event_type|default:"Administrative action" }}</p>
+                    <p class="mt-0.5 text-[11px] font-semibold text-slate-500">{{ event.actor.get_full_name|default:event.actor.username|default:"System" }} · {{ event.created_at|date:"d M H:i" }}</p>
+                  </div>
+                {% empty %}
+                  <p class="text-sm text-slate-600">No recent administrative action.</p>
+                {% endfor %}
+              </div>
+            </article>
+
+            {% if not cloud_staff_operations_lan_only %}
+            <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h2 class="text-base font-semibold text-slate-900">Portal Toggles</h2>
+              <div class="mt-3 space-y-3">
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                  <p class="text-sm font-semibold text-slate-900">Cloud Staff Operations</p>
+                  <p class="mt-1 text-xs text-slate-600">Use LAN-only mode to keep administrative work local.</p>
+                </div>
+              </div>
+            </article>
+            {% endif %}
+          </aside>
+        {% endif %}
+        </div>
+      </div>
+    {% endif %}
+  </section>
+{% endblock %}

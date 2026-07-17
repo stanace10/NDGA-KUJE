@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Student avatar">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="64" fill="url(#bg)"/>
+  <circle cx="64" cy="46" r="22" fill="#cbd5e1"/>
+  <path d="M24 112c6-22 23-34 40-34s34 12 40 34" fill="#cbd5e1"/>
+  <circle cx="98" cy="30" r="14" fill="#22c55e" fill-opacity="0.18"/>
+  <text x="98" y="35" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="10" fill="#bbf7d0">NDGA</text>
+</svg>

@@ -1,0 +1,557 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Staff Registration{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+    <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm animate-soft-reveal sm:p-8">
+      <p class="text-xs font-semibold uppercase tracking-[0.2em] text-ndga-navy/70">Administration</p>
+      <h1 class="mt-2 text-3xl font-bold text-ndga-navy">Create Staff User</h1>
+      <p class="mt-2 text-sm text-slate-600">Create staff accounts only on this page.</p>
+      <div class="mt-4 flex flex-wrap gap-2">
+        <a href="{{ staff_management_url }}" class="ndga-btn ndga-btn-secondary">Back to Staff Management</a>
+      </div>
+    </div>
+
+    {% if generated_staff_credentials %}
+      <div class="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+        <p><span class="font-semibold">Account created successfully.</span> Save these now (shown once).</p>
+        <p class="mt-1"><span class="font-semibold">Portal Username:</span> {{ generated_staff_credentials.username }}</p>
+        <p><span class="font-semibold">Staff ID Login:</span> {{ generated_staff_credentials.staff_id }}</p>
+        <p><span class="font-semibold">Login Password:</span> {{ generated_staff_credentials.password }}</p>
+      </div>
+    {% endif %}
+
+    <article class="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <h2 class="text-xl font-semibold text-ndga-navy">Create Staff Account</h2>
+      <p class="mt-1 text-sm text-slate-600">Step 1 selects role path. Step 2 captures identity. Step 3 captures role-specific assignments.</p>
+
+      <div class="mt-4 grid grid-cols-3 gap-2 text-xs font-semibold">
+        <div id="staffWizardPill1" class="rounded-xl border border-ndga-navy bg-ndga-navy px-3 py-2 text-center text-white">1. Role Path</div>
+        <div id="staffWizardPill2" class="rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-center text-slate-600">2. Identity</div>
+        <div id="staffWizardPill3" class="rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-center text-slate-600">3. Assignments</div>
+      </div>
+
+      <form method="post" enctype="multipart/form-data" class="mt-5 space-y-4" id="staffWizardForm">
+        {% csrf_token %}
+        {{ staff_form.webcam_image_data }}
+
+        <div class="wizard-step space-y-3" data-step="1">
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Step 1 of 3</p>
+            <h3 class="mt-1 text-sm font-semibold text-slate-800">Role Path</h3>
+            <div class="mt-3 space-y-3">
+              <div>
+                <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ staff_form.role_group.id_for_label }}">{{ staff_form.role_group.label }}</label>
+                {{ staff_form.role_group }}
+                {% if staff_form.role_group.help_text %}<p class="mt-1 text-xs text-slate-500">{{ staff_form.role_group.help_text }}</p>{% endif %}
+                {% if staff_form.role_group.errors %}<p class="mt-1 text-xs text-rose-700 field-error" data-step-error="1">{{ staff_form.role_group.errors|striptags }}</p>{% endif %}
+              </div>
+              <div>
+                <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ staff_form.primary_role.id_for_label }}">{{ staff_form.primary_role.label }}</label>
+                <select name="{{ staff_form.primary_role.html_name }}" id="{{ staff_form.primary_role.id_for_label }}" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+                  <option value="">Select role</option>
+                  {% for role in staff_form.primary_role.field.queryset %}
+                    <option
+                      value="{{ role.id }}"
+                      data-role-code="{{ role.code }}"
+                      data-group="{% if role.code == 'BURSAR' or role.code == 'VP' or role.code == 'PRINCIPAL' %}ADMIN{% else %}STAFF{% endif %}"
+                      {% if staff_form.primary_role.value|stringformat:"s" == role.id|stringformat:"s" %}selected{% endif %}
+                    >
+                      {{ role.name }}
+                    </option>
+                  {% endfor %}
+                </select>
+                {% if staff_form.primary_role.help_text %}<p class="mt-1 text-xs text-slate-500">{{ staff_form.primary_role.help_text }}</p>{% endif %}
+                {% if staff_form.primary_role.errors %}<p class="mt-1 text-xs text-rose-700 field-error" data-step-error="1">{{ staff_form.primary_role.errors|striptags }}</p>{% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="wizard-step hidden space-y-3" data-step="2">
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Step 2 of 3</p>
+            <h3 class="mt-1 text-sm font-semibold text-slate-800">Account Identity</h3>
+            <div class="mt-3 grid gap-3 sm:grid-cols-2">
+              <div>
+                <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ staff_form.first_name.id_for_label }}">{{ staff_form.first_name.label }}</label>
+                {{ staff_form.first_name }}
+                {% if staff_form.first_name.errors %}<p class="mt-1 text-xs text-rose-700 field-error" data-step-error="2">{{ staff_form.first_name.errors|striptags }}</p>{% endif %}
+              </div>
+              <div>
+                <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ staff_form.last_name.id_for_label }}">{{ staff_form.last_name.label }}</label>
+                {{ staff_form.last_name }}
+                {% if staff_form.last_name.errors %}<p class="mt-1 text-xs text-rose-700 field-error" data-step-error="2">{{ staff_form.last_name.errors|striptags }}</p>{% endif %}
+              </div>
+              <div class="sm:col-span-2">
+                <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ staff_form.email.id_for_label }}">{{ staff_form.email.label }}</label>
+                {{ staff_form.email }}
+                {% if staff_form.email.help_text %}<p class="mt-1 text-xs text-slate-500">{{ staff_form.email.help_text }}</p>{% endif %}
+                {% if staff_form.email.errors %}<p class="mt-1 text-xs text-rose-700 field-error" data-step-error="2">{{ staff_form.email.errors|striptags }}</p>{% endif %}
+              </div>
+              <div>
+                <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ staff_form.staff_id.id_for_label }}">{{ staff_form.staff_id.label }}</label>
+                {{ staff_form.staff_id }}
+                {% if staff_form.staff_id.help_text %}<p class="mt-1 text-xs text-slate-500">{{ staff_form.staff_id.help_text }}</p>{% endif %}
+                {% if staff_form.staff_id.errors %}<p class="mt-1 text-xs text-rose-700 field-error" data-step-error="2">{{ staff_form.staff_id.errors|striptags }}</p>{% endif %}
+              </div>
+              <div>
+                <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ staff_form.phone_number.id_for_label }}">{{ staff_form.phone_number.label }}</label>
+                {{ staff_form.phone_number }}
+                {% if staff_form.phone_number.errors %}<p class="mt-1 text-xs text-rose-700 field-error" data-step-error="2">{{ staff_form.phone_number.errors|striptags }}</p>{% endif %}
+              </div>
+              <div>
+                <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ staff_form.profile_photo.id_for_label }}">{{ staff_form.profile_photo.label }}</label>
+                {{ staff_form.profile_photo }}
+                {% if staff_form.profile_photo.errors %}<p class="mt-1 text-xs text-rose-700 field-error" data-step-error="2">{{ staff_form.profile_photo.errors|striptags }}</p>{% endif %}
+              </div>
+              <div class="sm:col-span-2 rounded-2xl border border-slate-200 bg-white p-3">
+                <p class="text-sm font-semibold text-slate-700">Phone Camera Capture</p>
+                <p class="mt-1 text-xs text-slate-500">Use your phone camera and auto-fill this staff profile photo.</p>
+                <img id="staff-captured-preview" class="mt-2 h-52 w-full rounded-xl border border-slate-300 bg-slate-100 object-cover" alt="Staff captured preview">
+                <div class="mt-3 flex flex-wrap gap-2">
+                  <button type="button" id="staffPhoneCaptureStart" class="ndga-btn ndga-btn-secondary">Use Phone Camera</button>
+                  <button type="button" id="staffPhoneCaptureClear" class="ndga-btn ndga-btn-secondary">Clear</button>
+                </div>
+                <div id="staffPhoneCapturePanel" class="mt-3 hidden rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <a id="staffPhoneCaptureLink" href="#" target="_blank" rel="noopener" class="block break-all text-xs font-semibold text-ndga-navy"></a>
+                  <div class="mt-2 flex flex-wrap items-center gap-2">
+                    <button type="button" id="staffPhoneCaptureCopy" class="ndga-btn ndga-btn-secondary !px-3 !py-1.5 !text-xs">Copy Link</button>
+                    <button type="button" id="staffPhoneCaptureShare" class="ndga-btn ndga-btn-secondary !px-3 !py-1.5 !text-xs">Share Link</button>
+                    <span id="staffPhoneCaptureExpiry" class="text-xs font-semibold text-amber-700">Expires in --:--</span>
+                  </div>
+                  <img id="staffPhoneCaptureQr" class="mt-3 hidden h-24 w-24 rounded-lg border border-slate-200 bg-white p-1" alt="Staff capture QR">
+                </div>
+                <p id="staffPhoneCaptureStatus" class="mt-2 text-xs font-semibold text-slate-600">Waiting for phone upload.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="wizard-step hidden space-y-3" data-step="3">
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Step 3 of 3</p>
+            <h3 class="mt-1 text-sm font-semibold text-slate-800">Role-Specific Assignments</h3>
+
+            <div id="adminRoleNote" class="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800 hidden">
+              Admin role selected. Subject/class assignment is not required.
+            </div>
+
+            <div id="staffAssignmentFields" class="mt-3 space-y-3">
+              <div id="formClassWrapper">
+                <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ staff_form.form_class_assignment.id_for_label }}">{{ staff_form.form_class_assignment.label }}</label>
+                {{ staff_form.form_class_assignment }}
+                {% if staff_form.form_class_assignment.errors %}<p class="mt-1 text-xs text-rose-700 field-error" data-step-error="3">{{ staff_form.form_class_assignment.errors|striptags }}</p>{% endif %}
+              </div>
+
+              <div id="alsoTeachesWrapper">
+                <label class="inline-flex items-center gap-2 text-sm font-semibold text-slate-700" for="{{ staff_form.also_teaches.id_for_label }}">
+                  {{ staff_form.also_teaches }}
+                  <span>{{ staff_form.also_teaches.label }}</span>
+                </label>
+                {% if staff_form.also_teaches.errors %}<p class="mt-1 text-xs text-rose-700 field-error" data-step-error="3">{{ staff_form.also_teaches.errors|striptags }}</p>{% endif %}
+              </div>
+
+              <div id="teachingLoadWrapper">
+                <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ staff_form.teaching_loads.id_for_label }}">{{ staff_form.teaching_loads.label }}</label>
+                {{ staff_form.teaching_loads }}
+                {% if staff_form.teaching_loads.help_text %}<p class="mt-1 text-xs text-slate-500">{{ staff_form.teaching_loads.help_text }}</p>{% endif %}
+                {% if staff_form.teaching_loads.errors %}<p class="mt-1 text-xs text-rose-700 field-error" data-step-error="3">{{ staff_form.teaching_loads.errors|striptags }}</p>{% endif %}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {% if staff_form.non_field_errors %}
+          <p class="text-xs text-rose-700 field-error" data-step-error="3">{{ staff_form.non_field_errors|striptags }}</p>
+        {% endif %}
+
+        <div class="flex flex-wrap items-center gap-2 pt-1">
+          <button type="button" id="staffWizardBackBtn" class="ndga-btn ndga-btn-secondary hidden">Back</button>
+          <button type="button" id="staffWizardNextBtn" class="ndga-btn ndga-btn-primary">Next</button>
+          <button type="submit" id="staffWizardSubmitBtn" class="ndga-btn ndga-btn-primary hidden">Create Staff Account</button>
+        </div>
+      </form>
+    </article>
+  </section>
+{% endblock %}
+
+{% block extra_scripts %}
+  <script>
+    (function () {
+      const form = document.getElementById("staffWizardForm");
+      if (!form) {
+        return;
+      }
+
+      const steps = Array.from(form.querySelectorAll(".wizard-step"));
+      const roleGroupInput = document.getElementById("{{ staff_form.role_group.id_for_label }}");
+      const roleSelect = document.getElementById("{{ staff_form.primary_role.id_for_label }}");
+      const alsoTeachesInput = document.getElementById("{{ staff_form.also_teaches.id_for_label }}");
+      const nextBtn = document.getElementById("staffWizardNextBtn");
+      const backBtn = document.getElementById("staffWizardBackBtn");
+      const submitBtn = document.getElementById("staffWizardSubmitBtn");
+      const pillMap = {
+        1: document.getElementById("staffWizardPill1"),
+        2: document.getElementById("staffWizardPill2"),
+        3: document.getElementById("staffWizardPill3"),
+      };
+
+      const adminNote = document.getElementById("adminRoleNote");
+      const staffAssignmentFields = document.getElementById("staffAssignmentFields");
+      const formClassWrapper = document.getElementById("formClassWrapper");
+      const alsoTeachesWrapper = document.getElementById("alsoTeachesWrapper");
+      const teachingLoadWrapper = document.getElementById("teachingLoadWrapper");
+      const staffPhotoInput = document.getElementById("{{ staff_form.profile_photo.id_for_label }}");
+      const staffWebcamDataInput = document.getElementById("id_webcam_image_data");
+      const staffPreview = document.getElementById("staff-captured-preview");
+      const staffPhoneCaptureStart = document.getElementById("staffPhoneCaptureStart");
+      const staffPhoneCaptureClear = document.getElementById("staffPhoneCaptureClear");
+      const staffPhoneCapturePanel = document.getElementById("staffPhoneCapturePanel");
+      const staffPhoneCaptureLink = document.getElementById("staffPhoneCaptureLink");
+      const staffPhoneCaptureQr = document.getElementById("staffPhoneCaptureQr");
+      const staffPhoneCaptureStatus = document.getElementById("staffPhoneCaptureStatus");
+      const staffPhoneCaptureCopy = document.getElementById("staffPhoneCaptureCopy");
+      const staffPhoneCaptureShare = document.getElementById("staffPhoneCaptureShare");
+      const staffPhoneCaptureExpiry = document.getElementById("staffPhoneCaptureExpiry");
+      const mobileSessionUrl = "{% url 'accounts:it-mobile-capture-session' %}";
+      const mobileStatusUrl = "{% url 'accounts:it-mobile-capture-status' %}";
+
+      let currentStep = 1;
+      let staffMobileToken = "";
+      let staffMobilePollingTimer = null;
+      let staffMobileCountdownTimer = null;
+      let staffMobileExpiresAtMs = 0;
+
+      function getCsrfToken() {
+        return form.querySelector('input[name="csrfmiddlewaretoken"]')?.value || "";
+      }
+
+      function setPhoneStatus(text, isError) {
+        if (!staffPhoneCaptureStatus) {
+          return;
+        }
+        staffPhoneCaptureStatus.textContent = text;
+        staffPhoneCaptureStatus.classList.remove("text-slate-600", "text-rose-700", "text-emerald-700");
+        if (isError) {
+          staffPhoneCaptureStatus.classList.add("text-rose-700");
+          return;
+        }
+        if ((text || "").toLowerCase().includes("received") || (text || "").toLowerCase().includes("ready")) {
+          staffPhoneCaptureStatus.classList.add("text-emerald-700");
+          return;
+        }
+        staffPhoneCaptureStatus.classList.add("text-slate-600");
+      }
+
+      function stopStaffMobilePolling() {
+        if (staffMobilePollingTimer) {
+          window.clearInterval(staffMobilePollingTimer);
+          staffMobilePollingTimer = null;
+        }
+      }
+
+      function stopStaffMobileCountdown() {
+        if (staffMobileCountdownTimer) {
+          window.clearInterval(staffMobileCountdownTimer);
+          staffMobileCountdownTimer = null;
+        }
+      }
+
+      function formatSeconds(totalSeconds) {
+        const safe = Math.max(0, Math.floor(totalSeconds));
+        const mins = Math.floor(safe / 60);
+        const secs = safe % 60;
+        return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+      }
+
+      function renderStaffCountdown() {
+        if (!staffPhoneCaptureExpiry) {
+          return;
+        }
+        if (!staffMobileExpiresAtMs) {
+          staffPhoneCaptureExpiry.textContent = "Expires in --:--";
+          return;
+        }
+        const remaining = Math.max(0, Math.floor((staffMobileExpiresAtMs - Date.now()) / 1000));
+        staffPhoneCaptureExpiry.textContent = `Expires in ${formatSeconds(remaining)}`;
+        if (remaining <= 0) {
+          stopStaffMobilePolling();
+          stopStaffMobileCountdown();
+          setPhoneStatus("Capture link expired. Start a new session.", true);
+        }
+      }
+
+      function startStaffCountdown(seconds) {
+        stopStaffMobileCountdown();
+        staffMobileExpiresAtMs = Date.now() + (Math.max(1, Number(seconds) || 1) * 1000);
+        renderStaffCountdown();
+        staffMobileCountdownTimer = window.setInterval(renderStaffCountdown, 1000);
+      }
+
+      function clearStaffCapture() {
+        if (staffWebcamDataInput) {
+          staffWebcamDataInput.value = "";
+        }
+        if (staffPreview) {
+          staffPreview.removeAttribute("src");
+        }
+        if (staffPhotoInput) {
+          staffPhotoInput.value = "";
+        }
+        setPhoneStatus("Capture cleared.", false);
+      }
+
+      function toBase64DataUrl(file) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (event) => resolve(event.target?.result || "");
+          reader.onerror = () => reject(new Error("Could not read selected photo."));
+          reader.readAsDataURL(file);
+        });
+      }
+
+      async function pollStaffMobileCapture() {
+        if (!staffMobileToken) {
+          return;
+        }
+        try {
+          const response = await fetch(`${mobileStatusUrl}?token=${encodeURIComponent(staffMobileToken)}`, {
+            method: "GET",
+            credentials: "same-origin",
+          });
+          const data = await response.json();
+          if (!response.ok || !data.ok) {
+            throw new Error(data.error || "Status check failed.");
+          }
+          if (data.ready && data.data_url) {
+            if (staffWebcamDataInput) {
+              staffWebcamDataInput.value = data.data_url;
+            }
+            if (staffPreview) {
+              staffPreview.src = data.data_url;
+            }
+            if (staffPhotoInput) {
+              staffPhotoInput.value = "";
+            }
+            setPhoneStatus("Capture received. Ready to submit.", false);
+            stopStaffMobilePolling();
+          }
+        } catch (error) {
+          setPhoneStatus(String(error && error.message ? error.message : error), true);
+        }
+      }
+
+      async function startStaffPhoneCapture() {
+        stopStaffMobilePolling();
+        staffMobileToken = "";
+        try {
+          const response = await fetch(mobileSessionUrl, {
+            method: "POST",
+            headers: { "X-CSRFToken": getCsrfToken() },
+            credentials: "same-origin",
+          });
+          const data = await response.json();
+          if (!response.ok || !data.ok) {
+            throw new Error(data.error || "Could not create mobile capture session.");
+          }
+          staffMobileToken = data.token || "";
+          if (!staffMobileToken) {
+            throw new Error("No capture token returned.");
+          }
+          if (staffPhoneCapturePanel) {
+            staffPhoneCapturePanel.classList.remove("hidden");
+          }
+          if (staffPhoneCaptureLink) {
+            staffPhoneCaptureLink.href = data.capture_url || "#";
+            staffPhoneCaptureLink.textContent = data.capture_url || "";
+          }
+          if (staffPhoneCaptureQr) {
+            if (data.qr_data_url) {
+              staffPhoneCaptureQr.src = data.qr_data_url;
+              staffPhoneCaptureQr.classList.remove("hidden");
+            } else {
+              staffPhoneCaptureQr.classList.add("hidden");
+            }
+          }
+          setPhoneStatus("Session ready. Open the link on phone and upload photo.", false);
+          startStaffCountdown(data.expires_seconds || 900);
+          await pollStaffMobileCapture();
+          staffMobilePollingTimer = window.setInterval(pollStaffMobileCapture, 2000);
+        } catch (error) {
+          setPhoneStatus(String(error && error.message ? error.message : error), true);
+        }
+      }
+
+      async function copyStaffCaptureLink() {
+        const url = (staffPhoneCaptureLink && staffPhoneCaptureLink.href) || "";
+        if (!url || url === "#") {
+          setPhoneStatus("Start phone session first to get a link.", true);
+          return;
+        }
+        try {
+          await navigator.clipboard.writeText(url);
+          setPhoneStatus("Capture link copied.", false);
+        } catch (_error) {
+          setPhoneStatus("Could not copy automatically. Copy manually.", true);
+        }
+      }
+
+      async function shareStaffCaptureLink() {
+        const url = (staffPhoneCaptureLink && staffPhoneCaptureLink.href) || "";
+        if (!url || url === "#") {
+          setPhoneStatus("Start phone session first to get a link.", true);
+          return;
+        }
+        if (navigator.share) {
+          try {
+            await navigator.share({ title: "NDGA Mobile Capture", text: "Open this link to capture photo.", url });
+            setPhoneStatus("Share dialog opened.", false);
+            return;
+          } catch (_error) {
+            // fallback to copy
+          }
+        }
+        await copyStaffCaptureLink();
+      }
+
+      function selectedRoleCode() {
+        if (!roleSelect || roleSelect.selectedIndex < 0) {
+          return "";
+        }
+        const option = roleSelect.options[roleSelect.selectedIndex];
+        return option ? option.getAttribute("data-role-code") || "" : "";
+      }
+
+      function selectedRoleGroup() {
+        return roleGroupInput ? (roleGroupInput.value || "STAFF") : "STAFF";
+      }
+
+      function syncRoleOptions() {
+        if (!roleSelect) {
+          return;
+        }
+        const roleGroup = selectedRoleGroup();
+        Array.from(roleSelect.options).forEach((option) => {
+          if (!option.value) {
+            return;
+          }
+          const optionGroup = option.getAttribute("data-group");
+          const allowed = optionGroup === roleGroup;
+          option.hidden = !allowed;
+          option.disabled = !allowed;
+        });
+        const selected = roleSelect.selectedOptions.length ? roleSelect.selectedOptions[0] : null;
+        if (!selected || selected.disabled) {
+          roleSelect.value = "";
+        }
+        syncAssignmentVisibility();
+      }
+
+      function syncAssignmentVisibility() {
+        const roleCode = selectedRoleCode();
+        const roleGroup = selectedRoleGroup();
+        const adminRole = roleGroup === "ADMIN";
+        const alsoTeaches = Boolean(alsoTeachesInput && alsoTeachesInput.checked);
+
+        if (adminNote) {
+          adminNote.classList.toggle("hidden", !adminRole);
+        }
+        if (staffAssignmentFields) {
+          staffAssignmentFields.classList.toggle("hidden", adminRole);
+        }
+        if (formClassWrapper) {
+          formClassWrapper.classList.toggle("hidden", roleCode !== "FORM_TEACHER");
+        }
+        if (alsoTeachesWrapper) {
+          const show = roleCode === "DEAN" || roleCode === "FORM_TEACHER";
+          alsoTeachesWrapper.classList.toggle("hidden", !show);
+        }
+        if (teachingLoadWrapper) {
+          const showForSubject = roleCode === "SUBJECT_TEACHER";
+          const showForDual = (roleCode === "DEAN" || roleCode === "FORM_TEACHER") && alsoTeaches;
+          teachingLoadWrapper.classList.toggle("hidden", !(showForSubject || showForDual));
+        }
+      }
+
+      function showStep(step) {
+        currentStep = Math.max(1, Math.min(3, step));
+        steps.forEach((row) => {
+          const rowStep = Number(row.getAttribute("data-step") || "1");
+          row.classList.toggle("hidden", rowStep !== currentStep);
+        });
+        Object.keys(pillMap).forEach((key) => {
+          const pill = pillMap[key];
+          if (!pill) return;
+          const active = Number(key) === currentStep;
+          pill.classList.toggle("border-ndga-navy", active);
+          pill.classList.toggle("bg-ndga-navy", active);
+          pill.classList.toggle("text-white", active);
+          pill.classList.toggle("border-slate-200", !active);
+          pill.classList.toggle("bg-slate-100", !active);
+          pill.classList.toggle("text-slate-600", !active);
+        });
+        backBtn.classList.toggle("hidden", currentStep === 1);
+        nextBtn.classList.toggle("hidden", currentStep >= 3);
+        submitBtn.classList.toggle("hidden", currentStep !== 3);
+      }
+
+      function detectErrorStep() {
+        const errorRows = Array.from(form.querySelectorAll(".field-error[data-step-error]"));
+        if (!errorRows.length) {
+          return 1;
+        }
+        return Math.max.apply(null, errorRows.map((node) => Number(node.getAttribute("data-step-error") || "1")));
+      }
+
+      nextBtn.addEventListener("click", function () {
+        showStep(currentStep + 1);
+      });
+      backBtn.addEventListener("click", function () {
+        showStep(currentStep - 1);
+      });
+
+      if (roleGroupInput) {
+        roleGroupInput.addEventListener("change", syncRoleOptions);
+      }
+      if (roleSelect) {
+        roleSelect.addEventListener("change", syncAssignmentVisibility);
+      }
+      if (alsoTeachesInput) {
+        alsoTeachesInput.addEventListener("change", syncAssignmentVisibility);
+      }
+      if (staffPhotoInput) {
+        staffPhotoInput.addEventListener("change", async function () {
+          const file = staffPhotoInput.files && staffPhotoInput.files.length ? staffPhotoInput.files[0] : null;
+          if (!file) {
+            return;
+          }
+          try {
+            const dataUrl = await toBase64DataUrl(file);
+            if (staffPreview) {
+              staffPreview.src = dataUrl;
+            }
+            if (staffWebcamDataInput) {
+              staffWebcamDataInput.value = "";
+            }
+            setPhoneStatus("Photo selected from file upload.", false);
+          } catch (error) {
+            setPhoneStatus(String(error && error.message ? error.message : error), true);
+          }
+        });
+      }
+      staffPhoneCaptureStart?.addEventListener("click", startStaffPhoneCapture);
+      staffPhoneCaptureClear?.addEventListener("click", clearStaffCapture);
+      staffPhoneCaptureCopy?.addEventListener("click", copyStaffCaptureLink);
+      staffPhoneCaptureShare?.addEventListener("click", shareStaffCaptureLink);
+      window.addEventListener("beforeunload", () => {
+        stopStaffMobilePolling();
+        stopStaffMobileCountdown();
+      });
+
+      syncRoleOptions();
+      showStep(detectErrorStep());
+    })();
+  </script>
+{% endblock %}

@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <style>
+    @page { size: A4; margin: 8mm 6mm 9mm 6mm; }
+    body {
+      margin: 0;
+      font-family: "DejaVu Sans", Arial, sans-serif;
+      color: #111827;
+      font-size: 7.9px;
+      line-height: 1.22;
+      background: #ffffff;
+    }
+    .sheet { position: relative; min-height: 278mm; }
+    .crest-watermark {
+      position: fixed;
+      top: 58mm;
+      left: 50%;
+      width: 112mm;
+      margin-left: -56mm;
+      opacity: 0.075;
+      z-index: -1;
+      text-align: center;
+    }
+    .crest-watermark img { width: 100%; height: auto; }
+    .candidate-watermark {
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      z-index: -1;
+      opacity: 0.035;
+      color: #082449;
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+    .candidate-watermark span { position: absolute; white-space: nowrap; transform: rotate(-31deg); }
+    .candidate-watermark span:nth-child(1) { left: 3%; top: 18%; }
+    .candidate-watermark span:nth-child(2) { left: 24%; top: 42%; }
+    .candidate-watermark span:nth-child(3) { left: 4%; top: 69%; }
+    table { width: 100%; border-collapse: collapse; }
+    .top-title {
+      text-align: center;
+      color: #295b94;
+      font-size: 23px;
+      font-weight: 800;
+      margin: 0 0 2px;
+      letter-spacing: .01em;
+    }
+    .header-grid td { vertical-align: middle; }
+    .contact-left, .contact-right { width: 34%; font-size: 10px; line-height: 1.45; }
+    .contact-right { text-align: left; padding-left: 16px; }
+    .contact-label { font-weight: 800; color: #111827; display: inline-block; min-width: 44px; }
+    .logo-wrap { width: 32%; text-align: center; }
+    .logo { width: 62px; height: auto; }
+    .photo {
+      width: 66px;
+      height: 66px;
+      object-fit: cover;
+      border: 1.4px solid #9aa8b8;
+      border-radius: 50%;
+      background: #fff;
+    }
+    .meta {
+      margin-top: 4px;
+      border-top: 2px solid #295b94;
+      border-left: 1px solid #8a8a8a;
+      border-right: 1px solid #8a8a8a;
+    }
+    .meta td {
+      border-bottom: 1px solid #8a8a8a;
+      border-right: 1px solid #8a8a8a;
+      padding: 5px 6px;
+      font-size: 9.4px;
+      vertical-align: middle;
+    }
+    .meta td:last-child { border-right: 0; }
+    .meta .student-cell { width: 46%; }
+    .meta .mid-cell { width: 25%; }
+    .meta .right-cell { width: 29%; }
+    .title {
+      margin: 7px 0 5px;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 900;
+      text-transform: uppercase;
+      color: #111827;
+    }
+    .notice {
+      margin: 5px 0;
+      border: 1px solid #d6a21e;
+      background: #fff7e0;
+      padding: 4px 6px;
+      color: #5c3d00;
+      font-size: 8px;
+      font-weight: 700;
+    }
+    .score-table {
+      border: 1px solid #777;
+      table-layout: fixed;
+    }
+    .score-table th,
+    .score-table td {
+      border: 1px solid #8a8a8a;
+      padding: 2.4px 2px;
+      font-size: 6.55px;
+      vertical-align: middle;
+      text-align: center;
+      word-wrap: break-word;
+    }
+    .score-table th {
+      background: #2f67a4;
+      color: #ffffff;
+      font-weight: 800;
+    }
+    .score-table td:first-child { text-align: left; }
+    .subject-col { width: 20%; }
+    .term-col { width: 6.5%; }
+    .annual-col { width: 6.5%; }
+    .grade-col { width: 4.5%; }
+    .pos-col { width: 5%; }
+    .stat-col { width: 7.2%; }
+    .remark-col { width: 16.4%; }
+    .legend-dark { color: #111111 !important; font-weight: 800; }
+    .legend-gold { color: #b7791f !important; font-weight: 800; }
+    .legend-silver { color: #6b7280 !important; font-weight: 800; }
+    .legend-bronze { color: #b45309 !important; font-weight: 800; }
+    .legend-black { color: #111111 !important; font-weight: 800; }
+    .legend-green { color: #008000 !important; font-weight: 800; }
+    .legend-blue { color: #1f5cff !important; font-weight: 800; }
+    .legend-orange { color: #f97316 !important; font-weight: 800; }
+    .legend-red { color: #c62828 !important; font-weight: 800; }
+    .grade-tone { font-weight: 800; text-align: center !important; }
+    .section-heading {
+      margin: 7px 0 4px;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+    .section-heading,
+    .behaviour,
+    .keys,
+    .comments,
+    .legacy-cumulative-signature {
+      display: none;
+    }
+    .grade-promotion-grid {
+      margin-top: 7px;
+      table-layout: fixed;
+    }
+    .grade-promotion-grid > tbody > tr > td {
+      vertical-align: top;
+    }
+    .grade-key-table,
+    .promotion-table,
+    .signature-table {
+      border: 1px solid #8a8a8a;
+      table-layout: fixed;
+    }
+    .grade-key-table th,
+    .grade-key-table td,
+    .promotion-table th,
+    .promotion-table td,
+    .signature-table td {
+      border: 1px solid #8a8a8a;
+      padding: 3.4px 4px;
+      font-size: 7.9px;
+      vertical-align: middle;
+    }
+    .grade-key-table th,
+    .promotion-table th {
+      background: #f5f5f5;
+      font-weight: 900;
+      text-transform: uppercase;
+      text-align: center;
+    }
+    .grade-swatch {
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      margin-right: 3px;
+      border: .5px solid rgba(0, 0, 0, .28);
+      vertical-align: middle;
+    }
+    .promotion-status {
+      color: #082449;
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: .35px;
+      text-transform: uppercase;
+    }
+    .promotion-note {
+      margin-top: 3px;
+      color: #374151;
+      font-size: 8px;
+      line-height: 1.35;
+    }
+    .signature-area { margin-top: 10mm; }
+    .signature-table { border-color: #295b94; }
+    .signature-table td {
+      height: 52px;
+      border-color: #b5c5d7;
+      vertical-align: bottom;
+    }
+    .signature-img {
+      display: block;
+      max-width: 150px;
+      max-height: 36px;
+      margin-bottom: 2px;
+    }
+    .signature-label {
+      display: inline-block;
+      min-width: 138px;
+      margin-top: 2px;
+      padding-top: 2px;
+      border-top: 1px solid #111827;
+      font-weight: 800;
+    }
+    .principal-name {
+      margin-top: 1px;
+      font-weight: 800;
+    }
+    .stamp {
+      display: block;
+      max-width: 58px;
+      max-height: 58px;
+      margin: 0 auto;
+      opacity: .9;
+    }
+    .qr {
+      display: block;
+      width: 44px;
+      height: 44px;
+      margin: 0 auto 2px;
+    }
+    .footer-note { margin-top: 3px; text-align: center; color: #4b5563; font-size: 5.5px; word-break: break-all; }
+  </style>
+</head>
+<body>
+  <div class="sheet">
+    <div class="crest-watermark">
+      {% if watermark_data_uri %}<img src="{{ watermark_data_uri }}" alt="">{% endif %}
+    </div>
+    <div class="candidate-watermark" aria-hidden="true">
+      <span>{{ payload.student_bio.name }} · {{ payload.student_bio.student_number|default:"NDGA" }}</span>
+      <span>{{ payload.student_bio.name }} · {{ payload.student_bio.student_number|default:"NDGA" }}</span>
+      <span>{{ payload.student_bio.name }} · {{ payload.student_bio.student_number|default:"NDGA" }}</span>
+    </div>
+
+    <h1 class="top-title">{{ school_profile.school_name|default:"Notre Dame Girls' Academy, Kuje-Abuja" }}</h1>
+    <table class="header-grid">
+      <tr>
+        <td class="contact-left">
+          <div><span class="contact-label">Postal Address:</span></div>
+          <div>{{ school_profile.address|default:"After SS Simon and Jude Minor Seminary, Kuchiyako, Kuje-Abuja" }}</div>
+        </td>
+        <td class="logo-wrap">
+          {% if logo_data_uri %}<img class="logo" src="{{ logo_data_uri }}" alt="School logo">{% endif %}
+        </td>
+        <td class="contact-right">
+          <div><span class="contact-label">Email:</span> {{ school_profile.email|default:"office@ndgakuje.org" }}</div>
+          <div><span class="contact-label">Phone:</span> {{ school_profile.phone|default:"+234 902 940 5413" }}</div>
+          <div><span class="contact-label">Website:</span> {{ school_profile.website|default:"https://ndgakuje.org" }}</div>
+        </td>
+        <td style="width:70px;text-align:right;">{% if student_photo_data_uri %}<img class="photo" src="{{ student_photo_data_uri }}" alt="Student photo">{% endif %}</td>
+      </tr>
+    </table>
+
+    <table class="meta">
+      <tr>
+        <td class="student-cell">NAME OF STUDENT: {{ payload.student_bio.name }}</td>
+        <td class="mid-cell">CLASS: {{ payload.class_code }}</td>
+        <td class="right-cell">NO. IN CLASS: {{ payload.class_size|default:"-" }}</td>
+      </tr>
+      <tr>
+        <td>ADMISSION NO: {{ payload.student_bio.student_number|default:"-" }}</td>
+        <td>TERM: {{ payload.term_name }}</td>
+        <td>SESSION: {{ payload.session_name }}</td>
+      </tr>
+      <tr>
+        <td>AVERAGE SCORE: <span class="{{ payload.grade_css_class }}" style="color: {{ payload.grade_hex_color }} !important;">{{ payload.annual_average }}</span></td>
+        <td>TOTAL MARKS: {{ payload.total_300 }}</td>
+        <td>TOTAL OBTAINABLE: {{ payload.total_mark_obtainable }}</td>
+      </tr>
+      <tr>
+        <td>POSITION: {{ payload.class_position }}</td>
+        <td>SEX: {{ payload.student_bio.sex|default:"-" }}</td>
+        <td>OFFICE HELD: {{ payload.co_curricular.office_held|default:"-" }}</td>
+      </tr>
+    </table>
+
+    {% if payload.missing_terms %}
+      <div class="notice">Unavailable term records: {{ payload.missing_terms|join:", " }}. Annual averages use only the available term scores for subjects written in Third Term.</div>
+    {% endif %}
+
+    <div class="title">{{ payload.section_title }}</div>
+    <table class="score-table">
+      <colgroup>
+        <col class="subject-col">
+        <col class="term-col">
+        <col class="term-col">
+        <col class="term-col">
+        <col class="term-col">
+        <col class="annual-col">
+        <col class="grade-col">
+        <col class="pos-col">
+        <col class="stat-col">
+        <col class="stat-col">
+        <col class="stat-col">
+        <col class="remark-col">
+      </colgroup>
+      <thead>
+        <tr>
+          <th>Subject</th>
+          <th>1st Term</th>
+          <th>2nd Term</th>
+          <th>3rd Term</th>
+          <th>Total</th>
+          <th>Annual</th>
+          <th>Grade</th>
+          <th>Position</th>
+          <th>Highest Score</th>
+          <th>Lowest Score</th>
+          <th>Average</th>
+          <th>Remark</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in payload.subject_rows %}
+          <tr>
+            <td>{{ row.subject }}</td>
+            <td>{% if row.first_term is not None %}{{ row.first_term }}{% else %}-{% endif %}</td>
+            <td>{% if row.second_term is not None %}{{ row.second_term }}{% else %}-{% endif %}</td>
+            <td>{% if row.third_term is not None %}{{ row.third_term }}{% else %}-{% endif %}</td>
+            <td class="grade-tone {{ row.grade_css_class }}" style="color: {{ row.grade_hex_color }} !important;">{% if row.total_300 is not None %}{{ row.total_300 }}{% else %}-{% endif %}</td>
+            <td class="grade-tone {{ row.grade_css_class }}" style="color: {{ row.grade_hex_color }} !important;">{% if row.average is not None %}{{ row.average }}{% else %}-{% endif %}</td>
+            <td class="grade-tone {{ row.grade_css_class }}" style="color: {{ row.grade_hex_color }} !important;">{{ row.grade }}</td>
+            <td>{{ row.position|default:"-" }}</td>
+            <td>{% if row.highest is not None %}{{ row.highest }}{% else %}-{% endif %}</td>
+            <td>{% if row.lowest is not None %}{{ row.lowest }}{% else %}-{% endif %}</td>
+            <td>{% if row.class_average is not None %}{{ row.class_average }}{% else %}-{% endif %}</td>
+            <td class="grade-tone {{ row.grade_css_class }}" style="color: {{ row.grade_hex_color }} !important;">{{ row.remark }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="12">No cumulative subject records are available yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <table class="grade-promotion-grid">
+      <tr>
+        <td style="width:68%; padding-right:5px;">
+          <table class="grade-key-table">
+            <tr><th colspan="4">Cognitive Domain Rating</th></tr>
+            <tr>
+              <th style="width:20%;">Color</th>
+              <th style="width:16%;">Grade</th>
+              <th style="width:24%;">Score Range</th>
+              <th>Remark</th>
+            </tr>
+            {% for row in payload.grade_key %}
+              <tr>
+                <td class="{{ row.css_class }}" style="color: {{ row.hex_color }} !important; text-align:center;">
+                  <span class="grade-swatch" style="background: {{ row.hex_color }};"></span>{{ row.color }}
+                </td>
+                <td class="{{ row.css_class }}" style="color: {{ row.hex_color }} !important; text-align:center;">{{ row.grade }}</td>
+                <td class="{{ row.css_class }}" style="color: {{ row.hex_color }} !important; text-align:center;">{{ row.min_score }} - {{ row.max_score }}</td>
+                <td class="{{ row.css_class }}" style="color: {{ row.hex_color }} !important; text-align:center;">{{ row.remark }}</td>
+              </tr>
+            {% endfor %}
+          </table>
+        </td>
+        <td style="width:32%; padding-left:5px;">
+          <table class="promotion-table">
+            <tr><th>Promotion Decision</th></tr>
+            <tr>
+              <td>
+                <div class="promotion-status">{{ payload.promotion_status }}</div>
+                <div class="promotion-note">{{ payload.promotion_note }}</div>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+
+    <div class="signature-area">
+      <table class="signature-table">
+        <tr>
+          <td style="width:57%;">
+            {% if principal_signature_data_uri %}<img class="signature-img" src="{{ principal_signature_data_uri }}" alt="Principal signature">{% endif %}
+            <div class="signature-label">Principal Signature</div>
+            {% if school_profile.principal_name %}<div class="principal-name">{{ school_profile.principal_name }}</div>{% endif %}
+          </td>
+          <td style="width:18%; text-align:center;">
+            {% if school_stamp_data_uri %}<img class="stamp" src="{{ school_stamp_data_uri }}" alt="School stamp">{% endif %}
+          </td>
+          <td style="width:25%; text-align:center;">
+            {% if verification_qr_data_uri %}<img class="qr" src="{{ verification_qr_data_uri }}" alt="Verification QR">{% endif %}
+            Verification QR
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="section-heading">Behavioural and Physical Abilities</div>
+    <table class="behaviour">
+      <thead>
+        <tr>
+          <th>General Behaviour</th>
+          <th>Ratings</th>
+          <th>General Behaviour</th>
+          <th>Ratings</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in payload.behavior_rows %}
+          {% if forloop.counter0|divisibleby:2 %}<tr>{% endif %}
+            <td>{{ row.label }}</td>
+            <td>{{ row.value }}</td>
+          {% if forloop.counter|divisibleby:2 %}</tr>{% endif %}
+        {% empty %}
+          <tr><td>Punctuality</td><td>-</td><td>Neatness</td><td>-</td></tr>
+          <tr><td>Politeness</td><td>-</td><td>Leadership</td><td>-</td></tr>
+        {% endfor %}
+        {% if payload.behavior_rows|length|divisibleby:2 %}{% else %}<td></td><td></td></tr>{% endif %}
+      </tbody>
+    </table>
+
+    <table class="keys">
+      <tr>
+        <th style="width:18%;">Key To Grade:</th>
+        <td>
+          {% for row in payload.grade_key %}
+            <span class="{{ row.css_class }}" style="color: {{ row.hex_color }} !important;">{{ row.grade }} = {{ row.remark }} ({{ row.min_score }} - {{ row.max_score }})</span>{% if not forloop.last %}&nbsp;&nbsp;{% endif %}
+          {% endfor %}
+        </td>
+      </tr>
+      <tr>
+        <th>Key To Ratings:</th>
+        <td>1 = Very Poor&nbsp;&nbsp; 2 = Poor&nbsp;&nbsp; 3 = Fair&nbsp;&nbsp; 4 = Good&nbsp;&nbsp; 5 = Excellent</td>
+      </tr>
+      <tr>
+        <th>Promotion Decision:</th>
+        <td><strong>{{ payload.promotion_status }}</strong> — {{ payload.promotion_note }}</td>
+      </tr>
+    </table>
+
+    <table class="comments">
+      <tr>
+        <td class="comment-label">Form Teacher's Comment:</td>
+        <td>{{ payload.teacher_comment|default:"" }}</td>
+      </tr>
+      <tr>
+        <td class="comment-label">Principal's Comment:</td>
+        <td>{{ payload.principal_comment|default:"" }}</td>
+      </tr>
+    </table>
+
+    <div class="signature-area legacy-cumulative-signature">
+      {% if principal_signature_data_uri %}<img class="signature-img" src="{{ principal_signature_data_uri }}" alt="Principal signature">{% endif %}
+      {% if school_stamp_data_uri %}<img class="stamp" src="{{ school_stamp_data_uri }}" alt="School stamp">{% endif %}
+      {% if verification_qr_data_uri %}<img class="qr" src="{{ verification_qr_data_uri }}" alt="Verification QR">{% endif %}
+    </div>
+    {% if verification_url %}<div class="footer-note">{{ verification_url }}</div>{% endif %}
+  </div>
+</body>
+</html>

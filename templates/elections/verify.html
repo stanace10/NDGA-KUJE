@@ -1,0 +1,65 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Election Result Verification{% endblock %}
+
+{% block body_class %}min-h-screen bg-slate-100{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
+    <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">NDGA Election Verification</p>
+      <h1 class="mt-2 text-2xl font-bold text-slate-900">Election PDF Authenticity Check</h1>
+
+      {% if hash_matches %}
+        <div class="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+          <span class="font-semibold">Valid PDF</span>
+          <span class="ml-2">Hash signature matches this election result artifact.</span>
+        </div>
+      {% else %}
+        <div class="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <span class="font-semibold">Verification Check Required</span>
+          <span class="ml-2">Artifact exists. Compare hash details with the PDF copy.</span>
+        </div>
+      {% endif %}
+
+      <dl class="mt-5 space-y-3 text-sm">
+        <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <dt class="text-xs uppercase tracking-wide text-slate-500">Election Title</dt>
+          <dd class="mt-1 font-semibold text-slate-900">{{ artifact.election.title }}</dd>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <dt class="text-xs uppercase tracking-wide text-slate-500">Session</dt>
+          <dd class="mt-1 font-semibold text-slate-900">{{ payload.session_name|default:"-" }}</dd>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <dt class="text-xs uppercase tracking-wide text-slate-500">Publication Timestamp</dt>
+          <dd class="mt-1 font-semibold text-slate-900">
+            {% if artifact.published_at %}{{ artifact.published_at|date:"d M Y, H:i" }}{% else %}-{% endif %}
+          </dd>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <dt class="text-xs uppercase tracking-wide text-slate-500">Artifact Hash</dt>
+          <dd class="mt-1 break-all font-mono text-xs text-slate-900">{{ artifact.payload_hash }}</dd>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <dt class="text-xs uppercase tracking-wide text-slate-500">Provided Hash</dt>
+          <dd class="mt-1 break-all font-mono text-xs text-slate-700">
+            {% if incoming_hash %}{{ incoming_hash }}{% else %}Not provided{% endif %}
+          </dd>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <dt class="text-xs uppercase tracking-wide text-slate-500">Artifact ID</dt>
+          <dd class="mt-1 break-all font-mono text-xs text-slate-900">{{ artifact.id }}</dd>
+        </div>
+        <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <dt class="text-xs uppercase tracking-wide text-slate-500">Result Snapshot</dt>
+          <dd class="mt-1 text-slate-700">
+            Eligible voters: <strong>{{ payload.analytics.eligible_voters }}</strong>,
+            Votes cast: <strong>{{ payload.analytics.votes_cast }}</strong>,
+            Turnout: <strong>{{ payload.analytics.turnout_percent }}%</strong>.
+          </dd>
+        </div>
+      </dl>
+    </div>
+  </section>
+{% endblock %}

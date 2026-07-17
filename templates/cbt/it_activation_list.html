@@ -1,0 +1,211 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}IT CBT Setup{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
+    <article class="overflow-hidden rounded-3xl border border-[#d9e2ef] bg-white shadow-sm">
+      <div class="flex flex-col gap-4 bg-[#082449] px-6 py-5 text-white lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p class="text-xs font-black uppercase tracking-[0.18em] text-[#f3cf68]">CBT Operations</p>
+          <h1 class="mt-1 text-2xl font-black">Exam Control Board</h1>
+          <p class="mt-1 text-sm font-semibold text-slate-200">Schedule, secure, monitor and audit every NDGA examination.</p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <a href="{% url 'cbt:upload-import' %}" class="rounded-xl border border-white/30 bg-white/10 px-4 py-2 text-sm font-black text-white">Import Teacher Paper</a>
+          <a href="{% url 'cbt:it-lockdown-dashboard' %}" class="rounded-xl bg-white px-4 py-2 text-sm font-black text-[#082449]">Live Monitoring</a>
+          <a href="{% url 'cbt:it-jamb-admin' %}" class="rounded-xl border border-[#d6a21e] bg-[#fff7e0] px-4 py-2 text-sm font-black text-[#082449]">JAMB Admin</a>
+          <a href="{% url 'cbt:it-emergency-control' %}" class="rounded-xl border border-amber-300 bg-amber-500 px-4 py-2 text-sm font-black text-[#061a33]">Incident Control</a>
+        </div>
+      </div>
+      <div class="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-5">
+        <a href="#active-exams" class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4"><p class="text-xs font-black uppercase tracking-wide text-emerald-800">Active</p><p class="mt-2 text-3xl font-black text-[#082449]">{{ active_exams|length }}</p></a>
+        <a href="#upcoming-exams" class="rounded-2xl border border-[#d9e2ef] bg-[#f8fafc] p-4"><p class="text-xs font-black uppercase tracking-wide text-slate-600">Upcoming</p><p class="mt-2 text-3xl font-black text-[#082449]">{{ approved_exams|length }}</p></a>
+        <a href="#closed-exams" class="rounded-2xl border border-[#d9e2ef] bg-white p-4"><p class="text-xs font-black uppercase tracking-wide text-slate-600">Closed</p><p class="mt-2 text-3xl font-black text-[#082449]">{{ closed_exams|length }}</p></a>
+        <a href="{% url 'cbt:it-lockdown-dashboard' %}?view=history" class="rounded-2xl border border-red-200 bg-red-50 p-4"><p class="text-xs font-black uppercase tracking-wide text-red-800">Flagged Exams</p><p class="mt-2 text-3xl font-black text-[#082449]">{{ flagged_exam_count }}</p></a>
+        <div class="rounded-2xl border border-amber-200 bg-[#fff7e0] p-4"><p class="text-xs font-black uppercase tracking-wide text-amber-800">Writeback Issues</p><p class="mt-2 text-3xl font-black text-[#082449]">{{ writeback_issue_count }}</p></div>
+      </div>
+    </article>
+
+    <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <h2 class="text-lg font-semibold text-ndga-navy">CBT Filters</h2>
+          <p class="mt-1 text-sm text-slate-600">
+            Focus the schedule by day, week, or month, then narrow it by class, subject, or teacher. Closed papers stay in history only.
+          </p>
+        </div>
+        <p class="text-sm font-semibold text-slate-500">Viewing {{ selected_scope_label }}: {{ period_label }}</p>
+      </div>
+      <form method="get" class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+        <div>
+          <label class="mb-1 block text-sm font-semibold text-slate-700" for="filter-day">Anchor Day</label>
+          <input id="filter-day" type="date" name="day" value="{{ selected_day_value }}" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:border-ndga-navy/60 focus:ring-4 focus:ring-ndga-navy/10">
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-semibold text-slate-700" for="filter-scope">View</label>
+          <select id="filter-scope" name="scope" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:border-ndga-navy/60 focus:ring-4 focus:ring-ndga-navy/10">
+            <option value="daily" {% if selected_scope == "daily" %}selected{% endif %}>Daily</option>
+            <option value="weekly" {% if selected_scope == "weekly" %}selected{% endif %}>Weekly</option>
+            <option value="monthly" {% if selected_scope == "monthly" %}selected{% endif %}>Monthly</option>
+          </select>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-semibold text-slate-700" for="filter-class">Class</label>
+          <select id="filter-class" name="class_id" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:border-ndga-navy/60 focus:ring-4 focus:ring-ndga-navy/10">
+            <option value="">All Classes</option>
+            {% for item in class_options %}
+              <option value="{{ item.id }}" {% if selected_class_id == item.id|stringformat:"s" %}selected{% endif %}>{{ item.code }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-semibold text-slate-700" for="filter-subject">Subject</label>
+          <select id="filter-subject" name="subject_id" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:border-ndga-navy/60 focus:ring-4 focus:ring-ndga-navy/10">
+            <option value="">All Subjects</option>
+            {% for item in subject_options %}
+              <option value="{{ item.id }}" {% if selected_subject_id == item.id|stringformat:"s" %}selected{% endif %}>{{ item.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-semibold text-slate-700" for="filter-teacher">Teacher</label>
+          <select id="filter-teacher" name="teacher_id" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:border-ndga-navy/60 focus:ring-4 focus:ring-ndga-navy/10">
+            <option value="">All Teachers</option>
+            {% for item in teacher_options %}
+              <option value="{{ item.id }}" {% if selected_teacher_id == item.id|stringformat:"s" %}selected{% endif %}>{{ item.username }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="flex items-end gap-3">
+          <button type="submit" class="ndga-btn ndga-btn-primary w-full">Apply</button>
+          <a href="{% url 'cbt:it-activation-list' %}" class="w-full rounded-xl border border-slate-300 px-4 py-2 text-center text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50">Clear</a>
+        </div>
+      </form>
+    </article>
+
+    <article id="upcoming-exams" class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="flex items-center justify-between gap-3">
+        <div><h2 class="text-lg font-black text-[#082449]">Upcoming / Awaiting Activation</h2><p class="mt-1 text-sm text-slate-600">Dean-approved and free-test papers ready for IT scheduling.</p></div>
+        <span class="rounded-full bg-[#fff7e0] px-3 py-1 text-xs font-black text-amber-800">{{ approved_exams|length }} upcoming</span>
+      </div>
+      <div class="mt-3 overflow-x-auto rounded-2xl border border-slate-200">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+          <thead class="sticky top-0 bg-[#f8fafc] text-left text-slate-600"><tr><th class="px-3 py-2">Paper</th><th class="px-3 py-2">Class / Subject</th><th class="px-3 py-2">Status</th><th class="px-3 py-2 text-right">Action</th></tr></thead>
+          <tbody class="divide-y divide-slate-100">
+            {% for exam in approved_exams %}
+              <tr><td class="px-3 py-3 font-black text-slate-900">{{ exam.title }}</td><td class="px-3 py-3 font-semibold text-slate-700">{{ exam.academic_class.code }} · {{ exam.subject.name }}</td><td class="px-3 py-3"><span class="rounded-full bg-amber-50 px-2 py-1 text-xs font-black text-amber-800">{{ exam.get_status_display }}</span></td><td class="px-3 py-3 text-right"><a href="{% url 'cbt:it-activation-detail' exam.id %}" class="font-black text-[#082449]">Manage</a></td></tr>
+            {% empty %}<tr><td colspan="4" class="px-3 py-5 text-center text-slate-500">No paper is awaiting activation in this period.</td></tr>{% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+
+    <article id="active-exams" class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="flex items-center justify-between gap-3">
+        <div>
+          <h2 class="text-lg font-semibold text-ndga-navy">Scheduled For {{ period_label }}</h2>
+          <p class="mt-1 text-sm text-slate-600">Active exams scheduled within the selected {{ selected_scope }} period remain visible here.</p>
+        </div>
+        <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">{{ active_exams|length }} active</span>
+      </div>
+      <div class="mt-3 overflow-x-auto rounded-2xl border border-slate-200">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+          <thead>
+            <tr class="bg-slate-50 text-left text-slate-500">
+              <th class="px-3 py-2">Exam</th>
+              <th class="px-3 py-2">Window</th>
+              <th class="px-3 py-2">Teacher</th>
+              <th class="px-3 py-2">Activated By</th>
+              <th class="px-3 py-2">Action</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            {% for exam in active_exams %}
+              <tr>
+                <td class="px-3 py-2">
+                  <p class="font-semibold text-slate-800">{{ exam.title }}</p>
+                  <p class="text-xs text-slate-500">{{ exam.subject.code }} / {{ exam.academic_class.code }}</p>
+                </td>
+                <td class="px-3 py-2 text-slate-700">
+                  {% if exam.schedule_start and exam.schedule_end %}
+                    {{ exam.schedule_start|date:"d M Y H:i" }} - {{ exam.schedule_end|date:"d M Y H:i" }}
+                  {% elif exam.schedule_end %}
+                    Ends {{ exam.schedule_end|date:"d M Y H:i" }}
+                  {% elif exam.open_now %}
+                    Open now
+                  {% else %}
+                    -
+                  {% endif %}
+                </td>
+                <td class="px-3 py-2 text-slate-700">{{ exam.created_by.username }}</td>
+                <td class="px-3 py-2 text-slate-700">{{ exam.activated_by.username|default:"-" }}</td>
+                <td class="px-3 py-2">
+                  <details class="relative">
+                    <summary class="cursor-pointer list-none rounded-lg border border-[#d9e2ef] bg-white px-3 py-2 text-xs font-black text-[#082449]">Actions ▾</summary>
+                    <div class="absolute right-0 z-20 mt-1 w-48 rounded-xl border border-[#d9e2ef] bg-white p-2 shadow-xl">
+                      <a href="{% url 'cbt:it-activation-detail' exam.id %}" class="block rounded-lg px-3 py-2 font-bold text-slate-800 hover:bg-slate-50">View / Manage</a>
+                      <a href="{% url 'cbt:it-activation-detail' exam.id %}#schedule" class="block rounded-lg px-3 py-2 font-bold text-slate-800 hover:bg-slate-50">Edit Schedule</a>
+                      <a href="{% url 'cbt:it-activation-detail' exam.id %}#audit" class="block rounded-lg px-3 py-2 font-bold text-slate-800 hover:bg-slate-50">Audit Log</a>
+                    </div>
+                  </details>
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="5" class="px-3 py-4 text-slate-500">No active exams are scheduled within this selected period.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+
+    <article id="closed-exams" class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="flex items-center justify-between gap-3">
+        <div>
+          <h2 class="text-lg font-semibold text-ndga-navy">Closed History For {{ period_label }}</h2>
+          <p class="mt-1 text-sm text-slate-600">Closed CBTs stay read-only here. They cannot be published again after the window ends.</p>
+        </div>
+        <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">{{ closed_exams|length }} closed</span>
+      </div>
+      <div class="mt-3 overflow-x-auto rounded-2xl border border-slate-200">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+          <thead>
+            <tr class="bg-slate-50 text-left text-slate-500">
+              <th class="px-3 py-2">Exam</th>
+              <th class="px-3 py-2">Window</th>
+              <th class="px-3 py-2">Teacher</th>
+              <th class="px-3 py-2">Status</th>
+              <th class="px-3 py-2">Action</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            {% for exam in closed_exams %}
+              <tr>
+                <td class="px-3 py-2">
+                  <p class="font-semibold text-slate-800">{{ exam.title }}</p>
+                  <p class="text-xs text-slate-500">{{ exam.subject.code }} / {{ exam.academic_class.code }}</p>
+                </td>
+                <td class="px-3 py-2 text-slate-700">
+                  {% if exam.schedule_start and exam.schedule_end %}
+                    {{ exam.schedule_start|date:"d M Y H:i" }} - {{ exam.schedule_end|date:"d M Y H:i" }}
+                  {% elif exam.schedule_end %}
+                    Ended {{ exam.schedule_end|date:"d M Y H:i" }}
+                  {% else %}
+                    -
+                  {% endif %}
+                </td>
+                <td class="px-3 py-2 text-slate-700">{{ exam.created_by.username }}</td>
+                <td class="px-3 py-2">
+                  <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">{{ exam.get_status_display }}</span>
+                </td>
+                <td class="px-3 py-2"><a href="{% url 'cbt:it-activation-detail' exam.id %}" class="font-semibold text-ndga-navy">View</a></td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="5" class="px-3 py-4 text-slate-500">No closed exams found for the selected period.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </section>
+{% endblock %}

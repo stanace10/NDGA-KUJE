@@ -1,0 +1,270 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Academic Performance{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-[98rem] px-4 py-8 sm:px-6 lg:px-8">
+    <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Result Management</p>
+          <h1 class="mt-2 text-3xl font-bold text-slate-900">Academic Performance</h1>
+          <p class="mt-2 max-w-3xl text-sm text-slate-600">Class-level CA and exam rankings with top-three performance for {{ current_session.name }} {{ current_term.get_name_display }}.</p>
+        </div>
+        {% if selected_class %}
+          <a href="{% url 'results:academic-performance-class' selected_class.id %}?{{ selected_ca_query }}" class="ndga-btn ndga-btn-primary">Open Print Report</a>
+        {% endif %}
+      </div>
+
+      <form method="get" class="mt-5 rounded-2xl border border-slate-200 bg-slate-50/80 p-4 shadow-inner">
+        <div class="grid gap-3 xl:grid-cols-[1.2fr_1fr_1fr_1.1fr_auto]">
+          <label class="block">
+            <span class="mb-1 block text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Class</span>
+            <select name="class_id" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800">
+              {% for row in class_options %}
+                <option value="{{ row.id }}" {% if selected_class and selected_class.id == row.id %}selected{% endif %}>{{ row.display_name|default:row.code }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="block">
+            <span class="mb-1 block text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Session</span>
+            <select name="session_id" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800">
+              {% for row in available_sessions %}
+                <option value="{{ row.id }}" {% if selected_session and selected_session.id == row.id %}selected{% endif %}>{{ row.name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="block">
+            <span class="mb-1 block text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Term</span>
+            <select name="term_id" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800">
+              {% for row in available_terms %}
+                <option value="{{ row.id }}" {% if selected_term and selected_term.id == row.id %}selected{% endif %}>{{ row.get_name_display }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label class="block">
+            <span class="mb-1 block text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Report Type</span>
+            <select name="ca" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800">
+              {% for key,label in ca_component_options %}
+                <option value="{{ key }}" {% if selected_ca_component == key %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <div class="flex items-end">
+            <button type="submit" class="ndga-btn ndga-btn-primary h-[42px] w-full xl:w-auto">Load Report</button>
+          </div>
+        </div>
+      </form>
+    </article>
+
+    {% if selected_class %}
+      <div class="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p class="text-xs uppercase tracking-[0.14em] text-slate-500">Students</p>
+          <p class="mt-2 text-3xl font-bold text-slate-900">{{ matrix.student_count|default:0 }}</p>
+        </article>
+        <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p class="text-xs uppercase tracking-[0.14em] text-slate-500">Subjects</p>
+          <p class="mt-2 text-3xl font-bold text-slate-900">{{ matrix.subject_count|default:0 }}</p>
+        </article>
+        <article class="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+          <p class="text-xs uppercase tracking-[0.14em] text-amber-700">Missing {{ selected_ca_label }}</p>
+          <p class="mt-2 text-3xl font-bold text-amber-900">{{ matrix.missing_cells|length }}</p>
+        </article>
+        <article class="rounded-2xl border border-rose-200 bg-rose-50 p-4 shadow-sm">
+          <p class="text-xs uppercase tracking-[0.14em] text-rose-700">CBT Writeback Issues</p>
+          <p class="mt-2 text-3xl font-bold text-rose-900">{{ missing_cbt_rows|length }}</p>
+        </article>
+      </div>
+
+      <article class="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="text-xl font-bold text-slate-900">Top Three For Assembly</h2>
+            <p class="mt-1 text-sm text-slate-500">
+              {{ selected_class.display_name|default:selected_class.code }} based on {{ selected_ca_label }} average across offered subjects.
+              {% if is_overall_component %}
+                {% if use_legacy_result_layout %}
+                  Overall combines CA1, CA2, CA3, Assignment/Projects/Practical, and Exam (60) across the full class level.
+                {% else %}
+                  Overall combines CA1, CA2/CA3, Assignment/Projects/Practical, Class Participation, and exam scores across the full class level.
+                {% endif %}
+              {% else %}This view ranks the full class level, not separate arms.{% endif %}
+            </p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <a href="{% url 'results:academic-performance-class-csv' selected_class.id %}?{{ selected_ca_query }}" class="ndga-btn ndga-btn-secondary">Download CSV</a>
+            <a href="{% url 'results:academic-performance-class-subject-best-csv' selected_class.id %}?{{ selected_ca_query }}" class="ndga-btn ndga-btn-secondary">Subject Best CSV</a>
+            <a href="{% url 'results:academic-performance-class-subject-best-pdf' selected_class.id %}?{{ selected_ca_query }}" class="ndga-btn ndga-btn-secondary">Subject Best PDF</a>
+            <a href="{% url 'results:academic-performance-class-excel' selected_class.id %}?{{ selected_ca_query }}" class="ndga-btn ndga-btn-secondary">Download Excel</a>
+            <a href="{% url 'results:academic-performance-class-pdf' selected_class.id %}?{{ selected_ca_query }}" class="ndga-btn ndga-btn-secondary">Download PDF</a>
+            <a href="{% url 'results:academic-performance-class' selected_class.id %}?{{ selected_ca_query }}" class="ndga-btn ndga-btn-primary">Print View</a>
+          </div>
+        </div>
+        <div class="mt-4 grid gap-4 md:grid-cols-3">
+          {% for row in matrix.top_three %}
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Position {{ row.position }}</p>
+              <p class="mt-2 text-lg font-bold text-slate-900">{{ row.student.get_full_name|default:row.student.username }}</p>
+              <p class="text-xs text-slate-500">{{ row.student_number }}</p>
+              <p class="mt-3 text-3xl font-bold text-ndga-navy">{{ row.average }}</p>
+              <p class="text-xs text-slate-500">Total {{ row.total }} across {{ row.offered_count }} subjects</p>
+            </div>
+          {% empty %}
+            <p class="text-sm text-slate-500">No ranking data yet.</p>
+          {% endfor %}
+        </div>
+      </article>
+
+      <details class="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <summary class="flex cursor-pointer list-none flex-wrap items-start justify-between gap-4">
+          <div>
+            <p class="text-xs font-bold uppercase tracking-[0.18em] text-[#D6A21E]">Class Subject Awards</p>
+            <h2 class="mt-1 flex items-center gap-2 text-xl font-bold text-slate-900">
+              Highest In Each Subject
+              <span class="rounded-full bg-slate-100 px-2 py-1 text-xs font-black text-slate-600">Click to open</span>
+            </h2>
+            <p class="mt-1 max-w-3xl text-sm text-slate-500">
+              Hidden by default. Shows subject leaders for {{ selected_class.display_name|default:selected_class.code }} using the current filter:
+              <span class="font-bold text-slate-700">{{ selected_ca_label }}</span>,
+              {{ current_session.name }} {{ current_term.get_name_display }}.
+            </p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="rounded-full border border-slate-200 px-3 py-2 text-sm font-black text-slate-700">▼</span>
+            <a href="{% url 'results:academic-performance-class-subject-best-pdf' selected_class.id %}?{{ selected_ca_query }}" class="ndga-btn ndga-btn-primary" onclick="event.stopPropagation()">Download Class PDF</a>
+            <a href="{% url 'results:academic-performance-class-subject-best-csv' selected_class.id %}?{{ selected_ca_query }}" class="ndga-btn ndga-btn-secondary" onclick="event.stopPropagation()">CSV</a>
+          </div>
+        </summary>
+
+        <div class="mt-4 overflow-hidden rounded-2xl border border-slate-200">
+          <table class="min-w-full divide-y divide-slate-200 text-sm">
+            <thead class="bg-slate-50">
+              <tr>
+                <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-[0.14em] text-slate-500">Subject</th>
+                <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-[0.14em] text-slate-500">Best Student</th>
+                <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-[0.14em] text-slate-500">Admission Number</th>
+                <th class="px-4 py-3 text-left text-xs font-black uppercase tracking-[0.14em] text-slate-500">Class</th>
+                <th class="px-4 py-3 text-right text-xs font-black uppercase tracking-[0.14em] text-slate-500">Score</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 bg-white">
+              {% for row in subject_leaders %}
+                <tr>
+                  <td class="px-4 py-3 font-bold text-slate-900">{{ row.subject }}</td>
+                  <td class="px-4 py-3">
+                    <p class="font-bold text-slate-900">{{ row.student_name }}</p>
+                  </td>
+                  <td class="px-4 py-3 text-slate-700">{{ row.student_number }}</td>
+                  <td class="px-4 py-3 text-slate-700">{{ row.class_name }}</td>
+                  <td class="px-4 py-3 text-right text-lg font-black text-[#082449]">{{ row.score }}</td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="5" class="px-4 py-6 text-center text-sm text-slate-500">
+                    No highest-in-subject data is available for this filter yet.
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </details>
+
+      <article class="mt-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 class="text-xl font-bold text-slate-900">{{ selected_ca_label }} Score Matrix</h2>
+            <p class="mt-1 text-sm text-slate-500">Scroll sideways for subjects and down for students. N/O means the subject was not offered or not applicable for that term.</p>
+          </div>
+        </div>
+        <div class="mt-4 max-h-[34rem] overflow-auto rounded-2xl border border-slate-200">
+          <table class="min-w-full divide-y divide-slate-200 text-xs">
+            <thead class="sticky top-0 z-20 bg-slate-50">
+              <tr>
+                <th class="sticky left-0 z-30 min-w-56 bg-slate-50 px-3 py-2 text-left">Student</th>
+                {% for subject in matrix.subjects %}
+                  <th class="min-w-40 px-3 py-2 text-left">{{ subject.name }}</th>
+                {% endfor %}
+                <th class="px-3 py-2 text-left">Total</th>
+                <th class="px-3 py-2 text-left">Average</th>
+                <th class="px-3 py-2 text-left">Pos</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 bg-white">
+              {% for row in matrix.rows %}
+                <tr>
+                  <td class="sticky left-0 z-10 bg-white px-3 py-2">
+                    <p class="font-semibold text-slate-900">{{ row.student.get_full_name|default:row.student.username }}</p>
+                    <p class="text-[11px] text-slate-500">{{ row.student_number }}</p>
+                  </td>
+                  {% for cell in row.subjects %}
+                    <td class="px-3 py-2 {% if cell.display_only %}bg-blue-50 text-blue-900{% elif not cell.offered %}bg-slate-50 text-slate-400{% elif not cell.ca.has_score %}bg-amber-50{% endif %}">
+                      {% if cell.offered %}
+                        {% if selected_ca_component == "cumulative" %}
+                          {% for line in cell.ca.lines %}
+                            <span class="block text-[11px] {% if line.label == 'AVG' %}font-black text-[#082449]{% else %}font-semibold text-slate-600{% endif %}">{{ line.label }}: {{ line.value }}</span>
+                          {% endfor %}
+                        {% else %}
+                          <span class="font-bold text-slate-900">{{ cell.ca.total }}</span>
+                          {% if selected_ca_component == "ca1" or selected_ca_component == "exam" %}
+                            <span class="block text-[11px] text-slate-500">Obj {{ cell.ca.objective }} | Theory {{ cell.ca.theory }}</span>
+                          {% elif selected_ca_component == "overall" %}
+                            <span class="block text-[11px] font-semibold text-slate-600">CA1 {{ cell.ca.ca1_compact }} | CA2 {{ cell.ca.ca2_compact }}</span>
+                            <span class="block text-[11px] font-semibold text-slate-600">CA3 {{ cell.ca.ca3_compact }} | EXAM {{ cell.ca.exam_compact }}</span>
+                            <span class="block text-[11px] font-black text-[#082449]">TOTAL {{ cell.ca.total_compact }}</span>
+                          {% endif %}
+                        {% endif %}
+                      {% else %}
+                        N/O
+                      {% endif %}
+                    </td>
+                  {% endfor %}
+                  <td class="px-3 py-2 font-bold">{{ row.total }}</td>
+                  <td class="px-3 py-2 font-bold">{{ row.average }}</td>
+                  <td class="px-3 py-2 font-bold">{{ row.position }}</td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="6" class="px-3 py-4 text-slate-500">No students found for this class.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </article>
+
+      <div class="mt-6 grid gap-6 xl:grid-cols-2">
+        <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 class="text-xl font-bold text-slate-900">Missing {{ selected_ca_label }} Scores</h2>
+          <div class="mt-4 max-h-96 overflow-auto rounded-2xl border border-slate-200">
+            <table class="min-w-full divide-y divide-slate-200 text-sm">
+              <thead class="bg-slate-50"><tr><th class="px-3 py-2 text-left">Student</th><th class="px-3 py-2 text-left">Class</th><th class="px-3 py-2 text-left">Subject</th></tr></thead>
+              <tbody class="divide-y divide-slate-100 bg-white">
+                {% for row in matrix.missing_cells %}
+                  <tr><td class="px-3 py-2 font-semibold">{{ row.student.get_full_name|default:row.student.username }}</td><td class="px-3 py-2">{{ row.class_name }}</td><td class="px-3 py-2">{{ row.subject.name }}</td></tr>
+                {% empty %}
+                  <tr><td colspan="3" class="px-3 py-4 text-slate-500">No missing {{ selected_ca_label }} score cells found for this class.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 class="text-xl font-bold text-slate-900">CA1 CBT Scores Not Reflected</h2>
+          <div class="mt-4 max-h-96 overflow-auto rounded-2xl border border-slate-200">
+            <table class="min-w-full divide-y divide-slate-200 text-sm">
+              <thead class="bg-slate-50"><tr><th class="px-3 py-2 text-left">Student</th><th class="px-3 py-2 text-left">Subject</th><th class="px-3 py-2 text-left">CBT</th><th class="px-3 py-2 text-left">Result</th><th class="px-3 py-2 text-left">Reason</th></tr></thead>
+              <tbody class="divide-y divide-slate-100 bg-white">
+                {% for row in missing_cbt_rows %}
+                  <tr><td class="px-3 py-2"><p class="font-semibold">{{ row.student.get_full_name|default:row.student.username }}</p><p class="text-xs text-slate-500">{{ row.student_number }}</p></td><td class="px-3 py-2">{{ row.subject.name }}</td><td class="px-3 py-2">{{ row.attempt_score }}</td><td class="px-3 py-2">{{ row.result_objective }}</td><td class="px-3 py-2">{{ row.reason }}</td></tr>
+                {% empty %}
+                  <tr><td colspan="5" class="px-3 py-4 text-slate-500">No submitted CA1 CBT score mismatch found for this class.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </div>
+    {% endif %}
+  </section>
+{% endblock %}

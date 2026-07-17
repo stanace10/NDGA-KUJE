@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>NDGA Backup Summary</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 18mm 14mm;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      color: #0f172a;
+      font-size: 12px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 20px;
+      color: #0b1f51;
+    }
+    .subtitle {
+      margin-top: 4px;
+      font-size: 12px;
+      color: #334155;
+    }
+    .stamp {
+      margin-top: 8px;
+      font-size: 11px;
+      color: #475569;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 14px;
+    }
+    th, td {
+      border: 1px solid #cbd5e1;
+      padding: 8px 10px;
+      text-align: left;
+    }
+    th {
+      background: #f1f5f9;
+      color: #0b1f51;
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    td.value {
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <h1>{{ ndga_name }} Backup Summary</h1>
+  <p class="subtitle">Operational export for local backup verification and reporting.</p>
+  <p class="stamp">Generated: {{ generated_at|date:"Y-m-d H:i:s" }}</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Metric</th>
+        <th>Value</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in summary_rows %}
+        <tr>
+          <td>{{ row.metric }}</td>
+          <td class="value">{{ row.value }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>

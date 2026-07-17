@@ -1,0 +1,412 @@
+3rdTERMS MATHS SS1
+
+OBJECTIVES
+
+1. Without using tables, find the of sine 120°
+a. √3/4
+b. √3/4
+c. 1
+d. 1/2
+ANSWER: B
+
+2. Which of these is equivalent to tan 300°
+a. Tan60°
+b. -tan60°
+c. Sin60°
+d. -cos60°
+ANSWER: B
+
+Use the following in formation to answer question 3-8
+If cos θ = 12/13 and 0° ≤ x ≤ 90° evaluate:
+
+3. Sin θ
+a. 5/13
+b. 13/12
+c. 12/5
+d. 5/14
+ANSWER: A
+
+4. Tan θ
+a. ½
+b. 5/12
+c. 12/5
+d. 2
+ANSWER: B
+
+5. Sec2 θ
+a. 144/169
+b. 169/144
+c. 25/169
+d. 169/25
+ANSWER: D
+
+6. Cosec2 θ
+a. 144/169
+b. 169/144
+c. 25/169
+d. 169/25
+ANSWER: B
+
+7. Cot2 θ
+a. 144/25
+b. 25/144
+c. 5/12
+d. 12/5
+ANSWER: A
+
+8. 1 + Cot2 θ
+a. 169/25
+b. 25/169
+c. 169/144
+d. 144/169
+ANSWER: A
+
+9. Calculate the value of θ, if sin θ = cos(90 - θ)
+a. 45°
+b. 90°
+c. 20°
+d. 10°
+ANSWER: A
+
+10. If sin θ = cos 50
+a. 12°
+b. 20°
+c. 30°
+d. 40°
+ANSWER: C
+
+11.Solve sin 3 θ = Cos (90 - 2 θ)
+a. 12°
+b. 14°
+c. 16°
+d. 18°
+ANSWER: D
+
+12.Evaluate cos(θ + 20) = sin θ
+a. 35°
+b. 15°
+c. 25°
+d. 45°
+ANSWER: A
+
+13.If sin(x + 30) ° = cos 40° find x
+a. 10
+b. 20°
+c. 30°
+d. 40°
+ANSWER: B
+
+14.A sales girl gave a change of #95 .00 to the buyer instead of #100.00. calculate the percentage error.
+a. # 4.00
+b. # 5.00
+c. #2.00
+d. #10.00
+ANSWER: B
+
+15.The length of a book is 1.45m. A boy measured it as 1.90m, find the percentage error to one dp
+a. 31.03
+b. 23.68
+c. 23.7
+d. 31.0
+ANSWER: D
+
+16.Round off 0.045 to 2 dp
+a. 0.04
+b. 0.01
+c. 0.05
+d. 0.02
+ANSWER: C
+
+17.Round off 96495 to the nearest 100
+a. 96410
+b. 96500
+c. 96490
+d. 90000
+ANSWER: B
+
+18.Round off 18145.24 to 3sf
+a. 18200.00
+b. 18100.00
+c. 18100
+d. 18200
+ANSWER: C
+
+19.Round off 0.00456 to 2 sf
+a. 0.0045
+b. 45
+c. 0.0046
+d. 46
+ANSWER: C
+
+20. Solve the quadratic equation x2 + 11x + 18 = 0
+a. -1 or 2
+b. -2 or -9
+c. 9 or 2
+d. 1 or 2
+ANSWER:B
+
+21.Solve 20p2 - 320 = 0
+a. P = -4 0r 4
+b. P = -1 or 1
+c. P = 2 or 3
+d. P = 3 or 4
+ANSWER: A
+
+22.If cos (x + 25) ° = sin 45°, find x
+a. 10°
+b. 20°
+c. 30°
+d. 40°
+ANSWER: B
+
+23. Solve cos 2 θ = sin(θ + 10) °
+a. 26.67°
+b. 40°
+c. 21.67°
+d. 10°
+ANSWER: A
+
+24. Solve sin(3 θ + 30) = cos 4 θ
+a. 60°
+b. 12°
+c. 8.57°
+d. 2.57°
+ANSWER: C
+
+25.The following are special angles except
+a. 30°
+b. 60°
+c. 90°
+d. 25°
+ANSWER: D
+
+Use the following to answer question 21-24
+If tan x = 2 find:
+
+26. Sin x
+a. 5/13
+b. 12/13
+c. 2/5
+d. 3/5
+ANSWER: B
+
+27. Cos x
+a. 5/13
+b. 12/13
+c. 2/5
+d. 3/5
+ANSWER: A
+
+28. Sin x + Cos x
+a. 17/13
+b. 7/13
+c. 6/13
+d. 8/13
+ANSWER: A
+
+29. Cos x – Sin x
+a. 2/13
+b. 7/12
+c. 7/13
+d. 6/8
+ANSWER: B
+
+30. If 9 cos x° - 7 = 1 and 0° ≤ x ≤ 90° find x
+a. 27.27°
+b. 19°
+c. 15°
+d. 37.7°
+ANSWER: A
+
+31. Given that 5 cos(x + 8.5) ° - 1 = 0,0° ≤ x ≤ 90° calculate the value of x to the nearest degree.
+a. 69.96°
+b. 70°
+c. 80°
+d. 90°
+ANSWER: B
+
+32.If the mean of 4, 6, 9,y, 16 and 19 is 13. What is the value of y?
+a. 14
+b. 15
+c. 20
+d. 24
+ANSWER: D
+
+33.The marks obtained by a student in an examination are 27, 32, 33, 45, 59, 63, 75 and 90. Calculate the mean.
+a. 45
+b. 53
+c. 33
+d. 90
+ANSWER: B
+
+34.Find x if 21x = 710
+a. 2
+b. 3
+c. 5
+d. 11
+ANSWER: B
+
+35. If 23x = 325 find the value of x
+a. 7
+b. 6
+c. 5
+d. 4
+ANSWER: A
+
+36. Given that X = 1111012 find X
+a. 29
+b. 61
+c. 62
+d. 63
+ANSWER: B
+
+37. Find the value of x for which 32four = 22x.
+a. Three
+b. Five
+c. Six
+d. Seven
+ANSWER: C
+
+Use the diagram below to answer question 38 –40
+
+38. Find the value of b
+a. 35
+b. 60
+c. 50
+d. 75
+ANSWER: A
+
+39. Find the value of c
+a. 35
+b. 145
+c. 56
+d. 3
+ANSWER: B
+
+40. What is the value of a
+a. 45
+b. 103
+c. 7
+d. 28
+ANSWER: B
+
+41. Find the value of y in diagram drawn below
+a. 50
+b. 25
+c. 30
+d. 60
+ANSWER: B
+
+42. Calculate the value of y in the diagram below
+a. 10
+b. 14
+c. 16
+d. 18
+ANSWER: D
+
+Use the diagram below to answer question 43-44
+
+43. What is the value of y.
+a. 79
+b. 46
+c. 55
+d. 48
+ANSWER: A
+
+44. Calculate the value of x
+a. 55
+b. 76
+c. 46
+d. 38
+ANSWER: A
+
+45. Three of the angles of a quadrilateral are 95° each. Find the fourth angle
+a. 65
+b. 75
+c. 85
+d. 95
+ANSWER: B
+
+46. The sum of the interior angles of a regular polygon is 20 right angles. How many sides has the polygon.
+a. 10 sides
+b. 8 sides
+c. 12 sides
+d. 6 sides
+ANSWER: C
+
+47.If cos2 θ= sin19.35 find the value of θto the nearest degree
+a. 35
+b. 45
+c. 12
+d. 71
+ANSWER: A
+
+48. Find the value of x for which 32four = 22x.
+a. Three
+b. Five
+c. Six
+d. Seven
+ANSWER: C
+
+49. Evaluate [641/2 + 1251/3]2
+a. 121
+b. 144
+c. 169
+d. 196
+ANSWER: C
+
+50. If 203six = p. find p.
+a. 55
+b. 75
+c. 60
+d. 70
+ANSWER: B
+
+SECTION B
+
+ANSWER ONE AND FOUR OTHER
+
+1) Using a ruler and a pair of compasses only, construct:
+I. a triangle PQR such that /PQ/= 10cm, /QR/= 7cm and PQR = 90, (2marks)
+II. the locus l1 of points equidistant from Q and R (2marks)
+III. the locus l2 of points equidistant from P and Q (2marks)
+(b) locate the point o equidistant from P, Q and R (1marks)
+(c) with o as centre, draw the circumcircle of triangle PQR. (1mark)
+(d) measure the radius of the circumcircle. (2marks)
+
+2) Given that sinx = 5/13 and 0° ≤ x ≤ 90° evaluate Find cosx-2sinx/2tanx (10marks)
+
+3) The table below shows the distribution of test scores in a class
+
+scores       1  2  3  4  5  6  7  8  9  10
+No of pupils 1  1  5  3  k  6  2  2  3  4
+
+a. If the mean score of the class is 6, find the value of:
+i. K (5marks)
+ii. The median score (1mark)
+b. Draw a bar chart for the distribution (4marks)
+
+4) Copy and Complete the table of values for the relation y = x2 -2 x -1 for -2 ≤ x ≤ 4
+
+X  -2  -1  0  1  2  3  4
+Y
+
+a. Using scales of 2cm to 1 units on both axis (5marks)
+b. From the graph Find the minimum value of y (1marks)
+c. Use the graph to find the roots of the equation x2 -2x -1 = 0 (1marks)
+d. Using the axis draw graph of y = 2x -3 (2marks)
+e. From the graph determine the roots of the equation x2 – 2x -1 = 2x -3 (1marks)
+
+5) In the diagram below , PQRS and SRYZ are parallelograms. PQRS is a straight line. If \QY\ = 4cm and \RS\ = 5cm .
+
+Find:
+a. \PZ\ (4marks)
+b. Given that 23n = 11112 find the value of n (6marks)
+
+6) If A = {multiples of 2}, (2marks)
+B = {multiples of 3} (2marks) and C = {factors of 6}(2marks) are subsets of ε = {x: 1≤ x ≤ 10}. Find A1 nB1nc1. (4marks)
+
+7) Draw the graph of y = 2sinx + 3cosx for 0° ≤ θ ≤ 300° (7marks)
+i. Find the maximum value of y (1mark)
+ii. The root of the equation (1marks)
+iii. The value of x when 2sinx + 3cosx = 2.5 (1mark)

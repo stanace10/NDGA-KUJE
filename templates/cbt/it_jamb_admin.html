@@ -1,0 +1,307 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}JAMB CBT Manager{% endblock %}
+
+{% block content %}
+  <style>
+    .jamb-admin {
+      --navy: #082449;
+      --deep: #061a33;
+      --royal: #0b2f5b;
+      --gold: #d6a21e;
+      --soft-gold: #fff6dd;
+      --border: #d9e2ef;
+      color: #111827;
+    }
+    .jamb-admin-header { background: #082449; color: #fff; }
+    .jamb-admin-header h1,
+    .jamb-admin-header a { color: inherit; }
+    .jamb-admin-header p { color: #d9e2ef; }
+    .jamb-admin-header .jamb-kicker { color: #f3cf68; }
+    .jamb-panel { border: 1px solid var(--border); background: #fff; }
+    .jamb-btn-primary,
+    .jamb-btn-success,
+    .jamb-btn-danger,
+    .jamb-btn-gold,
+    .jamb-btn-quiet {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: .75rem;
+      padding: .65rem 1rem;
+      font-size: .82rem;
+      font-weight: 900;
+    }
+    .jamb-btn-primary { border: 1px solid #082449; background: #082449; color: #fff; }
+    .jamb-btn-success { border: 1px solid #15803d; background: #16a34a; color: #fff; }
+    .jamb-btn-danger { border: 1px solid #fecaca; background: #fff1f2; color: #b91c1c; }
+    .jamb-btn-gold { border: 1px solid #d6a21e; background: #d6a21e; color: #061a33; }
+    .jamb-btn-quiet { border: 1px solid rgba(255,255,255,.22); background: rgba(255,255,255,.08); color: #fff; }
+    .jamb-admin input,
+    .jamb-admin select { border-color: var(--border) !important; color: #111827; }
+    .jamb-metric { border: 1px solid var(--border); background: #fff; }
+    .jamb-metric strong { color: var(--navy); }
+    .jamb-status {
+      display: inline-flex;
+      align-items: center;
+      gap: .35rem;
+      border-radius: 999px;
+      padding: .28rem .6rem;
+      font-size: .7rem;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+    .jamb-status::before { width: .45rem; height: .45rem; border-radius: 50%; background: currentColor; content: ""; }
+    .jamb-status[data-status="Writing"] { background: #dcfce7; color: #15803d; }
+    .jamb-status[data-status="Submitted"],
+    .jamb-status[data-status="Finalized"] { background: #e0ecff; color: #082449; }
+    .jamb-status[data-status="Locked"] { background: #fee2e2; color: #b91c1c; }
+    .jamb-status[data-status="Not started"] { background: #f1f5f9; color: #64748b; }
+    .jamb-progress { height: .35rem; overflow: hidden; border-radius: 999px; background: #e2e8f0; }
+    .jamb-progress > span { display: block; height: 100%; border-radius: inherit; background: #16a34a; transition: width .25s ease; }
+    .jamb-candidate-table { min-width: 72rem; }
+    .jamb-candidate-table thead { position: sticky; top: 0; z-index: 3; }
+    .jamb-candidate-scroll { max-height: 34rem; overflow: auto; scrollbar-gutter: stable; }
+    .jamb-subject-editor[open] summary { color: var(--gold); }
+  </style>
+
+  <section class="jamb-admin mx-auto max-w-[96rem] space-y-5 px-4 py-6 sm:px-6">
+    <header class="jamb-admin-header overflow-hidden rounded-3xl shadow-sm">
+      <div class="flex flex-wrap items-center justify-between gap-4 px-6 py-5">
+        <div>
+          <p class="jamb-kicker text-xs font-black uppercase tracking-[0.2em]">NDGA Examination Control</p>
+          <h1 class="mt-1 text-3xl font-black">JAMB CBT Manager</h1>
+          <p class="mt-1 text-sm font-semibold text-slate-200">Live performance, candidate subjects, question setup, timing and result export.</p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <a href="{% url 'cbt:it-lockdown-dashboard' %}" class="jamb-btn-quiet">Live Exam Monitor</a>
+          <a href="?download=pdf" class="jamb-btn-gold">Download Results PDF</a>
+        </div>
+      </div>
+      <div class="h-1 bg-[#d6a21e]"></div>
+    </header>
+
+    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div class="jamb-metric rounded-2xl p-4"><p class="text-xs font-black uppercase tracking-wide text-slate-500">Candidates</p><strong id="metricCandidates" class="mt-1 block text-2xl">{{ jamb_exams|length }}</strong></div>
+      <div class="jamb-metric rounded-2xl p-4"><p class="text-xs font-black uppercase tracking-wide text-slate-500">Writing now</p><strong id="metricWriting" class="mt-1 block text-2xl">{{ in_progress_count }}</strong></div>
+      <div class="jamb-metric rounded-2xl p-4"><p class="text-xs font-black uppercase tracking-wide text-slate-500">Submitted</p><strong id="metricSubmitted" class="mt-1 block text-2xl">{{ submitted_count }}</strong></div>
+      <div class="jamb-metric rounded-2xl p-4"><p class="text-xs font-black uppercase tracking-wide text-slate-500">Not started</p><strong id="metricNotStarted" class="mt-1 block text-2xl">{{ not_started_count }}</strong></div>
+      <div class="jamb-metric rounded-2xl p-4"><p class="text-xs font-black uppercase tracking-wide text-slate-500">Flagged</p><strong id="metricLocked" class="mt-1 block text-2xl text-red-700">{{ locked_count }}</strong></div>
+    </div>
+
+    <div class="grid gap-5 xl:grid-cols-[1fr_1.35fr]">
+      <article class="jamb-panel rounded-3xl p-5 shadow-sm">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <p class="text-xs font-black uppercase tracking-[0.16em] text-amber-700">Configuration</p>
+            <h2 class="mt-1 text-xl font-black text-[#082449]">Exam Setup</h2>
+          </div>
+          <span class="rounded-full bg-[#fff6dd] px-3 py-1 text-xs font-black text-[#8a6100]">{{ bank_audit.total }} validated bank questions</span>
+        </div>
+
+        <form method="post" class="mt-5 grid gap-3 sm:grid-cols-3">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="configure">
+          <label class="text-xs font-black uppercase tracking-wide text-slate-600">Timer
+            <input type="number" name="duration_minutes" min="10" max="240" value="{{ default_duration_minutes }}" required class="mt-1 w-full rounded-xl border border-[#d9e2ef] px-3 py-2 text-sm font-bold text-slate-950">
+          </label>
+          <label class="text-xs font-black uppercase tracking-wide text-slate-600">English questions
+            <input type="number" name="english_count" min="10" max="60" value="{{ default_english_count }}" required class="mt-1 w-full rounded-xl border border-[#d9e2ef] px-3 py-2 text-sm font-bold text-slate-950">
+          </label>
+          <label class="text-xs font-black uppercase tracking-wide text-slate-600">Other subjects
+            <input type="number" name="other_count" min="10" max="40" value="{{ default_other_count }}" required class="mt-1 w-full rounded-xl border border-[#d9e2ef] px-3 py-2 text-sm font-bold text-slate-950">
+          </label>
+          <p class="text-xs font-semibold text-slate-500 sm:col-span-3">Question counts can change only after existing attempts have been downloaded and reset.</p>
+          <button type="submit" class="jamb-btn-primary sm:col-span-3">Apply CBT Setup</button>
+        </form>
+
+        <div class="my-5 h-px bg-slate-200"></div>
+
+        <form method="post" class="grid gap-3 sm:grid-cols-2">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="open">
+          <label class="text-xs font-black uppercase tracking-wide text-slate-600">Window opens
+            <input type="datetime-local" name="start_at" value="{{ default_start_value }}" required class="mt-1 w-full rounded-xl border border-[#d9e2ef] px-3 py-2 text-sm font-bold text-slate-950">
+          </label>
+          <label class="text-xs font-black uppercase tracking-wide text-slate-600">Window closes
+            <input type="datetime-local" name="end_at" value="{{ default_end_value }}" required class="mt-1 w-full rounded-xl border border-[#d9e2ef] px-3 py-2 text-sm font-bold text-slate-950">
+          </label>
+          <input type="hidden" name="duration_minutes" value="{{ default_duration_minutes }}">
+          <button type="submit" class="jamb-btn-success">Open all candidate CBTs</button>
+          <button type="submit" name="action" value="close" formnovalidate class="jamb-btn-danger">Close all CBTs</button>
+        </form>
+      </article>
+
+      <article class="jamb-panel rounded-3xl p-5 shadow-sm">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-xs font-black uppercase tracking-[0.16em] text-amber-700">Live analysis</p>
+            <h2 class="mt-1 text-xl font-black text-[#082449]">Top Performance</h2>
+          </div>
+          <span class="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-black text-emerald-800"><span class="h-2 w-2 animate-pulse rounded-full bg-emerald-600"></span>LIVE</span>
+        </div>
+        <div id="topPerformanceRows" class="mt-5 grid gap-3 sm:grid-cols-3">
+          {% for row in top_rows %}
+            <div class="rounded-2xl border border-[#ead18a] bg-[#fff6dd] p-4">
+              <p class="text-xs font-black uppercase text-[#8a6100]">Position {{ forloop.counter }}</p>
+              <p class="mt-2 truncate font-black text-[#111827]">{{ row.name }}</p>
+              <p class="truncate text-xs font-semibold text-slate-500">{{ row.admission_no }}</p>
+              <p class="mt-3 text-2xl font-black text-[#082449]">{{ row.total_score }}<span class="text-sm text-slate-500"> / 400</span></p>
+            </div>
+          {% empty %}
+            <div class="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm font-semibold text-slate-500 sm:col-span-3">Top performers appear after submissions.</div>
+          {% endfor %}
+        </div>
+        <div class="mt-5 rounded-2xl border border-[#d9e2ef] bg-slate-50 p-4">
+          <div class="grid grid-cols-3 gap-3 text-center">
+            <div><p class="text-[10px] font-black uppercase text-slate-500">Safe bank</p><p class="mt-1 text-xl font-black text-[#082449]">{{ bank_audit.total }}</p></div>
+            <div><p class="text-[10px] font-black uppercase text-slate-500">Bad options</p><p class="mt-1 text-xl font-black {% if bank_audit.bad_options %}text-red-700{% else %}text-emerald-700{% endif %}">{{ bank_audit.bad_options }}</p></div>
+            <div><p class="text-[10px] font-black uppercase text-slate-500">Missing keys</p><p class="mt-1 text-xl font-black {% if bank_audit.missing_answers %}text-red-700{% else %}text-emerald-700{% endif %}">{{ bank_audit.missing_answers }}</p></div>
+          </div>
+        </div>
+      </article>
+    </div>
+
+    <article class="jamb-panel overflow-hidden rounded-3xl shadow-sm">
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[#d9e2ef] px-5 py-4">
+        <div>
+          <h2 class="text-xl font-black text-[#082449]">Candidates and Live Results</h2>
+          <p class="mt-1 text-xs font-semibold text-slate-500">Scores and progress update automatically while candidates write.</p>
+        </div>
+        <input id="candidateSearch" type="search" placeholder="Search name or admission number" class="w-full rounded-xl border border-[#d9e2ef] px-3 py-2 text-sm font-semibold text-slate-950 sm:w-72">
+      </div>
+      <div class="jamb-candidate-scroll">
+        <table class="jamb-candidate-table w-full border-collapse text-sm">
+          <thead class="bg-[#061a33] text-left text-xs font-black uppercase tracking-wide text-white">
+            <tr><th class="px-4 py-3">Candidate</th><th class="px-4 py-3">Subjects</th><th class="px-4 py-3">Status</th><th class="px-4 py-3">Progress</th><th class="px-4 py-3">Live score</th><th class="px-4 py-3">Manage</th></tr>
+          </thead>
+          <tbody id="candidateRows" class="divide-y divide-slate-100">
+            {% for row in candidate_rows %}
+              <tr data-exam-id="{{ row.exam.id }}" data-candidate="{{ row.name|lower }} {{ row.admission_no|lower }}">
+                <td class="px-4 py-3"><p class="font-black text-slate-950">{{ row.name }}</p><p class="text-xs font-semibold text-slate-500">{{ row.admission_no }}</p></td>
+                <td class="max-w-xs px-4 py-3 text-xs font-semibold text-slate-700">{{ row.sections|join:", " }}</td>
+                <td class="px-4 py-3"><span class="jamb-status" data-live-status data-status="{% if row.locked %}Locked{% elif row.writing %}Writing{% else %}{{ row.status }}{% endif %}">{% if row.locked %}Locked{% elif row.writing %}Writing{% else %}{{ row.status }}{% endif %}</span></td>
+                <td class="px-4 py-3">
+                  <div class="flex items-center justify-between gap-3 text-xs font-black text-slate-600"><span data-live-answered>{{ row.answered_count }}/{{ row.question_count }}</span><span data-live-progress-text>{{ row.progress_percent }}%</span></div>
+                  <div class="jamb-progress mt-2"><span data-live-progress style="width:{{ row.progress_percent }}%"></span></div>
+                </td>
+                <td class="px-4 py-3 text-lg font-black text-[#082449]"><span data-live-score>{{ row.total_score }}</span> <span class="text-xs text-slate-500">/ 400</span></td>
+                <td class="px-4 py-3">
+                  <details class="jamb-subject-editor relative">
+                    <summary class="cursor-pointer text-xs font-black text-[#082449]">Edit subjects</summary>
+                    <form method="post" class="absolute right-0 z-10 mt-2 w-64 rounded-2xl border border-[#d9e2ef] bg-white p-3 shadow-xl">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="update_choices">
+                      <input type="hidden" name="exam_id" value="{{ row.exam.id }}">
+                      <p class="text-xs font-bold text-slate-600">Choose exactly three subjects. English is compulsory.</p>
+                      <select name="choices" multiple size="7" required class="mt-2 w-full rounded-xl border border-[#d9e2ef] p-2 text-xs font-semibold text-slate-950">
+                        {% for option in jamb_subject_options %}
+                          <option value="{{ option }}" {% if option in row.sections %}selected{% endif %}>{{ option }}</option>
+                        {% endfor %}
+                      </select>
+                      <button class="jamb-btn-primary mt-2 w-full !py-2 !text-xs" type="submit">Save subjects</button>
+                    </form>
+                  </details>
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="6" class="px-5 py-10 text-center font-semibold text-slate-500">No personalized SS2 JAMB exams exist.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+
+    <details class="rounded-2xl border border-red-200 bg-red-50 p-4">
+      <summary class="cursor-pointer text-sm font-black text-red-800">Maintenance actions</summary>
+      <form method="post" class="mt-3">
+        {% csrf_token %}
+        <button type="submit" name="action" value="reset_attempts" onclick="return confirm('Delete every current JAMB attempt after results have been downloaded?');" class="rounded-xl bg-red-700 px-4 py-2 text-sm font-black text-white">Reset all JAMB attempts</button>
+      </form>
+    </details>
+  </section>
+
+  <script>
+    (function () {
+      const search = document.getElementById("candidateSearch");
+      const feedUrl = "{% url 'cbt:it-jamb-admin' %}?format=json";
+      const metricMap = {
+        candidates: document.getElementById("metricCandidates"),
+        writing: document.getElementById("metricWriting"),
+        submitted: document.getElementById("metricSubmitted"),
+        locked: document.getElementById("metricLocked"),
+        not_started: document.getElementById("metricNotStarted")
+      };
+
+      function escapeHtml(value) {
+        const node = document.createElement("div");
+        node.textContent = String(value == null ? "" : value);
+        return node.innerHTML;
+      }
+
+      function applySearch() {
+        const needle = (search.value || "").trim().toLowerCase();
+        document.querySelectorAll("#candidateRows tr[data-candidate]").forEach(function (row) {
+          row.classList.toggle("hidden", !!needle && !row.dataset.candidate.includes(needle));
+        });
+      }
+
+      function renderTop(rows) {
+        const target = document.getElementById("topPerformanceRows");
+        if (!rows.length) {
+          target.innerHTML = '<div class="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm font-semibold text-slate-500 sm:col-span-3">Top performers appear after submissions.</div>';
+          return;
+        }
+        target.innerHTML = rows.map(function (row, index) {
+          return '<div class="rounded-2xl border border-[#ead18a] bg-[#fff6dd] p-4"><p class="text-xs font-black uppercase text-[#8a6100]">Position ' + (index + 1) + '</p><p class="mt-2 truncate font-black text-[#111827]">' + escapeHtml(row.name) + '</p><p class="truncate text-xs font-semibold text-slate-500">' + escapeHtml(row.admission_no) + '</p><p class="mt-3 text-2xl font-black text-[#082449]">' + escapeHtml(row.score) + '<span class="text-sm text-slate-500"> / 400</span></p></div>';
+        }).join("");
+      }
+
+      async function refreshLiveResults() {
+        try {
+          const response = await fetch(feedUrl, {
+            credentials: "same-origin",
+            headers: { "X-Requested-With": "XMLHttpRequest" }
+          });
+          const data = await response.json();
+          if (!response.ok || !data.ok) return;
+          Object.keys(metricMap).forEach(function (key) {
+            if (metricMap[key]) metricMap[key].textContent = data.summary[key] || 0;
+          });
+          renderTop(data.top || []);
+          (data.rows || []).forEach(function (item) {
+            const row = document.querySelector('#candidateRows tr[data-exam-id="' + item.exam_id + '"]');
+            if (!row) return;
+            const status = row.querySelector("[data-live-status]");
+            const answered = row.querySelector("[data-live-answered]");
+            const progressText = row.querySelector("[data-live-progress-text]");
+            const progress = row.querySelector("[data-live-progress]");
+            const score = row.querySelector("[data-live-score]");
+            if (status) {
+              status.textContent = item.status;
+              status.dataset.status = item.status;
+            }
+            if (answered) answered.textContent = item.answered + "/" + item.questions;
+            if (progressText) progressText.textContent = item.progress + "%";
+            if (progress) progress.style.width = item.progress + "%";
+            if (score) score.textContent = item.score;
+          });
+        } catch (_error) {
+          return null;
+        }
+      }
+
+      if (search) search.addEventListener("input", applySearch);
+      document.querySelectorAll("form select[name='choices']").forEach(function (select) {
+        select.form.addEventListener("submit", function (event) {
+          if (Array.from(select.selectedOptions).length !== 3) {
+            event.preventDefault();
+            window.alert("Select exactly three subjects in addition to English.");
+          }
+        });
+      });
+      window.setInterval(refreshLiveResults, 5000);
+      refreshLiveResults();
+    })();
+  </script>
+{% endblock %}

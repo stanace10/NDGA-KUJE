@@ -1,0 +1,132 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Student Profile{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-[75rem] px-4 py-6 sm:px-6 lg:px-8">
+    <section class="ndga-page-surface">
+      <div class="ndga-page-header">
+        <div class="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <div class="flex items-center gap-4">
+            {% if portal_profile_photo_url %}
+              <img src="{{ portal_profile_photo_url }}" alt="{{ user_display_name }}" class="h-20 w-20 rounded-full object-cover ring-4 ring-[#f2ebde] sm:h-24 sm:w-24">
+            {% else %}
+              <div class="grid h-20 w-20 place-items-center rounded-full bg-[#f4ede0] text-3xl font-bold text-ndga-navy ring-4 ring-[#f2ebde] sm:h-24 sm:w-24">
+                {{ user_display_name|slice:":1"|upper }}
+              </div>
+            {% endif %}
+            <div class="min-w-0">
+              <p class="ndga-eyebrow">Student Profile</p>
+              <h1 class="mt-2 text-[2.1rem] font-bold text-ndga-navy sm:text-[2.65rem]" style="font-family: var(--ndga-font-display);">{{ user_display_name }}</h1>
+              <div class="mt-3 flex flex-wrap gap-2 text-sm text-slate-600">
+                {% if user_identifier %}<span class="rounded-full border border-[rgba(11,31,58,0.08)] bg-[#fbf7ee] px-3 py-1.5 font-medium">{{ user_identifier }}</span>{% endif %}
+                {% if current_class_code %}<span class="rounded-full border border-[rgba(11,31,58,0.08)] bg-[#fbf7ee] px-3 py-1.5 font-medium">{{ current_class_code }}</span>{% endif %}
+                {% if current_session and current_term %}
+                  <span class="rounded-full border border-[rgba(11,31,58,0.08)] bg-[#fbf7ee] px-3 py-1.5 font-medium">{{ current_session.name }} | {{ current_term.get_name_display }}</span>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-3 lg:justify-end">
+            <span class="inline-flex rounded-full px-3 py-1.5 text-sm font-semibold {{ student_status_badge.tone }}">{{ student_status_badge.label }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="px-5 py-6 sm:px-6">
+        <div class="grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
+          <section class="space-y-5">
+            {% if profile_identity_rows %}
+              <section class="ndga-panel px-5 py-5 sm:px-6">
+                <div class="border-b border-[rgba(11,31,58,0.08)] pb-4">
+                  <p class="ndga-eyebrow">Identity</p>
+                  <h2 class="mt-2 text-[1.65rem] font-bold text-ndga-navy" style="font-family: var(--ndga-font-display);">Student Record</h2>
+                </div>
+                <div class="mt-4 grid gap-x-8 gap-y-1 sm:grid-cols-2 xl:grid-cols-3">
+                  {% for row in profile_identity_rows %}
+                    <div class="border-b border-[rgba(11,31,58,0.08)] py-3.5">
+                      <p class="ndga-label">{{ row.label }}</p>
+                      <p class="mt-2 text-[0.98rem] font-semibold text-slate-900 break-words">{{ row.value }}</p>
+                    </div>
+                  {% endfor %}
+                </div>
+              </section>
+            {% endif %}
+
+            {% if profile_academic_rows %}
+              <section class="ndga-panel px-5 py-5 sm:px-6">
+                <div class="border-b border-[rgba(11,31,58,0.08)] pb-4">
+                  <p class="ndga-eyebrow">Academic</p>
+                  <h2 class="mt-2 text-[1.65rem] font-bold text-ndga-navy" style="font-family: var(--ndga-font-display);">Class & Enrollment</h2>
+                </div>
+                <div class="mt-4 grid gap-x-8 gap-y-1 sm:grid-cols-2">
+                  {% for row in profile_academic_rows %}
+                    <div class="border-b border-[rgba(11,31,58,0.08)] py-3.5">
+                      <p class="ndga-label">{{ row.label }}</p>
+                      <p class="mt-2 text-[0.98rem] font-semibold text-slate-900 break-words">{{ row.value }}</p>
+                    </div>
+                  {% endfor %}
+                </div>
+              </section>
+            {% endif %}
+          </section>
+
+          <section class="space-y-5">
+            {% if profile_guardian_rows %}
+              <section class="ndga-panel px-5 py-5 sm:px-6">
+                <div class="border-b border-[rgba(11,31,58,0.08)] pb-4">
+                  <p class="ndga-eyebrow">Guardian</p>
+                  <h2 class="mt-2 text-[1.65rem] font-bold text-ndga-navy" style="font-family: var(--ndga-font-display);">Parent & Guardian Details</h2>
+                </div>
+                <div class="mt-4 space-y-0">
+                  {% for row in profile_guardian_rows %}
+                    <div class="border-b border-[rgba(11,31,58,0.08)] py-3.5 last:border-b-0 last:pb-0">
+                      <p class="ndga-label">{{ row.label }}</p>
+                      <p class="mt-2 text-[0.98rem] font-semibold text-slate-900 break-words">{{ row.value }}</p>
+                    </div>
+                  {% endfor %}
+                </div>
+              </section>
+            {% endif %}
+
+            {% if profile_contact_rows %}
+              <section class="ndga-panel px-5 py-5 sm:px-6">
+                <div class="border-b border-[rgba(11,31,58,0.08)] pb-4">
+                  <p class="ndga-eyebrow">Contact</p>
+                  <h2 class="mt-2 text-[1.65rem] font-bold text-ndga-navy" style="font-family: var(--ndga-font-display);">Student Contact Details</h2>
+                </div>
+                <div class="mt-4 space-y-0">
+                  {% for row in profile_contact_rows %}
+                    <div class="border-b border-[rgba(11,31,58,0.08)] py-3.5 last:border-b-0 last:pb-0">
+                      <p class="ndga-label">{{ row.label }}</p>
+                      <p class="mt-2 text-[0.98rem] font-semibold text-slate-900 break-words">{{ row.value }}</p>
+                    </div>
+                  {% endfor %}
+                </div>
+              </section>
+            {% endif %}
+
+            {% if profile_secondary_sections %}
+              <section class="ndga-panel px-5 py-5 sm:px-6">
+                <div class="border-b border-[rgba(11,31,58,0.08)] pb-4">
+                  <p class="ndga-eyebrow">Notes</p>
+                  <h2 class="mt-2 text-[1.65rem] font-bold text-ndga-navy" style="font-family: var(--ndga-font-display);">Additional Records</h2>
+                </div>
+
+                <div class="mt-4 space-y-3">
+                  {% for section in profile_secondary_sections %}
+                    <details class="rounded-2xl border border-[rgba(11,31,58,0.08)] bg-[#fbf8f1] px-4 py-4" {% if forloop.first %}open{% endif %}>
+                      <summary class="cursor-pointer list-none text-sm font-semibold text-slate-900">{{ section.title }}</summary>
+                      <p class="mt-3 text-sm leading-7 text-slate-600">{{ section.value }}</p>
+                    </details>
+                  {% endfor %}
+                </div>
+              </section>
+            {% endif %}
+          </section>
+        </div>
+      </div>
+    </section>
+  </section>
+{% endblock %}

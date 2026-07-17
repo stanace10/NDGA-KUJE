@@ -1,0 +1,279 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}CBT Monitoring System{% endblock %}
+
+{% block content %}
+  <style>
+    .monitor-shell {
+      --navy: #082449;
+      --deep: #061a33;
+      --gold: #d6a21e;
+      --line: #d9e2ef;
+      height: calc(100vh - 7.5rem);
+      min-height: 34rem;
+      overflow: hidden;
+    }
+    .monitor-table-wrap {
+      height: calc(100% - 8.9rem);
+      overflow: auto;
+      scrollbar-gutter: stable;
+    }
+    .monitor-row {
+      display: grid;
+      grid-template-columns: minmax(13rem, 1.5fr) minmax(7rem, .55fr) minmax(10rem, .8fr) minmax(8rem, .6fr) minmax(12rem, .8fr);
+      min-height: 3.75rem;
+      align-items: center;
+      border-bottom: 1px solid var(--line);
+    }
+    .monitor-row:last-child { border-bottom: 0; }
+    .monitor-head {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      min-height: 2.55rem;
+      background: var(--deep);
+      color: #fff;
+    }
+    .monitor-cell { min-width: 0; padding: .65rem .85rem; }
+    .monitor-state {
+      display: inline-flex;
+      align-items: center;
+      gap: .4rem;
+      border-radius: 999px;
+      padding: .32rem .65rem;
+      font-size: .72rem;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+    .monitor-state::before {
+      width: .48rem;
+      height: .48rem;
+      border-radius: 999px;
+      background: currentColor;
+      content: "";
+    }
+    .monitor-state[data-state="Active"] { background: #dcfce7; color: #15803d; }
+    .monitor-state[data-state="Warning"] { background: #fff6dd; color: #9a6700; }
+    .monitor-state[data-state="Flagged"],
+    .monitor-state[data-state="Appeal Pending"] { background: #fee2e2; color: #b91c1c; }
+    .mic-action,
+    .unflag-action {
+      display: inline-flex;
+      min-height: 2.25rem;
+      align-items: center;
+      justify-content: center;
+      gap: .4rem;
+      border-radius: .65rem;
+      padding: .42rem .75rem;
+      font-size: .75rem;
+      font-weight: 900;
+      transition: background .15s ease, border-color .15s ease, transform .15s ease;
+    }
+    .mic-action { border: 1px solid #fca5a5; background: #fff; color: #b91c1c; }
+    .mic-action:hover { background: #fff1f2; transform: translateY(-1px); }
+    .unflag-action { border: 1px solid #86efac; background: #f0fdf4; color: #166534; }
+    .unflag-action:hover { border-color: #22c55e; background: #dcfce7; }
+    .mic-action:disabled,
+    .unflag-action:disabled { cursor: wait; opacity: .55; transform: none; }
+    @media (max-width: 900px) {
+      .monitor-row { min-width: 60rem; }
+    }
+  </style>
+
+  <section class="monitor-shell mx-auto max-w-[96rem] px-4 py-4 sm:px-6">
+    <div class="flex h-full flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+      <header class="flex min-h-[6.35rem] flex-wrap items-center justify-between gap-4 border-b border-slate-200 px-5 py-4">
+        <div>
+          <p class="text-xs font-black uppercase tracking-[0.18em] text-amber-700">NDGA Examination Control</p>
+          <h1 class="mt-1 text-2xl font-black text-[#082449]">CBT Monitoring System</h1>
+          <p class="mt-1 text-sm font-semibold text-slate-600">
+            {% if selected_monitor_view == "history" %}
+              Unresolved flags retained after their examination windows closed.
+            {% else %}
+              Students appear only after Start CBT and disappear immediately after submission.
+            {% endif %}
+          </p>
+        </div>
+        <div class="flex flex-wrap items-center justify-end gap-2">
+          {% if monitor_class_options %}
+            <label class="sr-only" for="monitorClassFilter">Class</label>
+            <select id="monitorClassFilter" class="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-black text-[#082449]">
+              {% for academic_class in monitor_class_options %}
+                <option value="{{ academic_class.id }}" {% if selected_class_id == academic_class.id %}selected{% endif %}>{{ academic_class.code }}</option>
+              {% endfor %}
+            </select>
+          {% endif %}
+          <a href="{% url 'cbt:it-lockdown-dashboard' %}?view=active" class="rounded-xl px-3 py-2 text-xs font-black {% if selected_monitor_view == 'active' %}bg-[#082449] text-white{% else %}border border-slate-300 bg-white text-[#082449]{% endif %}">Live Writing</a>
+          <a href="{% url 'cbt:it-lockdown-dashboard' %}?view=history" class="rounded-xl px-3 py-2 text-xs font-black {% if selected_monitor_view == 'history' %}bg-[#082449] text-white{% else %}border border-slate-300 bg-white text-[#082449]{% endif %}">Flagged History</a>
+          <span class="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-800">
+            <span class="h-2 w-2 animate-pulse rounded-full bg-emerald-600"></span>
+            AUTO-UPDATING
+          </span>
+          <span id="monitorCount" class="rounded-xl bg-[#082449] px-4 py-2 text-sm font-black text-white">{{ monitor_rows|length }} {% if selected_monitor_view == "history" %}flagged{% else %}active{% endif %}</span>
+        </div>
+      </header>
+
+      <div id="monitorNotice" class="hidden border-b border-amber-200 bg-amber-50 px-5 py-2 text-sm font-bold text-amber-900"></div>
+
+      <div class="monitor-table-wrap">
+        <div class="monitor-row monitor-head text-[11px] font-black uppercase tracking-[0.12em]">
+          <div class="monitor-cell">Student</div>
+          <div class="monitor-cell">Class</div>
+          <div class="monitor-cell">Subject</div>
+          <div class="monitor-cell">Status</div>
+          <div class="monitor-cell">{% if selected_monitor_view == "history" %}Resolution{% else %}Microphone flag{% endif %}</div>
+        </div>
+        <div id="monitorRows">
+          {% for row in monitor_rows %}
+            <div class="monitor-row" data-attempt-id="{{ row.attempt_id }}">
+              <div class="monitor-cell">
+                <p class="truncate text-sm font-black text-slate-950">{{ row.student_name }}</p>
+                <p class="truncate text-xs font-semibold text-slate-500">{{ row.admission_no }}</p>
+              </div>
+              <div class="monitor-cell text-sm font-bold text-slate-700">{{ row.class_code }}</div>
+              <div class="monitor-cell truncate text-sm font-bold text-slate-700">{{ row.subject }}</div>
+              <div class="monitor-cell"><span class="monitor-state" data-state="{{ row.state }}">{{ row.state }}</span></div>
+              <div class="monitor-cell">
+                {% if row.flagged %}
+                  <button type="button" class="unflag-action" data-unflag data-action-url="{{ row.action_url }}">
+                    {% if row.window_ended %}Unflag &amp; Release Score{% else %}Unflag Student{% endif %}
+                  </button>
+                  {% if row.appeal_status == "PENDING" %}
+                    <p class="mt-1 truncate text-[10px] font-black text-amber-700" title="{{ row.appeal_message }}">APPEAL PENDING</p>
+                  {% endif %}
+                {% else %}
+                  <button type="button" class="mic-action" data-mic-strike data-action-url="{{ row.action_url }}">
+                    <span aria-hidden="true">&#127908;</span><span>Sound {{ row.warning_count }}/2</span>
+                  </button>
+                {% endif %}
+              </div>
+            </div>
+          {% empty %}
+            <div class="flex h-64 items-center justify-center px-5 text-center text-sm font-semibold text-slate-500">
+              {% if selected_monitor_view == "history" %}No unresolved flagged attempt is in history.{% else %}No student is currently writing an examination.{% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    (function () {
+      const rowsNode = document.getElementById("monitorRows");
+      const countNode = document.getElementById("monitorCount");
+      const noticeNode = document.getElementById("monitorNotice");
+      const monitorView = "{{ selected_monitor_view|escapejs }}";
+      const classFilter = document.getElementById("monitorClassFilter");
+      const selectedClassId = classFilter ? classFilter.value : "";
+      const feedUrl = "{% url 'cbt:it-lockdown-dashboard' %}?format=json&view=" + encodeURIComponent(monitorView) + "&class_id=" + encodeURIComponent(selectedClassId);
+      let refreshing = false;
+
+      function escapeHtml(value) {
+        const node = document.createElement("div");
+        node.textContent = String(value == null ? "" : value);
+        return node.innerHTML;
+      }
+      function csrfToken() {
+        const match = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+        return match ? decodeURIComponent(match[1]) : "";
+      }
+      function showNotice(message, danger) {
+        noticeNode.textContent = message || "";
+        noticeNode.classList.toggle("hidden", !message);
+        noticeNode.classList.toggle("border-rose-200", !!danger);
+        noticeNode.classList.toggle("bg-rose-50", !!danger);
+        noticeNode.classList.toggle("text-rose-900", !!danger);
+        if (message) window.setTimeout(function () { noticeNode.classList.add("hidden"); }, 4200);
+      }
+      function actionMarkup(row) {
+        if (row.flagged) {
+          return '<button type="button" class="unflag-action" data-unflag data-action-url="' + escapeHtml(row.action_url) + '">' +
+            (row.window_ended ? "Unflag &amp; Release Score" : "Unflag Student") +
+            '</button>' +
+            (row.appeal_status === "PENDING"
+              ? '<p class="mt-1 truncate text-[10px] font-black text-amber-700" title="' + escapeHtml(row.appeal_message || "") + '">APPEAL PENDING</p>'
+              : '');
+        }
+        return '<button type="button" class="mic-action" data-mic-strike data-action-url="' + escapeHtml(row.action_url) + '"><span aria-hidden="true">&#127908;</span><span>Sound ' + row.warning_count + '/2</span></button>';
+      }
+      function renderRows(rows) {
+        countNode.textContent = rows.length + (monitorView === "history" ? " flagged" : " active");
+        if (!rows.length) {
+          rowsNode.innerHTML = '<div class="flex h-64 items-center justify-center px-5 text-center text-sm font-semibold text-slate-500">' +
+            (monitorView === "history" ? "No unresolved flagged attempt is in history." : "No student is currently writing an examination.") +
+            '</div>';
+          return;
+        }
+        rowsNode.innerHTML = rows.map(function (row) {
+          return '<div class="monitor-row" data-attempt-id="' + row.attempt_id + '">' +
+            '<div class="monitor-cell"><p class="truncate text-sm font-black text-slate-950">' + escapeHtml(row.student_name) + '</p><p class="truncate text-xs font-semibold text-slate-500">' + escapeHtml(row.admission_no) + '</p></div>' +
+            '<div class="monitor-cell text-sm font-bold text-slate-700">' + escapeHtml(row.class_code) + '</div>' +
+            '<div class="monitor-cell truncate text-sm font-bold text-slate-700">' + escapeHtml(row.subject) + '</div>' +
+            '<div class="monitor-cell"><span class="monitor-state" data-state="' + escapeHtml(row.state) + '">' + escapeHtml(row.state) + '</span></div>' +
+            '<div class="monitor-cell">' + actionMarkup(row) + '</div>' +
+            '</div>';
+        }).join("");
+      }
+      async function refreshRows() {
+        if (refreshing) return;
+        refreshing = true;
+        try {
+          const response = await fetch(feedUrl, {
+            credentials: "same-origin",
+            cache: "no-store",
+            headers: { "X-Requested-With": "XMLHttpRequest" }
+          });
+          const data = await response.json();
+          if (response.ok && data.ok) renderRows(data.rows || []);
+        } catch (_error) {
+          showNotice("Live refresh paused. Reconnecting automatically...", true);
+        } finally {
+          refreshing = false;
+        }
+      }
+
+      rowsNode.addEventListener("click", async function (event) {
+        const button = event.target.closest("[data-mic-strike], [data-unflag]");
+        if (!button || button.disabled) return;
+        const isUnflag = button.hasAttribute("data-unflag");
+        const label = button.querySelector("span:last-child") || button;
+        const original = label.textContent;
+        button.disabled = true;
+        label.textContent = isUnflag ? "Resolving..." : "Sending...";
+        try {
+          const response = await fetch(button.dataset.actionUrl, {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
+              "X-CSRFToken": csrfToken(),
+              "X-Requested-With": "XMLHttpRequest"
+            },
+            body: new URLSearchParams({ action: isUnflag ? "unflag" : "mic_strike" }).toString()
+          });
+          const data = await response.json();
+          if (!response.ok || !data.ok) throw new Error(data.error || "Monitoring action failed.");
+          showNotice(data.message, false);
+          await refreshRows();
+        } catch (error) {
+          label.textContent = original;
+          button.disabled = false;
+          showNotice(error.message || "Monitoring action failed.", true);
+        }
+      });
+
+      window.setInterval(refreshRows, monitorView === "history" ? 8000 : 2500);
+      if (classFilter) {
+        classFilter.addEventListener("change", function () {
+          const target = new URL(window.location.href);
+          target.searchParams.set("view", monitorView);
+          target.searchParams.set("class_id", classFilter.value);
+          target.searchParams.delete("format");
+          window.location.href = target.toString();
+        });
+      }
+      refreshRows();
+    })();
+  </script>
+{% endblock %}

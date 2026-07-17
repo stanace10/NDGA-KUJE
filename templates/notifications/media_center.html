@@ -1,0 +1,249 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Messaging Center{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+    <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Messaging Center</p>
+          <h1 class="mt-2 text-2xl font-bold text-slate-900">Portal, Email, and WhatsApp Messaging</h1>
+          <p class="mt-1 max-w-3xl text-sm text-slate-600">
+            Send messages to one student, selected students, one staff member, many staff, one class, all students, all staff, or everyone.
+            Student delivery can reach the student portal, guardian email, and guardian WhatsApp depending on the channels you choose.
+          </p>
+        </div>
+        <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+          Inbox unread: <span class="font-semibold">{{ media_unread_count }}</span>
+        </div>
+      </div>
+      <div class="mt-4 rounded-2xl {% if reply_feature_enabled %}border border-emerald-200 bg-emerald-50 text-emerald-800{% else %}border border-amber-200 bg-amber-50 text-amber-800{% endif %} px-4 py-3 text-sm">
+        {% if reply_feature_enabled %}
+          Parent email replies are enabled. New outgoing emails from this page will route replies back into NDGA.
+        {% else %}
+          Reply inbox is prepared, but live capture stays off until the reply domain and Brevo inbound webhook are switched on.
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="mt-4 grid gap-4 xl:grid-cols-[1.08fr_0.92fr]">
+      <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
+               x-data="{ audience: '{{ media_form.audience.value|default:'CLASS_STUDENTS' }}' }">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <h2 class="text-lg font-semibold text-slate-900">Compose Message</h2>
+            <p class="mt-1 text-sm text-slate-600">Choose who should receive it and how you want it delivered.</p>
+          </div>
+        </div>
+
+        <form method="post" class="mt-5 space-y-5">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="send_broadcast">
+
+          {% if media_form.non_field_errors %}
+            <div class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+              {{ media_form.non_field_errors|striptags }}
+            </div>
+          {% endif %}
+
+          <div class="grid gap-4 md:grid-cols-2">
+            <div>
+              <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ media_form.audience.id_for_label }}">
+                Recipient Scope
+              </label>
+              <div @change="audience = $event.target.value">{{ media_form.audience }}</div>
+            </div>
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+              Use the list below with full names plus admission numbers or staff IDs, so you can find people by either one.
+            </div>
+          </div>
+
+          <div x-show="audience === 'CLASS_STUDENTS'" x-transition class="space-y-2">
+            <label class="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ media_form.academic_class.id_for_label }}">
+              {{ media_form.academic_class.label }}
+            </label>
+            {{ media_form.academic_class }}
+            {% if media_form.academic_class.errors %}<p class="text-xs text-rose-700">{{ media_form.academic_class.errors|striptags }}</p>{% endif %}
+          </div>
+
+          <div x-show="audience === 'SELECTED_STUDENTS'" x-transition class="space-y-2">
+            <label class="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ media_form.student_recipients.id_for_label }}">
+              {{ media_form.student_recipients.label }}
+            </label>
+            <p class="text-xs text-slate-500">Select by student name or admission number.</p>
+            {{ media_form.student_recipients }}
+            {% if media_form.student_recipients.errors %}<p class="text-xs text-rose-700">{{ media_form.student_recipients.errors|striptags }}</p>{% endif %}
+          </div>
+
+          <div x-show="audience === 'SELECTED_STAFF'" x-transition class="space-y-2">
+            <label class="block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ media_form.staff_recipients.id_for_label }}">
+              {{ media_form.staff_recipients.label }}
+            </label>
+            <p class="text-xs text-slate-500">Select by staff name or staff ID.</p>
+            {{ media_form.staff_recipients }}
+            {% if media_form.staff_recipients.errors %}<p class="text-xs text-rose-700">{{ media_form.staff_recipients.errors|striptags }}</p>{% endif %}
+          </div>
+
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Delivery Channels</p>
+            <div class="mt-3 grid gap-3 md:grid-cols-3">
+              <label class="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+                {{ media_form.send_portal }}
+                <span>
+                  <span class="block font-semibold text-slate-900">Portal Inbox</span>
+                  <span class="block text-xs text-slate-500">Show message inside the student or staff portal.</span>
+                </span>
+              </label>
+              <label class="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+                {{ media_form.send_email }}
+                <span>
+                  <span class="block font-semibold text-slate-900">Email</span>
+                  <span class="block text-xs text-slate-500">Use parent email for students and direct email for staff.</span>
+                </span>
+              </label>
+              <label class="flex items-start gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700">
+                {{ media_form.send_whatsapp }}
+                <span>
+                  <span class="block font-semibold text-slate-900">WhatsApp</span>
+                  <span class="block text-xs text-slate-500">Use guardian phone for students and staff phone for staff.</span>
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ media_form.subject.id_for_label }}">
+              {{ media_form.subject.label }}
+            </label>
+            {{ media_form.subject }}
+            {% if media_form.subject.errors %}<p class="mt-1 text-xs text-rose-700">{{ media_form.subject.errors|striptags }}</p>{% endif %}
+          </div>
+
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ media_form.message.id_for_label }}">
+              {{ media_form.message.label }}
+            </label>
+            {{ media_form.message }}
+            {% if media_form.message.errors %}<p class="mt-1 text-xs text-rose-700">{{ media_form.message.errors|striptags }}</p>{% endif %}
+          </div>
+
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <p class="text-xs text-slate-500">
+              Messages sent through portal delivery appear in the recipient’s inbox. Email and WhatsApp follow the channels you tick above.
+            </p>
+            <button type="submit" class="ndga-btn ndga-btn-primary">Send Message</button>
+          </div>
+        </form>
+      </article>
+
+      <div class="space-y-4">
+        <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <h2 class="text-lg font-semibold text-slate-900">Email Reply Inbox</h2>
+              <p class="mt-1 text-sm text-slate-600">Parent and staff email replies routed back into NDGA.</p>
+            </div>
+          </div>
+          <div class="mt-4 max-h-[18rem] space-y-3 overflow-auto pr-1">
+            {% for thread in reply_threads %}
+              <a href="{% url 'notifications:reply-thread-detail' thread.id %}" class="block rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 transition hover:border-ndga-navy/30 hover:bg-white">
+                <div class="flex items-center justify-between gap-2">
+                  <div>
+                    <p class="text-sm font-semibold text-slate-900">{{ thread.recipient_label|default:thread.recipient_email }}</p>
+                    <p class="mt-1 text-xs text-slate-500">{{ thread.recipient_email }}</p>
+                  </div>
+                  <p class="text-xs text-slate-500">{{ thread.last_message_at|date:"d M Y H:i" }}</p>
+                </div>
+                <p class="mt-2 text-sm text-slate-700">{{ thread.subject }}</p>
+                <div class="mt-3 flex flex-wrap gap-2 text-xs">
+                  <span class="rounded-full bg-blue-100 px-2.5 py-1 font-semibold text-blue-700">
+                    {{ thread.messages.count }} message{{ thread.messages.count|pluralize }}
+                  </span>
+                  {% if thread.last_inbound_at %}
+                    <span class="rounded-full bg-emerald-100 px-2.5 py-1 font-semibold text-emerald-700">
+                      Parent replied
+                    </span>
+                  {% else %}
+                    <span class="rounded-full bg-slate-200 px-2.5 py-1 font-semibold text-slate-700">
+                      Awaiting reply
+                    </span>
+                  {% endif %}
+                </div>
+              </a>
+            {% empty %}
+              <p class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">
+                No reply threads yet.
+              </p>
+            {% endfor %}
+          </div>
+        </article>
+
+        <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <h2 class="text-lg font-semibold text-slate-900">Inbox</h2>
+              <p class="mt-1 text-sm text-slate-600">Messages received in your own portal account.</p>
+            </div>
+            <a href="{% url 'notifications:center' %}" class="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-ndga-navy/40">
+              Open Full Inbox
+            </a>
+          </div>
+          <div class="mt-4 max-h-[18rem] space-y-3 overflow-auto pr-1">
+            {% for row in inbox_rows %}
+              <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-sm font-semibold text-slate-900">{{ row.title }}</p>
+                  <p class="text-xs text-slate-500">{{ row.created_at|date:"d M Y H:i" }}</p>
+                </div>
+                <p class="mt-2 text-sm text-slate-700">{{ row.message|truncatechars:180 }}</p>
+              </div>
+            {% empty %}
+              <p class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">
+                No inbox messages yet.
+              </p>
+            {% endfor %}
+          </div>
+        </article>
+
+        <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <h2 class="text-lg font-semibold text-slate-900">Outbox</h2>
+              <p class="mt-1 text-sm text-slate-600">Message batches you have already sent.</p>
+            </div>
+          </div>
+          <div class="mt-4 max-h-[28rem] space-y-3 overflow-auto pr-1">
+            {% for batch in sent_batches %}
+              <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p class="text-sm font-semibold text-slate-900">{{ batch.title }}</p>
+                    <p class="mt-1 text-xs uppercase tracking-[0.14em] text-slate-500">{{ batch.audience|default:"Broadcast" }}</p>
+                  </div>
+                  <p class="text-xs text-slate-500">{{ batch.created_at|date:"d M Y H:i" }}</p>
+                </div>
+                <p class="mt-2 text-sm text-slate-700">{{ batch.message|truncatechars:180 }}</p>
+                <div class="mt-3 flex flex-wrap gap-2 text-xs">
+                  {% if batch.delivery_portal %}<span class="rounded-full bg-slate-200 px-2.5 py-1 font-semibold text-slate-700">Portal</span>{% endif %}
+                  {% if batch.delivery_email %}<span class="rounded-full bg-blue-100 px-2.5 py-1 font-semibold text-blue-700">Email</span>{% endif %}
+                  {% if batch.delivery_whatsapp %}<span class="rounded-full bg-emerald-100 px-2.5 py-1 font-semibold text-emerald-700">WhatsApp</span>{% endif %}
+                  <span class="rounded-full bg-amber-100 px-2.5 py-1 font-semibold text-amber-700">{{ batch.recipient_count }} recipient{{ batch.recipient_count|pluralize }}</span>
+                </div>
+                {% if batch.sample_recipients %}
+                  <div class="mt-3 text-xs text-slate-500">
+                    Sample recipients: {{ batch.sample_recipients|join:", " }}
+                  </div>
+                {% endif %}
+              </div>
+            {% empty %}
+              <p class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">
+                No sent messages yet.
+              </p>
+            {% endfor %}
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+{% endblock %}

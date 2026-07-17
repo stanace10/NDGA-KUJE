@@ -1,0 +1,466 @@
+{% extends "website/base_public.html" %}
+{% load static %}
+
+{% block extra_head %}
+  <link rel="preload" as="image" href="{% static public_images.hero %}" fetchpriority="high">
+  <link rel="preload" as="image" href="{% static public_images.services_languages %}">
+  <link rel="preload" as="image" href="{% static public_images.services_sat %}">
+  <link rel="preload" as="image" href="{% static public_images.services_shuttle %}">
+{% endblock %}
+
+{% block content %}
+<section class="public-hero public-hero-video">
+  <video
+    class="public-hero-video-media"
+    autoplay
+    muted
+    loop
+    playsinline
+    preload="none"
+    poster="{% static public_images.hero %}"
+    data-deferred-video
+  >
+    <source data-src="{% static public_images.hero_video %}" type="video/mp4">
+  </video>
+  <div class="public-hero-overlay"></div>
+  <div class="public-container public-hero-content" data-reveal>
+    <p class="public-hero-school-line">Welcome to Notre Dame Girls' Academy, Kuje Abuja</p>
+    <h1>{{ public_site_settings.hero_title }}</h1>
+    <p class="public-hero-subline">{{ public_site_settings.hero_subtitle }}</p>
+    <div class="public-marketing-badges public-marketing-badges-hero">
+      <span>Academic excellence with structure</span>
+      <span>Faith-led character formation</span>
+      <span>Safe girls' boarding environment</span>
+    </div>
+    <div class="public-hero-actions">
+      <a href="/admissions/registration/" class="public-cta magnetic">Start Your Daughter's Admission</a>
+      <a href="/contact/" class="public-secondary-cta magnetic">Speak With Admissions</a>
+    </div>
+    <div class="public-hero-proof">
+      <article>
+        <strong>Why Parents Choose NDGA</strong>
+        <span>Academic excellence, disciplined boarding, and a safe learning culture.</span>
+      </article>
+      <article>
+        <strong>Faith and Character</strong>
+        <span>Catholic formation that builds discipline, respect, and responsible living.</span>
+      </article>
+      <article>
+        <strong>Clear Admissions Path</strong>
+        <span>Families can move from enquiry to registration and school follow-up without confusion.</span>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="public-section public-section-overlap">
+  <div class="public-container" data-reveal>
+    <div class="public-quickfacts-grid">
+      <article class="public-quickfact-card">
+        <strong>A Catholic girls' boarding school families can trust</strong>
+        <p>A calm learning community rooted in discipline, faith, pastoral care, and the dignity of the girl child.</p>
+      </article>
+      <article class="public-quickfact-card">
+        <strong>Junior and Senior Secondary preparation</strong>
+        <p>Clear academic progression from foundational learning to WAEC and NECO preparation.</p>
+      </article>
+      <article class="public-quickfact-card">
+        <strong>Structured admissions with limited places</strong>
+        <p>Families get clear registration, screening, and boarding guidance for the 2026 intake.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="public-section public-section-soft">
+  <div class="public-container" data-reveal>
+    <div class="public-section-heading">
+      <span class="public-eyebrow">Life In Motion</span>
+      <h2>Moments that give the school a stronger visual identity</h2>
+      <p>Study, campus life, achievement, and formation come together here in one more expressive view of the NDGA experience.</p>
+    </div>
+    <div class="public-orbit-showcase">
+      <div class="public-orbit-copy">
+        <article>
+          <strong>Quiet Study Culture</strong>
+          <p>Spaces that support focus, prep, discipline, and healthy routine.</p>
+        </article>
+        <article>
+          <strong>Visible School Growth</strong>
+          <p>A campus environment that signals structure, ambition, and ongoing development.</p>
+        </article>
+        <article>
+          <strong>Student Achievement</strong>
+          <p>Celebrating girls who are learning, competing, growing, and standing out.</p>
+        </article>
+      </div>
+      <div class="public-orbit-stage" aria-hidden="true">
+        <div class="public-orbit-ring public-orbit-ring-lg"></div>
+        <div class="public-orbit-ring public-orbit-ring-sm"></div>
+        <figure class="public-orbit-photo public-orbit-photo-left">
+          <img src="{% static public_images.hostel %}" alt="Student in focused reading time" loading="lazy" decoding="async">
+        </figure>
+        <figure class="public-orbit-photo public-orbit-photo-center">
+          <img src="{% static public_images.campus_round_view %}" alt="NDGA campus building" loading="lazy" decoding="async">
+        </figure>
+        <figure class="public-orbit-photo public-orbit-photo-right">
+          <img src="{% static public_images.pioneers_alt %}" alt="Students receiving awards" loading="lazy" decoding="async">
+        </figure>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="public-section">
+  <div class="public-container" data-reveal>
+    <div class="public-section-heading">
+      <span class="public-eyebrow">Services</span>
+      <h2>Support for families, travel, language, and study-abroad goals</h2>
+      <p>NDGA supports families with services that make admissions, boarding, international transition, and future preparation clearer.</p>
+    </div>
+    <div class="public-card-grid public-card-grid-three">
+      <article class="public-media-card public-academic-preview-card">
+        <div class="public-academic-orb public-academic-orb-lg">
+          <img src="{% static public_images.services_languages %}" alt="Language and study support at NDGA" loading="eager" decoding="async">
+        </div>
+        <div>
+          <h3>Foreign Languages</h3>
+          <p>French remains active, with enrichment pathways for Chinese and German as family demand grows.</p>
+          <a href="/services/">View services</a>
+        </div>
+      </article>
+      <article class="public-media-card public-academic-preview-card">
+        <div class="public-academic-orb public-academic-orb-lg">
+          <img src="{% static public_images.services_sat %}" alt="International exam support" loading="eager" decoding="async">
+        </div>
+        <div>
+          <h3>SAT / IELTS Support</h3>
+          <p>Guidance is available for students preparing for international study and exam-readiness pathways.</p>
+          <a href="/services/">Explore support</a>
+        </div>
+      </article>
+      <article class="public-media-card public-academic-preview-card">
+        <div class="public-academic-orb public-academic-orb-lg">
+          <img src="{% static public_images.services_shuttle %}" alt="Airport shuttle support" loading="eager" decoding="async">
+        </div>
+        <div>
+          <h3>Airport Shuttle</h3>
+          <p>Families can arrange supervised airport pickup for students travelling into Abuja for school.</p>
+          <a href="/services/">Plan ahead</a>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="public-section">
+  <div class="public-container public-split" data-reveal>
+    <div class="public-image-frame public-image-frame-home-about">
+      <img src="{% static public_images.about_student %}" alt="Notre Dame Girls' Academy student learning in class" loading="lazy" decoding="async">
+    </div>
+    <div class="public-copy">
+      <span class="public-eyebrow">{{ home_about.eyebrow }}</span>
+      <h2>An education shaped by faith, discipline, purpose, and the dignity of the girl child</h2>
+      <p>Notre Dame Girls' Academy is owned and managed by the Sisters of Notre Dame de Namur and belongs to a wider educational tradition inspired by St. Julie Billiart, who urged educators to teach children whatever they need for life.</p>
+      <p>At NDGA, that vision appears through Catholic Gospel values, purposeful learning, pastoral care, boarding structure, and the all-round formation of every girl in our care.</p>
+      <a href="/about/" class="public-text-link">Learn more about NDGA</a>
+    </div>
+  </div>
+</section>
+
+<section class="public-section public-section-soft">
+  <div class="public-container public-split public-split-reverse" data-reveal>
+    <div class="public-copy">
+      <span class="public-eyebrow">{{ home_principal.eyebrow }}</span>
+      <h2>{{ public_site_settings.principal_welcome_title }}</h2>
+      <p>{{ public_site_settings.principal_welcome_message }}</p>
+      <p>{{ public_site_settings.principal_welcome_support }}</p>
+      <div class="public-quote-signoff">
+        <strong>{{ public_principal_name }}</strong>
+        <span>Principal, Notre Dame Girls' Academy</span>
+      </div>
+      <a href="/principal/" class="public-text-link">Read full welcome</a>
+    </div>
+    <div class="public-image-portrait">
+      <img src="{% static public_images.principal %}" alt="Principal portrait" loading="eager" fetchpriority="high" decoding="async">
+    </div>
+  </div>
+</section>
+
+<section class="public-section">
+  <div class="public-container" data-reveal>
+    <div class="public-section-heading">
+      <span class="public-eyebrow">Notre Dame Hallmarks</span>
+      <h2>The character of the NDGA community</h2>
+    </div>
+    <div class="public-feature-grid">
+      {% for item in home_hallmarks %}
+        <article>
+          <h3>{{ item.title }}</h3>
+          <p>{{ item.text }}</p>
+        </article>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="public-section public-section-soft">
+  <div class="public-container" data-reveal>
+    <div class="public-section-heading">
+      <span class="public-eyebrow">Why Families Choose NDGA</span>
+      <h2>Care, dignity, and a school culture families can trust</h2>
+      <p>Families choose NDGA not only for academics, but for the kind of environment in which girls are protected, known, guided, and helped to grow with confidence.</p>
+    </div>
+    <div class="public-assurance-grid">
+      <article class="public-assurance-card public-assurance-card-feature">
+        <span class="public-assurance-kicker">Child Safeguarding</span>
+        <h3>Every child is recognised as a gift from God.</h3>
+        <p>Child safeguarding remains part of the school's duty of care. NDGA works with parents and guardians to protect student welfare, dignity, and safety in school life, boarding life, and the wider learning environment.</p>
+      </article>
+      <article class="public-assurance-card">
+        <h3>Parent Partnership</h3>
+        <p>Parents and guardians are treated as partners in formation, discipline, communication, and student wellbeing.</p>
+      </article>
+      <article class="public-assurance-card">
+        <h3>Safe Daily Structure</h3>
+        <p>Boarding routine, supervised study, pastoral presence, and ordered school life create a dependable environment for growth.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="public-section">
+  <div class="public-container" data-reveal>
+    <div class="public-section-heading">
+      <span class="public-eyebrow">NDGA Voices</span>
+      <h2>Short reflections from students across the school</h2>
+      <p>A clearer sense of student experience helps the public site feel more grounded, believable, and human.</p>
+    </div>
+    <div class="public-testimonial-grid">
+      {% for item in home_testimonials|slice:":3" %}
+        <article class="public-testimonial-card">
+          <div class="public-testimonial-mark">&ldquo;</div>
+          <p>{{ item.quote }}</p>
+          <div class="public-testimonial-meta">
+            <strong>{{ item.name }}</strong>
+            {% if item.role %}<span>{{ item.role }}</span>{% endif %}
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="public-section public-section-navy">
+  <div class="public-container" data-reveal>
+    <div class="public-section-heading public-section-heading-light">
+      <span class="public-eyebrow">Academics</span>
+      <h2>Academic levels, subjects, and strong preparation</h2>
+    </div>
+    <div class="public-card-grid public-card-grid-three">
+      {% for card in home_academic_highlights %}
+        <article class="public-media-card public-media-card-light public-academic-preview-card">
+          <div class="public-academic-orb" data-rotating-gallery>
+            {% for image in card.images %}
+              <img src="{% static image %}" alt="{{ card.title }}" class="{% if forloop.first %}is-active{% endif %}" loading="lazy" decoding="async">
+            {% endfor %}
+          </div>
+          <div>
+            <h3>{{ card.title }}</h3>
+            <p>{{ card.text }}</p>
+            <a href="{{ card.href }}">Learn more</a>
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+    <div class="public-subject-band">
+      <span>Subjects include English Language, Mathematics, Basic and advanced Sciences, Digital Technologies, Literature, Government, Economics, Financial Accounting, Foods and Nutrition, Garment Making, Technical Drawing, Agriculture, French, and more.</span>
+      <a href="/academics/subjects-departments/" class="public-text-link public-text-link-light">View all subjects</a>
+    </div>
+  </div>
+</section>
+
+<section class="public-section">
+  <div class="public-container public-admissions-band" data-reveal>
+    <div class="public-copy">
+      <span class="public-eyebrow">Admissions</span>
+      <h2>A clear path from enquiry to enrolment</h2>
+      <p>Families can review screening subjects, boarding expectations, documents, and next steps without searching through the entire site. Limited places are available for the 2026 intake.</p>
+      <div class="public-button-row">
+        <a href="/admissions/registration/" class="public-cta magnetic">Apply for 2026 Session</a>
+        <a href="/admissions/how-to-apply/" class="public-secondary-cta magnetic">How to Apply</a>
+        <a href="/admissions/admission-faqs/" class="public-secondary-cta magnetic">Admission FAQs</a>
+      </div>
+    </div>
+    <div class="public-timeline-card">
+      {% for step in home_admissions.sections.0.timeline %}
+        <div class="public-timeline-step">
+          <strong>0{{ forloop.counter }}</strong>
+          <div>
+            <h3>{{ step.title }}</h3>
+            <p>{{ step.text }}</p>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="public-section public-section-soft">
+  <div class="public-container public-two-column-band" data-reveal>
+    <div>
+      <div class="public-section-heading">
+        <span class="public-eyebrow">Boarding & Care</span>
+        <h2>Boarding structure, student welfare, and daily routine</h2>
+      </div>
+      <div class="public-card-grid public-card-grid-three">
+        {% for card in home_support_highlights %}
+          <article class="public-media-card public-academic-preview-card">
+            <div class="public-academic-orb public-academic-orb-lg" data-rotating-gallery>
+              {% for image in card.images %}
+                <img src="{% static image %}" alt="{{ card.title }}" class="{% if forloop.first %}is-active{% endif %}" loading="lazy" decoding="async">
+              {% endfor %}
+            </div>
+            <div>
+              <h3>{{ card.title }}</h3>
+              <p>{{ card.text }}</p>
+              <a href="{{ card.href }}">Learn more</a>
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+      <div class="public-inline-cta">
+        <a href="/hostel-boarding/" class="public-text-link">View hostel details</a>
+      </div>
+    </div>
+    <div class="public-copy">
+      <p>Boarding life at NDGA combines supervision, rest, study time, pastoral presence, and ordered routines that help girls settle and grow with confidence.</p>
+      <p>Families can review boarding life, student welfare, and admissions guidance clearly while keeping the focus on learning, discipline, and care.</p>
+      <a href="/contact/" class="public-text-link">Speak with the school</a>
+    </div>
+  </div>
+</section>
+
+<section class="public-section">
+  <div class="public-container" data-reveal>
+    <div class="public-section-heading">
+      <span class="public-eyebrow">Life at NDGA</span>
+      <h2>Boarding, clubs, sports, worship, and school community</h2>
+    </div>
+    <div class="public-card-grid public-card-grid-three">
+      {% for card in home_life_highlights %}
+        <article class="public-media-card public-academic-preview-card">
+          <div class="public-academic-orb public-academic-orb-lg" data-rotating-gallery>
+            {% for image in card.images %}
+                <img src="{% static image %}" alt="{{ card.title }}" class="{% if forloop.first %}is-active{% endif %}" loading="lazy" decoding="async">
+            {% endfor %}
+          </div>
+          <div>
+            <h3>{{ card.title }}</h3>
+            <p>{{ card.text }}</p>
+            <a href="{{ card.href }}">Learn more</a>
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="public-section public-section-soft">
+  <div class="public-container" data-reveal>
+    <div class="public-section-heading">
+      <span class="public-eyebrow">Gallery</span>
+      <h2>Selected school moments with room to explore more</h2>
+    </div>
+    <div class="public-gallery-category-grid">
+        {% for category in home_gallery %}
+          <a href="/gallery/{{ category.slug }}/" class="public-gallery-category-card">
+            <img src="{{ category.image_url }}" alt="{{ category.title }}" loading="lazy" decoding="async">
+            <div>
+              <span>Gallery</span>
+              <h3>{{ category.title }}</h3>
+            <p>{{ category.summary }}</p>
+          </div>
+        </a>
+      {% endfor %}
+    </div>
+    <div class="public-inline-cta">
+      <a href="/gallery/" class="public-text-link">See all gallery categories</a>
+    </div>
+  </div>
+</section>
+
+<section class="public-section">
+  <div class="public-container public-news-layout" data-reveal>
+    <div>
+      <div class="public-section-heading">
+        <span class="public-eyebrow">News</span>
+        <h2>Recent updates from the school</h2>
+      </div>
+      <div class="public-stack-cards">
+        {% for item in home_news %}
+          <article class="public-story-card">
+            <img src="{{ item.image_url }}" alt="{{ item.title }}" loading="lazy" decoding="async">
+            <div>
+              <span>{{ item.category }}{% if item.date %} | {{ item.date }}{% endif %}</span>
+              <h3>{{ item.title }}</h3>
+              <p>{{ item.summary }}</p>
+              <a href="/news/{{ item.slug }}/">Read more</a>
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+      <div class="public-inline-cta">
+        <a href="/news/" class="public-text-link">View all news</a>
+      </div>
+    </div>
+    <div>
+      <div class="public-section-heading">
+        <span class="public-eyebrow">Events</span>
+        <h2>School events, formation, and community moments</h2>
+      </div>
+      <div class="public-stack-cards">
+        {% for item in home_events %}
+          <article class="public-story-card">
+            <img src="{{ item.image_url }}" alt="{{ item.title }}" loading="lazy" decoding="async">
+            <div>
+              <span>{{ item.meta }}{% if item.date %} | {{ item.date }}{% endif %}</span>
+              <h3>{{ item.title }}</h3>
+              <p>{{ item.summary }}</p>
+              <a href="/events/{{ item.slug }}/">View event</a>
+              {% if item.location %}<p>{{ item.location }}</p>{% endif %}
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+      <div class="public-inline-cta">
+        <a href="/events/" class="public-text-link">View more events</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="public-section public-section-soft">
+  <div class="public-container" data-reveal>
+    <div class="public-section-heading">
+      <span class="public-eyebrow">Confidence & Care</span>
+      <h2>What parents want to know at a glance</h2>
+    </div>
+    <div class="public-credibility-points public-credibility-points-dark">
+      {% for point in credibility_points %}
+        <article>{{ point }}</article>
+      {% endfor %}
+    </div>
+    <div class="public-story-promo">
+      <div>
+        <span class="public-eyebrow">Take The Next Step</span>
+        <h3>Give your daughter an education shaped by faith, discipline, and future-ready learning.</h3>
+      </div>
+      <div class="public-button-row">
+        <a href="/admissions/registration/" class="public-cta magnetic">Start Admission</a>
+      <a href="/contact/" class="public-secondary-cta magnetic">Speak With Admissions</a>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

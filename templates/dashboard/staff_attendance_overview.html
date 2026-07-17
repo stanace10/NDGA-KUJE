@@ -1,0 +1,68 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Attendance Overview{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+    <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Cloud Read-Only</p>
+      <h1 class="mt-1 text-2xl font-bold text-slate-900">Attendance Overview</h1>
+      <p class="mt-2 text-sm text-slate-600">{{ readonly_notice }}</p>
+    </article>
+
+    <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <p class="text-xs uppercase tracking-[0.14em] text-slate-500">Assigned Classes</p>
+        <p class="mt-2 text-2xl font-bold text-slate-900">{{ attendance_counts.classes }}</p>
+      </article>
+      <article class="rounded-2xl border border-indigo-200 bg-indigo-50 p-4 shadow-sm">
+        <p class="text-xs uppercase tracking-[0.14em] text-indigo-700">Marked Classes</p>
+        <p class="mt-2 text-2xl font-bold text-indigo-900">{{ attendance_counts.marked_classes }}</p>
+      </article>
+      <article class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
+        <p class="text-xs uppercase tracking-[0.14em] text-emerald-700">Present Entries</p>
+        <p class="mt-2 text-2xl font-bold text-emerald-900">{{ attendance_counts.total_present }}</p>
+      </article>
+      <article class="rounded-2xl border border-rose-200 bg-rose-50 p-4 shadow-sm">
+        <p class="text-xs uppercase tracking-[0.14em] text-rose-700">Absent Entries</p>
+        <p class="mt-2 text-2xl font-bold text-rose-900">{{ attendance_counts.total_absent }}</p>
+      </article>
+    </div>
+
+    <article class="mt-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div>
+        <h2 class="text-lg font-semibold text-slate-900">Form Class Attendance Snapshot</h2>
+        <p class="mt-1 text-sm text-slate-600">
+          {% if current_session %}{{ current_session.name }}{% else %}-{% endif %}
+          {% if current_term %}| {{ current_term.get_name_display }}{% endif %}
+        </p>
+      </div>
+      <div class="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+          <thead class="bg-slate-50">
+            <tr>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Class</th>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Marked Days</th>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Present</th>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Absent</th>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Last Marked</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 bg-white">
+            {% for row in attendance_rows %}
+              <tr>
+                <td class="px-3 py-2 text-slate-900">{{ row.class_code }}</td>
+                <td class="px-3 py-2 text-slate-700">{{ row.marked_days }}</td>
+                <td class="px-3 py-2 text-emerald-700">{{ row.present_count }}</td>
+                <td class="px-3 py-2 text-rose-700">{{ row.absent_count }}</td>
+                <td class="px-3 py-2 text-slate-600">{% if row.latest_marked %}{{ row.latest_marked }}{% else %}-{% endif %}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="5" class="px-3 py-8 text-center text-slate-500">No form-class attendance assignments are available.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </section>
+{% endblock %}

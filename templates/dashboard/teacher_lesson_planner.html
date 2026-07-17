@@ -1,0 +1,106 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Teacher Lesson Planner{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-[96rem] px-4 py-6 sm:px-6 lg:px-8">
+    <div class="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+      <div class="space-y-5">
+        <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h1 class="text-2xl font-bold text-slate-900">AI Lesson Planner</h1>
+          <p class="mt-1 text-sm text-slate-600">Generate lesson objectives, class activity, assignment, and quiz. Publish to the learning hub when ready.</p>
+          <form method="post" class="mt-5 space-y-4">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="generate">
+            {% for field in planner_form %}
+              <div>
+                <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}<p class="mt-1 text-xs text-rose-700">{{ field.errors|striptags }}</p>{% endif %}
+              </div>
+            {% endfor %}
+            <button type="submit" class="ndga-btn ndga-btn-primary">Generate Lesson Plan</button>
+          </form>
+        </article>
+
+        {% if generated_plan %}
+          <article class="rounded-3xl border border-emerald-200 bg-emerald-50 p-6 shadow-sm">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 class="text-xl font-bold text-emerald-900">Generated Lesson Plan</h2>
+                <p class="mt-1 text-sm text-emerald-900">{{ generated_plan.row.subject.name }} | {{ generated_plan.row.academic_class.code }} | generator {{ generated_plan.generator }}</p>
+              </div>
+            </div>
+            <div class="mt-4 grid gap-4 lg:grid-cols-2">
+              <div class="rounded-2xl border border-emerald-200 bg-white p-4">
+                <h3 class="text-sm font-semibold text-slate-900">Objectives</h3>
+                <p class="mt-2 whitespace-pre-line text-sm text-slate-700">{{ generated_plan.row.lesson_objectives }}</p>
+              </div>
+              <div class="rounded-2xl border border-emerald-200 bg-white p-4">
+                <h3 class="text-sm font-semibold text-slate-900">Lesson Outline</h3>
+                <p class="mt-2 whitespace-pre-line text-sm text-slate-700">{{ generated_plan.row.lesson_outline }}</p>
+              </div>
+              <div class="rounded-2xl border border-emerald-200 bg-white p-4">
+                <h3 class="text-sm font-semibold text-slate-900">Class Activity</h3>
+                <p class="mt-2 whitespace-pre-line text-sm text-slate-700">{{ generated_plan.row.class_activity }}</p>
+              </div>
+              <div class="rounded-2xl border border-emerald-200 bg-white p-4">
+                <h3 class="text-sm font-semibold text-slate-900">Assignment And Quiz</h3>
+                <p class="mt-2 whitespace-pre-line text-sm text-slate-700">{{ generated_plan.row.assignment_text }}</p>
+                <div class="mt-3 border-t border-slate-200 pt-3">
+                  <p class="whitespace-pre-line text-sm text-slate-700">{{ generated_plan.row.quiz_text }}</p>
+                </div>
+              </div>
+            </div>
+          </article>
+        {% endif %}
+      </div>
+
+      <aside class="space-y-5">
+        <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <h2 class="text-lg font-semibold text-slate-900">Publish Manual Resource</h2>
+          <form method="post" enctype="multipart/form-data" class="mt-4 space-y-3">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="upload_resource">
+            {% for field in resource_form %}
+              <div>
+                <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% if field.errors %}<p class="mt-1 text-xs text-rose-700">{{ field.errors|striptags }}</p>{% endif %}
+              </div>
+            {% endfor %}
+            <button type="submit" class="ndga-btn ndga-btn-secondary">Publish Resource</button>
+          </form>
+        </article>
+
+        <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 class="text-base font-semibold text-slate-900">Recent Lesson Plans</h2>
+          <div class="mt-4 space-y-3">
+            {% for row in planner_rows %}
+              <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <p class="text-sm font-semibold text-slate-900">{{ row.subject.name }}: {{ row.topic }}</p>
+                <p class="mt-1 text-xs text-slate-500">{{ row.academic_class.code }}{% if row.assignment_due_date %} | Due {{ row.assignment_due_date }}{% endif %}</p>
+              </div>
+            {% empty %}
+              <p class="text-sm text-slate-500">No generated lesson plans yet.</p>
+            {% endfor %}
+          </div>
+        </article>
+
+        <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 class="text-base font-semibold text-slate-900">Recent Learning Hub Resources</h2>
+          <div class="mt-4 space-y-3">
+            {% for row in resource_rows %}
+              <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                <p class="text-sm font-semibold text-slate-900">{{ row.title }}</p>
+                <p class="mt-1 text-xs text-slate-500">{{ row.get_category_display }}{% if row.academic_class %} | {{ row.academic_class.code }}{% endif %}</p>
+              </div>
+            {% empty %}
+              <p class="text-sm text-slate-500">No published resources yet.</p>
+            {% endfor %}
+          </div>
+        </article>
+      </aside>
+    </div>
+  </section>
+{% endblock %}

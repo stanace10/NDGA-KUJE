@@ -1,0 +1,2999 @@
+import base64
+import json
+import io
+import zipfile
+from unittest.mock import patch
+
+from django.conf import settings
+from django.core import mail
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.template import Context, Template
+from django.test import Client, TestCase, override_settings
+from django.urls import reverse
+from django.utils import timezone
+
+from apps.accounts.constants import ROLE_DEAN, ROLE_IT_MANAGER, ROLE_SUBJECT_TEACHER
+from apps.accounts.models import Role, User
+from apps.academics.models import (
+    AcademicClass,
+    AcademicSession,
+    ClassSubject,
+    StudentClassEnrollment,
+    StudentSubjectEnrollment,
+    Subject,
+    TeacherSubjectAssignment,
+    Term,
+)
+from apps.attendance.models import SchoolCalendar
+from apps.cbt.models import (
+    CBTAttemptStatus,
+    CBTSimulationScoreMode,
+    CBTSimulationWrapperStatus,
+    CBTQuestionType,
+    CBTWritebackTarget,
+    CBTDocumentStatus,
+    CBTExamStatus,
+    ExamAttempt,
+    ExamBlueprint,
+    Exam,
+    ExamDocumentImport,
+    ExamSimulation,
+    ExamQuestion,
+    Option,
+    Question,
+    QuestionBank,
+    SimulationAttemptRecord,
+    SimulationWrapper,
+)
+from apps.cbt.services import _ordered_exam_question_rows, parse_objective_questions, student_available_exams
+from apps.cbt.forms import AIExamDraftForm, ExamCreateForm, ExamUploadImportForm, QuestionBankCreateForm
+from apps.cbt.services import authoring_exam_queryset, authoring_question_bank_queryset
+from apps.cbt.views import (
+    CBTStudentAttemptRunView,
+    _exam_is_editable_for_actor,
+    _resequence_exam_rows,
+)
+from apps.audit.models import AuditCategory, AuditEvent
+from apps.results.models import StudentSubjectScore
+from apps.sync.models import SyncOperationType, SyncQueue
+from apps.setup_wizard.models import AcademicOperationWindow, SetupStateCode, SystemSetupState
+
+
+CBT_TEST_HOST_SETTINGS = {
+    "ALLOWED_HOSTS": [
+        "localhost",
+        "127.0.0.1",
+        "[::1]",
+        "testserver",
+        "ndgakuje.org",
+        ".ndgakuje.org",
+        ".ndga.local",
+    ],
+    "CSRF_TRUSTED_ORIGINS": [
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://ndgakuje.org:8000",
+        "http://ndgakuje.org",
+        "http://*.ndgakuje.org",
+        "https://ndgakuje.org",
+        "https://*.ndgakuje.org",
+    ],
+}
+
+
+def _build_text_pdf_bytes(lines):
+    def _escape(value):
+        return (
+            str(value or "")
+            .replace("\\", "\\\\")
+            .replace("(", "\\(")
+            .replace(")", "\\)")
+        )
+
+    content_rows = ["BT", "/F1 12 Tf", "72 720 Td", "16 TL"]
+    for line in lines:
+        content_rows.append(f"({_escape(line)}) Tj")
+        content_rows.append("T*")
+    content_rows.append("ET")
+    content = "\n".join(content_rows).encode("latin-1")
+
+    objects = [
+        b"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
+        b"2 0 obj\n<< /Type /Pages /Count 1 /Kids [3 0 R] >>\nendobj\n",
+        b"3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>\nendobj\n",
+        b"4 0 obj\n<< /Length "
+        + str(len(content)).encode("ascii")
+        + b" >>\nstream\n"
+        + content
+        + b"\nendstream\nendobj\n",
+        b"5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n",
+    ]
+
+    pdf = bytearray(b"%PDF-1.4\n")
+    offsets = [0]
+    for obj in objects:
+        offsets.append(len(pdf))
+        pdf.extend(obj)
+    xref_offset = len(pdf)
+    pdf.extend(f"xref\n0 {len(offsets)}\n".encode("ascii"))
+    pdf.extend(b"0000000000 65535 f \n")
+    for offset in offsets[1:]:
+        pdf.extend(f"{offset:010d} 00000 n \n".encode("ascii"))
+    pdf.extend(
+        (
+            "trailer\n"
+            f"<< /Size {len(offsets)} /Root 1 0 R >>\n"
+            "startxref\n"
+            f"{xref_offset}\n"
+            "%%EOF\n"
+        ).encode("ascii")
+    )
+    return bytes(pdf)
+
+
+def _build_docx_bytes(lines):
+    from docx import Document
+
+    buffer = io.BytesIO()
+    document = Document()
+    for line in lines:
+        document.add_paragraph(str(line))
+    document.save(buffer)
+    return buffer.getvalue()
+
+
+@override_settings(**CBT_TEST_HOST_SETTINGS)
+class StageTenCBTWorkflowTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.role_it = Role.objects.get(code=ROLE_IT_MANAGER)
+        cls.role_dean = Role.objects.get(code=ROLE_DEAN)
+        cls.role_teacher = Role.objects.get(code=ROLE_SUBJECT_TEACHER)
+
+        cls.it_user = User.objects.create_user(
+            username="it-cbt",
+            password="Password123!",
+            primary_role=cls.role_it,
+            must_change_password=False,
+            email="it-cbt@ndgakuje.org",
+        )
+        cls.dean_user = User.objects.create_user(
+            username="dean-cbt",
+            password="Password123!",
+            primary_role=cls.role_dean,
+            must_change_password=False,
+        )
+        cls.teacher_user = User.objects.create_user(
+            username="teacher-cbt",
+            password="Password123!",
+            primary_role=cls.role_teacher,
+            must_change_password=False,
+        )
+
+        cls.session = AcademicSession.objects.create(name="2025/2026")
+        cls.term = Term.objects.create(session=cls.session, name="FIRST")
+        cls.academic_class = AcademicClass.objects.create(code="SS1A", display_name="SS1A")
+        cls.subject = Subject.objects.create(name="Physics", code="PHY")
+        ClassSubject.objects.create(
+            academic_class=cls.academic_class,
+            subject=cls.subject,
+            is_active=True,
+        )
+        cls.assignment = TeacherSubjectAssignment.objects.create(
+            teacher=cls.teacher_user,
+            subject=cls.subject,
+            academic_class=cls.academic_class,
+            session=cls.session,
+            term=cls.term,
+            is_active=True,
+        )
+
+        setup_state = SystemSetupState.get_solo()
+        setup_state.state = SetupStateCode.IT_READY
+        setup_state.current_session = cls.session
+        setup_state.current_term = cls.term
+        setup_state.save(
+            update_fields=["state", "current_session", "current_term", "updated_at"]
+        )
+        AcademicOperationWindow.objects.update_or_create(
+            window_type=AcademicOperationWindow.WindowType.CBT,
+            defaults={
+                "is_enabled": True,
+                "start_at": timezone.now() - timezone.timedelta(days=1),
+                "end_at": timezone.now() + timezone.timedelta(days=1),
+                "note": "Open for CBT runner integration tests.",
+            },
+        )
+
+    def login_client(self, *, host, username):
+        client = Client(HTTP_HOST=host)
+        response = client.post(
+            "/auth/login/?audience=staff",
+            {"username": username, "password": "Password123!"},
+        )
+        if "/auth/login/verify/" in getattr(response, "url", ""):
+            self.assertTrue(mail.outbox)
+            code = mail.outbox[-1].body.split("verification code is:")[1].splitlines()[0].strip()
+            response = client.post(
+                "/auth/login/verify/",
+                {"verification_code": code},
+            )
+        self.assertIn(response.status_code, {200, 302})
+        return client
+
+    def _create_minimal_exam(self):
+        question_bank = QuestionBank.objects.create(
+            name="Physics Bank",
+            owner=self.teacher_user,
+            assignment=self.assignment,
+            subject=self.subject,
+            academic_class=self.academic_class,
+            session=self.session,
+            term=self.term,
+        )
+        question = Question.objects.create(
+            question_bank=question_bank,
+            created_by=self.teacher_user,
+            subject=self.subject,
+            question_type="OBJECTIVE",
+            stem="What is the SI unit of force?",
+            topic="Mechanics",
+            difficulty="EASY",
+            marks=1,
+        )
+        question.options.create(label="A", option_text="Joule", sort_order=1)
+        question.options.create(label="B", option_text="Newton", sort_order=2)
+        answer = question.correct_answer if hasattr(question, "correct_answer") else None
+        if answer is None:
+            from apps.cbt.models import CorrectAnswer
+
+            answer = CorrectAnswer.objects.create(question=question, is_finalized=True)
+        answer.correct_options.set(question.options.filter(label="B"))
+
+        exam = Exam.objects.create(
+            title="Physics CA 1",
+            description="Draft exam",
+            exam_type="CA",
+            status=CBTExamStatus.DRAFT,
+            created_by=self.teacher_user,
+            assignment=self.assignment,
+            subject=self.subject,
+            academic_class=self.academic_class,
+            session=self.session,
+            term=self.term,
+            question_bank=question_bank,
+        )
+        from apps.cbt.models import ExamBlueprint
+
+        ExamBlueprint.objects.create(
+            exam=exam,
+            duration_minutes=30,
+            max_attempts=1,
+            shuffle_questions=True,
+            shuffle_options=True,
+            instructions="Answer all questions.",
+        )
+        ExamQuestion.objects.create(
+            exam=exam,
+            question=question,
+            sort_order=1,
+            marks=1,
+        )
+        return exam, question_bank, question
+
+    def _create_other_term_assignment(self):
+        other_term = Term.objects.create(session=self.session, name="SECOND")
+        return TeacherSubjectAssignment.objects.create(
+            teacher=self.teacher_user,
+            subject=self.subject,
+            academic_class=self.academic_class,
+            session=self.session,
+            term=other_term,
+            is_active=True,
+        )
+
+    def test_cbt_create_forms_default_to_current_term_assignments(self):
+        other_assignment = self._create_other_term_assignment()
+
+        for form_class in (
+            QuestionBankCreateForm,
+            ExamCreateForm,
+            ExamUploadImportForm,
+            AIExamDraftForm,
+        ):
+            with self.subTest(form=form_class.__name__):
+                form = form_class(actor=self.teacher_user)
+                assignment_ids = set(form.fields["assignment"].queryset.values_list("id", flat=True))
+                self.assertIn(self.assignment.id, assignment_ids)
+                self.assertNotIn(other_assignment.id, assignment_ids)
+
+    def test_authoring_querysets_hide_previous_term_even_when_requested(self):
+        _exam, current_bank, _question = self._create_minimal_exam()
+        other_assignment = self._create_other_term_assignment()
+        other_bank = QuestionBank.objects.create(
+            name="Second Term Bank",
+            owner=self.teacher_user,
+            assignment=other_assignment,
+            subject=self.subject,
+            academic_class=self.academic_class,
+            session=self.session,
+            term=other_assignment.term,
+        )
+        other_exam = Exam.objects.create(
+            title="Second Term CA",
+            exam_type="CA",
+            status=CBTExamStatus.DRAFT,
+            created_by=self.teacher_user,
+            assignment=other_assignment,
+            subject=self.subject,
+            academic_class=self.academic_class,
+            session=self.session,
+            term=other_assignment.term,
+            question_bank=other_bank,
+        )
+
+        self.assertEqual(
+            list(authoring_question_bank_queryset(self.teacher_user).values_list("id", flat=True)),
+            [current_bank.id],
+        )
+        self.assertEqual(
+            list(authoring_exam_queryset(self.teacher_user).values_list("id", flat=True)),
+            [_exam.id],
+        )
+
+        filtered_banks = authoring_question_bank_queryset(
+            self.teacher_user,
+            include_all_periods=True,
+            selected_session=self.session,
+            selected_term=other_assignment.term,
+        )
+        filtered_exams = authoring_exam_queryset(
+            self.teacher_user,
+            include_all_periods=True,
+            selected_session=self.session,
+            selected_term=other_assignment.term,
+        )
+        self.assertEqual(list(filtered_banks.values_list("id", flat=True)), [])
+        self.assertEqual(list(filtered_exams.values_list("id", flat=True)), [])
+
+    def test_current_term_edit_check_uses_calendar_start_date(self):
+        exam, _bank, _question = self._create_minimal_exam()
+        SchoolCalendar.objects.create(
+            session=self.session,
+            term=self.term,
+            start_date=timezone.localdate(),
+        )
+
+        self.assertTrue(_exam_is_editable_for_actor(actor=self.teacher_user, exam=exam))
+
+        calendar = SchoolCalendar.objects.get(session=self.session, term=self.term)
+        calendar.start_date = timezone.localdate() + timezone.timedelta(days=3)
+        calendar.save(update_fields=["start_date", "updated_at"])
+
+        self.assertFalse(_exam_is_editable_for_actor(actor=self.teacher_user, exam=exam))
+
+    def test_teacher_cannot_open_previous_term_cbt_by_direct_url(self):
+        exam, _bank, _question = self._create_minimal_exam()
+        current_term = Term.objects.create(session=self.session, name="THIRD")
+        setup_state = SystemSetupState.get_solo()
+        setup_state.current_term = current_term
+        setup_state.save(update_fields=["current_term", "updated_at"])
+
+        client = Client(HTTP_HOST="staff.ndgakuje.org")
+        client.force_login(self.teacher_user)
+
+        response = client.get(f"/cbt/authoring/exams/{exam.id}/builder/")
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, "/cbt/authoring/")
+
+    def test_teacher_cannot_open_previous_term_question_by_direct_url(self):
+        _exam, _bank, question = self._create_minimal_exam()
+        current_term = Term.objects.create(session=self.session, name="THIRD")
+        setup_state = SystemSetupState.get_solo()
+        setup_state.current_term = current_term
+        setup_state.save(update_fields=["current_term", "updated_at"])
+
+        client = Client(HTTP_HOST="staff.ndgakuje.org")
+        client.force_login(self.teacher_user)
+
+        response = client.get(f"/cbt/authoring/questions/{question.id}/edit/")
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, "/cbt/authoring/")
+
+    def test_stage10_full_workflow_teacher_to_dean_to_it_activation(self):
+        teacher_client = self.login_client(host="staff.ndgakuje.org", username=self.teacher_user.username)
+
+        bank_response = teacher_client.post(
+            "/cbt/authoring/banks/new/",
+            {
+                "assignment": str(self.assignment.id),
+                "name": "Teacher Authored Bank",
+                "description": "CBT bank for SS1A Physics",
+            },
+        )
+        self.assertEqual(bank_response.status_code, 302)
+        question_bank = QuestionBank.objects.get(name="Teacher Authored Bank")
+
+        question_response = teacher_client.post(
+            "/cbt/authoring/questions/new/",
+            {
+                "question_bank": str(question_bank.id),
+                "question_type": "OBJECTIVE",
+                "stem": "Acceleration due to gravity is approximately?",
+                "topic": "Motion",
+                "difficulty": "EASY",
+                "marks": "1",
+                "option_a": "9.8 m/s^2",
+                "option_b": "98 m/s^2",
+                "option_c": "0.98 m/s^2",
+                "option_d": "19.6 m/s^2",
+                "correct_labels": ["A"],
+                "is_active": "on",
+            },
+        )
+        self.assertEqual(question_response.status_code, 302)
+        question = Question.objects.filter(question_bank=question_bank).latest("created_at")
+
+        exam_response = teacher_client.post(
+            "/cbt/authoring/exams/new/",
+            {
+                "assignment": str(self.assignment.id),
+                "title": "Physics Midterm",
+                "description": "Stage 10 workflow exam",
+                "exam_type": "EXAM",
+                "question_bank": str(question_bank.id),
+                "duration_minutes": "45",
+                "max_attempts": "1",
+                "shuffle_questions": "on",
+                "shuffle_options": "on",
+                "instructions": "Choose the best option.",
+            },
+        )
+        self.assertEqual(exam_response.status_code, 302)
+        exam = Exam.objects.get(title="Physics Midterm")
+
+        attach_response = teacher_client.post(
+            f"/cbt/authoring/exams/{exam.id}/attach-questions/",
+            {"questions": [str(question.id)]},
+        )
+        self.assertEqual(attach_response.status_code, 302)
+        self.assertTrue(ExamQuestion.objects.filter(exam=exam, question=question).exists())
+
+        submit_response = teacher_client.post(
+            f"/cbt/authoring/exams/{exam.id}/submit-to-dean/",
+            {"comment": "Ready for vetting."},
+        )
+        self.assertEqual(submit_response.status_code, 302)
+        exam.refresh_from_db()
+        self.assertEqual(exam.status, CBTExamStatus.PENDING_DEAN)
+
+        dean_client = self.login_client(host="staff.ndgakuje.org", username=self.dean_user.username)
+        approve_response = dean_client.post(
+            f"/cbt/dean/review/{exam.id}/",
+            {"action": "APPROVE", "comment": "Approved."},
+        )
+        self.assertEqual(approve_response.status_code, 302)
+        exam.refresh_from_db()
+        self.assertEqual(exam.status, CBTExamStatus.APPROVED)
+        self.assertEqual(exam.dean_reviewed_by_id, self.dean_user.id)
+
+        it_client = self.login_client(host="it.ndgakuje.org", username=self.it_user.username)
+        activate_response = it_client.post(
+            f"/cbt/it/activation/{exam.id}/",
+            {
+                "action": "activate",
+                "open_now": "on",
+                "is_time_based": "on",
+                "duration_minutes": "45",
+                "max_attempts": "1",
+                "shuffle_questions": "on",
+                "shuffle_options": "on",
+                "instructions": "Approved instructions",
+                "activation_comment": "Open now.",
+            },
+        )
+        self.assertEqual(activate_response.status_code, 302)
+        exam.refresh_from_db()
+        self.assertEqual(exam.status, CBTExamStatus.ACTIVE)
+        self.assertEqual(exam.activated_by_id, self.it_user.id)
+        self.assertTrue(exam.is_time_based)
+        self.assertIsNotNone(exam.schedule_start)
+        self.assertIsNotNone(exam.schedule_end)
+        self.assertGreater(exam.schedule_end, exam.schedule_start)
+
+    def test_it_activation_generates_immutable_snapshot_hash(self):
+        exam, _, question = self._create_minimal_exam()
+        exam.status = CBTExamStatus.APPROVED
+        exam.dean_reviewed_by = self.dean_user
+        exam.dean_reviewed_at = timezone.now()
+        exam.save(update_fields=["status", "dean_reviewed_by", "dean_reviewed_at", "updated_at"])
+
+        it_client = self.login_client(host="it.ndgakuje.org", username=self.it_user.username)
+        response = it_client.post(
+            f"/cbt/it/activation/{exam.id}/",
+            {
+                "action": "activate",
+                "open_now": "on",
+                "is_time_based": "on",
+                "duration_minutes": "30",
+                "max_attempts": "1",
+                "shuffle_questions": "on",
+                "shuffle_options": "on",
+                "instructions": "Immutable snapshot test",
+                "activation_comment": "Activate with snapshot.",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        exam.refresh_from_db()
+        self.assertEqual(exam.status, CBTExamStatus.ACTIVE)
+        self.assertTrue(exam.activation_snapshot_hash)
+        self.assertEqual(exam.activation_snapshot["exam"]["id"], exam.id)
+        self.assertEqual(len(exam.activation_snapshot["questions"]), 1)
+        self.assertEqual(exam.activation_snapshot["questions"][0]["question"]["stem"], question.stem)
+        self.assertEqual(
+            exam.activation_snapshot["blueprint"]["duration_minutes"],
+            30,
+        )
+
+    def test_exam_cannot_be_activated_without_dean_approval(self):
+        exam, _, _ = self._create_minimal_exam()
+        it_client = self.login_client(host="it.ndgakuje.org", username=self.it_user.username)
+        response = it_client.post(
+            f"/cbt/it/activation/{exam.id}/",
+            {
+                "action": "activate",
+                "open_now": "on",
+                "is_time_based": "on",
+                "duration_minutes": "30",
+                "max_attempts": "1",
+                "shuffle_questions": "on",
+                "shuffle_options": "on",
+                "instructions": "Test",
+                "activation_comment": "Try activate draft",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        exam.refresh_from_db()
+        self.assertEqual(exam.status, CBTExamStatus.DRAFT)
+
+    def test_teacher_cannot_self_activate_exam(self):
+        exam, _, _ = self._create_minimal_exam()
+        exam.status = CBTExamStatus.APPROVED
+        exam.dean_reviewed_by = self.dean_user
+        exam.save(update_fields=["status", "dean_reviewed_by", "updated_at"])
+
+        teacher_client = self.login_client(host="staff.ndgakuje.org", username=self.teacher_user.username)
+        response = teacher_client.post(
+            f"/cbt/it/activation/{exam.id}/",
+            {
+                "action": "activate",
+                "open_now": "on",
+                "is_time_based": "on",
+                "duration_minutes": "30",
+                "max_attempts": "1",
+                "shuffle_questions": "on",
+                "shuffle_options": "on",
+                "instructions": "No permission",
+                "activation_comment": "Teacher should fail",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        exam.refresh_from_db()
+        self.assertEqual(exam.status, CBTExamStatus.APPROVED)
+
+    def test_upload_document_generates_draft_exam(self):
+        teacher_client = self.login_client(host="staff.ndgakuje.org", username=self.teacher_user.username)
+        file_content = (
+            "1. What is 2 + 2?\n"
+            "A. 2\n"
+            "B. 4\n"
+            "C. 6\n"
+            "D. 8\n"
+            "2. Which is a primary color?\n"
+            "A. Green\n"
+            "B. Blue\n"
+            "C. Orange\n"
+            "D. Black\n"
+        ).encode("utf-8")
+        upload = SimpleUploadedFile("physics_questions.txt", file_content, content_type="text/plain")
+        response = teacher_client.post(
+            "/cbt/authoring/upload/",
+            {
+                "assignment": str(self.assignment.id),
+                "title": "Imported Physics Quiz",
+                "exam_type": "CA",
+                "flow_type": "OBJECTIVE_ONLY",
+                "source_file": upload,
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        exam = Exam.objects.get(title="Imported Physics Quiz")
+        self.assertEqual(exam.status, CBTExamStatus.DRAFT)
+        self.assertGreater(ExamQuestion.objects.filter(exam=exam).count(), 0)
+        import_row = ExamDocumentImport.objects.get(exam=exam)
+        self.assertEqual(import_row.extraction_status, CBTDocumentStatus.SUCCESS)
+
+    def test_pasted_text_generates_draft_exam_without_server_error(self):
+        teacher_client = self.login_client(host="staff.ndgakuje.org", username=self.teacher_user.username)
+        pasted_text = (
+            "1. What is 2 + 2?\n"
+            "A. 2\n"
+            "B. 4\n"
+            "C. 6\n"
+            "D. 8\n"
+            "Answer: B\n\n"
+            "2. Explain addition.\n"
+        )
+        response = teacher_client.post(
+            "/cbt/authoring/upload/",
+            {
+                "assignment": str(self.assignment.id),
+                "title": "Imported From Paste",
+                "exam_type": "EXAM",
+                "flow_type": "OBJECTIVE_THEORY",
+                "pasted_text": pasted_text,
+            },
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        exam = Exam.objects.get(title="Imported From Paste")
+        self.assertEqual(exam.status, CBTExamStatus.DRAFT)
+        self.assertGreater(ExamQuestion.objects.filter(exam=exam).count(), 0)
+
+    def test_upload_notes_import_requires_real_question_paper(self):
+        teacher_client = self.login_client(host="staff.ndgakuje.org", username=self.teacher_user.username)
+        note_content = (
+            "Digital technology covers data, devices, and safe use of computer systems.\n"
+            "Students should understand input devices, output devices, and storage devices.\n"
+            "Teachers should discuss cyber safety, responsible internet use, and digital citizenship.\n"
+            "Explain the meaning of system unit and list common hardware components.\n"
+        ).encode("utf-8")
+        upload = SimpleUploadedFile("digital_technology_notes.txt", note_content, content_type="text/plain")
+        response = teacher_client.post(
+            "/cbt/authoring/upload/",
+            {
+                "assignment": str(self.assignment.id),
+                "title": "Imported Notes Draft",
+                "exam_type": "EXAM",
+                "flow_type": "OBJECTIVE_THEORY",
+                "source_file": upload,
+            },
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Could not detect a clean question paper")
+        self.assertFalse(Exam.objects.filter(title="Imported Notes Draft").exists())
+
+    def test_docx_upload_generates_draft_exam(self):
+        teacher_client = self.login_client(host="staff.ndgakuje.org", username=self.teacher_user.username)
+        upload = SimpleUploadedFile(
+            "english_questions.docx",
+            _build_docx_bytes(
+                [
+                    "1. What is a noun?",
+                    "A. A naming word",
+                    "B. An action word",
+                    "C. A joining word",
+                    "D. A describing word",
+                    "Answer: A",
+                ]
+            ),
+            content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+        response = teacher_client.post(
+            "/cbt/authoring/upload/",
+            {
+                "assignment": str(self.assignment.id),
+                "title": "Imported DOCX Draft",
+                "exam_type": "CA",
+                "flow_type": "OBJECTIVE_ONLY",
+                "source_file": upload,
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        exam = Exam.objects.get(title="Imported DOCX Draft")
+        self.assertEqual(exam.status, CBTExamStatus.DRAFT)
+        self.assertGreater(ExamQuestion.objects.filter(exam=exam).count(), 0)
+
+    def test_doc_upload_is_rejected_with_clear_error(self):
+        teacher_client = self.login_client(host="staff.ndgakuje.org", username=self.teacher_user.username)
+        upload = SimpleUploadedFile(
+            "legacy_questions.doc",
+            b"legacy doc placeholder",
+            content_type="application/msword",
+        )
+        response = teacher_client.post(
+            "/cbt/authoring/upload/",
+            {
+                "assignment": str(self.assignment.id),
+                "title": "Imported DOC Draft",
+                "exam_type": "CA",
+                "source_file": upload,
+            },
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Upload PDF, DOCX, TXT, or question image")
+        self.assertFalse(Exam.objects.filter(title="Imported DOC Draft").exists())
+
+    def test_pdf_upload_generates_draft_exam(self):
+        teacher_client = self.login_client(host="staff.ndgakuje.org", username=self.teacher_user.username)
+        upload = SimpleUploadedFile(
+            "mathematics_questions.pdf",
+            _build_text_pdf_bytes(
+                [
+                    "1. What is 5 + 5?",
+                    "A. 8",
+                    "B. 9",
+                    "C. 10",
+                    "D. 11",
+                    "Answer: C",
+                ]
+            ),
+            content_type="application/pdf",
+        )
+        response = teacher_client.post(
+            "/cbt/authoring/upload/",
+            {
+                "assignment": str(self.assignment.id),
+                "title": "Imported PDF Draft",
+                "exam_type": "CA",
+                "flow_type": "OBJECTIVE_ONLY",
+                "source_file": upload,
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        exam = Exam.objects.get(title="Imported PDF Draft")
+        self.assertEqual(exam.status, CBTExamStatus.DRAFT)
+        self.assertGreater(ExamQuestion.objects.filter(exam=exam).count(), 0)
+
+    @patch("apps.cbt.services._extract_text_from_image_with_ai")
+    def test_image_upload_uses_ai_fallback_when_local_ocr_is_unavailable(self, mocked_image_extract):
+        teacher_client = self.login_client(host="staff.ndgakuje.org", username=self.teacher_user.username)
+        mocked_image_extract.return_value = (
+            "1. Which device shows output?\n"
+            "A. Monitor\n"
+            "B. Keyboard\n"
+            "C. Mouse\n"
+            "D. Scanner\n"
+            "Answer: A\n"
+        )
+        tiny_png = base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7+3nQAAAAASUVORK5CYII="
+        )
+        upload = SimpleUploadedFile("science_questions.png", tiny_png, content_type="image/png")
+        response = teacher_client.post(
+            "/cbt/authoring/upload/",
+            {
+                "assignment": str(self.assignment.id),
+                "title": "Imported Image Draft",
+                "exam_type": "CA",
+                "flow_type": "OBJECTIVE_ONLY",
+                "source_file": upload,
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        exam = Exam.objects.get(title="Imported Image Draft")
+        self.assertEqual(exam.status, CBTExamStatus.DRAFT)
+        self.assertGreater(ExamQuestion.objects.filter(exam=exam).count(), 0)
+
+    def test_upload_document_redirect_opens_draft_builder_without_error(self):
+        teacher_client = self.login_client(host="staff.ndgakuje.org", username=self.teacher_user.username)
+        file_content = (
+            "1. What is 2 + 2?\n"
+            "A. 2\n"
+            "B. 4\n"
+            "C. 6\n"
+            "D. 8\n"
+            "Answer: B\n\n"
+            "2. Explain addition.\n"
+        ).encode("utf-8")
+        upload = SimpleUploadedFile("upload_probe.txt", file_content, content_type="text/plain")
+        response = teacher_client.post(
+            "/cbt/authoring/upload/",
+            {
+                "assignment": str(self.assignment.id),
+                "title": "Imported Builder Probe",
+                "exam_type": "EXAM",
+                "flow_type": "OBJECTIVE_THEORY",
+                "source_file": upload,
+            },
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_upload_page_hides_ca_target_for_exam_prefill(self):
+        teacher_client = self.login_client(host="staff.ndgakuje.org", username=self.teacher_user.username)
+        response = teacher_client.get(
+            f"/cbt/authoring/upload/?assignment_id={self.assignment.id}&title=Upload+Exam&exam_type=EXAM"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="caTargetField" style="display: none;"', html=False)
+        self.assertContains(response, "Best upload formats")
+
+    def test_teacher_can_delete_own_draft_exam(self):
+        exam, _, _ = self._create_minimal_exam()
+        teacher_client = self.login_client(host="staff.ndgakuje.org", username=self.teacher_user.username)
+        response = teacher_client.post(f"/cbt/authoring/exams/{exam.id}/delete/")
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(Exam.objects.filter(id=exam.id).exists())
+
+    def test_parser_accepts_unnumbered_questions_with_options_and_answer_lines(self):
+        pasted_text = (
+            "If 2x + 3 = 11, find x.\n"
+            "A. 2\n"
+            "B. 3\n"
+            "C. 4\n"
+            "D. 5\n"
+            "Answer: C\n"
+            "Evaluate 5 squared.\n"
+            "A. 10\n"
+            "B. 20\n"
+            "C. 25\n"
+            "D. 30\n"
+            "Answer: C\n"
+        )
+        parsed = parse_objective_questions(pasted_text)
+        self.assertEqual(len(parsed), 2)
+        self.assertEqual(parsed[0]["question_type"], "OBJECTIVE")
+        self.assertEqual(parsed[0]["correct_label"], "C")
+        self.assertEqual(parsed[1]["question_type"], "OBJECTIVE")
+        self.assertEqual(parsed[1]["correct_label"], "C")
+
+    def test_parser_accepts_inline_option_blocks(self):
+        pasted_text = (
+            "1. What is 3 + 4? A. 6 B. 7 C. 8 D. 9 Answer: B\n"
+            "2. Which angle is a right angle? A. 30 B. 45 C. 90 D. 120 Answer: C\n"
+        )
+        parsed = parse_objective_questions(pasted_text)
+        self.assertEqual(len(parsed), 2)
+        self.assertEqual(parsed[0]["question_type"], "OBJECTIVE")
+        self.assertEqual(parsed[0]["correct_label"], "B")
+        self.assertEqual(parsed[1]["question_type"], "OBJECTIVE")
+        self.assertEqual(parsed[1]["correct_label"], "C")
+
+    def test_parser_accepts_compact_inline_option_blocks_without_spaces(self):
+        pasted_text = (
+            "1.What is 3+4?A)6B)7C)8D)9Answer:B\n"
+            "2.Which planet is known as the red planet?(A)Earth(B)Mars(C)Jupiter(D)Saturn Answer: B\n"
+        )
+        parsed = parse_objective_questions(pasted_text)
+        self.assertEqual(len(parsed), 2)
+        self.assertEqual(parsed[0]["question_type"], "OBJECTIVE")
+        self.assertEqual(parsed[0]["correct_label"], "B")
+        self.assertEqual(parsed[1]["question_type"], "OBJECTIVE")
+        self.assertEqual(parsed[1]["correct_label"], "B")
+
+    def test_parser_handles_pdf_style_wrapped_number_and_option_layout(self):
+        pasted_text = (
+            "1)\n"
+            "If 2x + 3 = 11, find x.\n"
+            "A. 2\n"
+            "B. 3\n"
+            "C. 4\n"
+            "D. 5\n"
+            "Answer: C\n\n"
+            "2)\n"
+            "Evaluate 5 squared.\n"
+            "A. 10\n"
+            "B. 20\n"
+            "C. 25\n"
+            "D. 30\n"
+            "Answer: C\n"
+        )
+        parsed = parse_objective_questions(pasted_text)
+        self.assertEqual(len(parsed), 2)
+        self.assertEqual(parsed[0]["question_type"], "OBJECTIVE")
+        self.assertEqual(parsed[0]["correct_label"], "C")
+        self.assertEqual(parsed[1]["question_type"], "OBJECTIVE")
+        self.assertEqual(parsed[1]["correct_label"], "C")
+
+    def test_parser_rejects_low_confidence_single_blob(self):
+        pasted_text = (
+            "This is a long lesson note without clear numbering or A-D option structure. "
+            "It discusses algebraic expressions, equations, and simplification methods. "
+            "Students were taught to solve linear equations and interpret word problems. "
+            "The content continues as prose and should not be treated as a parsed exam question set. "
+            "No option markers are present and no question boundaries are clearly defined."
+        )
+        parsed = parse_objective_questions(pasted_text)
+        self.assertEqual(parsed, [])
+
+    def test_upload_import_does_not_generate_placeholder_questions_from_notes(self):
+        teacher_client = self.login_client(host="staff.ndgakuje.org", username=self.teacher_user.username)
+        upload = SimpleUploadedFile(
+            "lesson_note_blob.txt",
+            (
+                "This lesson note explains photosynthesis, chlorophyll, sunlight, and glucose production. "
+                "It contains teaching points only and no numbered question paper or A-D objective layout."
+            ).encode("utf-8"),
+            content_type="text/plain",
+        )
+        response = teacher_client.post(
+            "/cbt/authoring/upload/",
+            {
+                "assignment": str(self.assignment.id),
+                "title": "Imported Notes Failure Probe",
+                "exam_type": "CA",
+                "flow_type": "OBJECTIVE_THEORY",
+                "source_file": upload,
+            },
+            follow=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "No valid objective questions were detected")
+        self.assertFalse(Exam.objects.filter(title="Imported Notes Failure Probe").exists())
+
+    def test_resequence_exam_rows_reorders_without_unique_sort_collision(self):
+        exam, question_bank, objective_question = self._create_minimal_exam()
+        theory_question = Question.objects.create(
+            question_bank=question_bank,
+            created_by=self.teacher_user,
+            subject=self.subject,
+            question_type=CBTQuestionType.SHORT_ANSWER,
+            stem="Explain inertia.",
+            topic="Mechanics",
+            difficulty="MEDIUM",
+            marks=1,
+        )
+        from apps.cbt.models import CorrectAnswer
+
+        CorrectAnswer.objects.create(question=theory_question, is_finalized=False)
+        objective_row = ExamQuestion.objects.get(exam=exam, question=objective_question)
+        objective_row.sort_order = 2
+        objective_row.save(update_fields=["sort_order", "updated_at"])
+        theory_row = ExamQuestion.objects.create(
+            exam=exam,
+            question=theory_question,
+            sort_order=1,
+            marks=1,
+        )
+
+        _resequence_exam_rows(exam)
+
+        objective_row.refresh_from_db()
+        theory_row.refresh_from_db()
+        self.assertEqual(objective_row.sort_order, 1)
+        self.assertEqual(theory_row.sort_order, 2)
+
+    def test_ai_draft_create_redirects_to_builder(self):
+        teacher_client = self.login_client(host="staff.ndgakuje.org", username=self.teacher_user.username)
+        response = teacher_client.post(
+            "/cbt/authoring/ai-draft/",
+            {
+                "assignment": str(self.assignment.id),
+                "title": "AI Draft Physics",
+                "topic": "Motion and Force",
+                "question_count": "5",
+                "exam_type": "CA",
+                "difficulty": "MEDIUM",
+                "lesson_note_text": "Force equals mass times acceleration. Units are Newton.",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        exam = Exam.objects.get(title="AI Draft Physics")
+        self.assertEqual(exam.status, CBTExamStatus.DRAFT)
+        self.assertGreater(ExamQuestion.objects.filter(exam=exam).count(), 0)
+
+    def test_ai_draft_prefers_uploaded_lesson_material_objective_questions(self):
+        teacher_client = self.login_client(host="staff.ndgakuje.org", username=self.teacher_user.username)
+        lesson_material = (
+            "1. What is acceleration?\n"
+            "A. Change in velocity per unit time\n"
+            "B. Distance covered per unit time\n"
+            "C. A force acting upward\n"
+            "D. Product of mass and time\n"
+            "Answer: A\n\n"
+            "2. Which unit measures force?\n"
+            "A. Joule\n"
+            "B. Watt\n"
+            "C. Newton\n"
+            "D. Pascal\n"
+            "Answer: C\n"
+        )
+        response = teacher_client.post(
+            "/cbt/authoring/ai-draft/",
+            {
+                "assignment": str(self.assignment.id),
+                "title": "AI Draft From Material",
+                "topic": "Motion and Force",
+                "question_count": "2",
+                "exam_type": "CA",
+                "difficulty": "MEDIUM",
+                "lesson_note_text": lesson_material,
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        exam = Exam.objects.get(title="AI Draft From Material")
+        stems = list(
+            ExamQuestion.objects.filter(exam=exam)
+            .select_related("question")
+            .order_by("sort_order")
+            .values_list("question__stem", flat=True)
+        )
+        self.assertEqual(len(stems), 2)
+        self.assertTrue(any("What is acceleration?" in stem for stem in stems))
+        self.assertTrue(any("Which unit measures force?" in stem for stem in stems))
+
+    def test_exam_create_upload_mode_ca_redirects_without_ca_target(self):
+        teacher_client = self.login_client(host="staff.ndgakuje.org", username=self.teacher_user.username)
+        response = teacher_client.post(
+            "/cbt/authoring/exams/new/",
+            {
+                "assignment": str(self.assignment.id),
+                "title": "Upload-Mode CA",
+                "exam_type": "CA",
+                "authoring_mode": "UPLOAD",
+                "duration_minutes": "30",
+                "max_attempts": "1",
+                # CA target intentionally omitted: upload flow should still continue.
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/cbt/authoring/upload/", response.url)
+
+    def test_exam_create_upload_mode_blank_title_auto_generates(self):
+        teacher_client = self.login_client(host="staff.ndgakuje.org", username=self.teacher_user.username)
+        response = teacher_client.post(
+            "/cbt/authoring/exams/new/",
+            {
+                "assignment": str(self.assignment.id),
+                "title": "",
+                "exam_type": "CA",
+                "authoring_mode": "UPLOAD",
+                "duration_minutes": "30",
+                "max_attempts": "1",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/cbt/authoring/upload/", response.url)
+        self.assertIn("title=", response.url)
+        self.assertNotIn("title=&", response.url)
+
+    def test_exam_create_ai_mode_ca_redirects_without_ca_target(self):
+        teacher_client = self.login_client(host="staff.ndgakuje.org", username=self.teacher_user.username)
+        response = teacher_client.post(
+            "/cbt/authoring/exams/new/",
+            {
+                "assignment": str(self.assignment.id),
+                "title": "AI-Mode CA",
+                "exam_type": "CA",
+                "authoring_mode": "AI",
+                "duration_minutes": "30",
+                "max_attempts": "1",
+                # CA target intentionally omitted: AI flow should still continue.
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/cbt/authoring/ai-draft/", response.url)
+
+
+@override_settings(
+    FEATURE_FLAGS={
+        **settings.FEATURE_FLAGS,
+        "CBT_ENABLED": True,
+    }
+)
+@override_settings(**CBT_TEST_HOST_SETTINGS)
+class StageElevenCBTRunnerTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.role_it = Role.objects.get(code="IT_MANAGER")
+        cls.role_dean = Role.objects.get(code="DEAN")
+        cls.role_teacher = Role.objects.get(code="SUBJECT_TEACHER")
+        cls.role_student = Role.objects.get(code="STUDENT")
+
+        cls.it_user = User.objects.create_user(
+            username="it-stage11",
+            password="Password123!",
+            primary_role=cls.role_it,
+            must_change_password=False,
+            email="it-stage11@ndgakuje.org",
+        )
+        cls.dean_user = User.objects.create_user(
+            username="dean-stage11",
+            password="Password123!",
+            primary_role=cls.role_dean,
+            must_change_password=False,
+        )
+        cls.teacher_user = User.objects.create_user(
+            username="teacher-stage11",
+            password="Password123!",
+            primary_role=cls.role_teacher,
+            must_change_password=False,
+        )
+        cls.student_user = User.objects.create_user(
+            username="student-stage11",
+            password="Password123!",
+            primary_role=cls.role_student,
+            must_change_password=False,
+        )
+
+        cls.session = AcademicSession.objects.create(name="2026/2027")
+        cls.term = Term.objects.create(session=cls.session, name="FIRST")
+        cls.academic_class = AcademicClass.objects.create(code="SS2A", display_name="SS2A")
+        cls.subject = Subject.objects.create(name="Chemistry", code="CHEM")
+        ClassSubject.objects.create(
+            academic_class=cls.academic_class,
+            subject=cls.subject,
+            is_active=True,
+        )
+        cls.assignment = TeacherSubjectAssignment.objects.create(
+            teacher=cls.teacher_user,
+            subject=cls.subject,
+            academic_class=cls.academic_class,
+            session=cls.session,
+            term=cls.term,
+            is_active=True,
+        )
+        StudentClassEnrollment.objects.create(
+            student=cls.student_user,
+            academic_class=cls.academic_class,
+            session=cls.session,
+            is_active=True,
+        )
+        StudentSubjectEnrollment.objects.create(
+            student=cls.student_user,
+            subject=cls.subject,
+            session=cls.session,
+            is_active=True,
+        )
+
+        setup_state = SystemSetupState.get_solo()
+        setup_state.state = SetupStateCode.IT_READY
+        setup_state.current_session = cls.session
+        setup_state.current_term = cls.term
+        setup_state.save(
+            update_fields=["state", "current_session", "current_term", "updated_at"]
+        )
+        AcademicOperationWindow.objects.update_or_create(
+            window_type=AcademicOperationWindow.WindowType.CBT,
+            defaults={
+                "is_enabled": True,
+                "start_at": timezone.now() - timezone.timedelta(days=1),
+                "end_at": timezone.now() + timezone.timedelta(days=1),
+                "note": "Open for Stage Eleven CBT runner tests.",
+            },
+        )
+
+    def login_client(self, *, host, username, audience):
+        client = Client(HTTP_HOST=host)
+        secure = audience == "cbt"
+        if secure:
+            permission_response = client.post(
+                "/auth/cbt/microphone/permission/",
+                data=json.dumps({"granted": True, "secure_context": True}),
+                content_type="application/json",
+                secure=True,
+                HTTP_HOST="testserver",
+            )
+            self.assertEqual(permission_response.status_code, 200)
+        response = client.post(
+            f"/auth/login/?audience={audience}",
+            {"username": username, "password": "Password123!"},
+            secure=secure,
+        )
+        if "/auth/login/verify/" in getattr(response, "url", ""):
+            self.assertTrue(mail.outbox)
+            code = mail.outbox[-1].body.split("verification code is:")[1].splitlines()[0].strip()
+            response = client.post(
+                "/auth/login/verify/",
+                {"verification_code": code},
+            )
+        self.assertIn(response.status_code, {200, 302})
+        return client
+
+    def _create_exam(self, *, theory_enabled=False, objective_target=CBTWritebackTarget.OBJECTIVE):
+        suffix = QuestionBank.objects.count() + 1
+        question_bank = QuestionBank.objects.create(
+            name=f"Stage11 Bank {suffix}",
+            owner=self.teacher_user,
+            assignment=self.assignment,
+            subject=self.subject,
+            academic_class=self.academic_class,
+            session=self.session,
+            term=self.term,
+        )
+        objective_question = Question.objects.create(
+            question_bank=question_bank,
+            created_by=self.teacher_user,
+            subject=self.subject,
+            question_type=CBTQuestionType.OBJECTIVE,
+            stem="Atomic number of oxygen?",
+            topic="Atoms",
+            difficulty="EASY",
+            marks=5,
+        )
+        option_a = Option.objects.create(
+            question=objective_question,
+            label="A",
+            option_text="8",
+            sort_order=1,
+        )
+        Option.objects.create(
+            question=objective_question,
+            label="B",
+            option_text="16",
+            sort_order=2,
+        )
+        from apps.cbt.models import CorrectAnswer
+
+        answer = CorrectAnswer.objects.create(question=objective_question, is_finalized=True)
+        answer.correct_options.set([option_a])
+
+        exam = Exam.objects.create(
+            title=f"Stage11 Exam {suffix}",
+            description="Runner integration exam",
+            exam_type="EXAM",
+            status=CBTExamStatus.ACTIVE,
+            created_by=self.teacher_user,
+            assignment=self.assignment,
+            subject=self.subject,
+            academic_class=self.academic_class,
+            session=self.session,
+            term=self.term,
+            question_bank=question_bank,
+            dean_reviewed_by=self.dean_user,
+            activated_by=self.it_user,
+            open_now=True,
+            is_time_based=True,
+        )
+        ExamQuestion.objects.create(
+            exam=exam,
+            question=objective_question,
+            sort_order=1,
+            marks=5,
+        )
+        theory_question = None
+        if theory_enabled:
+            theory_question = Question.objects.create(
+                question_bank=question_bank,
+                created_by=self.teacher_user,
+                subject=self.subject,
+                question_type=CBTQuestionType.SHORT_ANSWER,
+                stem="Explain ionic bonding in sodium chloride.",
+                topic="Bonding",
+                difficulty="MEDIUM",
+                marks=5,
+            )
+            ExamQuestion.objects.create(
+                exam=exam,
+                question=theory_question,
+                sort_order=2,
+                marks=5,
+            )
+
+        ExamBlueprint.objects.update_or_create(
+            exam=exam,
+            defaults={
+                "duration_minutes": 30,
+                "max_attempts": 1,
+                "shuffle_questions": False,
+                "shuffle_options": False,
+                "instructions": "Answer all questions.",
+                "objective_writeback_target": objective_target,
+                "theory_enabled": theory_enabled,
+                "theory_writeback_target": CBTWritebackTarget.THEORY,
+                "auto_show_result_on_submit": True,
+                "finalize_on_logout": False,
+                "allow_retake": False,
+            },
+        )
+        return exam, objective_question, theory_question
+
+    def test_free_test_can_have_true_unlimited_retries(self):
+        exam, _, _ = self._create_exam(theory_enabled=False)
+        exam.exam_type = "FREE_TEST"
+        exam.is_free_test = True
+        exam.save(update_fields=["exam_type", "is_free_test", "updated_at"])
+        blueprint = exam.blueprint
+        blueprint.allow_retake = True
+        blueprint.max_attempts = 1
+        blueprint.section_config = {"unlimited_attempts": True}
+        blueprint.save(
+            update_fields=["allow_retake", "max_attempts", "section_config", "updated_at"]
+        )
+        for attempt_number in range(1, 13):
+            ExamAttempt.objects.create(
+                exam=exam,
+                student=self.student_user,
+                attempt_number=attempt_number,
+                status=CBTAttemptStatus.SUBMITTED,
+                started_at=timezone.now(),
+                submitted_at=timezone.now(),
+            )
+
+        row = next(item for item in student_available_exams(self.student_user) if item["exam"].id == exam.id)
+
+        self.assertTrue(row["can_start"])
+        self.assertEqual(row["attempts_used"], 12)
+        self.assertEqual(row["attempt_limit_label"], "Unlimited")
+
+    def test_objective_submission_writes_back_immediately(self):
+        exam, objective_question, _ = self._create_exam(theory_enabled=False)
+        student_client = self.login_client(
+            host="cbt.ndgakuje.org",
+            username=self.student_user.username,
+            audience="cbt",
+        )
+        start_response = student_client.post(f"/cbt/exams/{exam.id}/start/")
+        self.assertEqual(start_response.status_code, 302)
+        attempt = ExamAttempt.objects.get(exam=exam, student=self.student_user)
+
+        submit_response = student_client.post(
+            f"/cbt/attempts/{attempt.id}/run/",
+            {
+                "q": "1",
+                "action": "submit",
+                "selected_options": [str(objective_question.options.get(label="A").id)],
+            },
+        )
+        self.assertEqual(submit_response.status_code, 302)
+        attempt.refresh_from_db()
+        self.assertEqual(attempt.status, CBTAttemptStatus.SUBMITTED)
+        self.assertTrue(attempt.auto_marking_completed)
+        self.assertEqual(str(attempt.objective_score), "20.00")
+
+        score = StudentSubjectScore.objects.get(student=self.student_user)
+        self.assertEqual(str(score.objective), "20.00")
+
+    def test_exam_only_language_never_writes_to_official_result_sheet(self):
+        from apps.cbt.services import _apply_writeback
+        from apps.results.models import ResultSheet
+
+        chinese = Subject.objects.create(name="Chinese", code="CHN")
+        ClassSubject.objects.create(
+            academic_class=self.academic_class,
+            subject=chinese,
+            is_active=True,
+        )
+        assignment = TeacherSubjectAssignment.objects.create(
+            teacher=self.teacher_user,
+            subject=chinese,
+            academic_class=self.academic_class,
+            session=self.session,
+            term=self.term,
+            is_active=True,
+        )
+        exam = Exam.objects.create(
+            title="Chinese Exam-Only Assessment",
+            exam_type="EXAM",
+            status=CBTExamStatus.DRAFT,
+            created_by=self.teacher_user,
+            assignment=assignment,
+            subject=chinese,
+            academic_class=self.academic_class,
+            session=self.session,
+            term=self.term,
+        )
+        attempt = ExamAttempt.objects.create(exam=exam, student=self.student_user)
+
+        result = _apply_writeback(
+            attempt=attempt,
+            target=CBTWritebackTarget.OBJECTIVE,
+            score_value="20.00",
+            component_key="objective",
+        )
+
+        self.assertTrue(result.get("skipped"))
+        self.assertIn("excluded", result.get("reason", "").lower())
+        self.assertFalse(ResultSheet.objects.filter(subject=chinese).exists())
+
+    def test_attempt_integrity_bundle_tracks_start_and_submit(self):
+        exam, objective_question, _ = self._create_exam(theory_enabled=False)
+        student_client = self.login_client(
+            host="cbt.ndgakuje.org",
+            username=self.student_user.username,
+            audience="cbt",
+        )
+        start_response = student_client.post(f"/cbt/exams/{exam.id}/start/")
+        self.assertEqual(start_response.status_code, 302)
+        attempt = ExamAttempt.objects.get(exam=exam, student=self.student_user)
+        self.assertTrue(attempt.integrity_bundle.get("bundle_hash"))
+        self.assertEqual(attempt.integrity_bundle["events"][0]["event_type"], "ATTEMPT_STARTED")
+
+        submit_response = student_client.post(
+            f"/cbt/attempts/{attempt.id}/run/",
+            {
+                "q": "1",
+                "action": "submit",
+                "selected_options": [str(objective_question.options.get(label="A").id)],
+            },
+        )
+        self.assertEqual(submit_response.status_code, 302)
+        attempt.refresh_from_db()
+        event_types = [row["event_type"] for row in attempt.integrity_bundle["events"]]
+        self.assertIn("ATTEMPT_STARTED", event_types)
+        self.assertIn("ATTEMPT_SUBMITTED", event_types)
+        self.assertEqual(attempt.integrity_bundle["summary"]["status"], CBTAttemptStatus.SUBMITTED)
+        self.assertTrue(all(row.get("event_hash") for row in attempt.integrity_bundle["events"]))
+
+    def test_theory_remains_pending_until_teacher_marks(self):
+        exam, _, theory_question = self._create_exam(
+            theory_enabled=True,
+            objective_target=CBTWritebackTarget.CA1,
+        )
+        student_client = self.login_client(
+            host="cbt.ndgakuje.org",
+            username=self.student_user.username,
+            audience="cbt",
+        )
+        start_response = student_client.post(f"/cbt/exams/{exam.id}/start/")
+        self.assertEqual(start_response.status_code, 302)
+        attempt = ExamAttempt.objects.get(exam=exam, student=self.student_user)
+
+        answer_row = attempt.answers.get(exam_question__question=theory_question)
+        submit_response = student_client.post(
+            f"/cbt/attempts/{attempt.id}/run/",
+            {
+                "q": "1",
+                "action": "save_next",
+                "selected_options": [str(attempt.answers.get(exam_question__sort_order=1).exam_question.question.options.get(label='A').id)],
+            },
+        )
+        self.assertEqual(submit_response.status_code, 302)
+        submit_response = student_client.post(
+            f"/cbt/attempts/{attempt.id}/run/?q=2",
+            {
+                "q": "2",
+                "action": "submit",
+                "response_text": "Ionic bond forms between sodium and chlorine ions.",
+            },
+        )
+        self.assertEqual(submit_response.status_code, 302)
+        attempt.refresh_from_db()
+        self.assertFalse(attempt.theory_marking_completed)
+
+        score = StudentSubjectScore.objects.get(student=self.student_user)
+        self.assertEqual(str(score.ca1), "10.00")
+        self.assertEqual(str(score.theory), "0.00")
+
+        teacher_client = self.login_client(
+            host="staff.ndgakuje.org",
+            username=self.teacher_user.username,
+            audience="staff",
+        )
+        mark_response = teacher_client.post(
+            f"/cbt/marking/theory/{attempt.id}/",
+            {
+                f"score_{answer_row.id}": "5.00",
+            },
+        )
+        self.assertEqual(mark_response.status_code, 302)
+        attempt.refresh_from_db()
+        self.assertTrue(attempt.theory_marking_completed)
+        self.assertEqual(str(attempt.theory_score), "30.00")
+        score.refresh_from_db()
+        self.assertEqual(str(score.theory), "30.00")
+
+    def test_shuffle_keeps_theory_after_objective_questions(self):
+        exam, _, theory_question = self._create_exam(theory_enabled=True)
+        extra_objective = Question.objects.create(
+            question_bank=exam.question_bank,
+            created_by=self.teacher_user,
+            subject=self.subject,
+            question_type=CBTQuestionType.OBJECTIVE,
+            stem="Atomic number of neon?",
+            topic="Atoms",
+            difficulty="EASY",
+            marks=5,
+        )
+        extra_option = Option.objects.create(
+            question=extra_objective,
+            label="A",
+            option_text="10",
+            sort_order=1,
+        )
+        Option.objects.create(
+            question=extra_objective,
+            label="B",
+            option_text="20",
+            sort_order=2,
+        )
+        from apps.cbt.models import CorrectAnswer
+
+        answer = CorrectAnswer.objects.create(question=extra_objective, is_finalized=True)
+        answer.correct_options.set([extra_option])
+        exam.exam_questions.filter(question=theory_question).update(sort_order=3)
+        ExamQuestion.objects.create(
+            exam=exam,
+            question=extra_objective,
+            sort_order=2,
+            marks=5,
+        )
+        blueprint = exam.blueprint
+        blueprint.shuffle_questions = True
+        blueprint.save(update_fields=["shuffle_questions", "updated_at"])
+
+        ordered_rows = _ordered_exam_question_rows(exam, shuffle_questions=True)
+        question_types = [row.question.question_type for row in ordered_rows]
+        self.assertEqual(question_types[-1], CBTQuestionType.SHORT_ANSWER)
+        self.assertTrue(
+            all(
+                question_type in {CBTQuestionType.OBJECTIVE, CBTQuestionType.MULTI_SELECT}
+                for question_type in question_types[:-1]
+            )
+        )
+
+    def test_runner_removes_source_number_but_preserves_subquestions(self):
+        plain = Question(
+            question_type=CBTQuestionType.OBJECTIVE,
+            stem="40. Which animal is a mammal?\n(a) State one reason.",
+        )
+        rich = Question(
+            question_type=CBTQuestionType.OBJECTIVE,
+            rich_stem="<p><strong>12.</strong> Solve x<sup>2</sup> = 4.</p>",
+        )
+
+        plain_text, plain_is_rich = CBTStudentAttemptRunView._display_question_text(plain)
+        rich_text, rich_is_rich = CBTStudentAttemptRunView._display_question_text(rich)
+
+        self.assertFalse(plain_is_rich)
+        self.assertEqual(plain_text, "Which animal is a mammal?\n(a) State one reason.")
+        self.assertTrue(rich_is_rich)
+        self.assertNotIn("12.", rich_text)
+        self.assertIn("x<sup>2</sup>", rich_text)
+
+    def test_submitted_attempt_result_page_renders_with_review_timer(self):
+        exam, objective_question, _ = self._create_exam(theory_enabled=False)
+        student_client = self.login_client(
+            host="cbt.ndgakuje.org",
+            username=self.student_user.username,
+            audience="cbt",
+        )
+        student_client.post(f"/cbt/exams/{exam.id}/start/")
+        attempt = ExamAttempt.objects.get(exam=exam, student=self.student_user)
+        response = student_client.post(
+            f"/cbt/attempts/{attempt.id}/run/",
+            {
+                "q": "1",
+                "action": "submit",
+                "selected_options": [
+                    str(objective_question.options.get(label="A").id)
+                ],
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+
+        result = student_client.get(f"/cbt/attempts/{attempt.id}/result/")
+
+        self.assertEqual(result.status_code, 200)
+        self.assertContains(result, "00:30")
+
+    def test_theory_runner_keeps_theory_display_only_with_on_screen_controls(self):
+        exam, _, _ = self._create_exam(theory_enabled=True)
+        student_client = self.login_client(
+            host="cbt.ndgakuje.org",
+            username=self.student_user.username,
+            audience="cbt",
+        )
+        start_response = student_client.post(f"/cbt/exams/{exam.id}/start/")
+        self.assertEqual(start_response.status_code, 302)
+        attempt = ExamAttempt.objects.get(exam=exam, student=self.student_user)
+
+        run_response = student_client.get(f"/cbt/attempts/{attempt.id}/run/")
+        self.assertEqual(run_response.status_code, 200)
+        html = run_response.content.decode()
+        self.assertIn("Finish Objective", html)
+        self.assertIn("Keyboard Disabled", html)
+        self.assertIn("Theory questions will display on screen only and must be answered on paper.", html)
+        self.assertNotIn('name="response_text"', html)
+
+    def test_student_exam_board_shows_only_today_rows_and_marks_done_after_auto_close(self):
+        now = timezone.now()
+
+        open_exam, _, _ = self._create_exam(theory_enabled=False)
+        open_exam.open_now = False
+        open_exam.schedule_start = now - timezone.timedelta(minutes=15)
+        open_exam.schedule_end = now + timezone.timedelta(minutes=45)
+        open_exam.save(update_fields=["open_now", "schedule_start", "schedule_end", "updated_at"])
+
+        upcoming_exam, _, _ = self._create_exam(theory_enabled=False)
+        upcoming_exam.open_now = False
+        upcoming_exam.schedule_start = now + timezone.timedelta(minutes=60)
+        upcoming_exam.schedule_end = now + timezone.timedelta(minutes=120)
+        upcoming_exam.save(update_fields=["open_now", "schedule_start", "schedule_end", "updated_at"])
+
+        done_exam, _, _ = self._create_exam(theory_enabled=False)
+        done_exam.open_now = False
+        done_exam.schedule_start = now - timezone.timedelta(hours=3)
+        done_exam.schedule_end = now - timezone.timedelta(hours=1)
+        done_exam.save(update_fields=["open_now", "schedule_start", "schedule_end", "updated_at"])
+        ExamAttempt.objects.create(
+            exam=done_exam,
+            student=self.student_user,
+            status=CBTAttemptStatus.SUBMITTED,
+            attempt_number=1,
+            submitted_at=now - timezone.timedelta(minutes=50),
+        )
+
+        yesterday_exam, _, _ = self._create_exam(theory_enabled=False)
+        yesterday_exam.status = CBTExamStatus.CLOSED
+        yesterday_exam.open_now = False
+        yesterday_exam.schedule_start = now - timezone.timedelta(days=2, hours=3)
+        yesterday_exam.schedule_end = now - timezone.timedelta(days=2, hours=1)
+        yesterday_exam.save(update_fields=["status", "open_now", "schedule_start", "schedule_end", "updated_at"])
+        yesterday_attempt = ExamAttempt.objects.create(
+            exam=yesterday_exam,
+            student=self.student_user,
+            status=CBTAttemptStatus.SUBMITTED,
+            attempt_number=1,
+            submitted_at=now - timezone.timedelta(days=2, minutes=30),
+        )
+        ExamAttempt.objects.filter(pk=yesterday_attempt.pk).update(
+            created_at=now - timezone.timedelta(days=2, minutes=30),
+            updated_at=now - timezone.timedelta(days=2, minutes=30),
+        )
+
+        rows = student_available_exams(self.student_user)
+        row_map = {row["exam"].id: row for row in rows}
+
+        done_exam.refresh_from_db()
+        self.assertEqual(done_exam.status, CBTExamStatus.CLOSED)
+        self.assertIn(open_exam.id, row_map)
+        self.assertTrue(row_map[open_exam.id]["can_start"])
+        self.assertEqual(row_map[open_exam.id]["status_label"], "Open")
+        self.assertIn(upcoming_exam.id, row_map)
+        self.assertFalse(row_map[upcoming_exam.id]["can_start"])
+        self.assertEqual(row_map[upcoming_exam.id]["status_label"], "Not Yet")
+        self.assertIn("Exam opens at", row_map[upcoming_exam.id]["reason"])
+        self.assertIn(done_exam.id, row_map)
+        self.assertTrue(row_map[done_exam.id]["is_done"])
+        self.assertTrue(row_map[done_exam.id]["is_closed"])
+        self.assertEqual(row_map[done_exam.id]["status_label"], "Done")
+        self.assertNotIn(yesterday_exam.id, row_map)
+
+    def test_student_exam_board_respects_class_and_subject_registration(self):
+        now = timezone.now()
+
+        allowed_exam, _, _ = self._create_exam(theory_enabled=False)
+        allowed_exam.open_now = False
+        allowed_exam.schedule_start = now - timezone.timedelta(minutes=15)
+        allowed_exam.schedule_end = now + timezone.timedelta(minutes=45)
+        allowed_exam.save(update_fields=["open_now", "schedule_start", "schedule_end", "updated_at"])
+
+        other_class = AcademicClass.objects.create(code="SS1A", display_name="SS1A")
+        other_subject = Subject.objects.create(name="Mathematics", code="MTH")
+        ClassSubject.objects.create(academic_class=other_class, subject=other_subject, is_active=True)
+        other_assignment = TeacherSubjectAssignment.objects.create(
+            teacher=self.teacher_user,
+            subject=other_subject,
+            academic_class=other_class,
+            session=self.session,
+            term=self.term,
+            is_active=True,
+        )
+        other_bank = QuestionBank.objects.create(
+            name="Hidden Class Bank",
+            owner=self.teacher_user,
+            assignment=other_assignment,
+            subject=other_subject,
+            academic_class=other_class,
+            session=self.session,
+            term=self.term,
+        )
+        other_question = Question.objects.create(
+            question_bank=other_bank,
+            created_by=self.teacher_user,
+            subject=other_subject,
+            question_type=CBTQuestionType.OBJECTIVE,
+            stem="2 + 2 = ?",
+            topic="Numbers",
+            difficulty="EASY",
+            marks=5,
+        )
+        other_option = Option.objects.create(
+            question=other_question,
+            label="A",
+            option_text="4",
+            sort_order=1,
+        )
+        other_question.options.create(label="B", option_text="5", sort_order=2)
+        from apps.cbt.models import CorrectAnswer
+
+        other_answer = CorrectAnswer.objects.create(question=other_question, is_finalized=True)
+        other_answer.correct_options.set([other_option])
+        hidden_class_exam = Exam.objects.create(
+            title="SS1 Maths",
+            description="Other class exam",
+            exam_type="CA",
+            status=CBTExamStatus.ACTIVE,
+            created_by=self.teacher_user,
+            assignment=other_assignment,
+            subject=other_subject,
+            academic_class=other_class,
+            session=self.session,
+            term=self.term,
+            question_bank=other_bank,
+            open_now=False,
+            is_time_based=True,
+            schedule_start=now - timezone.timedelta(minutes=15),
+            schedule_end=now + timezone.timedelta(minutes=45),
+        )
+        ExamBlueprint.objects.create(
+            exam=hidden_class_exam,
+            duration_minutes=30,
+            max_attempts=1,
+            shuffle_questions=True,
+            shuffle_options=True,
+            instructions="Answer all questions.",
+        )
+        ExamQuestion.objects.create(exam=hidden_class_exam, question=other_question, sort_order=1, marks=5)
+
+        same_class_subject = Subject.objects.create(name="Biology", code="BIO")
+        ClassSubject.objects.create(academic_class=self.academic_class, subject=same_class_subject, is_active=True)
+        same_class_assignment = TeacherSubjectAssignment.objects.create(
+            teacher=self.teacher_user,
+            subject=same_class_subject,
+            academic_class=self.academic_class,
+            session=self.session,
+            term=self.term,
+            is_active=True,
+        )
+        same_class_bank = QuestionBank.objects.create(
+            name="Hidden Subject Bank",
+            owner=self.teacher_user,
+            assignment=same_class_assignment,
+            subject=same_class_subject,
+            academic_class=self.academic_class,
+            session=self.session,
+            term=self.term,
+        )
+        same_class_question = Question.objects.create(
+            question_bank=same_class_bank,
+            created_by=self.teacher_user,
+            subject=same_class_subject,
+            question_type=CBTQuestionType.OBJECTIVE,
+            stem="Cell is the unit of?",
+            topic="Cells",
+            difficulty="EASY",
+            marks=5,
+        )
+        same_class_option = Option.objects.create(
+            question=same_class_question,
+            label="A",
+            option_text="Life",
+            sort_order=1,
+        )
+        same_class_question.options.create(label="B", option_text="Energy", sort_order=2)
+        same_class_answer = CorrectAnswer.objects.create(question=same_class_question, is_finalized=True)
+        same_class_answer.correct_options.set([same_class_option])
+        hidden_subject_exam = Exam.objects.create(
+            title="SS2 Biology",
+            description="Same class but unregistered subject",
+            exam_type="CA",
+            status=CBTExamStatus.ACTIVE,
+            created_by=self.teacher_user,
+            assignment=same_class_assignment,
+            subject=same_class_subject,
+            academic_class=self.academic_class,
+            session=self.session,
+            term=self.term,
+            question_bank=same_class_bank,
+            open_now=False,
+            is_time_based=True,
+            schedule_start=now - timezone.timedelta(minutes=15),
+            schedule_end=now + timezone.timedelta(minutes=45),
+        )
+        ExamBlueprint.objects.create(
+            exam=hidden_subject_exam,
+            duration_minutes=30,
+            max_attempts=1,
+            shuffle_questions=True,
+            shuffle_options=True,
+            instructions="Answer all questions.",
+        )
+        ExamQuestion.objects.create(exam=hidden_subject_exam, question=same_class_question, sort_order=1, marks=5)
+
+        rows = student_available_exams(self.student_user)
+        exam_ids = {row["exam"].id for row in rows}
+
+        self.assertIn(allowed_exam.id, exam_ids)
+        self.assertNotIn(hidden_class_exam.id, exam_ids)
+        self.assertNotIn(hidden_subject_exam.id, exam_ids)
+
+    def test_student_cannot_see_or_start_previous_term_cbt(self):
+        exam, _, _ = self._create_exam(theory_enabled=False)
+        current_term = Term.objects.create(session=self.session, name="THIRD")
+        setup_state = SystemSetupState.get_solo()
+        setup_state.current_term = current_term
+        setup_state.save(update_fields=["current_term", "updated_at"])
+
+        self.assertEqual(student_available_exams(self.student_user), [])
+
+        student_client = self.login_client(
+            host="cbt.ndgakuje.org",
+            username=self.student_user.username,
+            audience="cbt",
+        )
+        response = student_client.post(f"/cbt/exams/{exam.id}/start/")
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, "/cbt/exams/available/")
+        self.assertFalse(ExamAttempt.objects.filter(exam=exam, student=self.student_user).exists())
+
+    def test_student_cannot_start_exam_outside_schedule(self):
+        exam, _, _ = self._create_exam(theory_enabled=False)
+        exam.open_now = False
+        exam.schedule_start = timezone.now() + timezone.timedelta(hours=2)
+        exam.schedule_end = timezone.now() + timezone.timedelta(hours=4)
+        exam.save(update_fields=["open_now", "schedule_start", "schedule_end", "updated_at"])
+
+        student_client = self.login_client(
+            host="cbt.ndgakuje.org",
+            username=self.student_user.username,
+            audience="cbt",
+        )
+        response = student_client.post(f"/cbt/exams/{exam.id}/start/")
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(ExamAttempt.objects.filter(exam=exam, student=self.student_user).exists())
+
+    @override_settings(
+        FEATURE_FLAGS={
+            **settings.FEATURE_FLAGS,
+            "CBT_ENABLED": True,
+            "LOCKDOWN_ENABLED": False,
+        }
+    )
+    def test_deadline_change_closes_open_attempt_via_heartbeat_without_lockdown(self):
+        exam, _, _ = self._create_exam(theory_enabled=False)
+        now = timezone.now()
+        exam.open_now = False
+        exam.schedule_start = now - timezone.timedelta(minutes=5)
+        exam.schedule_end = now + timezone.timedelta(minutes=20)
+        exam.save(update_fields=["open_now", "schedule_start", "schedule_end", "updated_at"])
+
+        student_client = self.login_client(
+            host="cbt.ndgakuje.org",
+            username=self.student_user.username,
+            audience="cbt",
+        )
+        start_response = student_client.post(f"/cbt/exams/{exam.id}/start/")
+        self.assertEqual(start_response.status_code, 302)
+        attempt = ExamAttempt.objects.get(exam=exam, student=self.student_user)
+
+        exam.schedule_end = timezone.now() - timezone.timedelta(seconds=1)
+        exam.save(update_fields=["schedule_end", "updated_at"])
+
+        response = student_client.post(
+            f"/cbt/attempts/{attempt.id}/heartbeat/",
+            data=json.dumps({"tab_token": "runtime-tab"}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload.get("attempt_closed"))
+        self.assertEqual(payload.get("remaining_seconds"), 0)
+        self.assertIn(f"/cbt/attempts/{attempt.id}/result/", payload.get("redirect_url", ""))
+
+        attempt.refresh_from_db()
+        self.assertEqual(attempt.status, CBTAttemptStatus.SUBMITTED)
+        self.assertIsNotNone(attempt.submitted_at)
+
+    def test_logout_keeps_open_cbt_attempt_running(self):
+        exam, objective_question, _ = self._create_exam(theory_enabled=False)
+        student_client = self.login_client(
+            host="cbt.ndgakuje.org",
+            username=self.student_user.username,
+            audience="cbt",
+        )
+        student_client.post(f"/cbt/exams/{exam.id}/start/")
+        attempt = ExamAttempt.objects.get(exam=exam, student=self.student_user)
+        run_response = student_client.post(
+            f"/cbt/attempts/{attempt.id}/run/",
+            {
+                "q": "1",
+                "action": "save_stay",
+                "selected_options": [str(objective_question.options.get(label="A").id)],
+            },
+        )
+        self.assertEqual(run_response.status_code, 302)
+        logout_response = student_client.get("/auth/logout/")
+        self.assertEqual(logout_response.status_code, 302)
+        attempt.refresh_from_db()
+        self.assertEqual(attempt.status, CBTAttemptStatus.IN_PROGRESS)
+        self.assertIsNone(attempt.submitted_at)
+
+    def test_ca_split_keeps_objective_writeback_but_leaves_theory_for_teacher_results_entry(self):
+        exam, objective_question, theory_question = self._create_exam(
+            theory_enabled=True,
+            objective_target=CBTWritebackTarget.CA1,
+        )
+        exam.exam_type = "CA"
+        exam.save(update_fields=["exam_type", "updated_at"])
+        blueprint = ExamBlueprint.objects.get(exam=exam)
+        blueprint.theory_writeback_target = CBTWritebackTarget.NONE
+        blueprint.section_config = {
+            "flow_type": "OBJECTIVE_THEORY",
+            "objective_count": 1,
+            "theory_count": 1,
+            "theory_response_mode": "TYPING",
+            "ca_target": CBTWritebackTarget.CA1,
+            "manual_score_split": True,
+            "objective_target_max": "5.00",
+            "theory_target_max": "5.00",
+        }
+        blueprint.save(update_fields=["theory_writeback_target", "section_config", "updated_at"])
+
+        student_client = self.login_client(
+            host="cbt.ndgakuje.org",
+            username=self.student_user.username,
+            audience="cbt",
+        )
+        start_response = student_client.post(f"/cbt/exams/{exam.id}/start/")
+        self.assertEqual(start_response.status_code, 302)
+        attempt = ExamAttempt.objects.get(exam=exam, student=self.student_user)
+
+        submit_response = student_client.post(
+            f"/cbt/attempts/{attempt.id}/run/?q=1",
+            {
+                "q": "1",
+                "action": "save_next",
+                "selected_options": [str(objective_question.options.get(label="A").id)],
+            },
+        )
+        self.assertEqual(submit_response.status_code, 302)
+        submit_response = student_client.post(
+            f"/cbt/attempts/{attempt.id}/run/?q=2",
+            {
+                "q": "2",
+                "action": "submit",
+                "response_text": "Theory answer",
+            },
+        )
+        self.assertEqual(submit_response.status_code, 302)
+        attempt.refresh_from_db()
+        self.assertEqual(str(attempt.objective_score), "5.00")
+
+        answer_row = attempt.answers.get(exam_question__question=theory_question)
+        teacher_client = self.login_client(
+            host="staff.ndgakuje.org",
+            username=self.teacher_user.username,
+            audience="staff",
+        )
+        mark_response = teacher_client.post(
+            f"/cbt/marking/theory/{attempt.id}/",
+            {f"score_{answer_row.id}": "5.00"},
+        )
+        self.assertEqual(mark_response.status_code, 302)
+        attempt.refresh_from_db()
+        self.assertEqual(str(attempt.theory_score), "5.00")
+
+        score = StudentSubjectScore.objects.get(student=self.student_user)
+        self.assertEqual(str(score.ca1), "5.00")
+        self.assertEqual(
+            (attempt.writeback_metadata or {}).get("theory_writeback", {}).get("skipped"),
+            True,
+        )
+
+
+@override_settings(
+    FEATURE_FLAGS={
+        **settings.FEATURE_FLAGS,
+        "CBT_ENABLED": True,
+        "LOCKDOWN_ENABLED": True,
+    }
+)
+@override_settings(**CBT_TEST_HOST_SETTINGS)
+class StageTwelveLockdownTests(StageElevenCBTRunnerTests):
+    def test_multiple_tab_heartbeat_locks_both_sessions_for_it_review(self):
+        exam, _, _ = self._create_exam(theory_enabled=False)
+        student_client = self.login_client(
+            host="cbt.ndgakuje.org",
+            username=self.student_user.username,
+            audience="cbt",
+        )
+        student_client.post(f"/cbt/exams/{exam.id}/start/")
+        attempt = ExamAttempt.objects.get(exam=exam, student=self.student_user)
+
+        first = student_client.post(
+            f"/cbt/attempts/{attempt.id}/heartbeat/",
+            data=json.dumps({"tab_token": "tab-one"}),
+            content_type="application/json",
+            HTTP_USER_AGENT="NDGA-Lockdown-Test-Agent/1.0",
+        )
+        self.assertEqual(first.status_code, 200)
+        first_payload = first.json()
+        self.assertTrue(first_payload.get("ok"))
+        self.assertFalse(first_payload.get("paused"))
+        self.assertIn("remaining_seconds", first_payload)
+
+        second = student_client.post(
+            f"/cbt/attempts/{attempt.id}/heartbeat/",
+            data=json.dumps({"tab_token": "tab-two"}),
+            content_type="application/json",
+            HTTP_USER_AGENT="NDGA-Lockdown-Test-Agent/1.0",
+        )
+        self.assertEqual(second.status_code, 200)
+        payload = second.json()
+        self.assertTrue(payload.get("session_conflict"))
+        self.assertTrue(payload.get("locked"))
+
+        attempt.refresh_from_db()
+        self.assertTrue(attempt.is_locked)
+        self.assertEqual(attempt.status, CBTAttemptStatus.IN_PROGRESS)
+        self.assertEqual(attempt.lock_reason, "MALPRACTICE_MULTIPLE_LOGIN_ATTEMPT")
+        self.assertTrue(attempt.allow_resume_by_it)
+
+        log = AuditEvent.objects.filter(
+            category=AuditCategory.LOCKDOWN,
+            event_type="LOCKDOWN_VIOLATION",
+        ).latest("created_at")
+        self.assertEqual(log.metadata.get("event_type"), "MULTIPLE_LOGIN_ATTEMPT")
+        self.assertEqual(log.metadata.get("attempt_id"), str(attempt.id))
+        self.assertEqual(log.metadata.get("device"), "NDGA-Lockdown-Test-Agent/1.0")
+        self.assertIsNotNone(log.ip_address)
+
+    def test_lockdown_events_are_recorded_in_attempt_integrity_bundle(self):
+        exam, _, _ = self._create_exam(theory_enabled=False)
+        student_client = self.login_client(
+            host="cbt.ndgakuje.org",
+            username=self.student_user.username,
+            audience="cbt",
+        )
+        student_client.post(f"/cbt/exams/{exam.id}/start/")
+        attempt = ExamAttempt.objects.get(exam=exam, student=self.student_user)
+        ExamAttempt.objects.filter(pk=attempt.pk).update(
+            started_at=timezone.now() - timezone.timedelta(minutes=6)
+        )
+
+        student_client.post(
+            f"/cbt/attempts/{attempt.id}/heartbeat/",
+            data=json.dumps({"tab_token": "tab-one"}),
+            content_type="application/json",
+            HTTP_USER_AGENT="NDGA-Lockdown-Test-Agent/1.0",
+        )
+        student_client.post(
+            f"/cbt/attempts/{attempt.id}/heartbeat/",
+            data=json.dumps({"tab_token": "tab-two"}),
+            content_type="application/json",
+            HTTP_USER_AGENT="NDGA-Lockdown-Test-Agent/1.0",
+        )
+
+        attempt.refresh_from_db()
+        event_types = [row["event_type"] for row in attempt.integrity_bundle["events"]]
+        self.assertIn("LOCKDOWN_HEARTBEAT", event_types)
+        self.assertIn("MULTIPLE_LOGIN_ATTEMPT", event_types)
+        self.assertEqual(attempt.integrity_bundle["summary"]["violation_count"], 1)
+        self.assertTrue(attempt.integrity_bundle.get("bundle_hash"))
+
+    def test_repeated_heartbeat_updates_liveness_without_growing_integrity_bundle(self):
+        exam, _, _ = self._create_exam(theory_enabled=False)
+        student_client = self.login_client(
+            host="cbt.ndgakuje.org",
+            username=self.student_user.username,
+            audience="cbt",
+        )
+        student_client.post(f"/cbt/exams/{exam.id}/start/")
+        attempt = ExamAttempt.objects.get(exam=exam, student=self.student_user)
+        heartbeat_url = f"/cbt/attempts/{attempt.id}/heartbeat/"
+
+        first = student_client.post(
+            heartbeat_url,
+            data=json.dumps({"tab_token": "same-tab"}),
+            content_type="application/json",
+        )
+        self.assertEqual(first.status_code, 200)
+        attempt.refresh_from_db()
+        first_heartbeat_at = attempt.last_heartbeat_at
+        first_events = len((attempt.integrity_bundle or {}).get("events") or [])
+
+        second = student_client.post(
+            heartbeat_url,
+            data=json.dumps({"tab_token": "same-tab"}),
+            content_type="application/json",
+        )
+        self.assertEqual(second.status_code, 200)
+        attempt.refresh_from_db()
+
+        self.assertGreaterEqual(attempt.last_heartbeat_at, first_heartbeat_at)
+        self.assertEqual(
+            len((attempt.integrity_bundle or {}).get("events") or []),
+            first_events,
+        )
+
+    def test_offline_evidence_is_available_to_invigilators(self):
+        exam, _, _ = self._create_exam(theory_enabled=False)
+        student_client = self.login_client(
+            host="cbt.ndgakuje.org",
+            username=self.student_user.username,
+            audience="cbt",
+        )
+        student_client.post(f"/cbt/exams/{exam.id}/start/")
+        attempt = ExamAttempt.objects.get(exam=exam, student=self.student_user)
+        response = student_client.post(
+            f"/cbt/attempts/{attempt.id}/warning/",
+            data=json.dumps(
+                {
+                    "event_type": "NETWORK_OFFLINE",
+                    "evidence_only": True,
+                    "details": {"question_index": 1},
+                }
+            ),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json().get("evidence_recorded"))
+        log = AuditEvent.objects.filter(
+            category=AuditCategory.LOCKDOWN,
+            event_type="LOCKDOWN_EVIDENCE",
+        ).latest("created_at")
+        self.assertEqual(log.metadata.get("event_type"), "NETWORK_OFFLINE")
+        self.assertEqual(log.metadata.get("attempt_id"), str(attempt.id))
+
+    def test_microphone_interruption_is_available_to_invigilators(self):
+        exam, _, _ = self._create_exam(theory_enabled=False)
+        student_client = self.login_client(
+            host="cbt.ndgakuje.org",
+            username=self.student_user.username,
+            audience="cbt",
+        )
+        student_client.post(f"/cbt/exams/{exam.id}/start/")
+        attempt = ExamAttempt.objects.get(exam=exam, student=self.student_user)
+        response = student_client.post(
+            f"/cbt/attempts/{attempt.id}/warning/",
+            data=json.dumps(
+                {
+                    "event_type": "AUDIO_INTERRUPTED",
+                    "evidence_only": True,
+                    "details": {"question_index": 1, "reason": "track_ended"},
+                }
+            ),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json().get("evidence_recorded"))
+        log = AuditEvent.objects.filter(
+            category=AuditCategory.LOCKDOWN,
+            event_type="LOCKDOWN_EVIDENCE",
+        ).latest("created_at")
+        self.assertEqual(log.metadata.get("event_type"), "AUDIO_INTERRUPTED")
+        self.assertEqual(log.metadata.get("attempt_id"), str(attempt.id))
+
+    def test_locked_attempt_redirects_to_contact_it_screen(self):
+        exam, _, _ = self._create_exam(theory_enabled=False)
+        student_client = self.login_client(
+            host="cbt.ndgakuje.org",
+            username=self.student_user.username,
+            audience="cbt",
+        )
+        student_client.post(f"/cbt/exams/{exam.id}/start/")
+        attempt = ExamAttempt.objects.get(exam=exam, student=self.student_user)
+        violation = student_client.post(
+            f"/cbt/attempts/{attempt.id}/violation/",
+            data=json.dumps({"event_type": "FOCUS_LOSS"}),
+            content_type="application/json",
+        )
+        self.assertEqual(violation.status_code, 200)
+        self.assertTrue(violation.json().get("locked"))
+
+        run_response = student_client.get(f"/cbt/attempts/{attempt.id}/run/")
+        self.assertEqual(run_response.status_code, 302)
+        self.assertIn(f"/cbt/attempts/{attempt.id}/locked/", run_response.url)
+
+    def test_third_manual_microphone_strike_locks_for_it_review(self):
+        exam, objective_question, _ = self._create_exam(theory_enabled=False)
+        student_client = self.login_client(
+            host="cbt.ndgakuje.org",
+            username=self.student_user.username,
+            audience="cbt",
+        )
+        student_client.post(f"/cbt/exams/{exam.id}/start/")
+        attempt = ExamAttempt.objects.get(exam=exam, student=self.student_user)
+        student_client.post(
+            f"/cbt/attempts/{attempt.id}/run/",
+            {
+                "q": "1",
+                "action": "save_stay",
+                "selected_options": [str(objective_question.options.get(label="A").id)],
+            },
+        )
+
+        it_client = self.login_client(
+            host="it.ndgakuje.org",
+            username=self.it_user.username,
+            audience="staff",
+        )
+        action_url = f"/cbt/it/lockdown/{attempt.id}/action/"
+        first = it_client.post(
+            action_url,
+            {"action": "mic_strike"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(first.status_code, 200)
+        self.assertTrue(first.json().get("ok"))
+        self.assertEqual(first.json().get("warning_count"), 1)
+
+        second = it_client.post(
+            action_url,
+            {"action": "mic_strike"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(second.status_code, 200)
+        self.assertTrue(second.json().get("ok"))
+        self.assertEqual(second.json().get("warning_count"), 2)
+
+        third = it_client.post(
+            action_url,
+            {"action": "mic_strike"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(third.status_code, 200)
+        self.assertTrue(third.json().get("flagged"))
+        self.assertEqual(third.json().get("warning_count"), 3)
+
+        attempt.refresh_from_db()
+        self.assertEqual(attempt.status, CBTAttemptStatus.IN_PROGRESS)
+        self.assertTrue(attempt.is_locked)
+        self.assertEqual(attempt.lock_reason, "MALPRACTICE_MANUAL_AUDIO_WARNING")
+        self.assertTrue(attempt.allow_resume_by_it)
+        flag = attempt.writeback_metadata.get("malpractice_flag") or {}
+        self.assertTrue(flag.get("flagged"))
+        self.assertTrue(flag.get("excluded_from_result_calculations"))
+        self.assertTrue(attempt.integrity_bundle["summary"]["malpractice_flagged"])
+        self.assertFalse(
+            StudentSubjectScore.objects.filter(student=self.student_user).exists()
+        )
+
+    def test_expired_flag_moves_to_history_and_unflag_releases_scored_submission(self):
+        exam, objective_question, _ = self._create_exam(theory_enabled=False)
+        student_client = self.login_client(
+            host="cbt.ndgakuje.org",
+            username=self.student_user.username,
+            audience="cbt",
+        )
+        student_client.post(f"/cbt/exams/{exam.id}/start/")
+        attempt = ExamAttempt.objects.get(exam=exam, student=self.student_user)
+        student_client.post(
+            f"/cbt/attempts/{attempt.id}/run/",
+            {
+                "q": "1",
+                "action": "save_stay",
+                "selected_options": [str(objective_question.options.get(label="A").id)],
+            },
+        )
+        it_client = self.login_client(
+            host="it.ndgakuje.org",
+            username=self.it_user.username,
+            audience="staff",
+        )
+        action_url = f"/cbt/it/lockdown/{attempt.id}/action/"
+        for _ in range(3):
+            response = it_client.post(
+                action_url,
+                {"action": "mic_strike"},
+                HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+            )
+            self.assertEqual(response.status_code, 200)
+
+        exam.schedule_end = timezone.now() - timezone.timedelta(seconds=1)
+        exam.save(update_fields=["schedule_end", "updated_at"])
+        history = it_client.get(
+            "/cbt/it/lockdown/?format=json&view=history",
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(history.status_code, 200)
+        self.assertIn(
+            attempt.id,
+            [row["attempt_id"] for row in history.json().get("rows", [])],
+        )
+        attempt.refresh_from_db()
+        self.assertEqual(attempt.status, CBTAttemptStatus.SUBMITTED)
+        self.assertTrue(attempt.is_locked)
+        self.assertGreater(attempt.objective_score, 0)
+        self.assertFalse(
+            StudentSubjectScore.objects.filter(student=self.student_user).exists()
+        )
+
+        unflag = it_client.post(
+            action_url,
+            {"action": "unflag"},
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(unflag.status_code, 200)
+        self.assertTrue(unflag.json().get("unflagged"))
+        attempt.refresh_from_db()
+        self.assertFalse(attempt.is_locked)
+        self.assertEqual(attempt.status, CBTAttemptStatus.FINALIZED)
+        self.assertFalse(
+            (attempt.writeback_metadata.get("malpractice_flag") or {}).get("flagged")
+        )
+        self.assertTrue(
+            StudentSubjectScore.objects.filter(student=self.student_user).exists()
+        )
+
+    def test_browser_security_events_do_not_consume_manual_microphone_strikes(self):
+        exam, _, _ = self._create_exam(theory_enabled=False)
+        student_client = self.login_client(
+            host="cbt.ndgakuje.org",
+            username=self.student_user.username,
+            audience="cbt",
+        )
+        student_client.post(f"/cbt/exams/{exam.id}/start/")
+        attempt = ExamAttempt.objects.get(exam=exam, student=self.student_user)
+
+        first = student_client.post(
+            f"/cbt/attempts/{attempt.id}/warning/",
+            data=json.dumps({"event_type": "FULLSCREEN_EXIT"}),
+            content_type="application/json",
+        )
+        self.assertTrue(first.json().get("strike_disabled"))
+        self.assertEqual(first.json().get("warning_count"), 0)
+
+        second = student_client.post(
+            f"/cbt/attempts/{attempt.id}/warning/",
+            data=json.dumps({"event_type": "TAB_SWITCH"}),
+            content_type="application/json",
+        )
+        self.assertTrue(second.json().get("strike_disabled"))
+        self.assertEqual(second.json().get("warning_count"), 0)
+
+        third = student_client.post(
+            f"/cbt/attempts/{attempt.id}/warning/",
+            data=json.dumps({"event_type": "COPY_ATTEMPT"}),
+            content_type="application/json",
+        )
+        self.assertTrue(third.json().get("strike_disabled"))
+        self.assertEqual(third.json().get("warning_count"), 0)
+
+        attempt.refresh_from_db()
+        self.assertEqual(attempt.status, CBTAttemptStatus.IN_PROGRESS)
+        self.assertFalse(attempt.is_locked)
+
+    def test_secure_console_uses_single_student_layout(self):
+        exam, _, _ = self._create_exam(theory_enabled=False)
+        student_client = self.login_client(
+            host="cbt.ndgakuje.org",
+            username=self.student_user.username,
+            audience="cbt",
+        )
+        student_client.post(f"/cbt/exams/{exam.id}/start/")
+        attempt = ExamAttempt.objects.get(exam=exam, student=self.student_user)
+
+        response = student_client.get(f"/cbt/attempts/{attempt.id}/run/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'class="mock-practice-theme mx-auto')
+        self.assertContains(response, 'secure-command-bar')
+        self.assertContains(response, 'secure-exam-grid')
+        self.assertContains(response, 'secure-sidebar')
+        self.assertNotContains(response, "Exam Sentinel Active")
+        self.assertNotContains(response, 'class="exam-sentinel-card')
+        self.assertNotContains(response, 'class="mock-jamb-main"')
+        self.assertNotContains(response, 'data-mock-tool="bookmark"')
+        self.assertNotContains(response, 'data-mock-tool="report"')
+        self.assertNotContains(response, 'data-mock-tool="dictionary"')
+
+    def test_it_can_unlock_grant_time_and_allow_resume(self):
+        exam, _, _ = self._create_exam(theory_enabled=False)
+        student_client = self.login_client(
+            host="cbt.ndgakuje.org",
+            username=self.student_user.username,
+            audience="cbt",
+        )
+        student_client.post(f"/cbt/exams/{exam.id}/start/")
+        attempt = ExamAttempt.objects.get(exam=exam, student=self.student_user)
+        student_client.post(
+            f"/cbt/attempts/{attempt.id}/violation/",
+            data=json.dumps({"event_type": "TAB_SWITCH"}),
+            content_type="application/json",
+        )
+        attempt.refresh_from_db()
+        self.assertTrue(attempt.is_locked)
+
+        it_client = self.login_client(
+            host="it.ndgakuje.org",
+            username=self.it_user.username,
+            audience="staff",
+        )
+        unlock_response = it_client.post(
+            f"/cbt/it/lockdown/{attempt.id}/action/",
+            {
+                "action": "unlock",
+                "allow_resume": "on",
+                "extra_time_minutes": "15",
+            },
+        )
+        self.assertEqual(unlock_response.status_code, 302)
+        attempt.refresh_from_db()
+        self.assertFalse(attempt.is_locked)
+        self.assertTrue(attempt.allow_resume_by_it)
+        self.assertEqual(attempt.extra_time_minutes, 15)
+        self.assertEqual(attempt.status, CBTAttemptStatus.IN_PROGRESS)
+
+
+@override_settings(
+    FEATURE_FLAGS={
+        **settings.FEATURE_FLAGS,
+        "CBT_ENABLED": True,
+    }
+)
+@override_settings(**CBT_TEST_HOST_SETTINGS)
+class StageThirteenSimulationTests(StageElevenCBTRunnerTests):
+    def _create_simulation_wrapper(self, *, score_mode, max_score="10.00", evidence_required=False):
+        suffix = SimulationWrapper.objects.count() + 1
+        return SimulationWrapper.objects.create(
+            tool_name=f"Simulation Tool {suffix}",
+            tool_type="Iframe Tool",
+            tool_category="SCIENCE",
+            description="Simulation wrapper for stage 13 tests.",
+            online_url="https://example.org/sim",
+            offline_asset_path="",
+            score_mode=score_mode,
+            max_score=max_score,
+            scoring_callback_type="POST_MESSAGE",
+            evidence_required=evidence_required,
+            status=CBTSimulationWrapperStatus.APPROVED,
+            created_by=self.it_user,
+        )
+
+    def _start_attempt(self, exam):
+        student_client = self.login_client(
+            host="cbt.ndgakuje.org",
+            username=self.student_user.username,
+            audience="cbt",
+        )
+        start_response = student_client.post(f"/cbt/exams/{exam.id}/start/")
+        self.assertEqual(start_response.status_code, 302)
+        attempt = ExamAttempt.objects.get(exam=exam, student=self.student_user)
+        return student_client, attempt
+
+    def test_it_registry_submission_and_dean_approval_flow(self):
+        it_client = self.login_client(
+            host="it.ndgakuje.org",
+            username=self.it_user.username,
+            audience="staff",
+        )
+        create_response = it_client.post(
+            "/cbt/it/simulations/",
+            {
+                "action": "create",
+                "tool_name": "PhET Circuit Lab",
+                "tool_type": "iframe",
+                "tool_category": "SCIENCE",
+                "description": "Virtual circuit practical.",
+                "online_url": "https://example.org/phet-circuit",
+                "offline_asset_path": "",
+                "score_mode": CBTSimulationScoreMode.AUTO,
+                "max_score": "10.00",
+                "scoring_callback_type": "POST_MESSAGE",
+                "evidence_required": "",
+                "is_active": "on",
+            },
+        )
+        self.assertEqual(create_response.status_code, 302)
+        wrapper = SimulationWrapper.objects.get(tool_name="PhET Circuit Lab")
+        self.assertEqual(wrapper.status, CBTSimulationWrapperStatus.DRAFT)
+
+        submit_response = it_client.post(
+            "/cbt/it/simulations/",
+            {
+                "action": "submit_to_dean",
+                "wrapper_id": str(wrapper.id),
+                "comment": "Ready for dean review",
+            },
+        )
+        self.assertEqual(submit_response.status_code, 302)
+        wrapper.refresh_from_db()
+        self.assertEqual(wrapper.status, CBTSimulationWrapperStatus.PENDING_DEAN)
+
+        dean_client = self.login_client(
+            host="staff.ndgakuje.org",
+            username=self.dean_user.username,
+            audience="staff",
+        )
+        approve_response = dean_client.post(
+            f"/cbt/dean/simulations/{wrapper.id}/",
+            {
+                "action": "APPROVE",
+                "comment": "Simulation tool approved.",
+            },
+        )
+        self.assertEqual(approve_response.status_code, 302)
+        wrapper.refresh_from_db()
+        self.assertEqual(wrapper.status, CBTSimulationWrapperStatus.APPROVED)
+        self.assertEqual(wrapper.dean_reviewed_by_id, self.dean_user.id)
+
+    def test_it_registry_create_accepts_html5_zip_bundle(self):
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr("index.html", "<html><body>Local Sim</body></html>")
+            archive.writestr("assets/info.txt", "offline simulation")
+        bundle_upload = SimpleUploadedFile(
+            "local-sim.zip",
+            zip_buffer.getvalue(),
+            content_type="application/zip",
+        )
+
+        it_client = self.login_client(
+            host="it.ndgakuje.org",
+            username=self.it_user.username,
+            audience="staff",
+        )
+        create_response = it_client.post(
+            "/cbt/it/simulations/",
+            {
+                "action": "create",
+                "tool_name": "Offline Local Sim",
+                "tool_type": "HTML5",
+                "tool_category": "SCIENCE",
+                "description": "Offline bundle test.",
+                "online_url": "",
+                "offline_asset_path": "",
+                "score_mode": CBTSimulationScoreMode.VERIFY,
+                "max_score": "10.00",
+                "scoring_callback_type": "POST_MESSAGE",
+                "evidence_required": "on",
+                "is_active": "on",
+                "bundle_zip": bundle_upload,
+            },
+        )
+        self.assertEqual(create_response.status_code, 302)
+
+        wrapper = SimulationWrapper.objects.get(tool_name="Offline Local Sim")
+        self.assertTrue(wrapper.offline_asset_path.startswith("/media/sims/"))
+        self.assertEqual(wrapper.status, CBTSimulationWrapperStatus.DRAFT)
+
+    def test_auto_simulation_score_is_stored(self):
+        exam, _, _ = self._create_exam(theory_enabled=False)
+        wrapper = self._create_simulation_wrapper(score_mode=CBTSimulationScoreMode.AUTO)
+        exam_simulation = ExamSimulation.objects.create(
+            exam=exam,
+            simulation_wrapper=wrapper,
+            sort_order=1,
+            writeback_target=CBTWritebackTarget.CA3,
+            is_required=True,
+        )
+        student_client, attempt = self._start_attempt(exam)
+
+        auto_score_response = student_client.post(
+            f"/cbt/attempts/{attempt.id}/simulations/{exam_simulation.id}/auto-score/",
+            data=json.dumps({"score": "8.50", "type": "POST_MESSAGE"}),
+            content_type="application/json",
+        )
+        self.assertEqual(auto_score_response.status_code, 200)
+        self.assertTrue(auto_score_response.json().get("ok"))
+
+        record = SimulationAttemptRecord.objects.get(
+            attempt=attempt,
+            exam_simulation=exam_simulation,
+        )
+        self.assertEqual(record.status, "AUTO_CAPTURED")
+        self.assertEqual(str(record.final_score), "8.50")
+
+    def test_auto_simulation_score_accepts_xapi_statement_payload(self):
+        exam, _, _ = self._create_exam(theory_enabled=False)
+        wrapper = self._create_simulation_wrapper(score_mode=CBTSimulationScoreMode.AUTO)
+        exam_simulation = ExamSimulation.objects.create(
+            exam=exam,
+            simulation_wrapper=wrapper,
+            sort_order=1,
+            writeback_target=CBTWritebackTarget.CA3,
+            is_required=True,
+        )
+        student_client, attempt = self._start_attempt(exam)
+
+        auto_score_response = student_client.post(
+            f"/cbt/attempts/{attempt.id}/simulations/{exam_simulation.id}/auto-score/",
+            data=json.dumps(
+                {
+                    "type": "POST_MESSAGE",
+                    "statement": {
+                        "verb": {
+                            "id": "http://adlnet.gov/expapi/verbs/completed",
+                            "display": {"en-US": "completed"},
+                        },
+                        "result": {
+                            "score": {"scaled": 0.82},
+                        },
+                    },
+                }
+            ),
+            content_type="application/json",
+        )
+        self.assertEqual(auto_score_response.status_code, 200)
+        self.assertTrue(auto_score_response.json().get("ok"))
+
+        record = SimulationAttemptRecord.objects.get(
+            attempt=attempt,
+            exam_simulation=exam_simulation,
+        )
+        self.assertEqual(record.status, "AUTO_CAPTURED")
+        self.assertEqual(str(record.final_score), "8.20")
+        self.assertEqual(
+            record.callback_payload.get("_score_extraction", {}).get("method"),
+            "xapi_statement_result",
+        )
+
+    def test_it_registry_seed_free_library_action(self):
+        it_client = self.login_client(
+            host="it.ndgakuje.org",
+            username=self.it_user.username,
+            audience="staff",
+        )
+        seed_response = it_client.post(
+            "/cbt/it/simulations/",
+            {"action": "seed_free_library"},
+        )
+        self.assertEqual(seed_response.status_code, 302)
+        self.assertTrue(
+            SimulationWrapper.objects.filter(
+                source_provider__in=["PHET", "H5P", "GEOGEBRA"],
+            ).exists()
+        )
+
+    def test_verify_mode_requires_evidence_and_allows_teacher_validation_and_import(self):
+        exam, _, _ = self._create_exam(theory_enabled=False)
+        wrapper = self._create_simulation_wrapper(
+            score_mode=CBTSimulationScoreMode.VERIFY,
+            evidence_required=True,
+        )
+        exam_simulation = ExamSimulation.objects.create(
+            exam=exam,
+            simulation_wrapper=wrapper,
+            sort_order=1,
+            writeback_target=CBTWritebackTarget.CA4,
+            max_score_override="10.00",
+            is_required=True,
+        )
+        student_client, attempt = self._start_attempt(exam)
+
+        missing_evidence = student_client.post(
+            f"/cbt/attempts/{attempt.id}/simulations/{exam_simulation.id}/",
+            {"evidence_note": "No file yet"},
+        )
+        self.assertEqual(missing_evidence.status_code, 200)
+        self.assertContains(missing_evidence, "Evidence upload is required")
+
+        upload = SimpleUploadedFile(
+            "verify_evidence.txt",
+            b"NDGA verify evidence payload",
+            content_type="text/plain",
+        )
+        evidence_submit = student_client.post(
+            f"/cbt/attempts/{attempt.id}/simulations/{exam_simulation.id}/",
+            {
+                "evidence_note": "Practical evidence upload",
+                "evidence_file": upload,
+            },
+        )
+        self.assertEqual(evidence_submit.status_code, 302)
+        record = SimulationAttemptRecord.objects.get(
+            attempt=attempt,
+            exam_simulation=exam_simulation,
+        )
+        self.assertEqual(record.status, "VERIFY_PENDING")
+        self.assertTrue(bool(record.evidence_file))
+
+        teacher_client = self.login_client(
+            host="cbt.ndgakuje.org",
+            username=self.teacher_user.username,
+            audience="cbt",
+        )
+        verify_score = teacher_client.post(
+            f"/cbt/marking/simulations/{record.id}/",
+            {
+                "action": "verify_score",
+                "verified_score": "7.50",
+                "comment": "Evidence validated",
+            },
+        )
+        self.assertEqual(verify_score.status_code, 302)
+        record.refresh_from_db()
+        self.assertEqual(record.status, "VERIFIED")
+        self.assertEqual(str(record.final_score), "7.50")
+
+        import_score = teacher_client.post(
+            f"/cbt/marking/simulations/{record.id}/",
+            {
+                "action": "import_score",
+                "writeback_target": CBTWritebackTarget.CA4,
+                "manual_raw_score": "",
+            },
+        )
+        self.assertEqual(import_score.status_code, 302)
+        record.refresh_from_db()
+        self.assertEqual(record.status, "IMPORTED")
+        self.assertEqual(record.imported_target, CBTWritebackTarget.CA4)
+
+        score = StudentSubjectScore.objects.get(student=self.student_user, result_sheet__subject=self.subject)
+        self.assertEqual(str(score.ca4), "7.50")
+
+    def test_rubric_scoring_is_deterministic_and_importable(self):
+        exam, _, _ = self._create_exam(theory_enabled=False)
+        wrapper = self._create_simulation_wrapper(
+            score_mode=CBTSimulationScoreMode.RUBRIC,
+            max_score="20.00",
+            evidence_required=False,
+        )
+        exam_simulation = ExamSimulation.objects.create(
+            exam=exam,
+            simulation_wrapper=wrapper,
+            sort_order=1,
+            writeback_target=CBTWritebackTarget.CA3,
+            is_required=True,
+        )
+        student_client, attempt = self._start_attempt(exam)
+
+        rubric_submit = student_client.post(
+            f"/cbt/attempts/{attempt.id}/simulations/{exam_simulation.id}/",
+            {"evidence_note": "Rubric simulation completed"},
+        )
+        self.assertEqual(rubric_submit.status_code, 302)
+        record = SimulationAttemptRecord.objects.get(
+            attempt=attempt,
+            exam_simulation=exam_simulation,
+        )
+        self.assertEqual(record.status, "RUBRIC_PENDING")
+
+        teacher_client = self.login_client(
+            host="cbt.ndgakuje.org",
+            username=self.teacher_user.username,
+            audience="cbt",
+        )
+        rubric_score = teacher_client.post(
+            f"/cbt/marking/simulations/{record.id}/",
+            {
+                "action": "rubric_score",
+                "criterion_accuracy": "80",
+                "criterion_completion": "70",
+                "criterion_analysis": "90",
+                "criterion_safety": "60",
+                "comment": "Rubric graded",
+            },
+        )
+        self.assertEqual(rubric_score.status_code, 302)
+        record.refresh_from_db()
+        self.assertEqual(record.status, "RUBRIC_SCORED")
+        self.assertEqual(str(record.final_score), "15.00")
+        self.assertEqual(record.rubric_breakdown.get("average_percent"), "75.00")
+
+        import_score = teacher_client.post(
+            f"/cbt/marking/simulations/{record.id}/",
+            {
+                "action": "import_score",
+                "writeback_target": CBTWritebackTarget.CA3,
+                "manual_raw_score": "",
+            },
+        )
+        self.assertEqual(import_score.status_code, 302)
+        score = StudentSubjectScore.objects.get(student=self.student_user, result_sheet__subject=self.subject)
+        self.assertEqual(str(score.ca3), "7.50")
+
+    def test_submit_is_blocked_until_required_simulation_is_completed(self):
+        exam, objective_question, _ = self._create_exam(theory_enabled=False)
+        wrapper = self._create_simulation_wrapper(score_mode=CBTSimulationScoreMode.AUTO)
+        exam_simulation = ExamSimulation.objects.create(
+            exam=exam,
+            simulation_wrapper=wrapper,
+            sort_order=1,
+            writeback_target=CBTWritebackTarget.CA3,
+            is_required=True,
+        )
+        student_client, attempt = self._start_attempt(exam)
+
+        blocked_submit = student_client.post(
+            f"/cbt/attempts/{attempt.id}/run/",
+            {
+                "q": "1",
+                "action": "submit",
+                "selected_options": [str(objective_question.options.get(label="A").id)],
+            },
+        )
+        self.assertEqual(blocked_submit.status_code, 302)
+        attempt.refresh_from_db()
+        self.assertEqual(attempt.status, CBTAttemptStatus.IN_PROGRESS)
+
+        auto_score_response = student_client.post(
+            f"/cbt/attempts/{attempt.id}/simulations/{exam_simulation.id}/auto-score/",
+            data=json.dumps({"score": "9.00", "type": "POST_MESSAGE"}),
+            content_type="application/json",
+        )
+        self.assertEqual(auto_score_response.status_code, 200)
+
+        submit_ok = student_client.post(
+            f"/cbt/attempts/{attempt.id}/run/",
+            {
+                "q": "1",
+                "action": "submit",
+                "selected_options": [str(objective_question.options.get(label="A").id)],
+            },
+        )
+        self.assertEqual(submit_ok.status_code, 302)
+        attempt.refresh_from_db()
+        self.assertEqual(attempt.status, CBTAttemptStatus.SUBMITTED)
+
+
+@override_settings(
+    FEATURE_FLAGS={
+        **settings.FEATURE_FLAGS,
+        "CBT_ENABLED": True,
+        "OFFLINE_MODE_ENABLED": True,
+    }
+)
+@override_settings(**CBT_TEST_HOST_SETTINGS)
+class StageFourteenOfflineSyncTests(StageElevenCBTRunnerTests):
+    def _create_simulation_wrapper(self):
+        suffix = SimulationWrapper.objects.count() + 1
+        return SimulationWrapper.objects.create(
+            tool_name=f"Sync Simulation Tool {suffix}",
+            tool_type="iframe",
+            tool_category="SCIENCE",
+            online_url="https://example.org/sync-sim",
+            score_mode=CBTSimulationScoreMode.AUTO,
+            max_score="10.00",
+            scoring_callback_type="POST_MESSAGE",
+            status=CBTSimulationWrapperStatus.APPROVED,
+            created_by=self.it_user,
+        )
+
+    def test_exam_attempt_submission_enqueues_outbox_row(self):
+        exam, objective_question, _ = self._create_exam(theory_enabled=False)
+        student_client = self.login_client(
+            host="cbt.ndgakuje.org",
+            username=self.student_user.username,
+            audience="cbt",
+        )
+        student_client.post(f"/cbt/exams/{exam.id}/start/")
+        attempt = ExamAttempt.objects.get(exam=exam, student=self.student_user)
+
+        submit_response = student_client.post(
+            f"/cbt/attempts/{attempt.id}/run/",
+            {
+                "q": "1",
+                "action": "submit",
+                "selected_options": [str(objective_question.options.get(label="A").id)],
+            },
+        )
+        self.assertEqual(submit_response.status_code, 302)
+
+        rows = list(SyncQueue.objects.filter(operation_type=SyncOperationType.CBT_EXAM_ATTEMPT))
+        self.assertTrue(rows)
+        self.assertTrue(
+            any(
+                row.payload.get("event_type") == "ATTEMPT_SUBMITTED"
+                and row.payload.get("attempt_id") == str(attempt.id)
+                for row in rows
+            )
+        )
+
+    def test_simulation_capture_enqueues_outbox_row(self):
+        exam, _, _ = self._create_exam(theory_enabled=False)
+        wrapper = self._create_simulation_wrapper()
+        exam_simulation = ExamSimulation.objects.create(
+            exam=exam,
+            simulation_wrapper=wrapper,
+            sort_order=1,
+            writeback_target=CBTWritebackTarget.CA3,
+            is_required=True,
+        )
+        student_client = self.login_client(
+            host="cbt.ndgakuje.org",
+            username=self.student_user.username,
+            audience="cbt",
+        )
+        student_client.post(f"/cbt/exams/{exam.id}/start/")
+        attempt = ExamAttempt.objects.get(exam=exam, student=self.student_user)
+
+        auto_score_response = student_client.post(
+            f"/cbt/attempts/{attempt.id}/simulations/{exam_simulation.id}/auto-score/",
+            data=json.dumps({"score": "8.00", "type": "POST_MESSAGE"}),
+            content_type="application/json",
+        )
+        self.assertEqual(auto_score_response.status_code, 200)
+
+        rows = list(
+            SyncQueue.objects.filter(
+                operation_type=SyncOperationType.CBT_SIMULATION_ATTEMPT
+            )
+        )
+        self.assertTrue(rows)
+        self.assertTrue(
+            any(
+                row.payload.get("event_type") == "SIMULATION_AUTO_CAPTURED"
+                and row.payload.get("attempt_id") == str(attempt.id)
+                for row in rows
+            )
+        )
+
+
+@override_settings(**CBT_TEST_HOST_SETTINGS)
+class CBTNotationRenderingTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        StageElevenCBTRunnerTests.setUpTestData.__func__(cls)
+
+    def login_client(self, *, host, username, audience):
+        return StageElevenCBTRunnerTests.login_client(
+            self,
+            host=host,
+            username=username,
+            audience=audience,
+        )
+
+    def _create_exam(self, *, theory_enabled=False, objective_target=CBTWritebackTarget.OBJECTIVE):
+        return StageElevenCBTRunnerTests._create_exam(
+            self,
+            theory_enabled=theory_enabled,
+            objective_target=objective_target,
+        )
+
+    def _start_attempt(self, exam):
+        student_client = self.login_client(
+            host="cbt.ndgakuje.org",
+            username=self.student_user.username,
+            audience="cbt",
+        )
+        start_response = student_client.post(f"/cbt/exams/{exam.id}/start/")
+        self.assertEqual(start_response.status_code, 302)
+        attempt = ExamAttempt.objects.get(exam=exam, student=self.student_user)
+        return student_client, attempt
+
+    def test_template_filter_preserves_html_and_formats_base_digits(self):
+        rendered = Template(
+            "{% load cbt_text %}{{ value|safe|cbt_notation }}"
+        ).render(Context({"value": "Base <strong>1111\u2082</strong> and x\u00b2"}))
+        self.assertIn("<strong>1111<sub>2</sub></strong>", rendered)
+        self.assertIn("x<sup>2</sup>", rendered)
+
+    def test_attempt_run_renders_number_bases_as_subscripts(self):
+        exam, objective_question, _ = self._create_exam(theory_enabled=False)
+        objective_question.stem = "Add: 1111\u2082 + 101\u2082"
+        objective_question.save(update_fields=["stem", "updated_at"])
+        objective_question.options.filter(label="A").update(option_text="11111\u2082")
+        objective_question.options.filter(label="B").update(option_text="10100\u2082")
+
+        student_client, attempt = self._start_attempt(exam)
+        response = student_client.get(f"/cbt/attempts/{attempt.id}/run/")
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode("utf-8")
+        self.assertIn("1111<sub>2</sub> + 101<sub>2</sub>", content)
+        self.assertIn("10100<sub>2</sub>", content)
+
+
+@override_settings(**CBT_TEST_HOST_SETTINGS)
+class AcademicWindowCBTFlowTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        StageTenCBTWorkflowTests.setUpTestData.__func__(cls)
+
+    def _close_cbt_window(self):
+        AcademicOperationWindow.objects.update_or_create(
+            window_type=AcademicOperationWindow.WindowType.CBT,
+            defaults={
+                "is_enabled": True,
+                "start_at": None,
+                "end_at": None,
+            },
+        )
+
+    def test_closed_cbt_window_blocks_exam_creation(self):
+        self._close_cbt_window()
+        client = Client(HTTP_HOST="staff.ndgakuje.org")
+        client.force_login(self.teacher_user)
+
+        response = client.post("/cbt/authoring/exams/new/", {}, follow=False)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(Exam.objects.count(), 0)
+
+    def test_closed_cbt_window_blocks_dean_exam_decision(self):
+        self._close_cbt_window()
+        exam = self._create_minimal_exam()
+        exam.status = CBTExamStatus.PENDING_DEAN
+        exam.save(update_fields=["status", "updated_at"])
+
+        client = Client(HTTP_HOST="dean.ndgakuje.org")
+        client.force_login(self.dean_user)
+
+        response = client.post(
+            f"/cbt/dean/review/{exam.id}/",
+            {"action": "approve", "comment": "Looks good."},
+            follow=False,
+        )
+
+        self.assertEqual(response.status_code, 302)
+        exam.refresh_from_db()
+        self.assertEqual(exam.status, CBTExamStatus.PENDING_DEAN)

@@ -1,0 +1,111 @@
+{% extends "website/base_public.html" %}
+{% load static %}
+
+{% block content %}
+<section class="public-page-hero" style="background-image:url('{% static public_images.campus %}')">
+  <div class="public-page-hero-overlay"></div>
+  <div class="public-container public-page-hero-content" data-reveal>
+    <span class="public-eyebrow">Contact</span>
+    <h1>We are here to help with admissions and school enquiries.</h1>
+    <p>Send an enquiry, ask Smart NDGA, call the school, or open directions to campus.</p>
+  </div>
+</section>
+
+<section class="public-section">
+  <div class="public-container" data-reveal>
+    {% if submitted %}
+      <div class="public-success-banner">Your enquiry has been received. The school will follow up through the contact details you provided.</div>
+    {% endif %}
+    <div class="public-contact-grid">
+      <div class="public-contact-card">
+        <span class="public-eyebrow">Phone</span>
+        <h2>{{ public_contact.phone_primary }}</h2>
+        <p>{{ public_contact.phone_secondary }}</p>
+        <p><a href="{{ public_contact.whatsapp_url }}" target="_blank" rel="noreferrer">WhatsApp {{ public_contact.phone_primary }}</a></p>
+        <p><a href="{{ public_contact.whatsapp_secondary_url }}" target="_blank" rel="noreferrer">WhatsApp {{ public_contact.phone_secondary }}</a></p>
+      </div>
+      <div class="public-contact-card">
+        <span class="public-eyebrow">Email</span>
+        <h2>{{ public_contact.email }}</h2>
+        <p>Admissions and general enquiries.</p>
+      </div>
+      <div class="public-contact-card">
+        <span class="public-eyebrow">Location</span>
+        <h2>Kuchiyako, Kuje Abuja</h2>
+        <p>{{ public_contact.address }}</p>
+      </div>
+      <div class="public-contact-card">
+        <span class="public-eyebrow">Follow NDGA</span>
+        <h2>Social Media</h2>
+        <p>
+          <a href="{{ public_contact.facebook_url }}" target="_blank" rel="noreferrer">Facebook</a><br>
+          <a href="{{ public_contact.x_url }}" target="_blank" rel="noreferrer">X</a><br>
+          <a href="{{ public_contact.tiktok_url }}" target="_blank" rel="noreferrer">TikTok</a>
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="public-section public-section-soft">
+  <div class="public-container public-contact-layout" data-reveal>
+    <div class="public-form-panel">
+      <span class="public-eyebrow">Enquiry Form</span>
+      <h2>Send a message to the school</h2>
+      <form method="post" class="public-form-grid">
+        {% csrf_token %}
+        <div>{{ form.contact_name.label_tag }}{{ form.contact_name }}</div>
+        <div>{{ form.contact_email.label_tag }}{{ form.contact_email }}</div>
+        <div>{{ form.contact_phone.label_tag }}{{ form.contact_phone }}</div>
+        <div>{{ form.category.label_tag }}{{ form.category }}</div>
+        <div class="is-full">{{ form.subject.label_tag }}{{ form.subject }}</div>
+        <div class="is-full">{{ form.message.label_tag }}{{ form.message }}</div>
+        {% if form.errors %}
+          <div class="public-form-errors is-full">{{ form.errors }}</div>
+        {% endif %}
+        <div class="is-full">
+          <button type="submit" class="public-cta magnetic">Send Enquiry</button>
+        </div>
+      </form>
+    </div>
+    <div class="public-side-help-panel">
+      <span class="public-eyebrow">Quick Help</span>
+      <h2>Need quick guidance?</h2>
+      <div class="public-support-links">
+        <a href="/admissions/">Admissions</a>
+        <a href="/hostel-boarding/">Boarding</a>
+        <a href="/events/">School Calendar</a>
+        <a href="{{ public_contact.maps_url }}" target="_blank" rel="noreferrer">Open directions</a>
+        <button type="button" data-chatbot-open>Ask Smart NDGA</button>
+        <a href="{{ public_contact.whatsapp_url }}" target="_blank" rel="noreferrer">WhatsApp Line 1</a>
+        <a href="{{ public_contact.whatsapp_secondary_url }}" target="_blank" rel="noreferrer">WhatsApp Line 2</a>
+        <a href="{{ public_contact.facebook_url }}" target="_blank" rel="noreferrer">Facebook</a>
+        <a href="{{ public_contact.x_url }}" target="_blank" rel="noreferrer">X</a>
+        <a href="{{ public_contact.tiktok_url }}" target="_blank" rel="noreferrer">TikTok</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="public-section">
+  <div class="public-container" data-reveal>
+    <div class="public-section-heading">
+      <span class="public-eyebrow">Find NDGA</span>
+      <h2>Visit the campus easily</h2>
+      <p>Parents and guardians can use the map below for direct directions to Notre Dame Girls' Academy, Kuje Abuja.</p>
+    </div>
+    <div style="overflow:hidden; border-radius:1.5rem; box-shadow:0 24px 60px rgba(7,25,53,.12); border:1px solid rgba(11,31,58,.08);">
+      <iframe
+        title="Notre Dame Girls' Academy map"
+        src="https://www.google.com/maps?q=Notre%20Dame%20Girls%27%20Academy%2C%20Kuje%20Abuja&output=embed"
+        width="100%"
+        height="420"
+        style="border:0; display:block;"
+        loading="lazy"
+        referrerpolicy="no-referrer-when-downgrade"
+        allowfullscreen
+      ></iframe>
+    </div>
+  </div>
+</section>
+{% endblock %}

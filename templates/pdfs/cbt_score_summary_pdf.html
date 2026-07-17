@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <style>
+    @page {
+      size: A4;
+      margin: 20mm 14mm 16mm;
+    }
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      color: #0f172a;
+      font-size: 12px;
+    }
+    .header {
+      display: table;
+      width: 100%;
+      margin-bottom: 18px;
+      border-bottom: 2px solid #163f73;
+      padding-bottom: 12px;
+    }
+    .logo-cell,
+    .title-cell {
+      display: table-cell;
+      vertical-align: middle;
+    }
+    .logo-cell {
+      width: 86px;
+    }
+    .logo-cell img {
+      width: 68px;
+      height: 68px;
+      object-fit: contain;
+    }
+    h1 {
+      margin: 0 0 6px;
+      font-size: 22px;
+      color: #163f73;
+    }
+    .meta {
+      margin: 2px 0;
+      color: #475569;
+    }
+    .section-title {
+      margin: 22px 0 8px;
+      padding: 8px 10px;
+      background: #eff6ff;
+      border-left: 4px solid #163f73;
+      font-size: 14px;
+      font-weight: 700;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 14px;
+    }
+    th,
+    td {
+      border: 1px solid #cbd5e1;
+      padding: 7px 8px;
+      text-align: left;
+    }
+    th {
+      background: #163f73;
+      color: #ffffff;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    tr:nth-child(even) td {
+      background: #f8fafc;
+    }
+    .num {
+      text-align: right;
+      white-space: nowrap;
+    }
+    .footer {
+      margin-top: 10px;
+      font-size: 11px;
+      color: #64748b;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo-cell">
+      {% if logo_data_uri %}<img src="{{ logo_data_uri }}" alt="School logo">{% endif %}
+    </div>
+    <div class="title-cell">
+      <h1>{{ school_name }}</h1>
+      <div class="meta"><strong>Report:</strong> English CBT Score Summary</div>
+      <div class="meta"><strong>Teacher:</strong> {{ teacher_name }} | <strong>Staff ID:</strong> {{ staff_id }}</div>
+      <div class="meta"><strong>Session:</strong> {{ session_name }} | <strong>Term:</strong> {{ term_name }}</div>
+      <div class="meta"><strong>Components:</strong> CA2 and Exam Objective | <strong>Generated:</strong> {{ generated_on }}</div>
+    </div>
+  </div>
+
+  {% for group in groups %}
+    <div class="section-title">{{ group.class_code }} English Language</div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 6%;">#</th>
+          <th style="width: 42%;">Student</th>
+          <th style="width: 24%;">Student ID</th>
+          <th style="width: 14%;">CA2</th>
+          <th style="width: 14%;">Objective</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in group.rows %}
+          <tr>
+            <td>{{ forloop.counter }}</td>
+            <td>{{ row.name }}</td>
+            <td>{{ row.student_number }}</td>
+            <td class="num">{{ row.ca2 }}</td>
+            <td class="num">{{ row.objective }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endfor %}
+
+  <div class="footer">
+    Generated from the NDGA portal result records for last term.
+  </div>
+</body>
+</html>

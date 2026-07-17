@@ -1,0 +1,62 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Staff Settings{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-[94rem] px-4 py-5 sm:px-6 lg:px-8">
+    <div class="grid gap-4 lg:grid-cols-2">
+      <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h1 class="text-xl font-bold text-slate-900">Display Settings</h1>
+        <p class="mt-1 text-sm text-slate-600">
+          Set the display name used on your dashboard.
+        </p>
+        <form method="post" class="mt-4 space-y-3">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="update_display">
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700" for="{{ display_form.display_name.id_for_label }}">
+              Display Name
+            </label>
+            {{ display_form.display_name }}
+            {% if display_form.display_name.help_text %}
+              <p class="mt-1 text-xs text-slate-500">{{ display_form.display_name.help_text }}</p>
+            {% endif %}
+            {% if display_form.display_name.errors %}
+              <p class="mt-1 text-xs text-rose-700">{{ display_form.display_name.errors|striptags }}</p>
+            {% endif %}
+          </div>
+          <button type="submit" class="ndga-btn ndga-btn-primary">Save Display Name</button>
+        </form>
+      </article>
+
+      <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-xl font-bold text-slate-900">Password</h2>
+        <p class="mt-1 text-sm text-slate-600">
+          Update your password using NDGA policy constraints.
+        </p>
+        <form method="post" class="mt-4 space-y-3">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="change_password">
+          {% if password_form.non_field_errors %}
+            <div class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+              {{ password_form.non_field_errors|striptags }}
+            </div>
+          {% endif %}
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700" for="{{ password_form.old_password.id_for_label }}">Current Password</label>
+            {{ password_form.old_password }}
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700" for="{{ password_form.new_password1.id_for_label }}">New Password</label>
+            {{ password_form.new_password1 }}
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-medium text-slate-700" for="{{ password_form.new_password2.id_for_label }}">Confirm New Password</label>
+            {{ password_form.new_password2 }}
+          </div>
+          <button type="submit" class="ndga-btn ndga-btn-primary">Update Password</button>
+        </form>
+      </article>
+    </div>
+  </section>
+{% endblock %}

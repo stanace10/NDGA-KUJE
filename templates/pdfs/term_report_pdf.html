@@ -1,0 +1,793 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <style>
+    @page {
+      size: A4 portrait;
+      margin: 8mm;
+    }
+    html, body {
+      height: 100%;
+    }
+    body {
+      font-family: "DejaVu Serif", "Times New Roman", serif;
+      color: #1d1d1d;
+      font-size: 8.8px;
+      line-height: 1.24;
+      margin: 0;
+      background: #ffffff;
+    }
+    .sheet {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      box-sizing: border-box;
+      height: 281mm;
+      min-height: 281mm;
+      padding-top: 1mm;
+    }
+    .sheet-main {
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+    .sheet > * {
+      width: 100%;
+    }
+    .watermark {
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0.13;
+      z-index: -1;
+    }
+    .watermark img {
+      width: 500px;
+      height: auto;
+    }
+    .candidate-watermark {
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      z-index: -1;
+      opacity: 0.055;
+      color: #163b67;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      pointer-events: none;
+    }
+    .candidate-watermark span {
+      position: absolute;
+      white-space: nowrap;
+      transform: rotate(-32deg);
+    }
+    .candidate-watermark span:nth-child(1) { left: 2%; top: 18%; }
+    .candidate-watermark span:nth-child(2) { left: 26%; top: 43%; }
+    .candidate-watermark span:nth-child(3) { left: 6%; top: 70%; }
+    .header {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 5px;
+    }
+    .header td {
+      vertical-align: top;
+    }
+    .logo-cell {
+      width: 76px;
+    }
+    .logo {
+      width: 66px;
+      height: 66px;
+      object-fit: contain;
+    }
+    .top-photo {
+      width: 66px;
+      height: 66px;
+      object-fit: cover;
+      border: 1.4px solid #9aa8b8;
+      border-radius: 50%;
+      background: #ffffff;
+    }
+    .school-title {
+      margin: 0;
+      font-size: 20px;
+      color: #295b94;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+    .school-address {
+      margin: 2px 0 1px;
+      font-size: 9.4px;
+      color: #c62828;
+      font-weight: 700;
+    }
+    .school-subtext {
+      margin: 0;
+      font-size: 8px;
+      color: #333333;
+    }
+    .contact-box {
+      width: 150px;
+      border-left: 2px solid #7f9ab6;
+      padding-left: 8px;
+      font-size: 7.7px;
+    }
+    .contact-box table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .contact-box td {
+      padding: 0 0 1px;
+      vertical-align: top;
+    }
+    .contact-box .label {
+      width: 36px;
+      font-weight: 700;
+      color: #111111;
+    }
+    .rule {
+      border-top: 2px solid #295b94;
+      margin: 5px 0 4px;
+    }
+    .meta-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 4px;
+    }
+    .meta-table td {
+      width: 50%;
+      vertical-align: top;
+      padding-right: 6px;
+    }
+    .mini-meta {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 8.5px;
+    }
+    .mini-meta td {
+      padding: 1px 0 3px;
+      vertical-align: top;
+    }
+    .mini-meta .label {
+      width: 88px;
+      font-weight: 700;
+      color: #111111;
+      text-transform: uppercase;
+    }
+    .mini-meta .value {
+      font-weight: 400;
+    }
+    .report-title {
+      text-align: center;
+      font-size: 15.6px;
+      font-weight: 700;
+      color: #2c2c2c;
+      margin: 3px 0 6px;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .score-table {
+      border: 1px solid #9e9e9e;
+      margin-bottom: 0;
+      table-layout: fixed;
+    }
+    .subject-row {
+      height: {{ payload.subject_row_height_px|default_if_none:"18" }}px;
+    }
+    .score-table th,
+    .score-table td {
+      border: 1px solid #bcbcbc;
+      padding: 2.55px 2.4px;
+      font-size: 7.45px;
+      vertical-align: middle;
+      word-wrap: break-word;
+    }
+    .score-table thead th {
+      background: #2f67a4;
+      color: #ffffff;
+      font-weight: 700;
+      text-align: center;
+      line-height: 1.08;
+      overflow-wrap: normal;
+      word-break: normal;
+      hyphens: none;
+    }
+    .score-table th:first-child,
+    .score-table td:first-child {
+      text-align: left;
+    }
+    .score-table .subject-col { width: 18%; }
+    .score-table .ca-col { width: 5%; }
+    .score-table .assignment-col { width: 8%; }
+    .score-table .participation-col { width: 7.6%; }
+    .score-table .exam-col { width: 6%; }
+    .score-table .total-col { width: 6%; }
+    .score-table .grade-col { width: 5%; }
+    .score-table .remark-col { width: 10%; }
+    .score-table .position-col { width: 5%; }
+    .score-table .stat-col { width: 5.7%; }
+    .two-line-head {
+      display: block;
+      white-space: normal;
+    }
+    .two-line-head .main {
+      display: block;
+      font-size: 7.1px;
+    }
+    .two-line-head .sub {
+      display: block;
+      font-size: 5.9px;
+      font-weight: 700;
+      opacity: 0.96;
+    }
+    .score-table td {
+      text-align: center;
+    }
+    .analysis-label {
+      font-size: 10px;
+      font-weight: 700;
+      margin: 4px 0 2px;
+    }
+    .analysis-table,
+    .section-table,
+    .health-table,
+    .box-table,
+    .comment-table,
+    .footer-table {
+      border: 1px solid #a9a9a9;
+      margin-bottom: 0;
+      table-layout: fixed;
+    }
+    .analysis-table td,
+    .section-table th,
+    .section-table td,
+    .health-table th,
+    .health-table td,
+    .box-table th,
+    .box-table td,
+    .comment-table th,
+    .comment-table td,
+    .footer-table td {
+      border: 1px solid #bcbcbc;
+      padding: 2.5px 4px;
+      font-size: 7.45px;
+      vertical-align: top;
+    }
+    .analysis-table .head,
+    .section-table .head,
+    .health-table .head,
+    .box-table .head,
+    .comment-table .head {
+      background: #efefef;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .analysis-table .value-strong,
+    .strong {
+      font-weight: 700;
+    }
+    .split {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 4px;
+    }
+    .bio-grid {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 3px;
+      table-layout: fixed;
+      border: 1px solid #a9bfd8;
+    }
+    .bio-grid td {
+      border: 1px solid #c4d2e3;
+      padding: 3px 4px;
+      font-size: 8.1px;
+      vertical-align: top;
+    }
+    .bio-grid .label {
+      display: inline-block;
+      min-width: 56px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: #111111;
+    }
+    .bio-grid .value {
+      font-weight: 600;
+      color: #111111;
+    }
+    .summary-zone {
+      display: block;
+      margin-top: 0;
+    }
+    .analysis-split {
+      margin-bottom: 0;
+    }
+    .split > tbody > tr > td {
+      width: 50%;
+      vertical-align: top;
+    }
+    .split > tbody > tr > td:first-child {
+      padding-right: 4px;
+    }
+    .split > tbody > tr > td:last-child {
+      padding-left: 4px;
+    }
+    .psych-table td,
+    .psych-table th {
+      font-size: 7.25px;
+    }
+    .psych-table {
+      min-height: {{ payload.behavior_box_min_height_px|default_if_none:"92" }}px;
+    }
+    .psych-table .score {
+      width: 34px;
+      text-align: center;
+    }
+    .legend-dark { color: #111111 !important; font-weight: 700; }
+    .legend-gold { color: #b7791f !important; font-weight: 700; }
+    .legend-silver { color: #6b7280 !important; font-weight: 700; }
+    .legend-bronze { color: #b45309 !important; font-weight: 700; }
+    .legend-black { color: #111111 !important; font-weight: 700; }
+    .legend-green { color: #008000 !important; font-weight: 700; }
+    .legend-blue { color: #1f5cff !important; font-weight: 700; }
+    .legend-orange { color: #f97316 !important; font-weight: 700; }
+    .legend-red { color: #c62828 !important; font-weight: 700; }
+    .cognitive-rating th,
+    .cognitive-rating td {
+      text-align: center !important;
+      vertical-align: middle !important;
+    }
+    .cognitive-rating .remark-cell {
+      text-align: center !important;
+    }
+    .grade-tone {
+      font-weight: 700;
+      text-align: center !important;
+    }
+    .grade-swatch {
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      margin-right: 3px;
+      border: 0.5px solid rgba(0,0,0,0.28);
+      vertical-align: middle;
+    }
+    .tiny-note {
+      font-size: 6.3px;
+      text-align: center;
+      margin: 1px 0 4px;
+    }
+    .doctor-box,
+    .club-box {
+      min-height: 42px;
+    }
+    .comment-box {
+      min-height: {{ payload.comment_box_min_height_px|default_if_none:"70" }}px;
+      height: 100%;
+    }
+    .adaptive-fill {
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 5px;
+    }
+    .subject-table-wrap,
+    .summary-zone,
+    .club-box,
+    .footer-wrap {
+      flex: 0 0 auto;
+    }
+    .comment-table {
+      height: 100%;
+    }
+    .comment-table td {
+      vertical-align: top;
+    }
+    .footer-wrap {
+      margin-top: 8mm;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .footer-table {
+      margin-bottom: 0;
+    }
+    .footer-table {
+      border: 1.3px solid #295b94;
+    }
+    .footer-table td {
+      border-color: #b5c5d7;
+      vertical-align: top;
+      padding-top: 3px;
+      padding-bottom: 3px;
+    }
+    .footer-comment-cell {
+      min-height: {{ payload.principal_comment_min_height_px|default_if_none:"44" }}px;
+      padding-bottom: 6px;
+      background: #f7fbff;
+      border-bottom: 1.4px solid #295b94 !important;
+    }
+    .footer-signature-row td {
+      height: {{ payload.signature_row_height_px|default_if_none:"42" }}px;
+      vertical-align: bottom;
+    }
+    .signature-img {
+      max-width: 174px;
+      max-height: 34px;
+      display: block;
+      margin-bottom: 2px;
+    }
+    .stamp {
+      max-width: 58px;
+      max-height: 58px;
+      display: block;
+      margin: 0 auto;
+    }
+    .qr {
+      width: 44px;
+      height: 44px;
+      display: block;
+      margin: 0 auto 2px;
+    }
+    .footer-note {
+      font-size: 5.8px;
+      color: #4c4c4c;
+      word-break: break-all;
+      text-align: center;
+    }
+    .principal-panel {
+      min-height: 0;
+    }
+    .principal-title {
+      color: #295b94;
+      font-size: 8.4px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      margin-bottom: 3px;
+      text-transform: uppercase;
+    }
+    .principal-comment-text {
+      color: #111111;
+      font-size: 8.4px;
+      line-height: 1.28;
+    }
+    .signature-label {
+      margin-top: 2px;
+      font-weight: 700;
+      border-top: 1px solid #111111;
+      display: inline-block;
+      min-width: 150px;
+      padding-top: 2px;
+    }
+    .principal-name {
+      margin-top: 1px;
+      font-weight: 700;
+    }
+    .club-box td {
+      min-height: {{ payload.club_box_min_height_px|default_if_none:"42" }}px;
+    }
+    .sheet.expanded-density .score-table th,
+    .sheet.expanded-density .score-table td {
+      font-size: 7.5px;
+      padding-top: 3.2px;
+      padding-bottom: 3.2px;
+    }
+    .sheet.compact-density .score-table th,
+    .sheet.compact-density .score-table td {
+      font-size: 6.35px;
+      padding-top: 1.45px;
+      padding-bottom: 1.45px;
+    }
+    .sheet.expanded-density .comment-table td,
+    .sheet.expanded-density .section-table td,
+    .sheet.expanded-density .section-table th,
+    .sheet.expanded-density .box-table td,
+    .sheet.expanded-density .box-table th {
+      font-size: 7.35px;
+    }
+    .sheet.compact-density .comment-table td,
+    .sheet.compact-density .section-table td,
+    .sheet.compact-density .section-table th,
+    .sheet.compact-density .box-table td,
+    .sheet.compact-density .box-table th {
+      font-size: 6.35px;
+    }
+  </style>
+</head>
+<body>
+  <div class="sheet dynamic-room {{ payload.layout_density_class|default:'normal-density' }}">
+    <div class="watermark">
+      {% if watermark_data_uri %}
+        <img src="{{ watermark_data_uri }}" alt="">
+      {% endif %}
+    </div>
+    <div class="candidate-watermark" aria-hidden="true">
+      <span>{{ payload.student_bio.name }} · {{ payload.student_bio.student_number|default:"NDGA" }}</span>
+      <span>{{ payload.student_bio.name }} · {{ payload.student_bio.student_number|default:"NDGA" }}</span>
+      <span>{{ payload.student_bio.name }} · {{ payload.student_bio.student_number|default:"NDGA" }}</span>
+    </div>
+
+    <table class="header">
+      <tr>
+        <td class="logo-cell">
+          {% if logo_data_uri %}
+            <img src="{{ logo_data_uri }}" alt="School logo" class="logo">
+          {% endif %}
+        </td>
+        <td>
+          <p class="school-title">{{ school_profile.school_name|default:"Notre Dame Girls' Academy" }}</p>
+          <p class="school-address">{{ school_profile.address|default:"P.O.Box 46 Kuje Abuja" }}</p>
+          <p class="school-subtext">{{ school_profile.tagline|default:"(After SS Simon and Jude Minor Seminary, Kuchiyako, Kuje Abuja)" }}</p>
+          <p class="school-subtext">{{ school_profile.report_footer|default:"" }}</p>
+        </td>
+        <td class="contact-box">
+          <table>
+            <tr><td class="label">Email:</td><td>{{ school_profile.contact_email|default:"office@ndgakuje.org" }}</td></tr>
+            <tr><td class="label">Phone:</td><td>{{ school_profile.contact_phone|default:"+234 902 940 5413" }}</td></tr>
+            <tr><td class="label">Website:</td><td>{{ school_profile.website|default:"ndgakuje.org" }}</td></tr>
+          </table>
+        </td>
+        <td style="width:74px; text-align:right;">
+          {% if student_photo_data_uri %}
+            <img src="{{ student_photo_data_uri }}" alt="Student photo" class="top-photo">
+          {% elif logo_data_uri %}
+            <img src="{{ logo_data_uri }}" alt="School crest" class="top-photo" style="object-fit:contain;">
+          {% endif %}
+        </td>
+      </tr>
+    </table>
+
+    <div class="rule"></div>
+
+    <table class="bio-grid">
+      <tr>
+        <td colspan="2"><span class="label">Student:</span> <span class="value">{{ payload.student_bio.name }}</span></td>
+        <td><span class="label">Class:</span> <span class="value">{{ payload.class_code }}</span></td>
+        <td><span class="label">Term:</span> <span class="value">{{ payload.term_name }}</span></td>
+      </tr>
+      <tr>
+        <td><span class="label">Session:</span> <span class="value">{{ payload.session_name }}</span></td>
+        <td><span class="label">Adm No.:</span> <span class="value">{{ payload.student_bio.student_number|default:"-" }}</span></td>
+        <td><span class="label">No. Class:</span> <span class="value">{{ payload.class_size|default:"-" }}</span></td>
+        <td><span class="label">Weight:</span> <span class="value">{% if payload.term_weight_kg %}{{ payload.term_weight_kg }} kg{% else %}-{% endif %}</span></td>
+      </tr>
+      <tr>
+        <td><span class="label">House:</span> <span class="value">{{ payload.student_bio.house|default:"-" }}</span></td>
+        <td colspan="2"><span class="label">Community:</span> <span class="value">{{ payload.student_bio.community|default:"-" }}</span></td>
+        <td><span class="label">Society:</span> <span class="value">{{ payload.student_bio.society|default:"-" }}</span></td>
+      </tr>
+    </table>
+
+    <div class="sheet-main">
+    <div class="report-title">{{ school_profile.result_tagline|default:"Termly Evaluation Report" }}</div>
+
+    <div class="adaptive-fill">
+    <div class="subject-table-wrap">
+    <table class="score-table">
+      <colgroup>
+        <col class="subject-col">
+        <col class="ca-col">
+        <col class="ca-col">
+        <col class="ca-col">
+        <col class="assignment-col">
+        {% if not payload.use_legacy_result_layout %}
+          <col class="participation-col">
+        {% endif %}
+        <col class="exam-col">
+        <col class="total-col">
+        <col class="grade-col">
+        <col class="remark-col">
+        <col class="position-col">
+        <col class="stat-col">
+        <col class="stat-col">
+        <col class="stat-col">
+      </colgroup>
+      <thead>
+        <tr>
+          <th>Subject</th>
+          <th>{{ school_profile.ca1_label|default:"1st CA" }}</th>
+          <th>{{ school_profile.ca2_label|default:"2nd CA" }}</th>
+          <th>{{ school_profile.ca3_label|default:"3rd CA" }}</th>
+          <th><span class="two-line-head"><span class="main">Assignment</span><span class="sub">Project / Practical</span></span></th>
+          {% if not payload.use_legacy_result_layout %}
+            <th><span class="two-line-head"><span class="main">Class</span><span class="sub">Participation</span></span></th>
+            <th>Exam (50)</th>
+          {% else %}
+            <th>Exam (60)</th>
+          {% endif %}
+          <th>Total</th>
+          <th>Grade</th>
+          <th>Remark</th>
+          <th>Position</th>
+          <th>Lowest</th>
+          <th>Highest</th>
+          <th>Average</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in payload.subject_rows %}
+          <tr class="subject-row">
+            <td>{{ row.subject }}</td>
+            <td>{{ row.ca1 }}</td>
+            <td>{{ row.ca2 }}</td>
+            <td>{{ row.ca3 }}</td>
+            <td>{{ row.assignment }}</td>
+            {% if not payload.use_legacy_result_layout %}
+              <td>{{ row.class_participation }}</td>
+            {% endif %}
+            <td>{{ row.exam }}</td>
+            <td class="strong grade-tone {{ row.grade_css_class|default:'legend-red' }}" style="color: {{ row.grade_hex_color|default:'#c62828' }} !important;">{{ row.total }}</td>
+            <td class="grade-tone {{ row.grade_css_class|default:'legend-red' }}" style="color: {{ row.grade_hex_color|default:'#c62828' }} !important;">{{ row.grade }}</td>
+            <td class="grade-tone {{ row.grade_css_class|default:'legend-red' }}" style="color: {{ row.grade_hex_color|default:'#c62828' }} !important;">{{ row.remark }}</td>
+            <td>{{ row.position }}</td>
+            <td>{{ row.lowest }}</td>
+            <td>{{ row.highest }}</td>
+            <td>{{ row.average }}</td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="{% if payload.use_legacy_result_layout %}13{% else %}14{% endif %}">No published subject scores are available for this student.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+
+    <div class="summary-zone">
+      <table class="analysis-table">
+      <tr>
+        <td class="head" style="width:12%;">Analysis</td>
+        <td><span class="strong">Subject Offered:</span> {{ payload.subject_count }}</td>
+        <td><span class="strong">Total Mark Obtainable:</span> {{ payload.total_mark_obtainable }}</td>
+        <td><span class="strong">Total Mark Obtained:</span> {{ payload.cumulative_total }}</td>
+      </tr>
+      <tr>
+        <td></td>
+        <td><span class="strong">Student Average:</span> {{ payload.average }}</td>
+        <td><span class="strong">Position:</span> {{ payload.class_position|default:"-" }}</td>
+        <td><span class="strong">Class Average:</span> {{ payload.class_average }}</td>
+      </tr>
+    </table>
+
+      <table class="split analysis-split">
+      <tr>
+        <td>
+          <table class="section-table psych-table">
+            <tr>
+              <th class="head" colspan="2">Psychomotor Domain</th>
+            </tr>
+            {% for row in payload.behavior_rows %}
+              <tr>
+                <td>{{ row.label }}</td>
+                <td class="score">{{ row.value }}/5</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="2">No psychomotor ratings recorded.</td></tr>
+            {% endfor %}
+            <tr><td>No. of Times School Open</td><td class="score">{{ payload.attendance.school_open }}</td></tr>
+            <tr><td>Time(s) Present</td><td class="score">{{ payload.attendance.present }}</td></tr>
+            <tr><td>Time(s) Absent</td><td class="score">{{ payload.attendance.absent }}</td></tr>
+          </table>
+          <div class="tiny-note">5 = Distinction 4 = Very Good 3 = Good 2 = Poor 1 = Needs Attention</div>
+        </td>
+        <td>
+          <table class="section-table cognitive-rating">
+            <tr>
+              <th class="head" colspan="4">Cognitive Domain Rating</th>
+            </tr>
+            <tr>
+              <th>Color</th>
+              <th>Grade</th>
+              <th>Score Range</th>
+              <th>Remark</th>
+            </tr>
+            {% for row in payload.grade_key %}
+              <tr>
+                <td class="{{ row.css_class|default:'legend-red' }}" style="color: {{ row.hex_color|default:'#c62828' }} !important; text-align: center !important;">
+                  <span class="grade-swatch" style="background: {{ row.hex_color|default:'#c62828' }};"></span>
+                  {{ row.color }}
+                </td>
+                <td class="{{ row.css_class|default:'legend-red' }}" style="color: {{ row.hex_color|default:'#c62828' }} !important; text-align: center !important;">{{ row.grade }}</td>
+                <td class="{{ row.css_class|default:'legend-red' }}" style="color: {{ row.hex_color|default:'#c62828' }} !important; text-align: center !important;">{{ row.min_score }} - {{ row.max_score }}</td>
+                <td class="remark-cell {{ row.css_class|default:'legend-red' }}" style="color: {{ row.hex_color|default:'#c62828' }} !important; text-align: center !important;">{{ row.remark }}</td>
+              </tr>
+            {% endfor %}
+          </table>
+        </td>
+      </tr>
+      </table>
+    </div>
+
+    <table class="split analysis-split">
+      <tr>
+        <td>
+          <table class="comment-table">
+            <tr>
+              <th class="head">Form Teacher Comment</th>
+            </tr>
+            <tr>
+              <td class="comment-box">{{ payload.teacher_comment|default:"No form teacher comment recorded." }}</td>
+            </tr>
+          </table>
+        </td>
+        <td>
+          <table class="comment-table">
+            <tr>
+              <th class="head">Hostel Supervisor Comment</th>
+            </tr>
+            <tr>
+              <td class="comment-box">{{ payload.hostel_supervisor_comment|default:"No hostel supervisor comment recorded." }}</td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+
+    <table class="box-table club-box">
+      <tr>
+        <th class="head">Club</th>
+        <th class="head">Office Held</th>
+        <th class="head">Significant Contribution</th>
+      </tr>
+      <tr>
+        <td>{{ payload.co_curricular.club_membership|default:"-" }}</td>
+        <td>{{ payload.co_curricular.office_held|default:"-" }}</td>
+        <td>{{ payload.co_curricular.notable_contribution|default:"-" }}</td>
+      </tr>
+    </table>
+
+    </div>
+    <div class="footer-wrap">
+      <table class="footer-table">
+        <tr>
+          <td colspan="3" class="footer-comment-cell">
+            <div class="principal-title">Parent / Guardian Comment</div>
+            <div class="principal-comment-text">{{ payload.parent_comment|default:"" }}</div>
+          </td>
+        </tr>
+        <tr>
+          <td colspan="3" class="footer-comment-cell">
+            <div class="principal-title">Principal's Comment</div>
+            <div class="principal-comment-text">{{ payload.principal_comment|default:"No principal comment recorded." }}</div>
+          </td>
+        </tr>
+        <tr class="footer-signature-row">
+          <td style="width:57%;" class="principal-panel">
+            {% if principal_signature_data_uri %}
+              <img src="{{ principal_signature_data_uri }}" alt="Principal signature" class="signature-img">
+            {% endif %}
+            <div class="signature-label">Principal Signature</div>
+            {% if school_profile.principal_name %}<div class="principal-name">{{ school_profile.principal_name }}</div>{% endif %}
+          </td>
+          <td style="width:18%; text-align:center;">
+            {% if school_stamp_data_uri %}
+              <img src="{{ school_stamp_data_uri }}" alt="School stamp" class="stamp">
+            {% endif %}
+          </td>
+          <td style="width:25%; text-align:center;">
+            <img src="{{ verification_qr_data_uri }}" alt="Verification QR" class="qr">
+          </td>
+        </tr>
+      </table>
+    </div>
+    </div>
+  </div>
+</body>
+</html>

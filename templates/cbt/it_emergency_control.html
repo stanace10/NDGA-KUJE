@@ -1,0 +1,467 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}IT Emergency CBT Control{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8">
+    <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h1 class="text-2xl font-bold text-ndga-navy">IT Emergency CBT Control</h1>
+          <p class="mt-2 text-sm text-slate-600">Use this during live CBT interruptions to reopen selected students, clear attempts, set makeup windows, or disable departed students.</p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <a href="#objective-score-override" class="ndga-btn ndga-btn-primary">Override Objective Score</a>
+          <a href="{% url 'cbt:it-activation-list' %}" class="ndga-btn ndga-btn-secondary">CBT Setup</a>
+          <a href="{% url 'cbt:it-lockdown-dashboard' %}" class="ndga-btn ndga-btn-secondary">Flagged Exams</a>
+        </div>
+      </div>
+    </article>
+
+    <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <h2 class="text-lg font-semibold text-ndga-navy">Find Paper Or Student</h2>
+      <form method="get" class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+        <div>
+          <label for="class_id" class="mb-1 block text-sm font-semibold text-slate-700">Class</label>
+          <select id="class_id" name="class_id" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+            <option value="">All Classes</option>
+            {% for row in class_options %}
+              <option value="{{ row.id }}" {% if selected_class_id == row.id|stringformat:"s" %}selected{% endif %}>{{ row.code }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="ca_filter" class="mb-1 block text-sm font-semibold text-slate-700">CA / Exam</label>
+          <select id="ca_filter" name="ca_filter" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+            <option value="">All Components</option>
+            {% for value, label in ca_filter_options %}
+              <option value="{{ value }}" {% if selected_ca_filter == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="subject_id" class="mb-1 block text-sm font-semibold text-slate-700">Subject</label>
+          <select id="subject_id" name="subject_id" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+            <option value="">All Subjects</option>
+            {% for subject in subject_options %}
+              <option value="{{ subject.id }}" {% if selected_subject_id == subject.id|stringformat:"s" %}selected{% endif %}>{{ subject.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="exam_id" class="mb-1 block text-sm font-semibold text-slate-700">Paper</label>
+          <select id="exam_id" name="exam_id" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+            <option value="">Select a paper</option>
+            {% for row in exam_options %}
+              <option value="{{ row.exam.id }}" {% if selected_exam_id == row.exam.id|stringformat:"s" %}selected{% endif %}>{{ row.exam.session.name }} | {{ row.exam.term.name }} | {{ row.component_label }} | {{ row.exam.academic_class.code }} | {{ row.exam.subject.name }} | {{ row.exam.get_status_display }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="student_search" class="mb-1 block text-sm font-semibold text-slate-700">Student Search</label>
+          <input id="student_search" name="student_search" value="{{ request.GET.student_search }}" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" placeholder="Admission/name">
+        </div>
+        <div class="flex items-end gap-2">
+          <button class="ndga-btn ndga-btn-primary w-full" type="submit">Apply</button>
+          <a href="{% url 'cbt:it-emergency-control' %}" class="rounded-xl border border-slate-300 px-4 py-2 text-center text-sm font-semibold text-slate-700">Clear</a>
+        </div>
+      </form>
+      {% if selected_exam %}
+        <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+          <p class="font-semibold">{{ selected_exam.academic_class.code }} {{ selected_exam.subject.name }}</p>
+          <p>Status {{ selected_exam.get_status_display }} | Window {{ selected_exam.schedule_start|date:"d M H:i" }} - {{ selected_exam.schedule_end|date:"H:i" }} | Attempts {{ selected_exam.attempts.count }}</p>
+        </div>
+      {% endif %}
+    </article>
+
+    <article class="rounded-3xl border border-[#d9e2ef] bg-white p-5 shadow-sm">
+      <div class="grid gap-3 md:grid-cols-5">
+        <div class="rounded-xl bg-[#082449] px-3 py-2 text-xs font-black text-white">1 · Find record</div>
+        <div class="rounded-xl bg-[#fff7e0] px-3 py-2 text-xs font-black text-[#082449]">2 · Select operation</div>
+        <div class="rounded-xl bg-[#f8fafc] px-3 py-2 text-xs font-black text-slate-700">3 · Configure</div>
+        <div class="rounded-xl bg-[#f8fafc] px-3 py-2 text-xs font-black text-slate-700">4 · Review impact</div>
+        <div class="rounded-xl bg-[#f8fafc] px-3 py-2 text-xs font-black text-slate-700">5 · Confirm</div>
+      </div>
+      <label for="incidentOperation" class="mt-5 block text-sm font-black text-[#082449]">Select one operation</label>
+      <select id="incidentOperation" class="mt-2 w-full rounded-xl border border-[#d9e2ef] bg-white px-3 py-3 text-sm font-bold text-[#111827] lg:max-w-xl">
+        <option value="reopen">Reopen selected student</option>
+        <option value="schedule">Extend / reschedule paper</option>
+        <option value="clear">Clear paper attempts</option>
+        <option value="restore">Undo score clear</option>
+        <option value="override">Override student objective score</option>
+        <option value="theory">Open teacher theory entry window</option>
+        <option value="repair">Repair CBT result split</option>
+        <option value="deactivate">Disable departed student</option>
+      </select>
+      <p class="mt-2 text-xs font-semibold text-slate-600">Only the fields for the selected operation are shown. Every submitted action remains audit logged.</p>
+    </article>
+
+    <div class="grid gap-6 xl:grid-cols-2">
+      <article data-incident-operation="reopen" class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-semibold text-ndga-navy">Reopen Selected Students</h2>
+        <form method="post" class="mt-4 space-y-3">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="reopen_selected">
+          <input type="hidden" name="class_id" value="{{ selected_class_id }}">
+          <input type="hidden" name="subject_id" value="{{ selected_subject_id }}">
+          <input type="hidden" name="ca_filter" value="{{ selected_ca_filter }}">
+          <div>
+            <label class="mb-1 block text-sm font-semibold text-slate-700">Paper</label>
+            <select name="exam_id" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" required>
+              <option value="">Select paper</option>
+              {% for row in exam_options %}
+                <option value="{{ row.exam.id }}" {% if selected_exam_id == row.exam.id|stringformat:"s" %}selected{% endif %}>{{ row.exam.session.name }} | {{ row.exam.term.name }} | {{ row.component_label }} | {{ row.exam.academic_class.code }} | {{ row.exam.subject.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="mb-1 block text-sm font-semibold text-slate-700">Admission Numbers</label>
+            <textarea name="student_numbers" rows="4" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" placeholder="NDGAK/24/302, NDGAK/24/303"></textarea>
+          </div>
+          <div class="grid gap-3 md:grid-cols-4">
+            <div>
+              <label class="mb-1 block text-sm font-semibold text-slate-700">Date</label>
+              <input type="date" name="start_date" value="{{ today_value }}" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+            </div>
+            <div>
+              <label class="mb-1 block text-sm font-semibold text-slate-700">Start</label>
+              <input type="time" name="start_time" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+            </div>
+            <div>
+              <label class="mb-1 block text-sm font-semibold text-slate-700">Minutes</label>
+              <input type="number" name="duration_minutes" min="1" value="5" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+            </div>
+            <div>
+              <label class="mb-1 block text-sm font-semibold text-slate-700">Extra</label>
+              <input type="number" name="extra_time_minutes" min="0" value="0" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+            </div>
+          </div>
+          <div class="grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
+            <label class="flex items-center gap-2"><input type="checkbox" name="restrict_to_students" checked> Only these students</label>
+            <label class="flex items-center gap-2"><input type="checkbox" name="lock_existing" checked> Lock already picked answers</label>
+            <label class="flex items-center gap-2"><input type="checkbox" name="clear_attempts"> Clear their attempts first</label>
+            <label class="flex items-center gap-2"><input type="checkbox" name="clear_scores"> Also clear this paper's matching result component</label>
+          </div>
+          <p class="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800">The selected paper determines the result component automatically. A CA2/CA3 paper cannot clear CA1.</p>
+          <button class="ndga-btn ndga-btn-primary" type="submit">Apply Student Reopen</button>
+        </form>
+      </article>
+
+      <article data-incident-container class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div data-incident-operation="schedule">
+        <h2 class="text-lg font-semibold text-ndga-navy">Open Or Reschedule Paper</h2>
+        <form method="post" class="mt-4 space-y-3">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="schedule_window">
+          <input type="hidden" name="class_id" value="{{ selected_class_id }}">
+          <input type="hidden" name="subject_id" value="{{ selected_subject_id }}">
+          <input type="hidden" name="ca_filter" value="{{ selected_ca_filter }}">
+          <div>
+            <label class="mb-1 block text-sm font-semibold text-slate-700">Paper</label>
+            <select name="exam_id" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" required>
+              {% for row in exam_options %}
+                <option value="{{ row.exam.id }}" {% if selected_exam_id == row.exam.id|stringformat:"s" %}selected{% endif %}>{{ row.exam.session.name }} | {{ row.exam.term.name }} | {{ row.component_label }} | {{ row.exam.academic_class.code }} | {{ row.exam.subject.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="grid gap-3 md:grid-cols-4">
+            <input type="date" name="start_date" value="{{ today_value }}" class="rounded-xl border border-slate-300 px-3 py-2 text-sm">
+            <input type="time" name="start_time" class="rounded-xl border border-slate-300 px-3 py-2 text-sm">
+            <input type="time" name="end_time" class="rounded-xl border border-slate-300 px-3 py-2 text-sm">
+            <input type="number" name="duration_minutes" min="1" value="30" class="rounded-xl border border-slate-300 px-3 py-2 text-sm">
+          </div>
+          <textarea name="student_numbers" rows="2" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" placeholder="Optional: admission numbers for selected-student makeup"></textarea>
+          <label class="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="restrict_to_students"> Restrict paper to listed students</label>
+          <button class="ndga-btn ndga-btn-primary" type="submit">Save Window</button>
+        </form>
+        </div>
+
+        <div data-incident-operation="clear" class="rounded-2xl border border-red-200 bg-red-50 p-4">
+        <h2 class="mt-6 text-lg font-semibold text-ndga-navy">Clear Paper Attempts</h2>
+        <form method="post" class="mt-4 space-y-3">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="clear_attempts">
+          <input type="hidden" name="class_id" value="{{ selected_class_id }}">
+          <input type="hidden" name="subject_id" value="{{ selected_subject_id }}">
+          <input type="hidden" name="ca_filter" value="{{ selected_ca_filter }}">
+          <select name="exam_id" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" required>
+            {% for row in exam_options %}
+              <option value="{{ row.exam.id }}" {% if selected_exam_id == row.exam.id|stringformat:"s" %}selected{% endif %}>{{ row.exam.session.name }} | {{ row.exam.term.name }} | {{ row.component_label }} | {{ row.exam.academic_class.code }} | {{ row.exam.subject.name }}</option>
+            {% endfor %}
+          </select>
+          <label class="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" name="clear_scores"> Also clear the paper's matching result component</label>
+          <p class="text-xs font-semibold text-amber-700">This removes every attempt for the selected paper. For one student, use “Reopen Selected Students”.</p>
+          <input name="admin_reason" class="w-full rounded-xl border border-red-300 bg-white px-3 py-2 text-sm" placeholder="Required admin reason" required>
+          <label class="flex items-center gap-2 text-sm font-bold text-red-900"><input type="checkbox" name="confirm_action" required> I reviewed the affected paper and understand the consequence.</label>
+          <input name="typed_confirmation" pattern="CLEAR ATTEMPTS" class="w-full rounded-xl border border-red-300 bg-white px-3 py-2 text-sm" placeholder="Type CLEAR ATTEMPTS" required>
+          <button class="ndga-btn !border-red-700 !bg-red-700 !text-white" type="submit">Clear Attempts</button>
+        </form>
+        </div>
+
+        <div data-incident-operation="restore">
+        <h2 class="mt-6 text-lg font-semibold text-ndga-navy">Undo Score Clear</h2>
+        <form method="post" class="mt-4 space-y-3">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="restore_score_backup">
+          {% if score_backup_options %}
+            <select name="backup_file" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" required>
+              {% for backup in score_backup_options %}
+                <option value="{{ backup.name }}">{{ backup.label }}</option>
+              {% endfor %}
+            </select>
+            <p class="text-xs font-semibold text-slate-600">Restores the saved CA/objective/theory fields exactly as they were before an Emergency score clear.</p>
+            <button class="ndga-btn ndga-btn-primary" type="submit">Restore Selected Backup</button>
+          {% else %}
+            <p class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">No Emergency score-clear backups found yet.</p>
+          {% endif %}
+        </form>
+        </div>
+      </article>
+    </div>
+
+    <article id="objective-score-override" class="rounded-3xl border-2 border-amber-300 bg-[#fffdf7] p-6 shadow-sm">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p class="text-xs font-black uppercase tracking-[0.16em] text-amber-700">Quick Score Correction</p>
+          <h2 class="mt-1 text-xl font-bold text-ndga-navy">Override Student Objective Score</h2>
+        </div>
+        <span class="rounded-full bg-[#082449] px-3 py-1.5 text-xs font-black text-white">Always Available</span>
+      </div>
+      <p class="mt-1 text-sm text-slate-600">Choose the exact paper. Its session, term, class, subject, and CA/exam component determine the single result row that will be changed.</p>
+      <form method="post" class="mt-5 grid gap-3 lg:grid-cols-2 xl:grid-cols-5">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="override_objective_score">
+        <input type="hidden" name="class_id" value="{{ selected_class_id }}">
+        <input type="hidden" name="subject_id" value="{{ selected_subject_id }}">
+        <input type="hidden" name="ca_filter" value="{{ selected_ca_filter }}">
+        <div class="xl:col-span-2">
+          <label class="mb-1 block text-sm font-semibold text-slate-700">Paper</label>
+          <select name="exam_id" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" required>
+            <option value="">Select exact paper</option>
+            {% for row in exam_options %}
+              <option value="{{ row.exam.id }}" {% if selected_exam_id == row.exam.id|stringformat:"s" %}selected{% endif %}>{{ row.component_label }} | {{ row.exam.session.name }} {{ row.exam.term.name }} | {{ row.exam.academic_class.code }} | {{ row.exam.subject.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-semibold text-slate-700">Admission Number</label>
+          <input name="student_number" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" placeholder="NDGAK/24/357" required>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-semibold text-slate-700">Objective Score</label>
+          <input name="objective_score" type="number" step="0.01" min="0" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" placeholder="17.40" required>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-semibold text-slate-700">Admin Reason</label>
+          <input name="admin_reason" class="w-full rounded-xl border border-amber-300 px-3 py-2 text-sm" placeholder="Verified exam score correction" required>
+        </div>
+        <div class="xl:col-span-5 flex justify-end">
+          <button class="ndga-btn ndga-btn-primary" type="submit">Override Objective Score</button>
+        </div>
+      </form>
+    </article>
+
+    <article data-incident-operation="theory" class="rounded-3xl border border-[#d9e2ef] bg-white p-6 shadow-sm">
+      <h2 class="text-lg font-semibold text-ndga-navy">Teacher CA Theory Entry Window</h2>
+      <p class="mt-1 text-sm text-slate-600">Open one class subject and one CA component for its assigned teacher. It closes automatically at the deadline.</p>
+      <form method="post" class="mt-5 grid gap-3 lg:grid-cols-2 xl:grid-cols-6">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="set_result_entry_window">
+        <input type="hidden" name="class_id" value="{{ selected_class_id }}">
+        <input type="hidden" name="subject_id" value="{{ selected_subject_id }}">
+        <input type="hidden" name="ca_filter" value="{{ selected_ca_filter }}">
+        <div class="xl:col-span-2">
+          <label class="mb-1 block text-sm font-semibold text-slate-700">Class / Subject</label>
+          <select name="result_sheet_id" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" required>
+            <option value="">Select class and subject</option>
+            {% for sheet in result_sheet_options %}
+              <option value="{{ sheet.id }}">{{ sheet.academic_class.code }} | {{ sheet.subject.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-semibold text-slate-700">CA Component</label>
+          <select name="entry_component" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" required>
+            {% for value, label in ca_filter_options %}
+              <option value="{{ value }}" {% if selected_ca_filter == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-semibold text-slate-700">Open From</label>
+          <div class="grid grid-cols-2 gap-2">
+            <input type="date" name="entry_start_date" value="{{ today_value }}" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" required>
+            <input type="time" name="entry_start_time" value="{{ now_time_value }}" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" required>
+          </div>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-semibold text-slate-700">Close At</label>
+          <div class="grid grid-cols-2 gap-2">
+            <input type="date" name="entry_end_date" value="{{ today_value }}" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" required>
+            <input type="time" name="entry_end_time" value="{{ default_deadline_time }}" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" required>
+          </div>
+        </div>
+        <div class="flex items-end">
+          <button class="ndga-btn ndga-btn-primary w-full" type="submit">Open Theory Entry</button>
+        </div>
+      </form>
+
+      {% if active_entry_windows %}
+        <div class="mt-5 overflow-x-auto rounded-2xl border border-slate-200">
+          <table class="min-w-full divide-y divide-slate-200 text-sm">
+            <thead><tr class="bg-slate-50 text-left text-slate-500"><th class="px-3 py-2">Class / Subject</th><th class="px-3 py-2">Component</th><th class="px-3 py-2">Deadline</th><th class="px-3 py-2">Status</th><th class="px-3 py-2">Action</th></tr></thead>
+            <tbody class="divide-y divide-slate-100">
+              {% for row in active_entry_windows %}
+                <tr>
+                  <td class="px-3 py-2 font-semibold text-slate-800">{{ row.sheet.academic_class.code }} | {{ row.sheet.subject.name }}</td>
+                  <td class="px-3 py-2 text-slate-700">{{ row.component_label }}</td>
+                  <td class="px-3 py-2 text-slate-700">{{ row.end_at|date:"d M Y H:i" }}</td>
+                  <td class="px-3 py-2 {% if row.is_open %}text-emerald-700{% elif row.is_expired %}text-rose-700{% else %}text-amber-700{% endif %}">{% if row.is_open %}Open{% elif row.is_expired %}Expired{% else %}Scheduled{% endif %}</td>
+                  <td class="px-3 py-2">
+                    <form method="post">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="close_result_entry_window">
+                      <input type="hidden" name="result_sheet_id" value="{{ row.sheet.id }}">
+                      <input type="hidden" name="entry_component" value="{{ row.component }}">
+                      <button class="ndga-btn ndga-btn-secondary !px-3 !py-1.5 !text-xs" type="submit">Close Now</button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% endif %}
+    </article>
+
+    <article data-incident-operation="repair" class="rounded-3xl border border-red-200 bg-red-50 p-6 shadow-sm">
+      <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h2 class="text-lg font-semibold text-ndga-navy">Result CBT Split Repair</h2>
+          <p class="mt-1 text-sm text-slate-600">Repair zero-theory limits for CA1, CA2/CA3, or Exam. Use the precise form below for one class subject.</p>
+          {% if zero_theory_policy_rows %}
+            <p class="mt-2 text-sm font-semibold text-amber-700">{{ zero_theory_policy_rows|length }} filtered sheet(s) still have a zero theory limit.</p>
+          {% else %}
+            <p class="mt-2 text-sm font-semibold text-emerald-700">No zero-theory issue found for the selected component and filters.</p>
+          {% endif %}
+        </div>
+        <form method="post" class="flex flex-wrap items-end gap-2">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="repair_zero_theory">
+          <input type="hidden" name="class_id" value="{{ selected_class_id }}">
+          <input type="hidden" name="subject_id" value="{{ selected_subject_id }}">
+          <select name="repair_component" class="rounded-xl border border-slate-300 px-3 py-2 text-sm">
+            <option value="ca1" {% if repair_component == "ca1" %}selected{% endif %}>CA1</option>
+            <option value="ca23" {% if repair_component == "ca23" %}selected{% endif %}>CA2 / CA3</option>
+            <option value="exam" {% if repair_component == "exam" %}selected{% endif %}>Exam</option>
+          </select>
+          <input name="admin_reason" class="rounded-xl border border-red-300 bg-white px-3 py-2 text-sm" placeholder="Admin reason" required>
+          <label class="flex items-center gap-2 text-xs font-bold text-red-900"><input type="checkbox" required> Confirm repair</label>
+          <button class="ndga-btn ndga-btn-secondary" type="submit">Repair Zero Theory</button>
+        </form>
+      </div>
+
+      <form method="post" class="mt-5 grid gap-3 lg:grid-cols-[2fr_1fr_1fr_1fr_auto]">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="update_result_policy">
+        <div>
+          <label class="mb-1 block text-sm font-semibold text-slate-700">Result Sheet</label>
+          <select name="result_sheet_id" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" required>
+            <option value="">Select class/subject</option>
+            {% for sheet in result_sheet_options %}
+              <option value="{{ sheet.id }}">{{ sheet.academic_class.code }} | {{ sheet.subject.name }} | {{ sheet.get_status_display }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-semibold text-slate-700">Component</label>
+          <select name="policy_section" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+            <option value="ca1">CA1</option>
+            <option value="ca23">CA2 / CA3</option>
+            <option value="exam">Exam</option>
+          </select>
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-semibold text-slate-700">Objective Max</label>
+          <input name="objective_max" type="number" step="0.01" min="0" value="5.00" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+        </div>
+        <div>
+          <label class="mb-1 block text-sm font-semibold text-slate-700">Theory Max</label>
+          <input name="theory_max" type="number" step="0.01" min="0" value="5.00" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+        </div>
+        <div class="flex flex-col justify-end gap-2">
+          <label class="flex items-center gap-2 text-sm font-semibold text-slate-700"><input type="checkbox" name="policy_enabled" checked> Enabled</label>
+          <input name="admin_reason" class="rounded-xl border border-red-300 bg-white px-3 py-2 text-sm" placeholder="Admin reason" required>
+          <button class="ndga-btn !border-red-700 !bg-red-700 !text-white" type="submit">Repair Scores</button>
+        </div>
+      </form>
+    </article>
+
+    <article data-incident-operation="deactivate" class="rounded-3xl border border-red-200 bg-red-50 p-6 shadow-sm">
+      <h2 class="text-lg font-semibold text-ndga-navy">Disable Departed Student</h2>
+      <form method="post" class="mt-4 grid gap-3 md:grid-cols-[1fr_2fr_auto]">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="deactivate_student">
+        <input name="student_number" class="rounded-xl border border-slate-300 px-3 py-2 text-sm" placeholder="NDGAK/25/404" required>
+        <input name="note" class="rounded-xl border border-red-300 bg-white px-3 py-2 text-sm" placeholder="Required reason" required>
+        <button class="ndga-btn !border-red-700 !bg-red-700 !text-white" type="submit">Disable Student</button>
+      </form>
+    </article>
+
+    <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <h2 class="text-lg font-semibold text-ndga-navy">Student Quick List</h2>
+      <input id="quick-student-filter" type="search" class="mt-3 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" placeholder="Type a student name or admission number to shorten this list">
+      <div class="mt-3 max-h-96 overflow-auto rounded-2xl border border-slate-200">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+          <thead><tr class="bg-slate-50 text-left text-slate-500"><th class="px-3 py-2">Admission</th><th class="px-3 py-2">Name</th><th class="px-3 py-2">Status</th></tr></thead>
+          <tbody class="divide-y divide-slate-100">
+            {% for student in student_rows %}
+              <tr data-student-row data-search="{{ student.student_profile.student_number|lower }} {{ student.get_full_name|default:student.username|lower }}">
+                <td class="px-3 py-2 font-semibold text-slate-800">{{ student.student_profile.student_number }}</td>
+                <td class="px-3 py-2 text-slate-700">{{ student.get_full_name|default:student.username }}</td>
+                <td class="px-3 py-2 text-slate-600">{% if student.is_active %}Active{% else %}Disabled{% endif %} | {{ student.student_profile.lifecycle_state }}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="3" class="px-3 py-4 text-slate-500">No matching students.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </section>
+{% endblock %}
+
+{% block extra_js %}
+  {{ block.super }}
+  <script>
+    (function () {
+      const selector = document.getElementById("incidentOperation");
+      const operationNodes = Array.from(document.querySelectorAll("[data-incident-operation]"));
+      const groupedContainer = document.querySelector("[data-incident-container]");
+      const groupedOperations = new Set(["schedule", "clear", "restore"]);
+      if (!selector) return;
+      function showOperation(value) {
+        operationNodes.forEach(function (node) {
+          node.classList.toggle("hidden", node.dataset.incidentOperation !== value);
+        });
+        if (groupedContainer) {
+          groupedContainer.classList.toggle("hidden", !groupedOperations.has(value));
+        }
+        try { window.sessionStorage.setItem("ndga-incident-operation", value); } catch (_error) {}
+      }
+      let initial = "reopen";
+      try { initial = window.sessionStorage.getItem("ndga-incident-operation") || initial; } catch (_error) {}
+      if (!Array.from(selector.options).some(function (option) { return option.value === initial; })) initial = "reopen";
+      selector.value = initial;
+      selector.addEventListener("change", function () { showOperation(selector.value); });
+      showOperation(initial);
+    })();
+
+    document.getElementById("quick-student-filter")?.addEventListener("input", function () {
+      const query = this.value.trim().toLowerCase();
+      document.querySelectorAll("[data-student-row]").forEach(function (row) {
+        row.classList.toggle("hidden", query && !row.dataset.search.includes(query));
+      });
+    });
+  </script>
+{% endblock %}

@@ -1,0 +1,678 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Result Entry{% endblock %}
+
+{% block content %}
+  <style>
+    .score-band-dark { color: #111827 !important; background: #f8fafc; border-color: #cbd5e1; }
+    .score-band-green { color: #047857 !important; background: #ecfdf5; border-color: #86efac; }
+    .score-band-blue { color: #1d4ed8 !important; background: #eff6ff; border-color: #93c5fd; }
+    .score-band-red { color: #b91c1c !important; background: #fef2f2; border-color: #fecaca; }
+    .score-band-cell {
+      border-width: 1px;
+      border-style: solid;
+      border-radius: 0.75rem;
+      text-align: center;
+      transition: background-color .18s ease, color .18s ease, border-color .18s ease;
+    }
+  </style>
+  <section class="mx-auto max-w-[96rem] px-4 py-8 sm:px-6 lg:px-8">
+    <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 class="text-2xl font-bold text-ndga-navy">{{ assignment.academic_class.code }} - {{ assignment.subject.name }}</h1>
+          <p class="mt-1 text-xs font-semibold text-slate-500">{{ assignment.session.name }} | {{ assignment.term.get_name_display }}</p>
+        </div>
+        <a href="{{ class_subjects_url }}" class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+          Back To Subjects
+        </a>
+      </div>
+      {% if use_legacy_result_layout %}
+        <div class="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+          <p class="text-sm font-bold text-emerald-900">Historical published result</p>
+          <p class="mt-1 text-xs font-semibold text-emerald-800">First and Second Term are locked exactly in the old result format: CA1, CA2, CA3, Assignment/Projects, Exam over 60, Total, and Grade.</p>
+        </div>
+      {% else %}
+        <div class="mt-4 grid gap-2 md:grid-cols-4">
+          {% for key, row in component_reviews.items %}
+            {% if row.visible %}
+              <div class="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">{{ row.label }}</p>
+                <p class="mt-1 text-sm font-bold text-slate-800">{{ row.status_label }}</p>
+                <p class="text-xs {% if row.is_open %}text-emerald-700{% else %}text-amber-700{% endif %}">{% if row.is_open %}Entry open{% else %}Entry closed{% endif %}</p>
+              </div>
+            {% endif %}
+          {% endfor %}
+        </div>
+      {% endif %}
+      <form method="post" id="bulk-score-form" class="mt-5 space-y-4">
+        {% csrf_token %}
+
+        {% if special_language_layout %}
+          <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+            <p class="text-sm font-bold text-amber-950">Special language parent-facing sheet</p>
+            <p class="mt-1 text-xs font-semibold text-amber-900">This subject is excluded from official result, cumulative and academic performance. It is shown separately as CA (20) + Objective Exam (20) + Theory (60) = 100.</p>
+          </div>
+          <div class="overflow-auto rounded-2xl border border-slate-200">
+            <table class="min-w-[860px] w-full divide-y divide-slate-200 text-sm">
+              <thead>
+                <tr class="bg-slate-50 text-left text-slate-600">
+                  <th class="sticky left-0 z-20 min-w-[240px] border-r border-slate-200 bg-slate-50 px-3 py-2 shadow-[6px_0_12px_-10px_rgba(15,23,42,0.35)]">Student</th>
+                  <th class="px-3 py-2 whitespace-nowrap">CA (20)</th>
+                  <th class="px-3 py-2 whitespace-nowrap">Objective Exam (20)</th>
+                  <th class="px-3 py-2 whitespace-nowrap">Theory (60)</th>
+                  <th class="px-3 py-2 whitespace-nowrap">Total (100)</th>
+                  <th class="px-3 py-2 whitespace-nowrap">Grade</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                {% for row in rows %}
+                  {% with enrollment=row.enrollment score=row.score %}
+                    <tr data-special-score-row>
+                      <td class="sticky left-0 z-10 min-w-[240px] border-r border-slate-200 bg-white px-3 py-2 font-semibold text-slate-800 align-top shadow-[6px_0_12px_-10px_rgba(15,23,42,0.25)]">
+                        <p>{{ enrollment.student.get_full_name|default:enrollment.student.username }}</p>
+                        <p class="text-xs font-semibold text-slate-500">{{ enrollment.student.student_profile.student_number }}</p>
+                        <p class="mt-2 hidden rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700" data-row-error></p>
+                      </td>
+                      <td class="px-3 py-2 align-top">
+                        <input type="number" step="0.01" min="0" max="20" data-special-input data-special-field="ca" class="w-28 rounded-lg border px-2 py-1.5 text-sm {% if not special_language_can_edit %}cursor-not-allowed border-slate-200 bg-slate-100 text-slate-500{% else %}border-slate-300{% endif %}" name="special_ca_{{ enrollment.student_id }}" value="{% if score %}{{ score.ca1 }}{% else %}0{% endif %}" {% if not special_language_can_edit %}readonly disabled{% endif %}>
+                      </td>
+                      <td class="px-3 py-2 align-top">
+                        <input type="number" step="0.01" min="0" max="20" data-special-input data-special-field="objective" class="w-28 cursor-not-allowed rounded-lg border border-slate-200 bg-slate-100 px-2 py-1.5 text-sm font-semibold text-slate-600" value="{% if score %}{{ score.objective }}{% else %}0{% endif %}" readonly disabled>
+                        <p class="mt-1 text-[11px] font-semibold text-emerald-700">From CBT</p>
+                      </td>
+                      <td class="px-3 py-2 align-top">
+                        <input type="number" step="0.01" min="0" max="60" data-special-input data-special-field="theory" class="w-28 rounded-lg border px-2 py-1.5 text-sm {% if not special_language_can_edit %}cursor-not-allowed border-slate-200 bg-slate-100 text-slate-500{% else %}border-slate-300{% endif %}" name="special_theory_{{ enrollment.student_id }}" value="{% if score %}{{ score.theory }}{% else %}0{% endif %}" {% if not special_language_can_edit %}readonly disabled{% endif %}>
+                      </td>
+                      <td class="px-3 py-2 font-bold score-band-cell" data-special-total>{% if score %}{{ score.grand_total }}{% else %}0.00{% endif %}</td>
+                      <td class="px-3 py-2 font-bold score-band-cell" data-special-grade>{% if score %}{{ score.grade }}{% else %}-{% endif %}</td>
+                    </tr>
+                  {% endwith %}
+                {% empty %}
+                  <tr><td colspan="6" class="px-3 py-4 text-slate-500">No students found.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+        <div id="scoreTopScroll" class="overflow-x-auto overflow-y-hidden rounded-t-2xl border border-b-0 border-slate-200 bg-slate-50">
+          <div class="h-4 min-w-[1380px]"></div>
+        </div>
+        <div id="scoreTableScroll" class="max-h-[calc(100vh-16rem)] overflow-auto rounded-b-2xl border border-slate-200">
+          <table class="{% if use_legacy_result_layout %}min-w-[980px]{% else %}min-w-[1380px]{% endif %} w-full divide-y divide-slate-200 text-sm">
+            <thead>
+              <tr class="bg-slate-50 text-left text-slate-500">
+                <th class="sticky left-0 z-20 min-w-[220px] border-r border-slate-200 bg-slate-50 px-3 py-2 shadow-[6px_0_12px_-10px_rgba(15,23,42,0.35)]">Student</th>
+                <th class="px-3 py-2 whitespace-nowrap">CA1</th>
+                <th class="px-3 py-2 whitespace-nowrap">CA2</th>
+                <th class="px-3 py-2 whitespace-nowrap">CA3</th>
+                <th class="px-3 py-2 whitespace-nowrap">Assignment / Projects / Practical</th>
+                {% if use_legacy_result_layout %}
+                  <th class="px-3 py-2 whitespace-nowrap">Exam (60)</th>
+                {% else %}
+                  <th class="px-3 py-2 whitespace-nowrap">Class Participation</th>
+                  <th class="px-3 py-2 whitespace-nowrap">Objective (20)</th>
+                  <th class="px-3 py-2 whitespace-nowrap">Theory</th>
+                  <th class="px-3 py-2 whitespace-nowrap">CA Total</th>
+                  <th class="px-3 py-2 whitespace-nowrap">Exam Total</th>
+                {% endif %}
+                <th class="px-3 py-2 whitespace-nowrap">Grand Total</th>
+                <th class="px-3 py-2 whitespace-nowrap">Grade</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              {% for row in rows %}
+                {% with enrollment=row.enrollment score=row.score cbt=row.cbt %}
+                  <tr data-score-row>
+                    <td class="sticky left-0 z-10 min-w-[220px] border-r border-slate-200 bg-white px-3 py-2 font-semibold text-slate-800 align-top shadow-[6px_0_12px_-10px_rgba(15,23,42,0.25)]">
+                      <p>{{ enrollment.student.get_full_name|default:enrollment.student.username }}</p>
+                      <p class="text-xs font-semibold text-slate-500">{{ enrollment.student.student_profile.student_number }}</p>
+                      {% if row.locked_fields %}
+                        <p class="text-[10px] font-semibold uppercase tracking-[0.12em] text-amber-700">CBT locked: {{ row.locked_fields|join:", " }}</p>
+                      {% endif %}
+                      <p class="mt-2 hidden rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700" data-row-error></p>
+                    </td>
+
+                    <td class="px-3 py-2 align-top">
+                      <div data-policy-manual="ca1" data-objective-locked="{% if cbt.ca1.objective_locked %}true{% else %}false{% endif %}" {% if cbt.ca1.enabled and not use_legacy_result_layout %}class="hidden"{% endif %}>
+                        <input type="number" step="0.01" min="0" max="10" data-score-input data-field="ca1" class="w-24 rounded-lg border border-slate-300 px-2 py-1.5 text-sm {% if 'ca1' in row.locked_fields or not editable_components.ca1 %}cursor-not-allowed bg-slate-100 text-slate-500{% endif %}" name="ca1_{{ enrollment.student_id }}" value="{% if score %}{{ score.ca1 }}{% else %}0{% endif %}" {% if not editable_components.ca1 or 'ca1' in row.locked_fields %}readonly disabled{% endif %}>
+                      </div>
+                      <div data-policy-cbt="ca1" data-section-max="10" data-section-label="CA1" data-objective-locked="{% if cbt.ca1.objective_locked %}true{% else %}false{% endif %}" class="space-y-2 {% if not cbt.ca1.enabled or use_legacy_result_layout %}hidden{% endif %}">
+                        <div>
+                          <p class="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Objective</p>
+                          <input type="number" step="0.01" class="w-24 rounded-lg border border-slate-200 bg-slate-100 px-2 py-1.5 text-sm font-semibold text-slate-600" value="{{ cbt.ca1.objective }}" data-score-input data-field="ca1-objective" readonly disabled>
+                        </div>
+                        <div>
+                          <p class="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Teacher Theory</p>
+                          <input type="number" step="0.01" min="0" max="{{ cbt.ca1.theory_max }}" data-score-input data-field="ca1-theory" class="w-24 rounded-lg border px-2 py-1.5 text-sm {% if not editable_components.ca1 %}cursor-not-allowed border-slate-200 bg-slate-100 text-slate-500{% else %}border-slate-300{% endif %}" name="ca1_theory_{{ enrollment.student_id }}" value="{{ cbt.ca1.theory }}" {% if not editable_components.ca1 %}readonly disabled{% endif %}>
+                        </div>
+                      </div>
+                    </td>
+
+                    <td class="px-3 py-2 align-top">
+                      <p class="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 {% if not cbt.ca23.enabled %}hidden{% endif %}" data-policy-label="ca23" data-objective-locked="{% if cbt.ca23.objective_locked %}true{% else %}false{% endif %}">Objective From CBT</p>
+                      <input type="number" step="0.01" min="0" max="{{ cbt.ca23.objective_max }}" data-score-input data-section-key="ca23" data-section-label="CA2 / CA3 Joint" data-section-max="20" data-field="ca2" class="w-24 rounded-lg border px-2 py-1.5 text-sm {% if not editable_components.ca23 or cbt.ca23.enabled or cbt.ca23.objective_locked or 'ca2' in row.locked_fields %}border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed{% else %}border-slate-300{% endif %}" name="ca2_{{ enrollment.student_id }}" value="{% if cbt.ca23.enabled %}{{ cbt.ca23.objective }}{% elif score %}{{ score.ca2 }}{% else %}0{% endif %}" {% if not editable_components.ca23 or cbt.ca23.enabled or cbt.ca23.objective_locked or 'ca2' in row.locked_fields %}readonly disabled{% endif %}>
+                    </td>
+
+                    <td class="px-3 py-2 align-top">
+                      <p class="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 {% if not cbt.ca23.enabled %}hidden{% endif %}" data-policy-label="ca23" data-objective-locked="{% if cbt.ca23.objective_locked %}true{% else %}false{% endif %}">Teacher Theory</p>
+                      <input type="number" step="0.01" min="0" max="{{ cbt.ca23.theory_max }}" data-score-input data-section-key="ca23" data-section-label="CA2 / CA3 Joint" data-section-max="20" data-field="ca3" class="w-24 rounded-lg border px-2 py-1.5 text-sm {% if not editable_components.ca23 %}cursor-not-allowed border-slate-200 bg-slate-100 text-slate-500{% else %}border-slate-300{% endif %}" name="ca3_{{ enrollment.student_id }}" value="{% if score %}{{ score.ca3 }}{% else %}0{% endif %}" {% if not editable_components.ca23 %}readonly disabled{% endif %}>
+                    </td>
+
+                    <td class="px-3 py-2 align-top">
+                      <div data-policy-manual="ca4" data-objective-locked="{% if cbt.ca4.objective_locked %}true{% else %}false{% endif %}" {% if cbt.ca4.enabled and cbt.ca4.objective_locked %}class="hidden"{% endif %}>
+                        <input type="number" step="0.01" min="0" max="10" data-score-input data-field="ca4" class="w-24 rounded-lg border border-slate-300 px-2 py-1.5 text-sm {% if 'ca4' in row.locked_fields or not editable_components.ca4 %}cursor-not-allowed bg-slate-100 text-slate-500{% endif %}" name="ca4_{{ enrollment.student_id }}" value="{% if score %}{{ score.ca4 }}{% else %}0{% endif %}" {% if not editable_components.ca4 or 'ca4' in row.locked_fields %}readonly disabled{% endif %}>
+                      </div>
+                      <div data-policy-cbt="ca4" data-section-max="10" data-section-label="Assignment / Projects / Practical" data-objective-locked="{% if cbt.ca4.objective_locked %}true{% else %}false{% endif %}" class="space-y-2 {% if not cbt.ca4.enabled or not cbt.ca4.objective_locked %}hidden{% endif %}">
+                        <div>
+                          <p class="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Objective</p>
+                          <input type="number" step="0.01" class="w-24 rounded-lg border border-slate-200 bg-slate-100 px-2 py-1.5 text-sm font-semibold text-slate-600" value="{{ cbt.ca4.objective }}" data-score-input data-field="ca4-objective" readonly disabled>
+                        </div>
+                        <div>
+                          <p class="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500">Teacher Theory</p>
+                          <input type="number" step="0.01" min="0" max="{{ cbt.ca4.theory_max }}" data-score-input data-field="ca4-theory" class="w-24 rounded-lg border px-2 py-1.5 text-sm {% if not editable_components.ca4 %}cursor-not-allowed border-slate-200 bg-slate-100 text-slate-500{% else %}border-slate-300{% endif %}" name="ca4_theory_{{ enrollment.student_id }}" value="{{ cbt.ca4.theory }}" {% if not editable_components.ca4 %}readonly disabled{% endif %}>
+                        </div>
+                      </div>
+                    </td>
+
+                    {% if use_legacy_result_layout %}
+                      <td class="px-3 py-2 font-semibold text-slate-700" data-exam-total>{{ row.legacy_exam_total }}</td>
+                    {% else %}
+                      <td class="px-3 py-2 align-top">
+                        <input type="number" step="0.01" min="0" max="10" data-score-input data-field="class-participation" class="w-24 cursor-not-allowed rounded-lg border border-slate-200 bg-slate-100 px-2 py-1.5 text-sm font-semibold text-slate-600" value="{{ row.class_participation }}" readonly disabled title="Calculated automatically from attendance">
+                      </td>
+
+                      <td class="px-3 py-2 align-top">
+                        <p class="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 {% if not cbt.exam.enabled %}hidden{% endif %}" data-policy-label="exam" data-objective-locked="{% if cbt.exam.objective_locked %}true{% else %}false{% endif %}">Objective From CBT</p>
+                        <input type="number" step="0.01" min="0" max="{{ cbt.exam.objective_max }}" data-score-input data-field="objective" class="w-24 rounded-lg border px-2 py-1.5 text-sm {% if not editable_components.exam or cbt.exam.enabled or cbt.exam.objective_locked or 'objective' in row.locked_fields %}border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed{% else %}border-slate-300{% endif %}" name="objective_{{ enrollment.student_id }}" value="{% if cbt.exam.enabled %}{{ cbt.exam.objective }}{% else %}{{ row.objective_display }}{% endif %}" {% if not editable_components.exam or cbt.exam.enabled or cbt.exam.objective_locked or 'objective' in row.locked_fields %}readonly disabled{% endif %}>
+                      </td>
+
+                      <td class="px-3 py-2 align-top">
+                        <p class="mb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 {% if not cbt.exam.enabled %}hidden{% endif %}" data-policy-label="exam" data-objective-locked="{% if cbt.exam.objective_locked %}true{% else %}false{% endif %}">Teacher Theory</p>
+                        <input type="number" step="0.01" min="0" max="{{ cbt.exam.theory_max }}" data-score-input data-field="theory" class="w-24 rounded-lg border px-2 py-1.5 text-sm {% if not editable_components.exam %}cursor-not-allowed border-slate-200 bg-slate-100 text-slate-500{% else %}border-slate-300{% endif %}" name="theory_{{ enrollment.student_id }}" value="{% if score %}{{ score.theory }}{% else %}0{% endif %}" {% if not editable_components.exam %}readonly disabled{% endif %}>
+                      </td>
+
+                      <td class="px-3 py-2 font-semibold text-slate-700" data-ca-total>{% if score %}{{ score.total_ca }}{% else %}0.00{% endif %}</td>
+                      <td class="px-3 py-2 font-semibold text-slate-700" data-exam-total>{% if score %}{{ score.total_exam }}{% else %}0.00{% endif %}</td>
+                    {% endif %}
+                    <td class="px-3 py-2 font-bold score-band-cell" data-grand-total>{% if score %}{{ score.grand_total }}{% else %}0.00{% endif %}</td>
+                    <td class="px-3 py-2 font-bold score-band-cell" data-grade>{% if score %}{{ score.grade }}{% else %}-{% endif %}</td>
+                  </tr>
+                {% endwith %}
+              {% empty %}
+                <tr><td colspan="{% if use_legacy_result_layout %}8{% else %}12{% endif %}" class="px-3 py-4 text-slate-500">No students found.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% endif %}
+
+        <div class="flex flex-wrap gap-2">
+          {% if use_legacy_result_layout %}
+            <span class="inline-flex items-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-900">
+              Published historical record — read only
+            </span>
+          {% else %}
+            <button type="submit" class="ndga-btn ndga-btn-primary" {% if not can_edit %}disabled{% endif %}>
+              Save Scores
+            </button>
+          {% endif %}
+          {% if can_edit %}
+            <span id="scores-autosave-status" class="inline-flex items-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-600">
+              Autosave idle
+            </span>
+          {% endif %}
+        </div>
+      </form>
+    </div>
+  </section>
+{% endblock %}
+
+{% block extra_scripts %}
+  <script>
+    (function () {
+      const topScroll = document.getElementById("scoreTopScroll");
+      const tableScroll = document.getElementById("scoreTableScroll");
+      if (topScroll && tableScroll) {
+        let syncing = false;
+        const sync = (from, to) => {
+          if (syncing) return;
+          syncing = true;
+          to.scrollLeft = from.scrollLeft;
+          window.requestAnimationFrame(() => {
+            syncing = false;
+          });
+        };
+        topScroll.addEventListener("scroll", () => sync(topScroll, tableScroll), { passive: true });
+        tableScroll.addEventListener("scroll", () => sync(tableScroll, topScroll), { passive: true });
+      }
+
+      function toNum(value) {
+        const n = parseFloat(value);
+        return Number.isFinite(n) ? n : 0;
+      }
+
+      function inputMax(input, fallback) {
+        if (!input) return fallback;
+        const max = parseFloat(input.getAttribute("max"));
+        return Number.isFinite(max) ? max : fallback;
+      }
+
+      function setInputError(input, message) {
+        if (!input) return;
+        input.setCustomValidity(message || "");
+        input.classList.toggle("border-rose-500", !!message);
+        input.classList.toggle("bg-rose-50", !!message);
+        if (message) {
+          input.title = message;
+          input.dataset.validationTitle = "true";
+        } else {
+          if (input.dataset.validationTitle === "true") {
+            input.removeAttribute("title");
+          }
+          delete input.dataset.validationTitle;
+        }
+      }
+
+      function setRowError(row, messages) {
+        const box = row.querySelector("[data-row-error]");
+        const text = messages.join(" ");
+        row.classList.toggle("bg-rose-50/40", messages.length > 0);
+        if (!box) return;
+        box.textContent = text;
+        box.classList.toggle("hidden", messages.length === 0);
+      }
+
+      function gradeFor(total) {
+        const score = Math.max(0, Math.min(100, Math.floor(total)));
+        if (score >= 90) return "A1";
+        if (score >= 80) return "B2";
+        if (score >= 75) return "B3";
+        if (score >= 70) return "C4";
+        if (score >= 65) return "C5";
+        if (score >= 60) return "C6";
+        if (score >= 55) return "D7";
+        if (score >= 50) return "E8";
+        return "F9";
+      }
+
+      function scoreBandClass(total) {
+        const score = Math.max(0, Math.min(100, Math.floor(total)));
+        if (score >= 80) return "score-band-dark";
+        if (score >= 70) return "score-band-green";
+        if (score >= 60) return "score-band-blue";
+        return "score-band-red";
+      }
+
+      function applyScoreBand(node, total) {
+        if (!node) return;
+        node.classList.remove("score-band-dark", "score-band-green", "score-band-blue", "score-band-red");
+        node.classList.add(scoreBandClass(total));
+      }
+
+      function policyEnabled(key) {
+        const checkbox = document.querySelector('[data-policy-toggle="' + key + '"]');
+        return !!(checkbox && checkbox.checked);
+      }
+
+      function setPolicyUi() {
+        ["ca1", "ca23", "ca4", "exam"].forEach((key) => {
+          const checkbox = document.querySelector('[data-policy-toggle="' + key + '"]');
+          if (!checkbox) return;
+          const enabled = checkbox.checked;
+          document.querySelectorAll('[data-policy-manual="' + key + '"]').forEach((node) => {
+            const objectiveLocked = node.dataset.objectiveLocked === 'true';
+            node.classList.toggle('hidden', enabled && objectiveLocked);
+          });
+          document.querySelectorAll('[data-policy-cbt="' + key + '"]').forEach((node) => {
+            const objectiveLocked = node.dataset.objectiveLocked === 'true';
+            node.classList.toggle('hidden', !(enabled && objectiveLocked));
+          });
+          document.querySelectorAll('[data-policy-label="' + key + '"]').forEach((node) => {
+            const objectiveLocked = node.dataset.objectiveLocked === 'true';
+            node.classList.toggle('hidden', !(enabled && objectiveLocked));
+          });
+        });
+      }
+
+      function updateRow(row) {
+        const ca1Split = row.querySelector('[data-policy-cbt="ca1"]');
+        const ca1 = ca1Split && !ca1Split.classList.contains('hidden')
+          ? toNum(row.querySelector('[data-field="ca1-objective"]')?.value) + toNum(row.querySelector('[data-field="ca1-theory"]')?.value)
+          : toNum(row.querySelector('[data-field="ca1"]')?.value);
+        const ca2 = toNum(row.querySelector('[data-field="ca2"]')?.value);
+        const ca3 = toNum(row.querySelector('[data-field="ca3"]')?.value);
+        const ca4Split = row.querySelector('[data-policy-cbt="ca4"]');
+        const ca4 = ca4Split && !ca4Split.classList.contains('hidden')
+          ? toNum(row.querySelector('[data-field="ca4-objective"]')?.value) + toNum(row.querySelector('[data-field="ca4-theory"]')?.value)
+          : toNum(row.querySelector('[data-field="ca4"]')?.value);
+        const classParticipation = toNum(row.querySelector('[data-field="class-participation"]')?.value);
+        const objective = toNum(row.querySelector('[data-field="objective"]')?.value);
+        const theory = toNum(row.querySelector('[data-field="theory"]')?.value);
+
+        const caTotal = ca1 + ca2 + ca3 + ca4 + classParticipation;
+        const examTotal = objective + theory;
+        const grandTotal = caTotal + examTotal;
+
+        const caTotalNode = row.querySelector('[data-ca-total]');
+        const examTotalNode = row.querySelector('[data-exam-total]');
+        const grandTotalNode = row.querySelector('[data-grand-total]');
+        const gradeNode = row.querySelector('[data-grade]');
+        caTotalNode.textContent = caTotal.toFixed(2);
+        examTotalNode.textContent = examTotal.toFixed(2);
+        grandTotalNode.textContent = grandTotal.toFixed(2);
+        gradeNode.textContent = gradeFor(grandTotal);
+        applyScoreBand(caTotalNode, caTotal * 2);
+        applyScoreBand(examTotalNode, examTotal * 2);
+        applyScoreBand(grandTotalNode, grandTotal);
+        applyScoreBand(gradeNode, grandTotal);
+      }
+
+      function validateRow(row) {
+        const messages = [];
+        row.querySelectorAll("[data-score-input]").forEach((input) => setInputError(input, ""));
+
+        function checkInput(field, label, fallbackMax) {
+          const input = row.querySelector('[data-field="' + field + '"]');
+          if (!input || input.disabled || input.readOnly) return;
+          const value = toNum(input.value);
+          const max = inputMax(input, fallbackMax);
+          let message = "";
+          if (value < 0) {
+            message = label + " cannot be below 0.";
+          } else if (value > max) {
+            message = label + " cannot exceed " + max.toFixed(2) + ".";
+          }
+          if (message) {
+            messages.push(message);
+            setInputError(input, message);
+          }
+        }
+
+        checkInput("ca1", "CA1", 10);
+        checkInput("ca2", "CA2", 10);
+        checkInput("ca3", "CA3", 10);
+        checkInput("ca4", "Assignment / Projects / Practical", 10);
+        checkInput("objective", "Objective", 20);
+        checkInput("theory", "Theory", 30);
+
+        const ca1Split = row.querySelector('[data-policy-cbt="ca1"]');
+        if (ca1Split && !ca1Split.classList.contains("hidden")) {
+          const objectiveInput = row.querySelector('[data-field="ca1-objective"]');
+          const theoryInput = row.querySelector('[data-field="ca1-theory"]');
+          const objective = toNum(objectiveInput?.value);
+          const theory = toNum(theoryInput?.value);
+          const theoryMax = inputMax(theoryInput, 5);
+          const sectionMax = parseFloat(ca1Split.dataset.sectionMax || "10");
+          if (theory > theoryMax) {
+            const message = "CA1 theory cannot exceed " + theoryMax.toFixed(2) + ".";
+            messages.push(message);
+            setInputError(theoryInput, message);
+          }
+          if ((objective + theory) > sectionMax) {
+            const message = "CA1 total objective + theory cannot exceed " + sectionMax.toFixed(2) + ".";
+            messages.push(message);
+            setInputError(theoryInput, message);
+          }
+        }
+
+        const ca2 = row.querySelector('[data-field="ca2"]');
+        const ca3 = row.querySelector('[data-field="ca3"]');
+        if (ca2?.dataset.sectionKey === "ca23" || ca3?.dataset.sectionKey === "ca23") {
+          const objective = toNum(ca2?.value);
+          const theory = toNum(ca3?.value);
+          const theoryMax = inputMax(ca3, 10);
+          const sectionMax = parseFloat(ca3?.dataset.sectionMax || ca2?.dataset.sectionMax || "20");
+          if (theory > theoryMax) {
+            const message = "CA3 theory cannot exceed " + theoryMax.toFixed(2) + ".";
+            messages.push(message);
+            setInputError(ca3, message);
+          }
+          if ((objective + theory) > sectionMax) {
+            const message = "CA2 objective + CA3 theory cannot exceed " + sectionMax.toFixed(2) + ".";
+            messages.push(message);
+            setInputError(ca3, message);
+          }
+        }
+
+        const ca4Split = row.querySelector('[data-policy-cbt="ca4"]');
+        if (ca4Split && !ca4Split.classList.contains("hidden")) {
+          const objectiveInput = row.querySelector('[data-field="ca4-objective"]');
+          const theoryInput = row.querySelector('[data-field="ca4-theory"]');
+          const objective = toNum(objectiveInput?.value);
+          const theory = toNum(theoryInput?.value);
+          const theoryMax = inputMax(theoryInput, 5);
+          const sectionMax = parseFloat(ca4Split.dataset.sectionMax || "10");
+          if (theory > theoryMax) {
+            const message = "Assignment / Projects / Practical theory cannot exceed " + theoryMax.toFixed(2) + ".";
+            messages.push(message);
+            setInputError(theoryInput, message);
+          }
+          if ((objective + theory) > sectionMax) {
+            const message = "Assignment / Projects / Practical total cannot exceed " + sectionMax.toFixed(2) + ".";
+            messages.push(message);
+            setInputError(theoryInput, message);
+          }
+        }
+
+        setRowError(row, Array.from(new Set(messages)));
+        return messages.length === 0;
+      }
+
+      function validateAllRows({ report } = {}) {
+        const rows = Array.from(document.querySelectorAll("[data-score-row]"));
+        let ok = true;
+        rows.forEach((row) => {
+          ok = validateRow(row) && ok;
+        });
+        if (!ok && report) {
+          const firstInvalid = document.querySelector("[data-score-input]:invalid");
+          firstInvalid?.reportValidity();
+          firstInvalid?.scrollIntoView({ block: "center", behavior: "smooth" });
+        }
+        return ok;
+      }
+
+      function refreshAllRows() {
+        setPolicyUi();
+        document.querySelectorAll('[data-score-row]').forEach((row) => {
+          updateRow(row);
+          validateRow(row);
+        });
+      }
+
+      document.querySelectorAll('[data-policy-toggle], [data-score-input]').forEach((input) => {
+        input.addEventListener('input', refreshAllRows);
+        input.addEventListener('change', refreshAllRows);
+      });
+
+      refreshAllRows();
+
+      const scoreForm = document.getElementById("bulk-score-form");
+      if (scoreForm) {
+        scoreForm.addEventListener("submit", (event) => {
+          if (!validateAllRows({ report: true })) {
+            event.preventDefault();
+          }
+        });
+      }
+
+      window.ndgaValidateScoreRows = validateAllRows;
+    })();
+
+    {% if special_language_layout %}
+    (function () {
+      function toNum(value) {
+        const n = parseFloat(value);
+        return Number.isFinite(n) ? n : 0;
+      }
+
+      function gradeFor(total) {
+        const score = Math.max(0, Math.min(100, Math.floor(total)));
+        if (score >= 90) return "A1";
+        if (score >= 80) return "B2";
+        if (score >= 75) return "B3";
+        if (score >= 70) return "C4";
+        if (score >= 65) return "C5";
+        if (score >= 60) return "C6";
+        if (score >= 55) return "D7";
+        if (score >= 50) return "E8";
+        return "F9";
+      }
+
+      function scoreBandClass(total) {
+        const score = Math.max(0, Math.min(100, Math.floor(total)));
+        if (score >= 80) return "score-band-dark";
+        if (score >= 70) return "score-band-green";
+        if (score >= 60) return "score-band-blue";
+        return "score-band-red";
+      }
+
+      function applyScoreBand(node, total) {
+        if (!node) return;
+        node.classList.remove("score-band-dark", "score-band-green", "score-band-blue", "score-band-red");
+        node.classList.add(scoreBandClass(total));
+      }
+
+      function setInputError(input, message) {
+        if (!input) return;
+        input.setCustomValidity(message || "");
+        input.classList.toggle("border-rose-500", !!message);
+        input.classList.toggle("bg-rose-50", !!message);
+      }
+
+      function setRowError(row, messages) {
+        const box = row.querySelector("[data-row-error]");
+        row.classList.toggle("bg-rose-50/40", messages.length > 0);
+        if (!box) return;
+        box.textContent = Array.from(new Set(messages)).join(" ");
+        box.classList.toggle("hidden", messages.length === 0);
+      }
+
+      function updateSpecialRow(row) {
+        const ca = toNum(row.querySelector('[data-special-field="ca"]')?.value);
+        const objective = toNum(row.querySelector('[data-special-field="objective"]')?.value);
+        const theory = toNum(row.querySelector('[data-special-field="theory"]')?.value);
+        const total = ca + objective + theory;
+        const totalNode = row.querySelector("[data-special-total]");
+        const gradeNode = row.querySelector("[data-special-grade]");
+        if (totalNode) totalNode.textContent = total.toFixed(2);
+        if (gradeNode) gradeNode.textContent = gradeFor(total);
+        applyScoreBand(totalNode, total);
+        applyScoreBand(gradeNode, total);
+      }
+
+      function validateSpecialRow(row) {
+        const messages = [];
+        row.querySelectorAll("[data-special-input]").forEach((input) => setInputError(input, ""));
+        [
+          ["ca", "CA", 20],
+          ["objective", "Objective exam", 20],
+          ["theory", "Theory", 60],
+        ].forEach(([field, label, max]) => {
+          const input = row.querySelector('[data-special-field="' + field + '"]');
+          if (!input || input.disabled || input.readOnly) return;
+          const value = toNum(input.value);
+          let message = "";
+          if (value < 0) message = label + " cannot be below 0.";
+          if (value > max) message = label + " cannot exceed " + max + ".";
+          if (message) {
+            messages.push(message);
+            setInputError(input, message);
+          }
+        });
+        setRowError(row, messages);
+        return messages.length === 0;
+      }
+
+      function refreshSpecialRows() {
+        document.querySelectorAll("[data-special-score-row]").forEach((row) => {
+          updateSpecialRow(row);
+          validateSpecialRow(row);
+        });
+      }
+
+      window.ndgaValidateScoreRows = function ({ report } = {}) {
+        let ok = true;
+        document.querySelectorAll("[data-special-score-row]").forEach((row) => {
+          ok = validateSpecialRow(row) && ok;
+        });
+        if (!ok && report) {
+          const firstInvalid = document.querySelector("[data-special-input]:invalid");
+          firstInvalid?.reportValidity();
+          firstInvalid?.scrollIntoView({ block: "center", behavior: "smooth" });
+        }
+        return ok;
+      };
+
+      document.querySelectorAll("[data-special-input]").forEach((input) => {
+        input.addEventListener("input", refreshSpecialRows);
+        input.addEventListener("change", refreshSpecialRows);
+      });
+      refreshSpecialRows();
+    })();
+    {% endif %}
+
+    (function () {
+      {% if not can_edit %}
+        return;
+      {% endif %}
+      const form = document.getElementById("bulk-score-form");
+      const status = document.getElementById("scores-autosave-status");
+      if (!form || !status) {
+        return;
+      }
+      let timer = null;
+
+      function setStatus(text, tone) {
+        status.textContent = text;
+        status.classList.remove("border-emerald-200", "bg-emerald-50", "text-emerald-700", "border-rose-200", "bg-rose-50", "text-rose-700");
+        if (tone === "ok") {
+          status.classList.add("border-emerald-200", "bg-emerald-50", "text-emerald-700");
+        } else if (tone === "error") {
+          status.classList.add("border-rose-200", "bg-rose-50", "text-rose-700");
+        }
+      }
+
+      function runAutosave() {
+        if (window.ndgaValidateScoreRows && !window.ndgaValidateScoreRows({ report: false })) {
+          setStatus("Fix highlighted score first", "error");
+          return;
+        }
+        const payload = new FormData(form);
+        payload.set("_autosave", "1");
+        setStatus("Autosaving...", "");
+        fetch(window.location.href, {
+          method: "POST",
+          body: payload,
+          headers: { "X-Requested-With": "XMLHttpRequest" },
+          credentials: "same-origin",
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            if (data.ok) {
+              setStatus("Autosaved", "ok");
+              return;
+            }
+            setStatus((data.errors && data.errors[0]) || data.error || "Autosave failed", "error");
+          })
+          .catch(() => setStatus("Autosave failed", "error"));
+      }
+
+      function scheduleAutosave() {
+        if (timer) {
+          clearTimeout(timer);
+        }
+        timer = setTimeout(runAutosave, 1200);
+      }
+
+      form.querySelectorAll("input, textarea, select").forEach((node) => {
+        if (node.name === "csrfmiddlewaretoken") {
+          return;
+        }
+        node.addEventListener("change", scheduleAutosave);
+        node.addEventListener("input", scheduleAutosave);
+      });
+    })();
+  </script>
+{% endblock %}

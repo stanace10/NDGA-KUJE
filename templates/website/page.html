@@ -1,0 +1,249 @@
+{% extends "website/base_public.html" %}
+{% load static %}
+
+{% block extra_head %}
+  {% if public_page.hero_image %}
+    <link rel="preload" as="image" href="{% static public_page.hero_image %}">
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+<section class="public-page-hero" style="background-image:url('{% static public_page.hero_image %}')">
+  <div class="public-page-hero-overlay"></div>
+  <div class="public-container public-page-hero-content" data-reveal>
+    <span class="public-eyebrow">{{ public_page.eyebrow }}</span>
+    <h1>{{ public_page.title }}</h1>
+    <p>{{ public_page.description }}</p>
+    <div class="public-button-row">
+      <a href="/admissions/registration/" class="public-cta magnetic">Start Admission</a>
+      <a href="/contact/" class="public-secondary-cta magnetic">Book a Visit</a>
+    </div>
+  </div>
+</section>
+
+{% if gallery_items and page_key == 'gallery' %}
+  <section class="public-section">
+    <div class="public-container" data-reveal>
+      <div class="public-gallery-category-grid">
+        {% for item in gallery_items %}
+          <a href="/gallery/{{ item.slug }}/" class="public-gallery-category-card">
+            <img src="{{ item.image_url }}" alt="{{ item.title }}">
+            <div>
+              <span>Gallery</span>
+              <h3>{{ item.title }}</h3>
+              <p>{{ item.summary }}</p>
+            </div>
+          </a>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+{% endif %}
+
+{% if news_items %}
+  <section class="public-section">
+    <div class="public-container public-stack-cards" data-reveal>
+      <div class="public-listing-toolbar">
+        <div>
+          <span class="public-eyebrow">Filter News</span>
+          <h2>Latest NDGA News</h2>
+          <p>Showing {{ news_filtered_count }} of {{ news_total_count }} news updates.</p>
+        </div>
+        <div class="public-filter-chips">
+          <a href="/news/" class="public-filter-chip{% if not news_active_filter %} is-active{% endif %}">All</a>
+          {% for option in news_filter_options %}
+            <a href="/news/?category={{ option|urlencode }}" class="public-filter-chip{% if news_active_filter == option %} is-active{% endif %}">{{ option }}</a>
+          {% endfor %}
+        </div>
+      </div>
+      {% for item in news_items %}
+        <article class="public-story-card">
+          <img src="{{ item.image_url }}" alt="{{ item.title }}" loading="lazy" decoding="async">
+          <div>
+            <span>{{ item.category }}{% if item.date %} | {{ item.date }}{% endif %}</span>
+            <h3>{{ item.title }}</h3>
+            <p>{{ item.summary }}</p>
+            <a href="/news/{{ item.slug }}/">Read more</a>
+          </div>
+        </article>
+      {% endfor %}
+      {% if news_page_obj and news_page_obj.paginator.num_pages > 1 %}
+        <nav class="public-pagination" aria-label="News pages">
+          {% if news_page_obj.has_previous %}
+            <a href="/news/?{% if news_active_filter %}category={{ news_active_filter|urlencode }}&amp;{% endif %}page={{ news_page_obj.previous_page_number }}">Previous</a>
+          {% endif %}
+          <span>Page {{ news_page_obj.number }} of {{ news_page_obj.paginator.num_pages }}</span>
+          {% if news_page_obj.has_next %}
+            <a href="/news/?{% if news_active_filter %}category={{ news_active_filter|urlencode }}&amp;{% endif %}page={{ news_page_obj.next_page_number }}">Next</a>
+          {% endif %}
+        </nav>
+      {% endif %}
+    </div>
+  </section>
+{% endif %}
+
+{% if event_items %}
+  <section class="public-section">
+    <div class="public-container public-stack-cards" data-reveal>
+      <div class="public-listing-toolbar">
+        <div>
+          <span class="public-eyebrow">Filter Events</span>
+          <h2>Events at NDGA</h2>
+          <p>Showing {{ event_filtered_count }} of {{ event_total_count }} school events.</p>
+        </div>
+        <div class="public-filter-chips">
+          <a href="/events/" class="public-filter-chip{% if not event_active_filter %} is-active{% endif %}">All</a>
+          {% for option in event_filter_options %}
+            <a href="/events/?meta={{ option|urlencode }}" class="public-filter-chip{% if event_active_filter == option %} is-active{% endif %}">{{ option }}</a>
+          {% endfor %}
+        </div>
+      </div>
+      {% for item in event_items %}
+        <article class="public-story-card">
+          <img src="{{ item.image_url }}" alt="{{ item.title }}" loading="lazy" decoding="async">
+          <div>
+            <span>{{ item.meta }}{% if item.date %} | {{ item.date }}{% endif %}</span>
+            <h3>{{ item.title }}</h3>
+            <p>{{ item.summary }}</p>
+            <a href="/events/{{ item.slug }}/">View event</a>
+            {% if item.location %}<p>{{ item.location }}</p>{% endif %}
+          </div>
+        </article>
+      {% endfor %}
+      {% if event_page_obj and event_page_obj.paginator.num_pages > 1 %}
+        <nav class="public-pagination" aria-label="Event pages">
+          {% if event_page_obj.has_previous %}
+            <a href="/events/?{% if event_active_filter %}meta={{ event_active_filter|urlencode }}&amp;{% endif %}page={{ event_page_obj.previous_page_number }}">Previous</a>
+          {% endif %}
+          <span>Page {{ event_page_obj.number }} of {{ event_page_obj.paginator.num_pages }}</span>
+          {% if event_page_obj.has_next %}
+            <a href="/events/?{% if event_active_filter %}meta={{ event_active_filter|urlencode }}&amp;{% endif %}page={{ event_page_obj.next_page_number }}">Next</a>
+          {% endif %}
+        </nav>
+      {% endif %}
+    </div>
+  </section>
+{% endif %}
+
+{% for section in public_page.sections %}
+  <section class="public-section {% if section.layout == 'cards' %}public-section-soft{% endif %}">
+    <div class="public-container" data-reveal>
+      {% if section.layout == "split" %}
+        <div class="public-split">
+          <div class="public-copy">
+            {% if section.eyebrow %}<span class="public-eyebrow">{{ section.eyebrow }}</span>{% endif %}
+            <h2>{{ section.title }}</h2>
+            {% for paragraph in section.body %}
+              <p>{{ paragraph }}</p>
+            {% endfor %}
+            {% if section.quote_author %}
+              <div class="public-quote-signoff">
+                <strong>{{ section.quote_author }}</strong>
+                <span>{{ section.quote_role }}</span>
+              </div>
+            {% endif %}
+          </div>
+          <div class="public-image-frame{% if page_key == 'leadership' %} public-image-frame-contain{% endif %}">
+            <img src="{% static section.image %}" alt="{{ section.title }}" loading="lazy" decoding="async">
+          </div>
+        </div>
+      {% elif section.layout == "cards" %}
+        <div class="public-section-heading">
+          {% if section.eyebrow %}<span class="public-eyebrow">{{ section.eyebrow }}</span>{% endif %}
+          <h2>{{ section.title }}</h2>
+        </div>
+        <div class="public-card-grid public-card-grid-three">
+          {% for card in section.cards %}
+            <article class="public-media-card">
+              {% if card.image %}
+                <div class="public-page-card-orb">
+                  <img src="{% static card.image %}" alt="{{ card.title }}" loading="lazy" decoding="async">
+                </div>
+              {% endif %}
+              <div>
+                <h3>{{ card.title }}</h3>
+                <p>{{ card.text }}</p>
+                {% if card.list_items %}
+                  <ul class="public-card-list">
+                    {% for item in card.list_items %}
+                      <li>{{ item }}</li>
+                    {% endfor %}
+                  </ul>
+                {% endif %}
+                {% if card.href %}<a href="{{ card.href }}">Explore</a>{% endif %}
+              </div>
+            </article>
+          {% endfor %}
+        </div>
+      {% elif section.layout == "list" %}
+        <div class="public-section-heading">
+          {% if section.eyebrow %}<span class="public-eyebrow">{{ section.eyebrow }}</span>{% endif %}
+          <h2>{{ section.title }}</h2>
+        </div>
+        <div class="public-list-panel">
+          {% for item in section.items %}
+            <article>{{ item }}</article>
+          {% endfor %}
+        </div>
+      {% elif section.layout == "timeline" %}
+        <div class="public-section-heading">
+          <h2>{{ section.title }}</h2>
+          {% if section.button_label and section.button_url %}
+            <div class="public-inline-cta">
+              <a href="{{ section.button_url }}" class="public-cta magnetic">{{ section.button_label }}</a>
+            </div>
+          {% endif %}
+        </div>
+        <div class="public-timeline-card">
+          {% for step in section.timeline %}
+            <div class="public-timeline-step">
+              <strong>0{{ forloop.counter }}</strong>
+              <div>
+                <h3>{{ step.title }}</h3>
+                <p>{{ step.text }}</p>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% elif section.layout == "faq" %}
+        <div class="public-section-heading">
+          <h2>{{ section.title }}</h2>
+        </div>
+        <div class="public-faq-list">
+          {% for faq in section.faqs %}
+            <details>
+              <summary>{{ faq.question }}</summary>
+              <p>{{ faq.answer }}</p>
+            </details>
+          {% endfor %}
+        </div>
+      {% elif section.layout == "table" %}
+        <div class="public-section-heading">
+          <h2>{{ section.title }}</h2>
+          {% if section.intro %}<p>{{ section.intro }}</p>{% endif %}
+        </div>
+        <div class="public-table-wrap">
+          <table class="public-data-table">
+            <thead>
+              <tr>
+                {% for column in section.columns %}
+                  <th>{{ column }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in section.rows %}
+                <tr>
+                  {% for cell in row %}
+                    <td>{{ cell }}</td>
+                  {% endfor %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% endif %}
+    </div>
+  </section>
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,30 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}{{ portal_label }} Unavailable{% endblock %}
+
+{% block content %}
+  <section class="mx-auto flex min-h-screen max-w-7xl items-center justify-center px-4 py-10 sm:px-6 lg:px-8">
+    <div class="w-full max-w-2xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl">
+      <div class="relative bg-gradient-to-r from-ndga-navy to-slate-900 px-8 py-7 text-white">
+        <div class="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-ndga-gold/20 blur-2xl"></div>
+        <p class="text-xs font-semibold uppercase tracking-[0.22em] text-ndga-gold">Feature Disabled</p>
+        <h1 class="mt-2 text-2xl font-bold">{{ portal_label }} is currently unavailable</h1>
+      </div>
+      <div class="px-8 py-8">
+        <p class="text-sm leading-relaxed text-slate-600">
+          This portal is inactive by system configuration. Contact the IT Manager to enable access.
+        </p>
+
+        <div class="mt-6 flex items-center gap-3">
+          <span class="inline-flex h-3 w-3 animate-pulse rounded-full bg-amber-500"></span>
+          <span class="text-sm font-medium text-slate-700">Status: Inactive</span>
+        </div>
+
+        <a href="{{ portal_home_url }}" class="mt-8 inline-flex rounded-xl bg-ndga-navy px-4 py-2 text-sm font-semibold text-white transition hover:bg-ndga-navy/90">
+          Return to NDGA Landing
+        </a>
+      </div>
+    </div>
+  </section>
+{% endblock %}
+

@@ -1,0 +1,527 @@
+SS1 FURTHER MATHEMATICS EXAMINATION - THIRD TERM
+
+OBJECTIVE QUESTIONS
+
+1. Find the range of the following numbers: 4, 5, 6, 7, 9, 3, 11, 16, 17.
+
+A. 12
+B. 13
+C. 14
+D. 15
+
+ANSWER = C
+
+Use the information below to answer Questions 2 and 3.
+
+Given that the standard deviation of a distribution (SD) = 3, and the mean (x̄) = 5.
+
+2. Find the coefficient of standard deviation.
+
+A. 2/3
+B. 3/5
+C. 2/5
+D. 5/3
+
+ANSWER = B
+
+3. Calculate the coefficient of variation (CV).
+
+A. 50%
+B. 60%
+C. 70%
+D. 80%
+
+ANSWER = B
+
+The table below gives the distribution of marks obtained by 50 candidates in a test. Use it to answer Questions 4 to 7.
+
+Marks:      30 - 39    40 - 49    50 - 59    60 - 69    70 - 79
+Frequency:     1          8          15         19          7
+
+4. What is the lower class boundary of the modal class?
+
+A. 49.5
+B. 59.5
+C. 60.5
+D. 64.5
+
+ANSWER = B
+
+5. What is the class mark/midpoint of the median class?
+
+A. 49.5
+B. 55.0
+C. 59.5
+D. 64.5
+
+ANSWER = D
+
+6. What is the upper class boundary of the median class?
+
+A. 59.5
+B. 69.5
+C. 79.5
+D. 64.5
+
+ANSWER = B
+
+7. State the midpoint of the modal class.
+
+A. 44.5
+B. 54.5
+C. 64.5
+D. 74.5
+
+ANSWER = C
+
+8. Calculate the mean of the following numbers to 1 decimal place: 3.11, 2.02, 1.03, 4.01, 6.10.
+
+A. 2.3
+B. 3.3
+C. 4.3
+D. 5.3
+
+ANSWER = B
+
+9. Find the median of the set of numbers: 2.151, 2.005, 3.114, 3.001, 2.511.
+
+A. 3.114
+B. 2.511
+C. 2.005
+D. 3.001
+
+ANSWER = B
+
+10. Find the range of the following numbers: 2.151, 2.005, 3.114, 3.001, 2.511.
+
+A. 1.107
+B. 1.108
+C. 1.109
+D. 1.110
+
+ANSWER = C
+
+11. Find the sum of the 20 terms in an arithmetic progression whose first term is 7 and last term is 117.
+
+A. 2480
+B. 1240
+C. 620
+D. 124
+
+ANSWER = B
+
+12. Find the 4th term of an AP whose first term is 2 and common difference is 0.5.
+
+A. 0.5
+B. 2.5
+C. 3.5
+D. 4
+
+ANSWER = C
+
+13. Given that 443 is the nth term of the arithmetic progression 5, 8, 11, ..., find n.
+
+A. 86
+B. 147
+C. 148
+D. 441
+
+ANSWER = B
+
+14. The first and last terms of a linear sequence (AP) are -12 and 40 respectively. If the sum of the sequence is 196, find the number of terms.
+
+A. 13
+B. 14
+C. 15
+D. 16
+
+ANSWER = B
+
+15. Find the sum of the first thirty odd integers.
+
+A. 400
+B. 460
+C. 480
+D. 900
+
+ANSWER = D
+
+16. If f(x) = 2x + 1, find f(3x).
+
+A. 3x + 2
+B. 6x + 1
+C. 5x + 1
+D. 6 + x
+
+ANSWER = B
+
+17. Given the function f(x) = 5x - 2, find f⁻¹(-1).
+
+A. -3/5
+B. 1/5
+C. 1
+D. 3
+
+ANSWER = B
+
+18. What is the condition necessary for a function to have an inverse?
+
+A. Injective
+B. Surjective
+C. Bijective
+D. Trijective
+
+ANSWER = C
+
+19. If 3, x, y, 24 are in AP, find x + y.
+
+A. 3
+B. 10
+C. 17
+D. 27
+
+ANSWER = D
+
+20. Solve the inequality x + 3 ≤ 4x.
+
+A. x > 1
+B. x < 1
+C. x ≥ 1
+D. x ≤ 1
+
+ANSWER = C
+
+21. Solve x - 1 > 4(x + 2).
+
+A. x < -3
+B. x < 3
+C. x > -3
+D. x > 3
+
+ANSWER = A
+
+22. Solve the inequality -3(x - 2) < -2(x + 3).
+
+A. x > 12
+B. x < 12
+C. x > -12
+D. x < -12
+
+ANSWER = A
+
+23. The face value of the digit 7 in the number 7856 is ______.
+
+A. 7
+B. 70
+C. 700
+D. 7000
+
+ANSWER = A
+
+24. The place value of 7 in the number 7856 is ______.
+
+A. 7000
+B. 700
+C. 70
+D. 7
+
+ANSWER = A
+
+25. What is the primary function of the Control Unit (CU) within a modern processing device?
+
+A. To perform binary addition
+B. To fetch, decode, and manage execution of instructions
+C. To store permanent user files
+D. To display visual output to the user
+
+ANSWER = B
+
+26. The slide rule was invented by an English mathematician named ______.
+
+A. William Otega
+B. William Oughtred
+C. William Ohms
+D. William Ointed
+
+ANSWER = B
+
+27. Abacus was invented in ______ and perfected in ______.
+
+A. Accra - Ghana
+B. Egypt - Cairo
+C. Mesopotamia - Asia
+D. Turkey - Cyprus
+
+ANSWER = C
+
+28. The place value of the digit 8 in the number 243.865 is ______.
+
+A. 8 × 10⁻¹
+B. 8 × 10⁻²
+C. 8 × 10⁻³
+D. Units
+
+ANSWER = A
+
+29. Blaise Pascal built Pascaline, the first mechanical calculator, in what year?
+
+A. 1642
+B. 1643
+C. 1644
+D. 1645
+
+ANSWER = A
+
+30. Given that 2x + y ≤ 8, find the value of x when y = 0.
+
+A. x ≤ 2
+B. x ≤ 8
+C. x ≤ 4
+D. x ≤ 16
+
+ANSWER = C
+
+31. Given that 3x + 2y > 6, find the value of y when x = 0.
+
+A. y > 2
+B. y < 2
+C. y > 3
+D. y < 3
+
+ANSWER = C
+
+32. The memory unit of the computer stores the program and ______.
+
+A. Alphabet
+B. Numbers
+C. Letters
+D. Data
+
+ANSWER = D
+
+33. Solve 7x + 4 < 1/2(4x + 3).
+
+A. x < -1/2
+B. x > -1/2
+C. x < 1/2
+D. x > 1/2
+
+ANSWER = C
+
+34. In the diagram of a flowchart, the symbol "OVAL" indicates ______.
+
+A. True/False
+B. Yes/No
+C. Start/Stop
+D. On/Off
+
+ANSWER = C
+
+35. The sequence of instructions leading to the solution of a mathematical problem is known as ______.
+
+A. Diagrams
+B. Algorithms
+C. Output
+D. Input
+
+ANSWER = B
+
+36. The flowchart symbol used for data entry or displaying results is called ______.
+
+A. Rectangle
+B. Parallelogram
+C. Diamond
+D. Arrow
+
+ANSWER = B
+
+37. Evaluate 1111101 + 1011011 in base two.
+
+A. 11011000
+B. 11000000
+C. 10011000
+D. 11001100
+
+ANSWER = A
+
+38. Find the face value of the digit 5 in 107.485.
+
+A. 5 units
+B. 5 unit
+C. 5 thousandths
+D. 5
+
+ANSWER = C
+
+39. In the binary system of numbers, the digits involved are ______.
+
+A. 0 and 1
+B. 0 to 10
+C. 0 to 9
+D. 01 and 10
+
+ANSWER = A
+
+40. Which of the following flowchart symbols executes calculations or instructions?
+
+A. Square
+B. Rectangle
+C. Diamond
+D. Oval
+
+ANSWER = B
+
+41. The decimal system consists of the following digits:
+
+A. 0 to 10
+B. 0 to 9
+C. 0 to 1
+D. 0 to 2
+
+ANSWER = B
+
+42. Which of the following is not an application of charts?
+
+A. Mathematics
+B. Engineering
+C. Computer programming
+D. Farming
+
+ANSWER = D
+
+43. Napier Bones (1617) was invented by ______.
+
+A. Jaquard Napier
+B. John Napier
+C. Johnson Napier
+D. Vontri Napier
+
+ANSWER = B
+
+44. Each of the following describes the structure of an abacus EXCEPT ______.
+
+A. Frame
+B. Loom
+C. Beads
+D. Beam/Divider
+
+ANSWER = B
+
+45. Which of the following is not a model of operations research?
+
+A. Linear programming model
+B. Assignment model
+C. Transportation model
+D. Combination model
+
+ANSWER = D
+
+46. If f: x → x² - 4, where x is a real number, find f⁻¹(5).
+
+A. +3
+B. -5
+C. -3
+D. +5
+
+ANSWER = A
+
+47. Given that p = (5i - 3j) and q = (4i + 7j), find p + q.
+
+A. 9i + 4j
+B. 5i + 4j
+C. 9i - 4j
+D. i - 5j
+
+ANSWER = A
+
+48. If g: x → (2x - 3) / 4, find g⁻¹(-3).
+
+A. -2.5
+B. -3.5
+C. -4.5
+D. -5.5
+
+ANSWER = C
+
+49. If √7 = 2.646, evaluate 1 / (√7 - 1) to 3 significant figures.
+
+A. 6.607
+B. 6.606
+C. 0.6080
+D. 0.6077
+
+ANSWER = C
+
+50. Simplify (10√2) / √5.
+
+A. 2
+B. 10
+C. 2√10
+D. 3√10
+
+ANSWER = C
+
+51. Given the function f(x) = 5x - 2, find f(1).
+
+A. 1/5
+B. 5
+C. 1/3
+D. 3
+
+ANSWER = D
+
+
+THEORY QUESTIONS
+
+INSTRUCTION: ANSWER ANY FOUR (4) QUESTIONS.
+
+1. a) Show graphically the region represented by the inequalities:
+
+   i. x - 2y + 1 ≤ 0
+   ii. x + y > 5
+
+   b) Find the range of values of x which satisfies the inequality:
+
+      3x - 2 < 10 + x < 2 + 5x
+
+2. a) Define and list the steps involved in operations research.
+
+   b) Solve the inequality:
+
+      7x + 4 ≤ 1/2(4x + 3)
+
+3. a) Define and state five (5) applications of a flowchart.
+
+   b) Solve:
+
+      7(x + 4) - 2/3(x - 6) ≤ 2[x - 3(x + 5)]
+
+4. The following are the lengths, in cm, of fifty planks cut by a machine in a wood processing factory:
+
+   33, 49, 81, 58, 59, 71, 42, 88, 68, 91
+   54, 32, 50, 59, 41, 55, 38, 56, 86, 62
+   50, 69, 23, 84, 77, 33, 71, 42, 69, 93
+   61, 51, 46, 76, 63, 96, 26, 70, 66, 80
+   44, 52, 60, 33, 68, 39, 61, 71, 48, 66
+
+   a) Using class intervals 21 - 30, 31 - 40, 41 - 50, ... construct the frequency table.
+   b) Identify the median class.
+   c) Estimate the median of the distribution.
+   d) Calculate the mode of the distribution.
+
+5. The table below shows the scores of a group of 40 students in a physics test.
+
+Scores:       1    2    3    4    5    6    7    8    9
+Frequency:    2    3    6    7    9    6    2    2    3
+
+Calculate:
+
+   a) The arithmetic mean.
+   b) The standard deviation.
+   c) The coefficient of variation.
+
+6. a) Define binary operation.
+
+   b) State the laws of binary operation and explain them.
+
+   c) What is a mathematical model?

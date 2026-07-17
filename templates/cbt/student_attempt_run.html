@@ -1,0 +1,4084 @@
+{% extends "layouts/base.html" %}
+{% load static cbt_text %}
+
+{% block title %}CBT Attempt{% endblock %}
+{% block body_class %}min-h-screen bg-slate-50{% endblock %}
+{% block shell_background %}{% endblock %}
+{% block extra_head %}
+  <link rel="stylesheet" href="{% static 'vendor/mathlive/mathlive-fonts.css' %}">
+  <link rel="stylesheet" href="{% static 'vendor/mathlive/mathlive-static.css' %}">
+  {% if use_jamb_interface %}
+    <style>
+      .mock-practice-theme {
+        --mock-navy: #0b2545;
+        --mock-navy-2: #123a63;
+        --mock-gold: #d6a72f;
+        --mock-green: #0b2545;
+        --mock-green-dark: #061a33;
+        --mock-orange: #d6a72f;
+        color: #111827;
+        max-width: 74rem !important;
+      }
+      .mock-practice-theme #cbtGate {
+        background: rgba(248, 250, 252, 0.96);
+      }
+      .mock-practice-theme #cbtGate > div {
+        width: min(94vw, 860px);
+        padding: 1.5rem !important;
+        border-radius: 10px;
+        border-color: #dbe3ee;
+        background: #ffffff;
+        color: #0f172a;
+      }
+      .mock-practice-theme #cbtGate p,
+      .mock-practice-theme #cbtGate li {
+        color: #334155 !important;
+        font-size: 0.95rem;
+        line-height: 1.55;
+      }
+      .mock-practice-theme #cbtGate .grid {
+        grid-template-columns: 1fr !important;
+      }
+      .mock-practice-theme #cbtGate h1,
+      .mock-practice-theme #cbtGate .text-white {
+        color: #0b2545 !important;
+      }
+      .mock-practice-theme #cbtGate .text-slate-300,
+      .mock-practice-theme #cbtGate .text-slate-200 {
+        color: #334155 !important;
+      }
+      .mock-practice-theme #cbtGate .bg-amber-500\/10 {
+        border-color: rgba(214, 167, 47, 0.45) !important;
+        background: rgba(214, 167, 47, 0.12) !important;
+        color: #7a4b00 !important;
+      }
+      .mock-practice-theme #cbtRunWrap > article {
+        border-radius: 0;
+        border: 0;
+        background: #ffffff !important;
+        color: #111827;
+        box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+        padding-top: 0 !important;
+      }
+      .mock-practice-theme #cbtRunWrap > article > .flex:first-child {
+        display: none !important;
+        margin: -0.75rem -0.75rem 0;
+        border-bottom: 4px solid var(--mock-gold);
+        background: linear-gradient(90deg, var(--mock-navy), var(--mock-navy-2));
+        padding: 0.75rem 1rem;
+      }
+      .mock-jamb-tools {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        min-height: 24px;
+        background: var(--mock-navy);
+        color: #ffffff;
+        padding: 3px 8px;
+        font-size: 11px;
+        font-weight: 600;
+      }
+      .mock-jamb-tool {
+        appearance: none;
+        border: 0;
+        background: transparent;
+        color: #ffffff;
+        cursor: pointer;
+        font: inherit;
+        padding: 0;
+        text-decoration: none;
+      }
+      .mock-jamb-tool:hover,
+      .mock-jamb-tool:focus-visible {
+        color: var(--mock-gold);
+        outline: none;
+        text-decoration: underline;
+      }
+      .mock-jamb-main {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: center;
+        min-height: 48px;
+        background: var(--mock-navy-2);
+        color: #ffffff;
+        padding: 6px 10px;
+      }
+      .mock-jamb-student {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+      }
+      .mock-jamb-avatar {
+        display: grid;
+        height: 34px;
+        width: 34px;
+        place-items: center;
+        border-radius: 999px;
+        background: #ffffff;
+        color: var(--mock-navy);
+        font-weight: 800;
+      }
+      .mock-jamb-submit {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        border-radius: 999px;
+        border: 1px solid rgba(91, 49, 8, 0.45);
+        background: #f6efe3;
+        color: #6b3508;
+        padding: 5px 16px;
+        font-size: 12px;
+        font-weight: 800;
+      }
+      .mock-jamb-center {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+      }
+      .mock-jamb-subject {
+        max-width: 260px;
+        overflow: hidden;
+        color: #ffffff;
+        font-size: 12px;
+        font-weight: 900;
+        text-overflow: ellipsis;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+      .mock-jamb-submit::before {
+        content: "✓";
+        display: grid;
+        height: 18px;
+        width: 18px;
+        place-items: center;
+        border-radius: 999px;
+        background: #8b5a2b;
+        color: #ffffff;
+        font-size: 12px;
+      }
+      .mock-jamb-timer {
+        justify-self: end;
+        display: inline-flex;
+        min-width: 126px;
+        align-items: center;
+        justify-content: center;
+        border-radius: 999px;
+        border: 3px solid var(--mock-navy);
+        background: var(--mock-orange);
+        color: #061a33;
+        padding: 5px 14px;
+        font-size: 12px;
+        font-weight: 900;
+        letter-spacing: 0.03em;
+      }
+      .mock-jamb-submit::before {
+        content: "\2713" !important;
+      }
+      .mock-practice-theme .mock-run-body {
+        max-width: 880px;
+        margin: 0 auto;
+        padding-top: 0 !important;
+      }
+      .mock-practice-theme #cbtRunWrap > article > .flex:first-child h1,
+      .mock-practice-theme #cbtRunWrap > article > .flex:first-child p,
+      .mock-practice-theme #cbtRunWrap > article > .flex:first-child .text-white,
+      .mock-practice-theme #cbtRunWrap > article > .flex:first-child .text-slate-300,
+      .mock-practice-theme #cbtRunWrap > article > .flex:first-child .text-cyan-300 {
+        color: #ffffff !important;
+      }
+      .mock-practice-theme #phasePill,
+      .mock-practice-theme #lockBadge,
+      .mock-practice-theme #warningBadge {
+        border-color: rgba(255,255,255,0.28) !important;
+        background: rgba(255,255,255,0.12) !important;
+        color: #ffffff !important;
+      }
+      .mock-practice-theme #timerPill {
+        color: #ffffff;
+      }
+      .mock-practice-theme #timerPill,
+      .mock-practice-theme #timerPill + span {
+        color: #ffffff !important;
+      }
+      .mock-practice-theme .attempt-question-panel,
+      .mock-practice-theme aside article,
+      .mock-practice-theme nav,
+      .mock-practice-theme #answerPadCard,
+      .mock-practice-theme .rounded-3xl.border.border-cyan-500\/30 {
+        border-radius: 8px !important;
+        border-color: #dbe3ee !important;
+        background: #ffffff !important;
+        color: #111827 !important;
+        box-shadow: none !important;
+      }
+      .mock-practice-theme .attempt-question-panel .bg-slate-800\/60,
+      .mock-practice-theme .attempt-question-panel .bg-slate-900\/70,
+      .mock-practice-theme .rounded-2xl.border.border-slate-700 {
+        border-color: #e2e8f0 !important;
+        background: #f8fafc !important;
+      }
+      .mock-practice-theme .attempt-question-panel .text-white,
+      .mock-practice-theme .attempt-question-panel .text-slate-100,
+      .mock-practice-theme aside .text-white,
+      .mock-practice-theme aside .text-slate-100 {
+        color: #111827 !important;
+      }
+      .mock-practice-theme .attempt-question-panel .text-cyan-200,
+      .mock-practice-theme aside .text-cyan-200 {
+        color: var(--mock-navy) !important;
+      }
+      .mock-practice-theme .attempt-question-panel label {
+        border-radius: 6px !important;
+        border-color: #dbe3ee !important;
+        background: #ffffff !important;
+      }
+      .mock-practice-theme .attempt-question-panel label:hover {
+        border-color: var(--mock-gold) !important;
+        background: #fffaf0 !important;
+      }
+      .mock-practice-theme input[type="radio"],
+      .mock-practice-theme input[type="checkbox"] {
+        accent-color: var(--mock-navy);
+      }
+      .mock-practice-theme .mock-subject-tabs {
+        border-bottom: 1px solid #151515 !important;
+        background: #ffffff !important;
+        padding: 0 !important;
+        margin: 0 auto 18px !important;
+        max-width: 720px;
+        overflow: visible !important;
+      }
+      .mock-practice-theme .mock-subject-tabs > .grid {
+        display: flex !important;
+        justify-content: center;
+        gap: 0 !important;
+        overflow-x: auto;
+      }
+      .mock-practice-theme .mock-subject-tabs .js-nav-item {
+        display: inline-flex !important;
+        flex: 0 0 auto;
+        align-items: center;
+        justify-content: center;
+        opacity: 1 !important;
+        visibility: visible !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        border-bottom: 0 !important;
+        background: #ffffff !important;
+        color: #111827 !important;
+        text-align: center;
+        min-width: 110px;
+        padding: 4px 14px !important;
+        font-size: 12px;
+      }
+      .mock-practice-theme .mock-subject-tabs .js-nav-item:hover,
+      .mock-practice-theme .mock-subject-tabs .ring-2,
+      .mock-practice-theme .mock-subject-tabs .is-active {
+        background: var(--mock-navy) !important;
+        color: #ffffff !important;
+        clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+      }
+      .mock-practice-theme .mock-subject-tabs .text-cyan-200,
+      .mock-practice-theme .mock-subject-tabs .text-slate-300 {
+        color: var(--mock-navy) !important;
+      }
+      .mock-practice-theme .mock-subject-tabs .js-nav-item.ring-2 .text-cyan-200,
+      .mock-practice-theme .mock-subject-tabs .js-nav-item:hover .text-cyan-200,
+      .mock-practice-theme .mock-subject-tabs .is-active .text-cyan-200,
+      .mock-practice-theme .mock-subject-tabs .is-active .text-slate-300 {
+        color: #ffffff !important;
+      }
+      .mock-practice-theme .mock-subject-tabs .text-slate-300 {
+        display: none !important;
+      }
+      .mock-practice-theme .js-nav-item {
+        border-color: #cbd5e1 !important;
+        background: #ffffff !important;
+        color: #0f172a !important;
+      }
+      .mock-practice-theme .js-nav-item.ring-2,
+      .mock-practice-theme .js-nav-item:hover {
+        border-color: var(--mock-gold) !important;
+        background: #fff7e0 !important;
+        color: var(--mock-navy) !important;
+        box-shadow: 0 0 0 2px rgba(214, 167, 47, 0.24);
+      }
+      .mock-practice-theme .mock-subject-tabs .js-nav-item.is-active,
+      .mock-practice-theme .mock-subject-tabs .js-nav-item.ring-2.is-active {
+        background: var(--mock-navy) !important;
+        color: #ffffff !important;
+        border-top: 3px solid var(--mock-gold) !important;
+        box-shadow: none !important;
+        clip-path: polygon(10px 0, 100% 0, calc(100% - 10px) 100%, 0 100%);
+      }
+      .mock-practice-theme .mock-subject-tabs .js-nav-item.is-active .text-cyan-200,
+      .mock-practice-theme .mock-subject-tabs .js-nav-item.is-active .text-slate-300 {
+        color: #ffffff !important;
+      }
+      .mock-practice-theme .ndga-btn-primary,
+      .mock-practice-theme #nextBtn,
+      .mock-practice-theme #padNextBtn {
+        background: var(--mock-gold) !important;
+        border-color: #a97907 !important;
+        color: #061a33 !important;
+      }
+      .mock-practice-theme #nextBtn:hover,
+      .mock-practice-theme #padNextBtn:hover {
+        background: #e4b940 !important;
+        color: #061a33 !important;
+      }
+      .mock-practice-theme #prevBtn,
+      .mock-practice-theme #padPrevBtn,
+      .mock-practice-theme .ndga-btn-secondary {
+        border-color: var(--mock-navy) !important;
+        background: var(--mock-navy) !important;
+        color: #ffffff !important;
+      }
+      .mock-practice-theme #submitBtn,
+      .mock-practice-theme #padSubmitBtn,
+      .mock-practice-theme #confirmSubmitBtn {
+        background: var(--mock-gold) !important;
+        color: #0b2545 !important;
+      }
+      .mock-practice-theme #answerPadCard,
+      .mock-practice-theme #invigilatorBadge {
+        display: none !important;
+      }
+      .mock-practice-theme #cbtAudioMonitor {
+        border: 3px solid #dc2626 !important;
+        background: #061a33 !important;
+        color: #ffffff !important;
+        box-shadow: 0 10px 30px rgba(6, 26, 51, 0.28) !important;
+      }
+      .mock-practice-theme #cbtAudioMonitor p,
+      .mock-practice-theme #cbtAudioMonitor span {
+        color: #ffffff !important;
+      }
+      .mock-practice-theme #cbtAudioWave {
+        color: #fb7185 !important;
+      }
+      .mock-practice-theme .exam-sentinel-card {
+        border: 2px solid #dc2626 !important;
+        background: #fff7f7 !important;
+        color: #0f172a !important;
+      }
+      .mock-practice-theme .exam-sentinel-card h3,
+      .mock-practice-theme .exam-sentinel-card p,
+      .mock-practice-theme .exam-sentinel-card li {
+        color: #0f172a !important;
+      }
+      .mock-practice-theme .exam-sentinel-card #invigilatorBadge {
+        display: inline-flex !important;
+        border-color: #991b1b !important;
+        background: #991b1b !important;
+        color: #ffffff !important;
+      }
+      .mock-practice-theme #autosaveNote {
+        color: #334155 !important;
+      }
+      .mock-practice-theme .text-cyan-50,
+      .mock-practice-theme .text-cyan-100,
+      .mock-practice-theme .text-cyan-200,
+      .mock-practice-theme .text-cyan-300 {
+        color: var(--mock-navy) !important;
+      }
+      .mock-practice-theme .bg-cyan-500\/10,
+      .mock-practice-theme .bg-cyan-500\/20 {
+        background: rgba(214, 167, 47, 0.12) !important;
+      }
+      .mock-practice-theme .border-cyan-400,
+      .mock-practice-theme .border-cyan-400\/60,
+      .mock-practice-theme .border-cyan-400\/70,
+      .mock-practice-theme .border-cyan-500\/30,
+      .mock-practice-theme .border-cyan-500\/40,
+      .mock-practice-theme .border-cyan-500\/50 {
+        border-color: rgba(214, 167, 47, 0.72) !important;
+      }
+      .mock-practice-theme #cbtRunWrap > article > .flex:first-child .text-cyan-300,
+      .mock-practice-theme #cbtRunWrap > article > .flex:first-child .text-cyan-200,
+      .mock-practice-theme #cbtRunWrap > article > .flex:first-child .text-slate-300 {
+        color: #ffffff !important;
+      }
+      .mock-practice-theme #reviewModal .relative,
+      .mock-practice-theme #submitModal .relative,
+      .mock-practice-theme #theoryConfirmModal .relative {
+        border-color: #dbe3ee !important;
+        background: #ffffff !important;
+        color: #0f172a !important;
+      }
+      .mock-practice-theme #reviewModal .text-white,
+      .mock-practice-theme #submitModal .text-white,
+      .mock-practice-theme #theoryConfirmModal .text-white {
+        color: #0b2545 !important;
+      }
+      .mock-practice-theme #reviewModal .text-slate-300,
+      .mock-practice-theme #submitModal .text-slate-300,
+      .mock-practice-theme #theoryConfirmModal .text-slate-300 {
+        color: #475569 !important;
+      }
+      .mock-practice-theme .mock-question-card {
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: #ffffff !important;
+        padding: 0 !important;
+      }
+      .mock-practice-theme .mock-question-card .rounded-2xl {
+        border: 0 !important;
+        background: #ffffff !important;
+        padding: 0.5rem 0 !important;
+      }
+      .mock-practice-theme .mock-question-text,
+      .mock-practice-theme .mock-question-text *,
+      .mock-practice-theme .mock-option-text,
+      .mock-practice-theme .mock-option-text * {
+        color: #111827 !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+      }
+      .mock-practice-theme .mock-question-text {
+        display: block !important;
+        min-height: 1.5rem;
+        overflow: visible !important;
+        white-space: pre-wrap !important;
+        font-size: 1.05rem !important;
+      }
+      .mock-practice-theme .mock-question-fallback {
+        margin-top: 0.35rem;
+        color: #111827 !important;
+        font-weight: 700;
+        line-height: 1.65;
+        white-space: pre-wrap;
+      }
+      .mock-practice-theme .mock-question-card label {
+        border: 0 !important;
+        background: #ffffff !important;
+        padding: 0.35rem 0 !important;
+      }
+      .mock-practice-theme .mock-question-card label:hover {
+        background: #ffffff !important;
+      }
+      .mock-practice-theme .mock-action-row {
+        position: sticky;
+        bottom: 0;
+        z-index: 35;
+        margin-top: 1rem;
+        border-radius: 10px 10px 0 0 !important;
+        border: 1px solid #cbd5e1 !important;
+        border-bottom: 0 !important;
+        background: rgba(255, 255, 255, 0.98) !important;
+        padding: 0.6rem !important;
+        box-shadow: 0 -8px 22px rgba(15, 23, 42, 0.12) !important;
+      }
+      .mock-practice-theme .mock-action-row > div {
+        justify-content: flex-start !important;
+      }
+      .mock-practice-theme .mock-action-row #prevBtn {
+        border-radius: 999px !important;
+        background: #2d72bd !important;
+      }
+      .mock-practice-theme .mock-action-row #nextBtn {
+        border-radius: 999px !important;
+        background: var(--mock-gold) !important;
+        color: #061a33 !important;
+      }
+      .mock-practice-theme .mock-action-row #reviewBtn {
+        display: none !important;
+      }
+      .mock-practice-theme .mock-action-row #submitBtn {
+        display: none !important;
+      }
+      .mock-practice-theme .mock-navigator-card {
+        max-width: 620px;
+        margin: 0.5rem auto 0;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: #ffffff !important;
+        padding: 0 !important;
+      }
+      .mock-practice-theme .mock-attempted-label {
+        display: inline-flex;
+        background: #6b7280;
+        color: #ffffff;
+        padding: 3px 7px;
+        font-size: 11px;
+        font-weight: 800;
+      }
+      .mock-practice-theme .mock-number-grid {
+        display: grid;
+        grid-template-columns: repeat(10, minmax(28px, 1fr));
+        gap: 2px;
+        max-width: 620px;
+      }
+      .mock-practice-theme .mock-number-grid .js-nav-item {
+        height: 26px;
+        border-radius: 0 !important;
+        border-color: #c7c7c7 !important;
+        background: #f8fafc !important;
+        font-size: 11px;
+        box-shadow: none !important;
+      }
+      .mock-practice-theme .mock-number-grid .js-nav-item[data-answered="1"] {
+        border-color: #0b2545 !important;
+        background: #0b2545 !important;
+        color: #ffffff !important;
+      }
+      .mock-practice-theme .mock-number-grid .js-nav-item[data-answered="1"].ring-2 {
+        border-color: var(--mock-gold) !important;
+        background: #0b2545 !important;
+        color: #ffffff !important;
+        box-shadow: 0 0 0 2px rgba(214, 167, 47, 0.35) !important;
+      }
+      .mock-practice-theme .mock-number-grid .js-nav-item.ring-2,
+      .mock-practice-theme .mock-number-grid .js-nav-item:hover {
+        border-color: #9ca3af !important;
+        background: #fff7d6 !important;
+      }
+      .mock-practice-theme .mock-number-grid .js-nav-item[data-answered="1"].ring-2 {
+        border-color: var(--mock-gold) !important;
+        background: #0b2545 !important;
+        color: #ffffff !important;
+      }
+      .mock-practice-theme .mock-number-grid .js-nav-item.is-current {
+        border-color: var(--mock-gold) !important;
+        background: #fff7d6 !important;
+        color: #0b2545 !important;
+      }
+      .mock-practice-theme .mock-number-grid .js-nav-item[data-flagged="1"] {
+        border: 2px solid #d97706 !important;
+        background: #fffbeb !important;
+        color: #7c2d12 !important;
+      }
+      .mock-practice-theme .mock-nav-group.hidden {
+        display: none !important;
+      }
+      .cbt-theme-toggle {
+        position: fixed;
+        right: 12px;
+        top: 12px;
+        z-index: 100;
+        border: 1px solid rgba(148, 163, 184, 0.55);
+        border-radius: 999px;
+        background: #0f172a;
+        color: #fff;
+        padding: 7px 12px;
+        font-size: 12px;
+        font-weight: 800;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.25);
+      }
+      .mock-practice-theme .cbt-theme-toggle {
+        border-color: #d6a72f;
+        background: #fff;
+        color: #0b2545;
+      }
+      .cbt-dark-theme .mock-jamb-tools,
+      .cbt-dark-theme .mock-jamb-main {
+        display: none !important;
+      }
+      .cbt-screen-watermark {
+        position: fixed;
+        inset: 0;
+        z-index: 70;
+        pointer-events: none;
+        overflow: hidden;
+        opacity: 0.055;
+        color: #0b2545;
+        font-size: clamp(18px, 2.2vw, 30px);
+        font-weight: 900;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .cbt-dark-theme .cbt-screen-watermark {
+        color: #ffffff;
+        opacity: 0.045;
+      }
+      .cbt-screen-watermark span {
+        position: absolute;
+        transform: rotate(-24deg);
+        white-space: nowrap;
+      }
+      .cbt-screen-watermark span:nth-child(1) { left: 4%; top: 16%; }
+      .cbt-screen-watermark span:nth-child(2) { right: 5%; top: 40%; }
+      .cbt-screen-watermark span:nth-child(3) { left: 16%; top: 68%; }
+      .cbt-screen-watermark span:nth-child(4) { right: 12%; top: 86%; }
+      @media print {
+        body * {
+          visibility: hidden !important;
+        }
+        body::after {
+          content: "Printing is disabled during an NDGA examination.";
+          visibility: visible !important;
+          display: block;
+          margin: 15vh auto;
+          max-width: 42rem;
+          text-align: center;
+          color: #991b1b;
+          font: 700 20pt/1.4 sans-serif;
+        }
+      }
+      @media (min-width: 1280px) {
+        .cbt-dark-theme .mock-run-body {
+          grid-template-columns: minmax(0, 1.85fr) minmax(0, 0.8fr);
+        }
+      }
+    </style>
+  {% endif %}
+  <style>
+    @keyframes ndga-audio-pulse {
+      0%, 100% { transform: scaleY(0.3); opacity: 0.65; }
+      50% { transform: scaleY(1); opacity: 1; }
+    }
+    .cbt-audio-bar {
+      width: 3px;
+      height: 18px;
+      border-radius: 999px;
+      background: currentColor;
+      transform-origin: center;
+      animation: ndga-audio-pulse 0.9s ease-in-out infinite;
+    }
+    .cbt-audio-bar:nth-child(2) { animation-delay: -0.72s; }
+    .cbt-audio-bar:nth-child(3) { animation-delay: -0.54s; }
+    .cbt-audio-bar:nth-child(4) { animation-delay: -0.36s; }
+    .cbt-audio-bar:nth-child(5) { animation-delay: -0.18s; }
+    .cbt-audio-bar:nth-child(6) { animation-delay: 0s; }
+    .attempt-question-panel [data-math-render="1"] {
+      white-space: pre-wrap;
+    }
+    .attempt-question-panel[data-theory-page="1"] {
+      margin-bottom: 1.5rem;
+    }
+    .js-nav-item[data-flagged="1"] {
+      outline: 2px solid #f59e0b;
+      outline-offset: 1px;
+    }
+
+    /* Unified 2026 examination console. Both themes use this exact layout. */
+    #cbtAttemptApp {
+      --cbt-bg: #edf2f7;
+      --cbt-surface: #ffffff;
+      --cbt-surface-2: #f8fafc;
+      --cbt-text: #0f172a;
+      --cbt-muted: #475569;
+      --cbt-line: #cbd5e1;
+      --cbt-navy: #071d3b;
+      --cbt-navy-2: #0b315f;
+      --cbt-gold: #d9aa32;
+      --cbt-option: #ffffff;
+      --cbt-option-hover: #fff8df;
+      --cbt-shadow: 0 14px 36px rgba(15, 23, 42, 0.12);
+      height: 100vh;
+      max-width: none !important;
+      overflow: hidden;
+      padding: 8px !important;
+      color: var(--cbt-text);
+      background: var(--cbt-bg);
+    }
+    #cbtAttemptApp.cbt-dark-theme {
+      --cbt-bg: #050c18;
+      --cbt-surface: #0c1828;
+      --cbt-surface-2: #111f32;
+      --cbt-text: #f1f5f9;
+      --cbt-muted: #b7c3d4;
+      --cbt-line: #31445e;
+      --cbt-navy: #07172d;
+      --cbt-navy-2: #0b294d;
+      --cbt-gold: #e0b33f;
+      --cbt-option: #132238;
+      --cbt-option-hover: #1b2e49;
+      --cbt-shadow: 0 16px 42px rgba(0, 0, 0, 0.42);
+    }
+    body:has(#cbtAttemptApp) {
+      overflow: hidden;
+      background: var(--cbt-bg, #edf2f7) !important;
+    }
+    #cbtRunWrap { height: 100%; }
+    #cbtRunWrap > .cbt-progress-strip {
+      height: 42px;
+      margin-bottom: 6px !important;
+      border-color: var(--cbt-line) !important;
+      background: var(--cbt-surface) !important;
+      color: var(--cbt-text) !important;
+    }
+    #cbtRunWrap > .cbt-console {
+      display: flex;
+      height: calc(100% - 48px);
+      min-height: 0;
+      flex-direction: column;
+      overflow: hidden;
+      border: 1px solid var(--cbt-line) !important;
+      border-radius: 14px !important;
+      background: var(--cbt-surface) !important;
+      color: var(--cbt-text) !important;
+      padding: 0 !important;
+      box-shadow: var(--cbt-shadow) !important;
+    }
+    #cbtAttemptApp .mock-jamb-tools,
+    #cbtAttemptApp .mock-jamb-main { display: none !important; }
+    #cbtRunWrap > #cbtAudioMonitor,
+    #cbtAttemptApp .exam-sentinel-card,
+    #cbtAttemptApp #lockBadge { display: none !important; }
+    #cbtAttemptApp.mock-practice-theme #cbtRunWrap > article > .cbt-console-header,
+    #cbtAttemptApp .cbt-console-header {
+      display: flex !important;
+      min-height: 74px;
+      flex: 0 0 auto;
+      align-items: center !important;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 0 !important;
+      border: 0 !important;
+      border-bottom: 3px solid var(--cbt-gold) !important;
+      background: linear-gradient(100deg, var(--cbt-navy), var(--cbt-navy-2)) !important;
+      padding: 9px 12px !important;
+      color: #ffffff !important;
+    }
+    #cbtAttemptApp .cbt-console-header .text-cyan-300,
+    #cbtAttemptApp .cbt-console-header .text-cyan-200,
+    #cbtAttemptApp .cbt-console-header .text-slate-300,
+    #cbtAttemptApp .cbt-console-header .text-white { color: #ffffff !important; }
+    .cbt-brand-block,
+    .cbt-console-status,
+    .cbt-candidate-chip,
+    .cbt-status-chip { display: flex; align-items: center; }
+    .cbt-brand-block { min-width: 0; gap: 10px; }
+    .cbt-console-status { flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
+    .cbt-candidate-chip {
+      gap: 7px;
+      border-right: 1px solid rgba(255,255,255,.22);
+      padding-right: 9px;
+    }
+    .cbt-status-chip,
+    .cbt-icon-btn,
+    .cbt-timer-chip {
+      min-height: 38px;
+      border: 1px solid rgba(255,255,255,.24);
+      border-radius: 9px;
+      background: rgba(255,255,255,.09);
+      color: #ffffff;
+    }
+    .cbt-status-chip {
+      gap: 6px;
+      padding: 6px 9px;
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .cbt-status-chip[data-state="warning"] { border-color: #fbbf24; background: #7c4a03; }
+    .cbt-status-chip[data-state="alert"] { border-color: #fb7185; background: #881337; }
+    .cbt-status-chip[data-audio-state="unavailable"] { opacity: .72; }
+    .cbt-status-chip .cbt-audio-bar { width: 2px; height: 12px; }
+    .cbt-icon-btn {
+      display: inline-flex;
+      width: 38px;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      padding: 0;
+      transition: background .15s ease, transform .15s ease;
+    }
+    .cbt-icon-btn:hover { background: rgba(255,255,255,.18); }
+    .cbt-icon-btn:active { transform: translateY(1px); }
+    .cbt-timer-chip {
+      display: flex;
+      min-width: 126px;
+      flex-direction: column;
+      justify-content: center;
+      border-color: rgba(224,179,63,.75);
+      background: #ffffff;
+      padding: 5px 12px;
+      color: #071d3b;
+      text-align: center;
+      width: auto !important;
+      height: 44px !important;
+      border-radius: 9px !important;
+    }
+    .cbt-timer-chip #timerPill {
+      font-variant-numeric: tabular-nums;
+      font-size: 18px;
+      font-weight: 950;
+      letter-spacing: .06em;
+      line-height: 1.05;
+    }
+    #cbtAttemptApp .mock-run-body {
+      display: grid !important;
+      min-height: 0;
+      flex: 1 1 auto;
+      grid-template-columns: minmax(0, 1fr) 300px !important;
+      gap: 10px !important;
+      margin: 0 !important;
+      overflow: hidden;
+      padding: 10px;
+      max-width: none !important;
+    }
+    #cbtAttemptApp .mock-run-body > div:first-child,
+    #cbtAttemptApp .mock-run-body > aside {
+      min-height: 0;
+      overflow-y: auto;
+      scrollbar-color: var(--cbt-line) transparent;
+    }
+    #cbtAttemptApp .mock-run-body > aside {
+      width: 100% !important;
+      max-width: none !important;
+      margin: 0 !important;
+      padding-right: 2px;
+    }
+    #cbtAttemptApp .mock-question-card,
+    #cbtAttemptApp .mock-navigator-card,
+    #cbtAttemptApp #answerPadCard,
+    #cbtAttemptApp .mock-action-row,
+    #cbtAttemptApp .mock-subject-tabs {
+      border: 1px solid var(--cbt-line) !important;
+      border-radius: 11px !important;
+      background: var(--cbt-surface) !important;
+      color: var(--cbt-text) !important;
+      padding: 12px !important;
+      box-shadow: none !important;
+    }
+    #cbtAttemptApp #answerPadCard { display: block !important; }
+    #cbtAttemptApp #invigilatorBadge { display: inline-flex !important; }
+    #cbtAttemptApp .mock-question-card .rounded-2xl {
+      border-color: var(--cbt-line) !important;
+      background: var(--cbt-surface-2) !important;
+      padding: 14px !important;
+    }
+    #cbtAttemptApp .mock-question-text,
+    #cbtAttemptApp .mock-question-text *,
+    #cbtAttemptApp .mock-option-text,
+    #cbtAttemptApp .mock-option-text * {
+      color: var(--cbt-text) !important;
+      opacity: 1 !important;
+    }
+    #cbtAttemptApp .mock-question-text {
+      font-size: clamp(1.03rem, 1.3vw, 1.22rem) !important;
+      line-height: 1.65 !important;
+    }
+    #cbtAttemptApp .mock-question-card label {
+      border: 1px solid var(--cbt-line) !important;
+      border-radius: 9px !important;
+      background: var(--cbt-option) !important;
+      padding: 10px 12px !important;
+      transition: border-color .15s ease, background .15s ease;
+    }
+    #cbtAttemptApp .mock-question-card label:hover,
+    #cbtAttemptApp .mock-question-card label:has(input:checked) {
+      border-color: var(--cbt-gold) !important;
+      background: var(--cbt-option-hover) !important;
+    }
+    #cbtAttemptApp .mock-question-card label:has(input:checked) {
+      box-shadow: inset 4px 0 0 var(--cbt-gold);
+    }
+    #cbtAttemptApp .mock-action-row {
+      position: sticky;
+      bottom: 0;
+      z-index: 30;
+      margin-top: 8px !important;
+      background: var(--cbt-surface) !important;
+    }
+    #cbtAttemptApp .mock-action-row #reviewBtn,
+    #cbtAttemptApp .mock-action-row #submitBtn:not(.hidden) { display: inline-flex !important; }
+    #cbtAttemptApp .mock-action-row #submitBtn.hidden,
+    #cbtAttemptApp #commandSubmitBtn.hidden,
+    #cbtAttemptApp #padSubmitBtn.hidden,
+    #cbtAttemptApp #padTheoryBtn.hidden { display: none !important; }
+    #cbtAttemptApp .mock-navigator-card { margin: 0 !important; max-width: none !important; }
+    #cbtAttemptApp .mock-number-grid {
+      grid-template-columns: repeat(5, minmax(38px, 1fr)) !important;
+      gap: 6px !important;
+      max-width: none !important;
+    }
+    #cbtAttemptApp .mock-number-grid .js-nav-item {
+      height: 34px !important;
+      border: 1px solid var(--cbt-line) !important;
+      border-radius: 7px !important;
+      background: var(--cbt-surface-2) !important;
+      color: var(--cbt-text) !important;
+      font-size: 12px !important;
+    }
+    #cbtAttemptApp .mock-number-grid .js-nav-item[data-answered="1"] {
+      border-color: #137a4f !important;
+      background: #137a4f !important;
+      color: #ffffff !important;
+    }
+    #cbtAttemptApp .mock-number-grid .js-nav-item.is-current,
+    #cbtAttemptApp .mock-number-grid .js-nav-item.ring-2 {
+      border-color: var(--cbt-gold) !important;
+      background: var(--cbt-option-hover) !important;
+      color: var(--cbt-text) !important;
+      box-shadow: 0 0 0 2px rgba(217,170,50,.32) !important;
+    }
+    #cbtAttemptApp .mock-number-grid .js-nav-item[data-flagged="1"] {
+      border: 2px solid #d97706 !important;
+      background: #fffbeb !important;
+      color: #7c2d12 !important;
+    }
+    #cbtAttemptApp .answer-pad-btn,
+    #cbtAttemptApp #padClearBtn,
+    #cbtAttemptApp #padPrevBtn,
+    #cbtAttemptApp #padNextBtn,
+    #cbtAttemptApp #padTheoryBtn,
+    #cbtAttemptApp #padSubmitBtn {
+      border-color: var(--cbt-line) !important;
+      background: var(--cbt-surface-2) !important;
+      color: var(--cbt-text) !important;
+    }
+    #cbtAttemptApp #padNextBtn,
+    #cbtAttemptApp #padSubmitBtn {
+      border-color: var(--cbt-gold) !important;
+      background: var(--cbt-gold) !important;
+      color: #071d3b !important;
+    }
+    .cbt-security-toast {
+      position: fixed;
+      z-index: 98;
+      top: 14px;
+      right: 14px;
+      width: min(92vw, 390px);
+    }
+    .cbt-security-toast-card {
+      border: 1px solid #f97316;
+      border-left: 6px solid #dc2626;
+      border-radius: 12px;
+      background: #ffffff;
+      padding: 13px 14px;
+      color: #0f172a;
+      box-shadow: 0 18px 48px rgba(15,23,42,.28);
+    }
+    .cbt-security-toast > .absolute { display: none !important; }
+    .cbt-security-toast > .relative {
+      width: 100% !important;
+      max-width: none !important;
+      margin: 0 !important;
+      border: 1px solid #f97316 !important;
+      border-left: 6px solid #dc2626 !important;
+      border-radius: 12px !important;
+      background: #ffffff !important;
+      padding: 13px 42px 13px 14px !important;
+      color: #0f172a !important;
+      box-shadow: 0 18px 48px rgba(15,23,42,.28) !important;
+    }
+    .cbt-security-toast > .relative > .flex > .h-14 { display: none !important; }
+    .cbt-security-toast #securityWarningTitle {
+      margin-top: 2px !important;
+      color: #0f172a !important;
+      font-size: 1rem !important;
+      line-height: 1.25 !important;
+    }
+    .cbt-security-toast #securityWarningMessage {
+      margin-top: 4px !important;
+      color: #334155 !important;
+      font-size: .75rem !important;
+      line-height: 1.45 !important;
+    }
+    .cbt-security-toast-card button {
+      display: inline-flex;
+      height: 28px;
+      width: 28px;
+      flex: 0 0 auto;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid #cbd5e1;
+      border-radius: 7px;
+      background: #f8fafc;
+      color: #0f172a;
+      font-size: 17px;
+      font-weight: 900;
+    }
+    .cbt-security-toast #securityWarningAckBtn {
+      display: inline-flex;
+      height: 28px;
+      width: 28px;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid #cbd5e1;
+      border-radius: 7px;
+      background: #f8fafc;
+      color: #0f172a;
+      font-size: 17px;
+      font-weight: 900;
+    }
+    #cbtAttemptApp #autosaveNote {
+      position: fixed;
+      z-index: 60;
+      bottom: 4px;
+      left: 50%;
+      margin: 0 !important;
+      transform: translateX(-50%);
+      color: var(--cbt-muted) !important;
+      pointer-events: none;
+    }
+    @media (max-width: 1023px) {
+      body:has(#cbtAttemptApp) { overflow: auto; }
+      #cbtAttemptApp { height: auto; min-height: 100vh; overflow: visible; }
+      #cbtRunWrap > .cbt-console { height: auto; min-height: calc(100vh - 56px); overflow: visible; }
+      #cbtAttemptApp .cbt-console-header { align-items: flex-start !important; }
+      #cbtAttemptApp .cbt-candidate-chip { display: none; }
+      #cbtAttemptApp .mock-run-body { grid-template-columns: 1fr !important; overflow: visible; }
+      #cbtAttemptApp .mock-run-body > div:first-child,
+      #cbtAttemptApp .mock-run-body > aside { overflow: visible; }
+    }
+    @media (max-width: 640px) {
+      #cbtAttemptApp .cbt-console-header { flex-direction: column; }
+      #cbtAttemptApp .cbt-console-status { width: 100%; justify-content: flex-start; }
+      .cbt-brand-block h1 { max-width: 72vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .cbt-timer-chip { margin-left: auto; }
+    }
+
+    /* NDGA Secure Exam Console — one layout for light and dark modes. */
+    body:has(#cbtAttemptApp) { overflow: hidden !important; }
+    #cbtAttemptApp {
+      position: fixed !important;
+      inset: 0 !important;
+      z-index: 70 !important;
+      width: 100vw !important;
+      height: 100dvh !important;
+      max-width: none !important;
+      min-height: 0 !important;
+      overflow: hidden !important;
+      padding: .55rem !important;
+      background: var(--cbt-bg) !important;
+      font-family: Inter, "Plus Jakarta Sans", "Segoe UI", sans-serif;
+    }
+    #cbtRunWrap:not(.hidden) {
+      display: block !important;
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+    }
+    #cbtAudioMonitor,
+    #cbtAttemptApp .mock-jamb-tools,
+    #cbtAttemptApp .mock-jamb-main,
+    #cbtAttemptApp .cbt-progress-strip,
+    #cbtAttemptApp .active-exam-instructions,
+    #cbtAttemptApp #answerPadCard,
+    #cbtAttemptApp .exam-sentinel-card,
+    #cbtAttemptApp #invigilatorBadge,
+    #cbtAttemptApp #lockBadge {
+      display: none !important;
+    }
+    #cbtAttemptApp .secure-exam-console {
+      display: flex !important;
+      flex-direction: column !important;
+      width: 100% !important;
+      height: 100% !important;
+      min-height: 0 !important;
+      overflow: hidden !important;
+      border: 1px solid var(--cbt-line) !important;
+      border-radius: 1rem !important;
+      background: var(--cbt-surface) !important;
+      padding: .6rem !important;
+      color: var(--cbt-text) !important;
+      box-shadow: var(--cbt-shadow) !important;
+    }
+    #cbtAttemptApp .secure-command-bar {
+      display: flex !important;
+      min-height: 4.4rem !important;
+      max-height: 4.4rem !important;
+      flex: 0 0 4.4rem !important;
+      align-items: center !important;
+      flex-wrap: nowrap !important;
+      overflow: hidden !important;
+      border: 0 !important;
+      border-radius: .8rem !important;
+      background: #082449 !important;
+      padding: .55rem .75rem !important;
+      color: #fff !important;
+    }
+    #cbtAttemptApp .secure-command-bar .cbt-brand-block {
+      min-width: 17rem;
+      align-items: center !important;
+    }
+    #cbtAttemptApp .secure-command-bar .cbt-brand-block img {
+      width: 2.8rem !important;
+      height: 2.8rem !important;
+    }
+    #cbtAttemptApp .secure-command-bar .cbt-brand-block p:first-of-type {
+      color: #f3cf68 !important;
+      font-size: .62rem !important;
+    }
+    #cbtAttemptApp .secure-command-bar .cbt-brand-block h1 {
+      max-width: 25vw;
+      overflow: hidden;
+      color: #fff !important;
+      font-size: .92rem !important;
+      line-height: 1.2 !important;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    #cbtAttemptApp .secure-command-bar .cbt-brand-block p:last-child {
+      color: #d9e2ef !important;
+      font-size: .68rem !important;
+    }
+    #cbtAttemptApp .secure-command-bar .cbt-console-status {
+      min-width: 0;
+      flex: 1;
+      justify-content: flex-end;
+      gap: .45rem !important;
+      overflow: hidden;
+    }
+    #cbtAttemptApp .secure-command-bar .cbt-console-status > .text-right {
+      max-width: 12rem;
+      overflow: hidden;
+    }
+    #cbtAttemptApp .secure-command-bar .cbt-console-status > .text-right p {
+      overflow: hidden;
+      color: #fff !important;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    #cbtAttemptApp #phasePill {
+      border-color: rgba(214,162,30,.55) !important;
+      background: rgba(214,162,30,.15) !important;
+      color: #ffe49a !important;
+    }
+    #cbtAttemptApp #warningBadge {
+      border-color: rgba(245,158,11,.55) !important;
+      background: rgba(245,158,11,.14) !important;
+      color: #ffe8a3 !important;
+    }
+    #cbtAttemptApp #cbtAudioMonitorCompact {
+      border-color: rgba(22,163,74,.55) !important;
+      background: rgba(22,163,74,.16) !important;
+      color: #dcfce7 !important;
+    }
+    #cbtAttemptApp #cbtAudioMonitorCompact[data-audio-state="noise"] {
+      border-color: rgba(220,38,38,.7) !important;
+      background: rgba(220,38,38,.2) !important;
+      color: #fee2e2 !important;
+    }
+    #cbtAttemptApp .cbt-icon-btn {
+      width: 2.25rem !important;
+      height: 2.25rem !important;
+      flex: 0 0 2.25rem !important;
+      border-color: rgba(255,255,255,.22) !important;
+      background: rgba(255,255,255,.08) !important;
+      color: #fff !important;
+    }
+    #cbtAttemptApp .cbt-timer-chip {
+      width: auto !important;
+      height: 2.55rem !important;
+      min-width: 7.3rem !important;
+      flex: 0 0 auto !important;
+      flex-direction: row !important;
+      gap: .45rem !important;
+      border: 1px solid rgba(214,162,30,.6) !important;
+      border-radius: .7rem !important;
+      background: #061a33 !important;
+      color: #f3cf68 !important;
+      box-shadow: none !important;
+      padding: 0 .65rem !important;
+    }
+    #cbtAttemptApp .cbt-timer-chip #timerPill {
+      color: #f3cf68 !important;
+      font-size: .95rem !important;
+    }
+    #cbtAttemptApp .cbt-timer-chip span:last-child {
+      margin: 0 !important;
+      color: #d9e2ef !important;
+      font-size: .55rem !important;
+    }
+    #cbtAttemptApp .secure-exam-grid {
+      display: grid !important;
+      grid-template-columns: minmax(0, 1fr) 18.5rem !important;
+      flex: 1 1 auto !important;
+      min-height: 0 !important;
+      overflow: hidden !important;
+      margin-top: .55rem !important;
+      gap: .55rem !important;
+    }
+    #cbtAttemptApp .secure-question-zone {
+      display: flex !important;
+      min-width: 0 !important;
+      min-height: 0 !important;
+      flex-direction: column !important;
+      gap: .45rem !important;
+      overflow: hidden !important;
+    }
+    #cbtAttemptApp .secure-question-zone > nav {
+      flex: 0 0 auto;
+      border-color: var(--cbt-line) !important;
+      border-radius: .7rem !important;
+      background: var(--cbt-surface-2) !important;
+      padding: .35rem !important;
+    }
+    #cbtAttemptApp .secure-question-zone > nav .grid {
+      display: flex !important;
+      gap: .35rem !important;
+      overflow-x: auto;
+    }
+    #cbtAttemptApp .secure-question-zone > nav .js-nav-item {
+      min-width: 8.5rem;
+      border-color: var(--cbt-line) !important;
+      border-radius: .55rem !important;
+      background: var(--cbt-surface) !important;
+      color: var(--cbt-text) !important;
+      padding: .4rem .65rem !important;
+    }
+    #cbtAttemptApp .secure-question-zone > nav .js-nav-item span {
+      color: var(--cbt-text) !important;
+    }
+    #cbtAttemptApp .secure-question-zone > nav .js-nav-item.is-active {
+      border-color: var(--cbt-gold) !important;
+      background: var(--cbt-option-hover) !important;
+      box-shadow: inset 3px 0 0 var(--cbt-gold);
+    }
+    #cbtAttemptApp .secure-question-deck {
+      flex: 1 1 auto !important;
+      min-height: 0 !important;
+      overflow: hidden !important;
+    }
+    #cbtAttemptApp .secure-question-deck .attempt-question-panel {
+      width: 100% !important;
+      height: 100% !important;
+      min-height: 0 !important;
+      overflow: auto !important;
+      border: 1px solid var(--cbt-line) !important;
+      border-radius: .85rem !important;
+      background: var(--cbt-surface) !important;
+      padding: 1rem 1.15rem !important;
+      color: var(--cbt-text) !important;
+      scrollbar-gutter: stable;
+    }
+    #cbtAttemptApp .attempt-question-panel > .flex:first-of-type p {
+      color: #9a6700 !important;
+      font-size: .78rem !important;
+      font-weight: 900 !important;
+    }
+    #cbtAttemptApp .attempt-question-panel > .mt-3.rounded-2xl {
+      border: 0 !important;
+      background: transparent !important;
+      padding: .35rem 0 !important;
+    }
+    #cbtAttemptApp .attempt-question-panel [data-question-fallback],
+    #cbtAttemptApp .attempt-question-panel [data-math-render] {
+      color: var(--cbt-text) !important;
+    }
+    #cbtAttemptApp .attempt-question-panel label:has(input[name="selected_options"]) {
+      display: block;
+      border: 1px solid var(--cbt-line) !important;
+      border-radius: .72rem !important;
+      background: var(--cbt-option) !important;
+      color: var(--cbt-text) !important;
+      padding: .7rem .85rem !important;
+      transition: border-color .15s ease, background .15s ease, transform .15s ease;
+    }
+    #cbtAttemptApp .attempt-question-panel label:has(input[name="selected_options"]):hover {
+      border-color: var(--cbt-gold) !important;
+      background: var(--cbt-option-hover) !important;
+      transform: translateY(-1px);
+    }
+    #cbtAttemptApp .attempt-question-panel label:has(input[name="selected_options"]:checked) {
+      border-color: var(--cbt-gold) !important;
+      background: var(--cbt-option-hover) !important;
+      box-shadow: inset 4px 0 0 var(--cbt-gold) !important;
+    }
+    #cbtAttemptApp .attempt-question-panel label span,
+    #cbtAttemptApp .attempt-question-panel label .mock-option-text {
+      color: var(--cbt-text) !important;
+      font-size: .9rem !important;
+      line-height: 1.45 !important;
+    }
+    #cbtAttemptApp .attempt-question-panel label .font-semibold {
+      color: #9a6700 !important;
+    }
+    #cbtAttemptApp .secure-action-row {
+      flex: 0 0 auto !important;
+      border: 1px solid var(--cbt-line) !important;
+      border-radius: .75rem !important;
+      background: var(--cbt-surface-2) !important;
+      padding: .5rem !important;
+    }
+    #cbtAttemptApp .secure-action-row #reviewBtn { display: none !important; }
+    #cbtAttemptApp .secure-action-row #moveTheoryBtn {
+      background: #082449 !important;
+      color: #fff !important;
+    }
+    #cbtAttemptApp .secure-sidebar {
+      display: flex !important;
+      width: 100% !important;
+      min-width: 0 !important;
+      min-height: 0 !important;
+      max-width: none !important;
+      flex-direction: column !important;
+      gap: .5rem !important;
+      overflow: hidden !important;
+    }
+    #cbtAttemptApp .secure-sidebar-summary,
+    #cbtAttemptApp .secure-navigator-card {
+      border-color: var(--cbt-line) !important;
+      background: var(--cbt-surface-2) !important;
+      color: var(--cbt-text) !important;
+    }
+    #cbtAttemptApp .secure-sidebar-summary {
+      flex: 0 0 auto;
+    }
+    #cbtAttemptApp .secure-sidebar-summary p { color: var(--cbt-text) !important; }
+    #cbtAttemptApp .secure-sidebar-summary #autosaveNote {
+      position: static !important;
+      margin-top: .5rem !important;
+      transform: none !important;
+      color: #16a34a !important;
+    }
+    #cbtAttemptApp .secure-navigator-card {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: auto;
+      border-radius: .8rem !important;
+      padding: .7rem !important;
+    }
+    #cbtAttemptApp .secure-navigator-card h3,
+    #cbtAttemptApp .mock-attempted-label {
+      color: var(--cbt-text) !important;
+      font-weight: 900 !important;
+    }
+    #cbtAttemptApp .secure-navigator-card .grid,
+    #cbtAttemptApp .mock-number-grid {
+      display: grid !important;
+      grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+      gap: .35rem !important;
+    }
+    #cbtAttemptApp .secure-navigator-card .js-nav-item,
+    #cbtAttemptApp .mock-number-grid .js-nav-item {
+      height: 2rem !important;
+      border: 1px solid var(--cbt-line) !important;
+      border-radius: .45rem !important;
+      background: var(--cbt-surface) !important;
+      color: var(--cbt-muted) !important;
+      box-shadow: none !important;
+    }
+    #cbtAttemptApp .secure-navigator-card .js-nav-item[data-answered="1"],
+    #cbtAttemptApp .mock-number-grid .js-nav-item[data-answered="1"] {
+      border-color: #16a34a !important;
+      background: #16a34a !important;
+      color: #fff !important;
+    }
+    #cbtAttemptApp .secure-navigator-card .js-nav-item[data-flagged="1"],
+    #cbtAttemptApp .mock-number-grid .js-nav-item[data-flagged="1"] {
+      border: 2px solid #f59e0b !important;
+    }
+    #cbtAttemptApp .secure-navigator-card .js-nav-item.is-active,
+    #cbtAttemptApp .secure-navigator-card .js-nav-item.ring-2,
+    #cbtAttemptApp .mock-number-grid .js-nav-item.is-active,
+    #cbtAttemptApp .mock-number-grid .js-nav-item.ring-2 {
+      border-color: #d6a21e !important;
+      background: #d6a21e !important;
+      color: #061a33 !important;
+      box-shadow: 0 0 0 2px rgba(214,162,30,.28) !important;
+    }
+    #cbtAttemptApp .secure-nav-legend i {
+      display: inline-block;
+      width: .65rem;
+      height: .65rem;
+      margin-right: .3rem;
+      border: 1px solid var(--cbt-line);
+      border-radius: .2rem;
+      vertical-align: -1px;
+    }
+    #cbtAttemptApp .secure-nav-legend i[data-legend="current"] { border-color: #d6a21e; background: #d6a21e; }
+    #cbtAttemptApp .secure-nav-legend i[data-legend="answered"] { border-color: #16a34a; background: #16a34a; }
+    #cbtAttemptApp .secure-nav-legend i[data-legend="flagged"] { border: 2px solid #f59e0b; }
+    #cbtAttemptApp .cbt-screen-watermark { opacity: .035 !important; }
+    #cbtAttemptApp.cbt-dark-theme #flagReviewBtn {
+      border-color: #f59e0b !important;
+      background: #f59e0b !important;
+      color: #061a33 !important;
+    }
+    #cbtAttemptApp.mock-practice-theme #flagReviewBtn {
+      border-color: #d6a21e !important;
+      background: #fff6dd !important;
+      color: #082449 !important;
+    }
+    #cbtAttemptApp #cbtGate > div {
+      width: min(94vw, 42rem) !important;
+      max-width: 42rem !important;
+      border-radius: 2rem !important;
+      background: #fff !important;
+      padding: 0 !important;
+      color: #111827 !important;
+    }
+    #cbtAttemptApp #cbtGate > div > .grid {
+      display: grid !important;
+      grid-template-columns: 1fr 1.15fr !important;
+      gap: .85rem !important;
+      padding: 1rem !important;
+    }
+    #cbtAttemptApp #cbtGate p { line-height: 1.35 !important; }
+    #cbtAttemptApp #examToolCard {
+      border-color: rgba(214,162,30,.65) !important;
+      border-radius: .9rem !important;
+      background: #082449 !important;
+    }
+    #securityWarningModal.cbt-security-toast {
+      position: fixed !important;
+      inset: 0 !important;
+      z-index: 98 !important;
+      width: auto !important;
+    }
+    #securityWarningModal.cbt-security-toast > .absolute { display: block !important; }
+    #securityWarningModal.cbt-security-toast > .relative {
+      width: 92% !important;
+      max-width: 28rem !important;
+      margin: 18vh auto 0 !important;
+      border: 1px solid #fecaca !important;
+      border-radius: 1rem !important;
+      background: #fff !important;
+      padding: 1.25rem !important;
+      color: #111827 !important;
+      box-shadow: 0 24px 70px rgba(6,26,51,.38) !important;
+    }
+    #securityWarningModal #securityWarningAckBtn {
+      display: block !important;
+      width: 100% !important;
+      height: auto !important;
+      margin-top: 1.25rem !important;
+      border: 0 !important;
+      border-radius: .75rem !important;
+      background: #082449 !important;
+      padding: .65rem 1rem !important;
+      color: #fff !important;
+      font-size: .875rem !important;
+    }
+    #securityWarningModal #securityWarningAckBtn.hidden { display: none !important; }
+    #cbtAttemptApp .secure-question-deck {
+      overflow-y: auto !important;
+      border-radius: .85rem;
+      background: var(--cbt-surface-2);
+    }
+    #cbtAttemptApp .secure-question-deck .attempt-question-panel {
+      height: auto !important;
+      max-height: 100% !important;
+    }
+    #cbtAttemptApp .secure-stimulus-panel {
+      max-height: min(46vh, 25rem);
+      overflow: auto;
+      border-color: var(--cbt-line) !important;
+      background: var(--cbt-surface-2) !important;
+      scrollbar-gutter: stable;
+    }
+    #cbtAttemptApp .secure-stimulus-panel img {
+      max-height: min(39vh, 21rem) !important;
+      margin-inline: auto;
+      background: transparent !important;
+    }
+    #cbtAttemptApp #cbtAudioMonitorCompact .cbt-audio-bar {
+      width: 3px !important;
+      min-width: 3px;
+      color: #bbf7d0;
+    }
+    #cbtAttemptApp .secure-nav-legend {
+      color: var(--cbt-muted) !important;
+      font-size: .68rem !important;
+    }
+    #cbtAttemptApp button:disabled {
+      cursor: not-allowed;
+      opacity: .62 !important;
+    }
+    #submitModal .submit-summary-grid > div {
+      border: 1px solid #d9e2ef;
+      border-radius: .75rem;
+      background: #f8fafc;
+      padding: .7rem;
+    }
+    #submitModal #confirmSubmitBtn,
+    #theoryConfirmModal #confirmTheoryMoveBtn {
+      background: #082449 !important;
+      color: #ffffff !important;
+      opacity: 1 !important;
+    }
+    #submitModal #cancelSubmitBtn {
+      background: #ffffff !important;
+      color: #082449 !important;
+      opacity: 1 !important;
+    }
+    #cbtAttemptApp .theory-answer-area {
+      min-height: 14rem;
+      resize: vertical;
+      border: 1px solid var(--cbt-line) !important;
+      border-radius: .85rem !important;
+      background: var(--cbt-surface-2) !important;
+      color: var(--cbt-text) !important;
+      padding: 1rem !important;
+      font-size: .95rem !important;
+      line-height: 1.6 !important;
+    }
+    #cbtAttemptApp .theory-answer-area:focus {
+      border-color: var(--cbt-gold) !important;
+      outline: 3px solid rgba(214,162,30,.2) !important;
+    }
+    #cbtAttemptApp .theory-instruction-banner,
+    #theoryConfirmModal .theory-modal-card {
+      color: #111827 !important;
+    }
+    #theoryConfirmModal .theory-modal-card {
+      border: 1px solid #d6a21e !important;
+      border-radius: 1rem !important;
+      background: #fff !important;
+      box-shadow: 0 24px 70px rgba(6,26,51,.35) !important;
+    }
+    #theoryConfirmModal .theory-modal-card h2,
+    #theoryConfirmModal .theory-modal-card p { color: #111827 !important; opacity: 1 !important; }
+    #cbtAttemptApp #moveTheoryBtn,
+    #theoryConfirmModal #confirmTheoryMoveBtn {
+      border-color: #082449 !important;
+      background: #082449 !important;
+      color: #fff !important;
+    }
+    @media (min-width: 821px) and (max-width: 1320px) {
+      #cbtAttemptApp .secure-command-bar .cbt-brand-block { min-width: 14.5rem; }
+      #cbtAttemptApp .secure-command-bar .cbt-brand-block h1 { max-width: 20vw; }
+      #cbtAttemptApp .secure-command-bar .cbt-console-status { gap: .32rem !important; }
+      #cbtAttemptApp .secure-command-bar .cbt-console-status > .text-right { max-width: 10.5rem; }
+      #cbtAttemptApp #warningBadge { padding-inline: .45rem !important; }
+      #cbtAttemptApp .secure-exam-grid { grid-template-columns: minmax(0, 1fr) 16rem !important; }
+    }
+    @media (max-width: 1180px) {
+      #cbtAttemptApp .secure-exam-grid { grid-template-columns: minmax(0, 1fr) 15.5rem !important; }
+      #cbtAttemptApp .secure-command-bar .cbt-brand-block { min-width: 14rem; }
+      #cbtAttemptApp .secure-command-bar .cbt-console-status > .text-right { display: none; }
+      #cbtAttemptApp #phasePill { display: none !important; }
+    }
+    @media (max-width: 820px) {
+      #cbtAttemptApp { overflow: auto !important; }
+      #cbtRunWrap:not(.hidden), #cbtAttemptApp .secure-exam-console { height: auto !important; min-height: 100%; }
+      #cbtAttemptApp .secure-command-bar { max-height: none !important; flex-wrap: wrap !important; }
+      #cbtAttemptApp .secure-exam-grid { grid-template-columns: 1fr !important; overflow: visible !important; }
+      #cbtAttemptApp .secure-question-deck .attempt-question-panel { min-height: 26rem !important; }
+      #cbtAttemptApp .secure-sidebar { min-height: 20rem !important; overflow: visible !important; }
+      #cbtAttemptApp #cbtGate > div > .grid { grid-template-columns: 1fr !important; }
+    }
+  </style>
+{% endblock %}
+
+
+{% block content %}
+  <section
+    id="cbtAttemptApp"
+    class="mock-practice-theme mx-auto w-full max-w-[96rem] px-3 py-3 sm:px-4 lg:px-6"
+    data-attempt-id="{{ attempt.id }}"
+    data-lockdown-enabled="{% if lockdown_enabled %}1{% else %}0{% endif %}"
+    data-heartbeat-seconds="{{ lockdown_heartbeat_interval_seconds|default:12 }}"
+    data-inactivity-seconds="{{ lockdown_inactivity_timeout_seconds|default:45 }}"
+    data-heartbeat-url="{% url 'cbt:attempt-heartbeat' attempt.id %}"
+    data-violation-url="{% url 'cbt:attempt-violation' attempt.id %}"
+    data-result-url="{% url 'cbt:student-attempt-result' attempt.id %}"
+    data-question-count="{{ question_count|default:0 }}"
+    data-objective-count="{{ objective_count|default:0 }}"
+    data-theory-count="{{ theory_count|default:0 }}"
+    data-active-index="{{ active_index|default:1 }}"
+    data-theory-stage-unlocked="{% if theory_stage_unlocked %}1{% else %}0{% endif %}"
+    data-theory-response-mode="{{ theory_response_mode }}"
+    data-warning-url="{% url 'cbt:attempt-warning' attempt.id %}"
+    data-warning-limit="3"
+    data-manual-audio-warning-count="{{ manual_audio_warning_count|default:0 }}"
+    data-microphone-required="{% if cbt_microphone_required %}1{% else %}0{% endif %}"
+    data-browser-breach-detection="{% if cbt_browser_breach_detection_enabled %}1{% else %}0{% endif %}"
+    data-timer-paused="{% if timer_paused %}1{% else %}0{% endif %}"
+    data-mock-practice="{% if is_mock_practice %}1{% else %}0{% endif %}"
+  >
+    <div class="cbt-screen-watermark" aria-hidden="true">
+      <span>{{ request.user.get_full_name|default:request.user.username }} · {{ request.user.student_profile.student_number|default:request.user.username }} · A{{ attempt.id }}</span>
+      <span>{{ request.user.get_full_name|default:request.user.username }} · {{ request.user.student_profile.student_number|default:request.user.username }} · A{{ attempt.id }}</span>
+      <span>{{ request.user.get_full_name|default:request.user.username }} · {{ request.user.student_profile.student_number|default:request.user.username }} · A{{ attempt.id }}</span>
+      <span>{{ request.user.get_full_name|default:request.user.username }} · {{ request.user.student_profile.student_number|default:request.user.username }} · A{{ attempt.id }}</span>
+    </div>
+    {{ navigator|json_script:"cbt-navigator-seed" }}
+
+    <div id="cbtGate" class="fixed inset-0 z-[90] flex items-center justify-center bg-[#061a33] p-4">
+      <div class="w-full max-w-3xl overflow-hidden rounded-[2rem] border border-white/15 bg-white shadow-2xl">
+        <div class="flex items-center justify-between gap-4 bg-[#082449] px-6 py-4 text-white">
+          <div class="flex items-center gap-3">
+            <img src="{% static 'images/ndga/logo.png' %}" alt="NDGA" class="h-11 w-11 rounded-full bg-white p-1">
+            <div>
+              <p class="text-[11px] font-black uppercase tracking-[0.2em] text-[#f3cf68]">NDGA Secure Exam Console</p>
+              <h1 class="text-lg font-black">Candidate Briefing</h1>
+            </div>
+          </div>
+          <span class="rounded-full border border-emerald-700 bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-900">READY</span>
+        </div>
+        <div class="grid gap-6 p-6 md:grid-cols-[1fr_1.15fr]">
+          <div class="rounded-2xl border border-[#d9e2ef] bg-[#f8fafc] p-4 shadow-sm">
+            <div class="flex items-center gap-4">
+            {% if student_photo_url %}
+              <img src="{{ student_photo_url }}" alt="Student" class="h-20 w-20 rounded-2xl border-2 border-[#d6a21e] object-cover">
+            {% else %}
+              <div class="flex h-20 w-20 items-center justify-center rounded-2xl bg-[#082449] text-2xl font-black text-white">{{ request.user.first_name|default:request.user.username|slice:":2" }}</div>
+            {% endif %}
+            <div class="min-w-0">
+              <p class="truncate text-base font-black text-[#111827]">{{ request.user.get_full_name|default:request.user.username }}</p>
+              <p class="mt-1 text-sm font-bold text-[#64748b]">{{ request.user.student_profile.student_number|default:request.user.username }}</p>
+              <p class="mt-1 text-xs font-black uppercase tracking-wide text-[#082449]">{{ exam.academic_class.code }}</p>
+            </div>
+            </div>
+            <div class="mt-4 grid grid-cols-2 gap-2">
+              <div class="rounded-xl border border-[#d9e2ef] bg-white p-2.5">
+                <p class="text-[10px] font-black uppercase tracking-wide text-[#64748b]">Attempt</p>
+                <p class="mt-1 text-sm font-black text-[#111827]">No. {{ attempt.attempt_number }}</p>
+              </div>
+              <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-2.5">
+                <p class="text-[10px] font-black uppercase tracking-wide text-emerald-700">Readiness</p>
+                <p class="mt-1 text-sm font-black text-emerald-800">Ready to start</p>
+              </div>
+            </div>
+          </div>
+          <div>
+            <p class="text-xs font-black uppercase tracking-[0.16em] text-[#9a6700]">Official Examination</p>
+            <h2 class="mt-1 text-2xl font-black leading-tight text-[#082449]">{{ exam.title }}</h2>
+            <div class="mt-4 grid grid-cols-3 gap-2">
+              <div class="rounded-xl border border-[#d9e2ef] p-3"><p class="text-[10px] font-black uppercase text-[#64748b]">Subject</p><p class="mt-1 truncate text-sm font-black text-[#111827]">{{ exam.subject.name }}</p></div>
+              <div class="rounded-xl border border-[#d9e2ef] p-3"><p class="text-[10px] font-black uppercase text-[#64748b]">Duration</p><p class="mt-1 text-sm font-black text-[#111827]">{{ blueprint.duration_minutes }} min</p></div>
+              <div class="rounded-xl border border-[#d9e2ef] p-3"><p class="text-[10px] font-black uppercase text-[#64748b]">Questions</p><p class="mt-1 text-sm font-black text-[#111827]">{{ question_count }}</p></div>
+            </div>
+            <div class="mt-4 flex flex-wrap gap-2 text-[11px] font-black">
+              <span class="rounded-full bg-emerald-50 px-3 py-1.5 text-emerald-800">● Autosave active</span>
+              <span class="rounded-full bg-[#fff6dd] px-3 py-1.5 text-[#8a6100]">🎙 Audio monitor</span>
+              <span class="rounded-full bg-slate-100 px-3 py-1.5 text-[#082449]">▣ Fullscreen exam</span>
+            </div>
+            <p id="gateStatusText" class="mt-4 text-xs font-bold text-[#64748b]">Ready to begin.</p>
+            <p id="cbtGateError" class="mt-2 text-xs font-bold text-[#dc2626]"></p>
+            <div class="mt-5 flex items-center gap-2">
+              <button id="cbtBeginBtn" type="button" class="rounded-xl bg-[#082449] px-5 py-2.5 text-sm font-black text-white shadow-sm hover:bg-[#0b2f5b]">Start CBT</button>
+              <a href="{% url 'cbt:student-exam-list' %}" class="rounded-xl border border-[#d9e2ef] px-5 py-2.5 text-sm font-black text-[#082449] hover:bg-slate-50">Back</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="cbtAudioBlocker" class="hidden fixed inset-0 z-[95] flex items-center justify-center bg-slate-950/95 p-4">
+      <div class="w-full max-w-lg rounded-3xl border border-rose-400/50 bg-slate-900 p-6 text-center text-white shadow-2xl">
+        <div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-rose-500/20 text-3xl" aria-hidden="true">🎙️</div>
+        <h2 class="mt-4 text-xl font-extrabold">Microphone monitoring stopped</h2>
+        <p class="mt-2 text-sm leading-relaxed text-slate-300">The exam is paused on this screen until microphone access is restored. The timer continues and the interruption is recorded for the invigilator.</p>
+        <button id="cbtRestoreAudioBtn" type="button" class="ndga-btn ndga-btn-primary mt-5">Restore Microphone</button>
+        <p id="cbtRestoreAudioError" class="mt-3 text-xs font-semibold text-rose-300"></p>
+      </div>
+    </div>
+
+    <div id="cbtRunWrap" class="hidden">
+      <div class="cbt-progress-strip mb-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-slate-950 shadow-sm">
+        <div class="flex items-center justify-between gap-3 text-xs font-black">
+          <span>Exam Progress</span>
+          <span id="examProgressLabel">{{ answered_count }} / {{ question_count }} answered</span>
+        </div>
+        <div class="mt-2 h-2 overflow-hidden rounded-full bg-slate-200">
+          <div id="examProgressBar" class="h-full rounded-full bg-[#0b2545] transition-all duration-300" style="width:{% widthratio answered_count question_count 100 %}%"></div>
+        </div>
+      </div>
+      <article class="cbt-console secure-exam-console rounded-3xl border border-slate-700/70 bg-slate-900/95 p-3 text-slate-100 shadow-2xl sm:p-4">
+        <div class="cbt-console-header secure-command-bar flex flex-wrap items-start justify-between gap-3 border-b border-slate-700 pb-3">
+          <div class="cbt-brand-block flex items-start gap-3">
+            <img src="{% static 'images/ndga/logo.png' %}" alt="NDGA" class="h-12 w-12 rounded-full border border-slate-600 bg-white p-1" loading="eager" decoding="async">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-300">Live Attempt</p>
+              <h1 class="mt-1 text-lg font-bold text-white sm:text-xl">{{ exam.title }}</h1>
+              <p class="mt-0.5 text-xs text-slate-300">{{ exam.subject.name }} | {{ exam.academic_class.code }} | {{ exam.get_exam_type_display }}</p>
+            </div>
+          </div>
+          <div class="cbt-console-status flex items-center gap-3">
+            <div class="text-right">
+              <p class="text-xs font-semibold text-white">{{ request.user.get_full_name|default:request.user.username }}</p>
+              <p class="text-[11px] text-slate-300">{{ request.user.student_profile.student_number|default:request.user.username }} | {{ exam.academic_class.code }}</p>
+            </div>
+            <p id="phasePill" class="mt-1 inline-flex items-center rounded-full border border-[#d6a21e]/50 bg-[#d6a21e]/15 px-2.5 py-1 text-[11px] font-semibold text-[#ffe49a]">
+              {% if theory_stage_unlocked or active_index > objective_count %}Theory Stage{% elif objective_count > 0 %}Objective Stage{% else %}Live Exam{% endif %}
+            </p>
+            <span id="invigilatorBadge" class="cbt-status-chip" data-state="live" title="Secure exam monitoring is active">
+              <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 3 20 6v5c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6l8-3Z" stroke="currentColor" stroke-width="2"/><path d="m9 12 2 2 4-5" stroke="currentColor" stroke-width="2"/></svg>
+              <span id="invigilatorText">SECURE</span>
+            </span>
+            <span id="cbtAudioMonitorCompact" class="cbt-status-chip" data-audio-state="starting" title="Live microphone activity monitor">
+              <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="9" y="3" width="6" height="11" rx="3" stroke="currentColor" stroke-width="2"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3m-4 0h8" stroke="currentColor" stroke-width="2"/></svg>
+              <span id="cbtAudioStatusText">LISTENING</span>
+              <span class="flex h-4 items-center gap-[3px]" aria-label="Live microphone activity">
+                <span class="cbt-audio-bar"></span><span class="cbt-audio-bar"></span><span class="cbt-audio-bar"></span><span class="cbt-audio-bar"></span><span class="cbt-audio-bar"></span>
+              </span>
+            </span>
+            {% if student_photo_url %}
+              <img src="{{ student_photo_url }}" alt="Student" class="h-12 w-12 rounded-full border border-slate-600 object-cover" loading="eager" decoding="async">
+            {% else %}
+              <div class="flex h-12 w-12 items-center justify-center rounded-full border border-slate-600 bg-slate-800 text-sm font-bold uppercase tracking-[0.12em] text-cyan-100">
+                {{ request.user.first_name|default:request.user.username|slice:":2" }}
+              </div>
+            {% endif %}
+            <span id="lockBadge" class="{% if not lockdown_enabled %}hidden {% endif %}inline-flex items-center gap-2 rounded-full border border-slate-600 bg-slate-800 px-2.5 py-1 text-[11px] font-semibold text-slate-200">
+              <span class="inline-block h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
+              Secure Lock
+            </span>
+            <span id="warningBadge" class="{% if not lockdown_enabled %}hidden {% endif %}inline-flex items-center gap-2 rounded-full border border-amber-500/50 bg-amber-500/10 px-2.5 py-1 text-[11px] font-semibold text-amber-100">
+              Warnings
+              <span id="warningCount">0 / 2</span>
+            </span>
+            <span class="hidden rounded-lg border border-white/15 bg-white/10 px-2.5 py-1.5 text-[11px] font-black text-white lg:inline-flex">
+              Q&nbsp;<span id="commandQuestionIndex">{{ active_index }}</span>&nbsp;/&nbsp;{{ question_count }}
+            </span>
+            <span id="timerStateBadge" class="hidden rounded-full border border-amber-500/50 bg-amber-500/15 px-2.5 py-1 text-[11px] font-semibold text-amber-100">Timer Paused By IT</span>
+            {% if calculator_enabled %}
+              <button type="button" id="calculatorToggleBtn" class="cbt-icon-btn" title="Calculator" aria-label="Open calculator">
+                <svg aria-hidden="true" width="19" height="19" viewBox="0 0 24 24" fill="none"><rect x="5" y="2.5" width="14" height="19" rx="2" stroke="currentColor" stroke-width="2"/><path d="M8 6h8v3H8zM8 13h2m2 0h2m2 0h0M8 17h2m2 0h2m2 0h0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              </button>
+            {% endif %}
+            <button type="button" id="cbtRefreshBtn" class="cbt-icon-btn" title="Refresh exam" aria-label="Refresh exam">
+              <svg aria-hidden="true" width="19" height="19" viewBox="0 0 24 24" fill="none"><path d="M20 11a8 8 0 1 0-2.34 5.66M20 4v7h-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button type="button" id="cbtThemeToggle" class="cbt-icon-btn" aria-label="Use dark colour mode" title="Use dark colour mode"></button>
+            <button type="button" id="commandSubmitBtn" class="rounded-lg bg-[#d6a21e] px-3 py-2 text-xs font-black text-[#061a33] shadow-sm hover:bg-[#e1b337] {% if theory_count > 0 and not theory_stage_unlocked %}hidden{% endif %}">Submit</button>
+            <div class="cbt-timer-chip flex h-20 w-20 flex-col items-center justify-center rounded-full border border-rose-400/50 bg-rose-500/20 text-rose-100 shadow-[0_0_30px_rgba(244,63,94,0.2)]">
+              <span id="timerPill" class="text-lg font-black leading-none tracking-[0.06em]">00:00:00</span>
+              <span class="mt-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-rose-100/80">Timer</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="mock-run-body secure-exam-grid mt-3 grid gap-3 {% if not use_jamb_interface %}xl:grid-cols-[1.85fr_0.8fr]{% endif %}">
+          <div class="secure-question-zone space-y-3">
+            {% if blueprint.instructions %}
+              <div class="active-exam-instructions rounded-3xl border border-cyan-500/30 bg-cyan-500/10 p-3 text-sm text-cyan-50">
+                <p class="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200">Instructions</p>
+                <div class="mt-2 leading-relaxed">{{ blueprint.instructions|linebreaksbr }}</div>
+              </div>
+            {% endif %}
+            {% if theory_count and theory_response_mode == "PAPER" %}
+              <p class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">Theory questions will display on screen only and must be answered on paper.</p>
+            {% endif %}
+            {% if has_question_flow %}
+              {% if subject_tabs %}
+                <nav class="{% if use_jamb_interface %}mock-subject-tabs {% endif %}rounded-3xl border border-slate-700 bg-slate-900 p-2" aria-label="CBT subject sections">
+                  <div class="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                    {% for tab in subject_tabs %}
+                      <a
+                        href="?q={{ tab.first_index }}"
+                        data-jump-index="{{ tab.first_index }}"
+                        data-section-tab="{{ tab.label }}"
+                        class="js-nav-item rounded-2xl border border-slate-700 bg-slate-800/75 px-3 py-2 text-sm font-semibold text-slate-100 transition hover:border-cyan-400/70 hover:bg-cyan-500/10 {% if tab.label == active_section %}is-active{% endif %}"
+                      >
+                        <span class="block text-cyan-200">{{ tab.label }}</span>
+                        <span class="mt-1 block text-[11px] font-medium text-slate-300">{{ tab.answered }} / {{ tab.count }} answered</span>
+                      </a>
+                    {% endfor %}
+                  </div>
+                </nav>
+              {% endif %}
+              <div id="questionDeck" class="secure-question-deck space-y-3">
+                {% for panel in question_panels %}
+                  <form method="post" class="attempt-question-panel {% if use_jamb_interface %}mock-question-card{% endif %} rounded-3xl border border-slate-700 bg-slate-900 p-3 sm:p-4 {% if not panel.is_active %}hidden{% endif %}" data-index="{{ panel.index }}" data-question-type="{{ panel.question.question_type }}" data-section="{{ panel.section }}" data-theory-page="{% if panel.is_theory_page %}1{% else %}0{% endif %}" data-flagged="{% if panel.answer.is_flagged %}1{% else %}0{% endif %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="q" value="{{ panel.index }}" class="question-index-input">
+                    <input type="hidden" name="action" value="save_stay" class="attempt-action-input">
+                    <input type="hidden" name="response_payload" value="">
+
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                      <p class="text-sm font-semibold text-cyan-200">
+                        {% if panel.section %}{{ panel.section }} | {% endif %}Question {{ panel.index }}
+                      </p>
+                    </div>
+
+                    {% if panel.is_first_theory %}
+                      <div class="theory-instruction-banner mt-3 rounded-2xl border-2 border-amber-500 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+                        <p class="font-black uppercase tracking-[0.12em]">Theory Instructions</p>
+                        <p class="mt-1 font-semibold">{{ theory_instructions|default:"Answer the theory questions on paper exactly as directed in the paper. Read every sub-question carefully before answering." }}</p>
+                      </div>
+                    {% endif %}
+
+                    <div class="mt-3 rounded-2xl border border-slate-700 bg-slate-800/60 p-3.5">
+                      <div class="{% if use_jamb_interface %}mock-question-text{% endif %} text-base font-semibold leading-relaxed text-white" data-math-render="1" data-question-fallback="{{ panel.question_text|default_if_none:''|striptags|escape }}">
+                        {% if panel.question_is_rich %}
+                          {{ panel.question_text|safe|cbt_notation }}
+                        {% else %}
+                          {{ panel.question_text|cbt_notation }}
+                        {% endif %}
+                      </div>
+                      <div class="mock-question-fallback hidden" data-question-fallback-target></div>
+                      {% if panel.stimulus_question %}
+                        <div class="secure-stimulus-panel mt-3 rounded-xl border border-slate-700 bg-slate-900/70 p-4">
+                          {% if panel.stimulus_question.stimulus_caption %}
+                            <p class="mb-2 text-xs font-semibold text-cyan-200">{{ panel.stimulus_question.stimulus_caption }}</p>
+                          {% endif %}
+                          {% if panel.stimulus_question.stimulus_image %}
+                            <img src="{{ panel.stimulus_question.stimulus_image.url }}" alt="Question stimulus" class="max-h-80 w-full rounded-lg border border-slate-700 object-contain" loading="{% if panel.is_active %}eager{% else %}lazy{% endif %}" decoding="async" fetchpriority="{% if panel.is_active %}high{% else %}low{% endif %}">
+                          {% endif %}
+                          {% if panel.stimulus_question.stimulus_video %}
+                            <video controls preload="none" class="mt-2 max-h-80 w-full rounded-lg border border-slate-700 bg-black"><source src="{{ panel.stimulus_question.stimulus_video.url }}"></video>
+                          {% endif %}
+                        </div>
+                      {% endif %}
+                    </div>
+
+                    {% if panel.is_theory_page %}
+                      <div class="mt-4 rounded-xl border border-amber-300 bg-[#fff7e0] p-4 text-sm font-bold text-[#111827]">
+                        Answer this theory question on the supplied answer paper. Nothing is typed into the CBT; theory remains pending until it is marked.
+                      </div>
+                    {% elif panel.question.question_type == "OBJECTIVE" %}
+                      <div class="mt-3 grid gap-2">
+                        {% for option in panel.option_entries %}
+                          <label class="cursor-pointer rounded-xl border border-slate-700 bg-slate-800/60 px-3 py-2.5 hover:border-cyan-400/60">
+                            <span class="flex items-start gap-3">
+                              <input type="radio" name="selected_options" value="{{ option.id }}" data-option-label="{{ option.label }}" class="mt-1 h-4 w-4 text-cyan-400" {% if option.selected %}checked{% endif %}>
+                              <span class="{% if use_jamb_interface %}mock-option-text{% endif %} text-sm text-slate-100" data-math-render="1"><span class="font-semibold text-cyan-200">{{ option.label }}.</span> {{ option.text|cbt_notation }}</span>
+                            </span>
+                          </label>
+                        {% endfor %}
+                      </div>
+                    {% elif panel.question.question_type == "MULTI_SELECT" %}
+                      <div class="mt-3 grid gap-2">
+                        {% for option in panel.option_entries %}
+                          <label class="cursor-pointer rounded-xl border border-slate-700 bg-slate-800/60 px-3 py-2.5 hover:border-cyan-400/60">
+                            <span class="flex items-start gap-3">
+                              <input type="checkbox" name="selected_options" value="{{ option.id }}" data-option-label="{{ option.label }}" class="mt-1 h-4 w-4 text-cyan-400" {% if option.selected %}checked{% endif %}>
+                              <span class="{% if use_jamb_interface %}mock-option-text{% endif %} text-sm text-slate-100" data-math-render="1"><span class="font-semibold text-cyan-200">{{ option.label }}.</span> {{ option.text|cbt_notation }}</span>
+                            </span>
+                          </label>
+                        {% endfor %}
+                      </div>
+                    {% else %}
+                      <div class="mt-3">
+                        <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Answer</label>
+                        <textarea name="response_text" rows="7" class="w-full rounded-2xl border border-slate-600 bg-slate-950 px-3 py-3 text-sm text-white focus:border-cyan-400/70 focus:outline-none">{{ panel.answer.response_text|default_if_none:"" }}</textarea>
+                      </div>
+                    {% endif %}
+                  </form>
+                {% endfor %}
+              </div>
+
+              <div class="secure-action-row {% if use_jamb_interface %}mock-action-row{% endif %} rounded-3xl border border-slate-700 bg-slate-900 p-3">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <div class="flex flex-wrap gap-1.5">
+                    <button type="button" id="prevBtn" class="ndga-btn ndga-btn-secondary !px-3 !py-1.5 !text-xs" {% if active_index <= 1 %}disabled{% endif %}>Previous</button>
+                    <button type="button" id="nextBtn" class="ndga-btn ndga-btn-secondary !px-3 !py-1.5 !text-xs" {% if active_index >= question_count %}disabled{% endif %}>Next</button>
+                    <button type="button" id="reviewBtn" class="ndga-btn ndga-btn-secondary !px-3 !py-1.5 !text-xs">Review</button>
+                    <button type="button" id="moveTheoryBtn" class="ndga-btn !bg-[#082449] !px-3 !py-1.5 !text-xs !text-white hover:!bg-[#0b2f5b] {% if not is_last_objective_page or theory_count <= 0 or theory_stage_unlocked %}hidden{% endif %}">Finish Objective</button>
+                  </div>
+                  <button type="button" id="submitBtn" class="ndga-btn !bg-emerald-600 !px-3 !py-1.5 !text-xs !text-white hover:!bg-emerald-700 {% if theory_count > 0 and not theory_stage_unlocked %}hidden{% endif %}">Submit</button>
+                </div>
+              </div>
+            {% else %}
+              <article class="rounded-3xl border border-slate-700 bg-slate-900 p-5">
+                <h2 class="text-lg font-semibold text-white">Simulation Practical Session</h2>
+                <p class="mt-2 text-sm text-slate-300">This attempt contains simulation practical tasks only.</p>
+                <form id="simulationSubmitForm" method="post" class="mt-4">
+                  {% csrf_token %}
+                  <input type="hidden" name="q" value="1">
+                  <input type="hidden" name="action" value="submit">
+                  <button type="button" id="submitBtn" class="ndga-btn !bg-emerald-600 !text-white hover:!bg-emerald-700">Submit Practical Attempt</button>
+                </form>
+              </article>
+            {% endif %}
+          </div>
+
+          <aside class="secure-sidebar space-y-3 {% if use_jamb_interface %}mx-auto w-full max-w-4xl{% endif %}">
+            {% if has_question_flow %}
+              <article class="secure-sidebar-summary rounded-2xl border border-slate-700 bg-slate-900 p-3">
+                <div class="flex items-center justify-between gap-3">
+                  <div>
+                    <p class="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Section Progress</p>
+                    <p id="objectiveProgressLabel" class="mt-1 text-sm font-black text-white">Objective: {{ objective_answered_count }}/{{ objective_count }} completed</p>
+                    {% if theory_count %}<p id="theoryProgressLabel" class="mt-1 text-sm font-black text-white">Theory: {{ theory_answered_count }}/{{ theory_count }} pending</p>{% endif %}
+                  </div>
+                  <span class="rounded-full bg-emerald-500/15 px-2 py-1 text-[10px] font-black text-emerald-300">SECURE</span>
+                </div>
+                <div class="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-700">
+                  <div id="secureProgressBar" class="h-full rounded-full bg-[#d6a21e] transition-all duration-300" style="width:{% widthratio answered_count question_count 100 %}%"></div>
+                </div>
+                <p id="autosaveNote" class="mt-2 min-h-4 text-xs font-bold text-emerald-300">Autosave ready</p>
+              </article>
+              {% if use_jamb_interface %}
+                <article class="secure-navigator-card mock-navigator-card rounded-3xl border border-slate-700 bg-slate-900 p-3">
+                  {% for group in navigator_groups %}
+                    <div class="mock-nav-group {% if group.label != active_section %}hidden{% endif %}" data-section-nav="{{ group.label }}">
+                      <div class="mock-attempted-label" data-attempted-label="{{ group.label }}" data-total="{{ group.count }}">Attempted {{ group.answered }}/{{ group.count }}</div>
+                      <div class="mock-number-grid mt-1">
+                        {% for item in group.items %}
+                          <a
+                            href="?q={{ item.index }}"
+                            data-jump-index="{{ item.index }}"
+                            data-nav-section="{{ group.label }}"
+                            data-answered="{% if item.answered %}1{% else %}0{% endif %}"
+                            data-flagged="{% if item.flagged %}1{% else %}0{% endif %}"
+                            class="js-nav-item flex items-center justify-center border text-[11px] font-semibold {% if item.is_active %}ring-2 ring-cyan-300{% endif %}"
+                          >{{ item.index }}</a>
+                        {% endfor %}
+                      </div>
+                    </div>
+                  {% endfor %}
+                  <div class="secure-nav-legend mt-3 grid grid-cols-2 gap-2 text-[10px] font-bold text-slate-300">
+                    <span><i data-legend="current"></i>Current</span>
+                    <span><i data-legend="answered"></i>Answered</span>
+                    <span><i data-legend="flagged"></i>Flagged</span>
+                    <span><i data-legend="unanswered"></i>Unanswered</span>
+                  </div>
+                </article>
+              {% else %}
+                <article class="secure-navigator-card rounded-3xl border border-slate-700 bg-slate-900 p-3">
+                  <h3 class="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200">Question Map</h3>
+                  <div class="mt-2 grid grid-cols-5 gap-1.5 sm:grid-cols-6">
+                    {% for item in navigator %}
+                      <a
+                        href="?q={{ item.index }}"
+                        data-jump-index="{{ item.index }}"
+                        data-flagged="{% if item.flagged %}1{% else %}0{% endif %}"
+                        class="js-nav-item flex h-8 items-center justify-center rounded-lg border text-[11px] font-semibold {% if item.is_active %}border-cyan-400 bg-cyan-500/20 text-cyan-100{% elif item.flagged %}border-amber-500 bg-amber-100 text-amber-950{% elif item.answered %}border-emerald-500/70 bg-emerald-500/15 text-emerald-200{% else %}border-slate-600 bg-slate-800 text-slate-300{% endif %}"
+                      >{{ item.index }}</a>
+                    {% endfor %}
+                  </div>
+                  <div class="secure-nav-legend mt-3 grid grid-cols-2 gap-2 text-[10px] font-bold text-slate-300">
+                    <span><i data-legend="current"></i>Current</span>
+                    <span><i data-legend="answered"></i>Answered</span>
+                    <span><i data-legend="flagged"></i>Flagged</span>
+                    <span><i data-legend="unanswered"></i>Unanswered</span>
+                  </div>
+                </article>
+              {% endif %}
+              <article id="answerPadCard" class="rounded-3xl border border-slate-700 bg-slate-900 p-3">
+                <div class="flex items-center justify-between gap-2">
+                  <h3 class="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200">On-Screen Answer Pad</h3>
+                  <span class="rounded-full border border-cyan-500/40 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-semibold text-cyan-100">Keyboard Disabled</span>
+                </div>
+                <p class="mt-2 text-[11px] text-slate-300">Use only the on-screen controls for answering and movement during the exam.</p>
+                <div class="mt-3 grid grid-cols-3 gap-2">
+                  <button type="button" data-answer-pad="A" class="answer-pad-btn rounded-2xl border border-slate-600 bg-slate-800 px-3 py-3 text-sm font-semibold text-slate-100 hover:border-cyan-400/60">A</button>
+                  <button type="button" data-answer-pad="B" class="answer-pad-btn rounded-2xl border border-slate-600 bg-slate-800 px-3 py-3 text-sm font-semibold text-slate-100 hover:border-cyan-400/60">B</button>
+                  <button type="button" data-answer-pad="C" class="answer-pad-btn rounded-2xl border border-slate-600 bg-slate-800 px-3 py-3 text-sm font-semibold text-slate-100 hover:border-cyan-400/60">C</button>
+                  <button type="button" data-answer-pad="D" class="answer-pad-btn rounded-2xl border border-slate-600 bg-slate-800 px-3 py-3 text-sm font-semibold text-slate-100 hover:border-cyan-400/60">D</button>
+                  <button type="button" data-answer-pad="E" class="answer-pad-btn rounded-2xl border border-slate-600 bg-slate-800 px-3 py-3 text-sm font-semibold text-slate-100 hover:border-cyan-400/60">E</button>
+                  <button type="button" id="padClearBtn" class="rounded-2xl border border-rose-500/40 bg-rose-500/10 px-3 py-3 text-sm font-semibold text-rose-100 hover:border-rose-400/60">Clear</button>
+                </div>
+                <div class="mt-3 grid grid-cols-2 gap-2">
+                  <button type="button" id="padPrevBtn" class="rounded-2xl border border-slate-600 bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-100 hover:border-cyan-400/60">Previous</button>
+                  <button type="button" id="padNextBtn" class="rounded-2xl border border-slate-600 bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-100 hover:border-cyan-400/60">Next</button>
+                  <button type="button" id="padTheoryBtn" class="rounded-2xl border border-[#082449] bg-[#082449] px-3 py-2 text-xs font-semibold text-white {% if not is_last_objective_page or theory_count <= 0 or theory_stage_unlocked %}hidden{% endif %}">Finish Objective</button>
+                  <button type="button" id="padSubmitBtn" class="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-100 hover:border-emerald-400/60 {% if theory_count > 0 and not theory_stage_unlocked %}hidden{% endif %}">Submit</button>
+                </div>
+              </article>
+              {% if calculator_enabled %}
+                <article id="examToolCard" data-calculator-mode="{{ calculator_mode }}" style="max-height:min(82vh,27rem);" class="fixed right-3 top-24 z-[70] hidden w-[min(88vw,16.5rem)] overflow-y-auto rounded-xl border border-[#d6a72f]/45 bg-[#0b2545] p-2.5 text-white shadow-2xl">
+                  <div id="calculatorDragHandle" class="flex cursor-move touch-none select-none items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/8 px-2 py-1.5">
+                    <h3 class="text-[11px] font-bold uppercase tracking-[0.12em] text-white">Calculator</h3>
+                    <div class="flex items-center gap-2">
+                      <span class="rounded-full border border-[#d6a72f]/50 bg-[#d6a72f]/15 px-2 py-0.5 text-[10px] font-bold text-[#f7d56f]">{{ calculator_mode }}</span>
+                      <button type="button" id="calculatorCloseBtn" class="flex h-7 w-7 items-center justify-center rounded-full border border-white/15 bg-white/10 text-xs font-bold text-white hover:border-[#d6a72f]" aria-label="Close calculator">X</button>
+                    </div>
+                  </div>
+                  {% if calculator_mode == "GRAPH" and not use_jamb_interface %}
+                    <div class="mt-3 overflow-hidden rounded-2xl border border-slate-700 bg-white">
+                      <div class="flex items-center justify-between border-b border-slate-200 px-3 py-2 text-[11px] font-semibold text-slate-700">
+                        <span>Graph Board</span>
+                        <span>Maths Helper</span>
+                      </div>
+                      <iframe title="Graph Helper" src="{% static 'sims/ndga-graph-practical/index.html' %}" class="h-64 w-full" loading="lazy"></iframe>
+                    </div>
+                  {% endif %}
+                  <div class="mt-2 rounded-lg border border-white/10 bg-white p-2 text-[#0b2545]">
+                    <input id="calcDisplay" type="text" value="" readonly class="w-full rounded-md border border-slate-300 bg-slate-50 px-2 py-1.5 text-right font-mono text-sm font-bold text-slate-950">
+                    <div class="mt-2 grid grid-cols-4 gap-1.5 text-xs">
+                        <button type="button" data-calc-action="clear" class="rounded-md border border-rose-200 bg-rose-50 px-1.5 py-1.5 font-bold text-rose-700">AC</button>
+                        <button type="button" data-calc-action="backspace" class="rounded-md border border-slate-200 bg-slate-100 px-1.5 py-1.5 font-bold text-slate-800">DEL</button>
+                        <button type="button" data-calc-token="(" class="rounded-md border border-slate-200 bg-slate-100 px-1.5 py-1.5 font-bold text-slate-800">(</button>
+                        <button type="button" data-calc-token=")" class="rounded-md border border-slate-200 bg-slate-100 px-1.5 py-1.5 font-bold text-slate-800">)</button>
+                        <button type="button" data-calc-token="7" class="rounded-md border border-slate-200 bg-white px-1.5 py-1.5 font-bold text-slate-950">7</button>
+                        <button type="button" data-calc-token="8" class="rounded-md border border-slate-200 bg-white px-1.5 py-1.5 font-bold text-slate-950">8</button>
+                        <button type="button" data-calc-token="9" class="rounded-md border border-slate-200 bg-white px-1.5 py-1.5 font-bold text-slate-950">9</button>
+                        <button type="button" data-calc-token="/" class="rounded-md border border-[#d6a72f]/50 bg-[#fff7db] px-1.5 py-1.5 font-bold text-[#0b2545]">/</button>
+                        <button type="button" data-calc-token="4" class="rounded-md border border-slate-200 bg-white px-1.5 py-1.5 font-bold text-slate-950">4</button>
+                        <button type="button" data-calc-token="5" class="rounded-md border border-slate-200 bg-white px-1.5 py-1.5 font-bold text-slate-950">5</button>
+                        <button type="button" data-calc-token="6" class="rounded-md border border-slate-200 bg-white px-1.5 py-1.5 font-bold text-slate-950">6</button>
+                        <button type="button" data-calc-token="*" class="rounded-md border border-[#d6a72f]/50 bg-[#fff7db] px-1.5 py-1.5 font-bold text-[#0b2545]">*</button>
+                        <button type="button" data-calc-token="1" class="rounded-md border border-slate-200 bg-white px-1.5 py-1.5 font-bold text-slate-950">1</button>
+                        <button type="button" data-calc-token="2" class="rounded-md border border-slate-200 bg-white px-1.5 py-1.5 font-bold text-slate-950">2</button>
+                        <button type="button" data-calc-token="3" class="rounded-md border border-slate-200 bg-white px-1.5 py-1.5 font-bold text-slate-950">3</button>
+                        <button type="button" data-calc-token="-" class="rounded-md border border-[#d6a72f]/50 bg-[#fff7db] px-1.5 py-1.5 font-bold text-[#0b2545]">-</button>
+                        <button type="button" data-calc-token="0" class="rounded-md border border-slate-200 bg-white px-1.5 py-1.5 font-bold text-slate-950">0</button>
+                        <button type="button" data-calc-token="." class="rounded-md border border-slate-200 bg-white px-1.5 py-1.5 font-bold text-slate-950">.</button>
+                        <button type="button" data-calc-action="evaluate" class="rounded-md border border-emerald-200 bg-emerald-50 px-1.5 py-1.5 font-bold text-emerald-700">=</button>
+                        <button type="button" data-calc-token="+" class="rounded-md border border-[#d6a72f]/50 bg-[#fff7db] px-1.5 py-1.5 font-bold text-[#0b2545]">+</button>
+                      </div>
+                    <p id="calcStatus" class="mt-1.5 text-[10px] font-bold text-slate-500">Ready.</p>
+                  </div>
+                </article>
+              {% endif %}
+            {% endif %}
+          </aside>
+        </div>
+      </article>
+    </div>
+
+    <div id="securityWarningModal" class="cbt-security-toast hidden" role="alert" aria-live="assertive">
+      <div class="absolute inset-0 bg-[#061a33]/75 backdrop-blur-sm"></div>
+      <div class="relative mx-auto mt-[18vh] w-[92%] max-w-md rounded-2xl border border-red-200 bg-white p-5 text-[#111827] shadow-2xl">
+        <div class="flex items-start gap-3">
+          <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-red-100 text-xl text-red-700" aria-hidden="true">!</div>
+          <div>
+            <p class="text-[10px] font-black uppercase tracking-[0.16em] text-red-700">Warning <span id="securityWarningCountText">1 of 2</span></p>
+            <h2 id="securityWarningTitle" class="mt-1 text-lg font-black text-[#111827]">Exam Security Warning</h2>
+            <p id="securityWarningMessage" class="mt-2 text-sm font-semibold leading-relaxed text-slate-700">Microphone noise detected.</p>
+            <p class="mt-2 text-xs font-black text-red-700">Consequence: a third microphone flag locks this attempt and signs you out for IT review.</p>
+          </div>
+        </div>
+        <button type="button" id="securityWarningAckBtn" class="mt-5 w-full rounded-xl bg-[#082449] px-4 py-2.5 text-sm font-black text-white hover:bg-[#0b2f5b]">I Understand</button>
+      </div>
+    </div>
+    <div id="reviewModal" class="fixed inset-0 z-[85] hidden"><div class="absolute inset-0 bg-slate-950/60"></div><div class="relative mx-auto mt-16 w-[94%] max-w-2xl rounded-3xl border border-slate-700 bg-slate-900 p-5 text-slate-100 shadow-2xl"><h2 class="text-lg font-semibold text-white">Attempt Review</h2><p class="mt-1 text-sm text-slate-300">Jump to any question before final submission.</p><div class="mt-4 grid grid-cols-4 gap-2 sm:grid-cols-6">{% for item in navigator %}<a href="?q={{ item.index }}" data-jump-index="{{ item.index }}" class="js-nav-item flex h-9 items-center justify-center rounded-xl border text-xs font-semibold {% if item.answered %}border-emerald-500/70 bg-emerald-500/15 text-emerald-200{% else %}border-slate-600 bg-slate-800 text-slate-300{% endif %}">{{ item.index }}</a>{% endfor %}</div><div class="mt-5 flex justify-end gap-2"><button type="button" id="closeReviewBtn" class="ndga-btn ndga-btn-secondary">Close</button></div></div></div>
+    <div id="submitModal" class="fixed inset-0 z-[87] hidden">
+      <div class="absolute inset-0 bg-[#061a33]/75 backdrop-blur-sm"></div>
+      <div class="relative mx-auto mt-[14vh] w-[92%] max-w-md rounded-2xl border border-[#d9e2ef] bg-white p-5 text-[#111827] shadow-2xl">
+        <p class="text-[10px] font-black uppercase tracking-[0.16em] text-[#9a6700]">Final Submission</p>
+        <h2 class="mt-1 text-xl font-black text-[#082449]">Submit this examination?</h2>
+        <div class="submit-summary-grid mt-4 grid grid-cols-2 gap-2">
+          <div><p class="text-[10px] font-black uppercase text-slate-500">Objective answered</p><p id="submitAnsweredCount" class="mt-1 text-xl font-black text-emerald-700">0</p></div>
+          <div><p class="text-[10px] font-black uppercase text-slate-500">Objective unanswered</p><p id="submitUnansweredCount" class="mt-1 text-xl font-black text-red-700">0</p></div>
+          <div><p class="text-[10px] font-black uppercase text-slate-500">Flagged</p><p id="submitFlaggedCount" class="mt-1 text-xl font-black text-amber-700">0</p></div>
+          <div><p class="text-[10px] font-black uppercase text-slate-500">Time remaining</p><p id="submitTimeRemaining" class="mt-1 text-base font-black text-[#082449]">00:00:00</p></div>
+        </div>
+        <p class="mt-4 text-xs font-semibold text-slate-600">Submission is final. Objective answers are marked immediately; theory remains pending where applicable.</p>
+        <div class="mt-5 flex justify-end gap-2">
+          <button type="button" id="cancelSubmitBtn" class="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-black text-[#082449] hover:bg-slate-50">Back To Review</button>
+          <button type="button" id="confirmSubmitBtn" class="rounded-xl bg-[#082449] px-4 py-2.5 text-sm font-black text-white hover:bg-[#0b2f5b]">Final Submit</button>
+        </div>
+      </div>
+    </div>
+    <div id="mockReportModal" class="fixed inset-0 z-[88] hidden">
+      <div class="absolute inset-0 bg-slate-950/60"></div>
+      <div class="relative mx-auto mt-24 w-[92%] max-w-md rounded-xl border border-slate-200 bg-white p-5 text-slate-950 shadow-2xl">
+        <h2 class="text-base font-bold text-slate-950">Report Question Error</h2>
+        <p class="mt-1 text-sm text-slate-600">Tell the invigilator what is wrong with the current question.</p>
+        <textarea id="mockReportText" rows="4" class="mt-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-950 focus:border-[#d6a72f] focus:outline-none" placeholder="Example: option is missing, diagram is unclear, or formula did not show."></textarea>
+        <p id="mockReportStatus" class="mt-2 text-xs font-semibold text-slate-600"></p>
+        <div class="mt-5 flex justify-end gap-2">
+          <button type="button" id="mockReportCloseBtn" class="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700">Close</button>
+          <button type="button" id="mockReportSendBtn" class="rounded-lg bg-[#0b2545] px-3 py-2 text-sm font-semibold text-white">Send Report</button>
+        </div>
+      </div>
+    </div>
+    <div id="mockDictionaryModal" class="fixed inset-0 z-[88] hidden">
+      <div class="absolute inset-0 bg-slate-950/60"></div>
+      <div class="relative mx-auto mt-24 w-[92%] max-w-md rounded-xl border border-slate-200 bg-white p-5 text-slate-950 shadow-2xl">
+        <h2 class="text-base font-bold text-slate-950">Dictionary</h2>
+        <p class="mt-1 text-sm text-slate-600">Type a science or exam word for a quick meaning.</p>
+        <input id="mockDictionaryInput" type="text" class="mt-4 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-950 focus:border-[#d6a72f] focus:outline-none" placeholder="Search word">
+        <div id="mockDictionaryResult" class="mt-3 min-h-16 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-800">Enter a word and press Search.</div>
+        <div class="mt-5 flex justify-end gap-2">
+          <button type="button" id="mockDictionaryCloseBtn" class="rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700">Close</button>
+          <button type="button" id="mockDictionarySearchBtn" class="rounded-lg bg-[#0b2545] px-3 py-2 text-sm font-semibold text-white">Search</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    (function () {
+      const root = document.getElementById("cbtAttemptApp");
+      if (!root) return;
+
+      const themeToggle = document.getElementById("cbtThemeToggle");
+      const themeStorageKey = "ndga-cbt-theme";
+
+      function applyCbtTheme(theme) {
+        const useLight = theme === "light";
+        root.classList.toggle("mock-practice-theme", useLight);
+        root.classList.toggle("cbt-dark-theme", !useLight);
+        document.body.classList.toggle("bg-slate-50", useLight);
+        document.body.classList.toggle("bg-slate-950", !useLight);
+        if (themeToggle) {
+          themeToggle.innerHTML = useLight
+            ? '<svg aria-hidden="true" width="19" height="19" viewBox="0 0 24 24" fill="none"><path d="M20 15.5A8.5 8.5 0 0 1 8.5 4 8.5 8.5 0 1 0 20 15.5Z" stroke="currentColor" stroke-width="2"/></svg>'
+            : '<svg aria-hidden="true" width="19" height="19" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="2"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M19 5l-1.5 1.5m-11 11L5 19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+          themeToggle.title = useLight ? "Use dark colour mode" : "Use light colour mode";
+          themeToggle.setAttribute("aria-label", themeToggle.title);
+          themeToggle.setAttribute("aria-pressed", useLight ? "true" : "false");
+        }
+      }
+
+      let savedTheme = "light";
+      try {
+        const storedTheme = window.localStorage.getItem(themeStorageKey);
+        savedTheme = storedTheme === "dark" ? "dark" : "light";
+      } catch (_error) {
+        savedTheme = "light";
+      }
+      applyCbtTheme(savedTheme);
+      if (themeToggle) {
+        themeToggle.addEventListener("click", function () {
+          const nextTheme = root.classList.contains("mock-practice-theme") ? "dark" : "light";
+          applyCbtTheme(nextTheme);
+          try {
+            window.localStorage.setItem(themeStorageKey, nextTheme);
+          } catch (_error) {
+            return null;
+          }
+        });
+      }
+
+      const lockOn = root.dataset.lockdownEnabled === "1";
+      const hbUrl = root.dataset.heartbeatUrl;
+      const warningUrl = root.dataset.warningUrl;
+      const resultUrl = root.dataset.resultUrl;
+      const warningLimit = Math.max(parseInt(root.dataset.warningLimit || "3", 10), 1);
+      const warningAllowance = Math.max(warningLimit - 1, 1);
+      const microphoneRequired = root.dataset.microphoneRequired === "1";
+      const browserBreachDetection = root.dataset.browserBreachDetection === "1";
+      let timerPaused = root.dataset.timerPaused === "1";
+      const isMockPractice = root.dataset.mockPractice === "1";
+      const hbSeconds = Math.max(parseInt(root.dataset.heartbeatSeconds || "8", 10), 3);
+      const idleSeconds = Math.max(parseInt(root.dataset.inactivitySeconds || "45", 10), 15);
+
+      const questionCount = Math.max(parseInt(root.dataset.questionCount || "0", 10), 0);
+      const objectiveCount = Math.max(parseInt(root.dataset.objectiveCount || "0", 10), 0);
+      const theoryCount = Math.max(parseInt(root.dataset.theoryCount || "0", 10), 0);
+      const paperTheoryMode = String(root.dataset.theoryResponseMode || "").toUpperCase() === "PAPER";
+      let theoryUnlocked = root.dataset.theoryStageUnlocked === "1";
+      let activeIndex = Math.max(parseInt(root.dataset.activeIndex || "1", 10), 1);
+
+      const gate = document.getElementById("cbtGate");
+      const runWrap = document.getElementById("cbtRunWrap");
+      const beginBtn = document.getElementById("cbtBeginBtn");
+      const gateErr = document.getElementById("cbtGateError");
+      const gateStatusText = document.getElementById("gateStatusText");
+      const audioMonitor = document.getElementById("cbtAudioMonitorCompact");
+      const audioStatusText = document.getElementById("cbtAudioStatusText");
+      const audioBars = Array.from(document.querySelectorAll(".cbt-audio-bar"));
+      const audioBlocker = document.getElementById("cbtAudioBlocker");
+      const restoreAudioBtn = document.getElementById("cbtRestoreAudioBtn");
+      const restoreAudioError = document.getElementById("cbtRestoreAudioError");
+      const timerNode = document.getElementById("timerPill");
+      const mockTimerProxy = document.querySelector("[data-mock-timer-proxy]");
+      const mockSubmitProxy = document.querySelector("[data-mock-submit-proxy]");
+      const autosaveNote = document.getElementById("autosaveNote");
+      const warningCountNode = document.getElementById("warningCount");
+      const warningHelpText = document.getElementById("warningHelpText");
+      const examProgressLabel = document.getElementById("examProgressLabel");
+      const examProgressBar = document.getElementById("examProgressBar");
+      const objectiveProgressLabel = document.getElementById("objectiveProgressLabel");
+      const theoryProgressLabel = document.getElementById("theoryProgressLabel");
+      const secureProgressBar = document.getElementById("secureProgressBar");
+      const timerStateBadge = document.getElementById("timerStateBadge");
+      const phasePill = document.getElementById("phasePill");
+      const commandQuestionIndex = document.getElementById("commandQuestionIndex");
+      const invigilatorBadge = document.getElementById("invigilatorBadge");
+      const securityWarningModal = document.getElementById("securityWarningModal");
+      const securityWarningTitle = document.getElementById("securityWarningTitle");
+      const securityWarningMessage = document.getElementById("securityWarningMessage");
+      const securityWarningCountText = document.getElementById("securityWarningCountText");
+      const securityWarningAckBtn = document.getElementById("securityWarningAckBtn");
+
+      const deck = document.getElementById("questionDeck");
+      const questionPanels = deck ? Array.from(deck.querySelectorAll(".attempt-question-panel")) : [];
+      const hasQuestionFlow = questionPanels.length > 0;
+
+      const prevBtn = document.getElementById("prevBtn");
+      const nextBtn = document.getElementById("nextBtn");
+      const reviewBtn = document.getElementById("reviewBtn");
+      const flagReviewBtn = null;
+      const closeReviewBtn = document.getElementById("closeReviewBtn");
+      const reviewModal = document.getElementById("reviewModal");
+      const submitBtn = document.getElementById("submitBtn");
+      const commandSubmitBtn = document.getElementById("commandSubmitBtn");
+      const cbtRefreshBtn = document.getElementById("cbtRefreshBtn");
+      const submitModal = document.getElementById("submitModal");
+      const submitAnsweredCount = document.getElementById("submitAnsweredCount");
+      const submitUnansweredCount = document.getElementById("submitUnansweredCount");
+      const submitFlaggedCount = document.getElementById("submitFlaggedCount");
+      const submitTimeRemaining = document.getElementById("submitTimeRemaining");
+      const moveTheoryBtn = document.getElementById("moveTheoryBtn");
+      const answerPadCard = document.getElementById("answerPadCard");
+      const answerPadButtons = Array.from(document.querySelectorAll("[data-answer-pad]"));
+      const padPrevBtn = document.getElementById("padPrevBtn");
+      const padNextBtn = document.getElementById("padNextBtn");
+      const padTheoryBtn = document.getElementById("padTheoryBtn");
+      const padSubmitBtn = document.getElementById("padSubmitBtn");
+      const padClearBtn = document.getElementById("padClearBtn");
+      const cancelSubmitBtn = document.getElementById("cancelSubmitBtn");
+      const confirmSubmitBtn = document.getElementById("confirmSubmitBtn");
+      const practicalSubmitForm = document.getElementById("simulationSubmitForm");
+      const calculatorToggleBtn = document.getElementById("calculatorToggleBtn");
+      const calculatorCloseBtn = document.getElementById("calculatorCloseBtn");
+      const calculatorDragHandle = document.getElementById("calculatorDragHandle");
+      const examToolCard = document.getElementById("examToolCard");
+      const mockToolButtons = Array.from(document.querySelectorAll("[data-mock-tool]"));
+      const mockReportModal = document.getElementById("mockReportModal");
+      const mockReportText = document.getElementById("mockReportText");
+      const mockReportStatus = document.getElementById("mockReportStatus");
+      const mockReportCloseBtn = document.getElementById("mockReportCloseBtn");
+      const mockReportSendBtn = document.getElementById("mockReportSendBtn");
+      const mockDictionaryModal = document.getElementById("mockDictionaryModal");
+      const mockDictionaryInput = document.getElementById("mockDictionaryInput");
+      const mockDictionaryResult = document.getElementById("mockDictionaryResult");
+      const mockDictionaryCloseBtn = document.getElementById("mockDictionaryCloseBtn");
+      const mockDictionarySearchBtn = document.getElementById("mockDictionarySearchBtn");
+      const fallbackCsrfNode = document.querySelector("input[name='csrfmiddlewaretoken']");
+      const fallbackCsrfToken = fallbackCsrfNode ? fallbackCsrfNode.value || "" : "";
+
+      const attemptKey = root.dataset.attemptId || "0";
+      const tokenKey = "ndga_cbt_tab_token_" + attemptKey;
+      const startedKey = "ndga_cbt_started_" + attemptKey;
+      let token = sessionStorage.getItem(tokenKey);
+      if (!token) {
+        token = Date.now() + "-" + Math.random().toString(36).slice(2);
+        sessionStorage.setItem(tokenKey, token);
+      }
+
+      let started = sessionStorage.getItem(startedKey) === "1";
+      let violationSent = false;
+      let autosaveBusy = false;
+      let autosaveDirty = false;
+      let warningBusy = false;
+      let warningCount = Math.max(
+        parseInt(root.dataset.manualAudioWarningCount || "0", 10),
+        0
+      );
+      let lastActivity = Date.now();
+      let seconds = parseInt("{{ remaining_seconds|default:0 }}", 10) || 0;
+      let suppressViolation = false;
+      let startedAt = 0;
+      let timeoutSubmitTriggered = false;
+      let isSubmitting = false;
+      let navBusy = false;
+      let autosaveDelayTimer = 0;
+      let questionShownAt = Date.now();
+      let microphoneStream = null;
+      let microphoneContext = null;
+      let microphoneAnalyser = null;
+      let microphoneAnimationFrame = 0;
+      let microphoneStopping = false;
+      let lastAudioPaintAt = 0;
+      let loudAudioStartedAt = 0;
+      let lastAudioSpikeEvidenceAt = 0;
+      let audioNoiseResetTimer = 0;
+      let lastBreachWarningAt = 0;
+      let securityToastTimer = 0;
+      const answeredQuestionIndexes = new Set(
+        Array.from(document.querySelectorAll(".js-nav-item[data-answered='1']"))
+          .map((node) => parseInt(node.getAttribute("data-jump-index") || "0", 10))
+          .filter((value) => value > 0)
+      );
+
+      function hhmmss(value) {
+        const total = Math.max(value, 0);
+        const hours = Math.floor(total / 3600);
+        const minutes = Math.floor((total % 3600) / 60);
+        const secs = total % 60;
+        return String(hours).padStart(2, "0") + ":" + String(minutes).padStart(2, "0") + ":" + String(secs).padStart(2, "0");
+      }
+
+      function paintTimer() {
+        if (timerNode) {
+          timerNode.textContent = hhmmss(seconds);
+        }
+        if (mockTimerProxy) {
+          mockTimerProxy.textContent = hhmmss(seconds);
+        }
+      }
+
+      function openSubmitModal() {
+        if (!submitModal) return;
+        const answered = Array.from(answeredQuestionIndexes).filter(function (value) {
+          return value <= objectiveCount;
+        }).length;
+        const flagged = document.querySelectorAll(".attempt-question-panel[data-flagged='1']").length;
+        if (submitAnsweredCount) submitAnsweredCount.textContent = String(answered);
+        if (submitUnansweredCount) submitUnansweredCount.textContent = String(Math.max(objectiveCount - answered, 0));
+        if (submitFlaggedCount) submitFlaggedCount.textContent = String(flagged);
+        if (submitTimeRemaining) submitTimeRemaining.textContent = hhmmss(seconds);
+        submitModal.classList.remove("hidden");
+      }
+
+      function setAutoMessage(message, ok) {
+        if (!autosaveNote) return;
+        autosaveNote.textContent = message || "";
+        autosaveNote.className = "mt-2 text-center text-xs font-semibold " + (ok ? "text-emerald-200" : "text-rose-300");
+      }
+
+      function xhrRequest(url, method, headers, body) {
+        return new Promise(function (resolve, reject) {
+          const request = new XMLHttpRequest();
+          request.open(method, url, true);
+          Object.keys(headers || {}).forEach(function (key) {
+            request.setRequestHeader(key, headers[key]);
+          });
+          request.onreadystatechange = function () {
+            if (request.readyState !== 4) return;
+            resolve({
+              ok: request.status >= 200 && request.status < 300,
+              status: request.status,
+              url: request.responseURL || url,
+              text: function () {
+                return Promise.resolve(request.responseText || "");
+              },
+              json: function () {
+                try {
+                  return Promise.resolve(JSON.parse(request.responseText || "{}"));
+                } catch (_error) {
+                  return Promise.resolve({});
+                }
+              },
+            });
+          };
+          request.onerror = function () {
+            reject(new Error("request_failed"));
+          };
+          request.timeout = 8000;
+          request.ontimeout = function () {
+            reject(new Error("request_timeout"));
+          };
+          request.send(body);
+        });
+      }
+
+      function postJson(url, payload, csrfToken) {
+        return xhrRequest(
+          url,
+          "POST",
+          {
+            "X-Requested-With": "XMLHttpRequest",
+            "X-CSRFToken": csrfToken || "",
+            "Content-Type": "application/json",
+          },
+          JSON.stringify(payload || {})
+        );
+      }
+
+      function clampIndex(index) {
+        const maxValue = Math.max(questionCount, 1);
+        return Math.max(1, Math.min(index, maxValue));
+      }
+
+      function getPanelByIndex(index) {
+        const target = clampIndex(index);
+        return questionPanels.find((row) => parseInt(row.dataset.index || "0", 10) === target) || null;
+      }
+
+      function getActivePanel() {
+        return getPanelByIndex(activeIndex);
+      }
+
+      function getCsrfToken(formNode) {
+        if (!formNode) return fallbackCsrfToken;
+        const csrfNode = formNode.querySelector("input[name='csrfmiddlewaretoken']");
+        return (csrfNode ? csrfNode.value || "" : "") || fallbackCsrfToken;
+      }
+
+      function updateNavHighlights() {
+        document.querySelectorAll(".js-nav-item").forEach((node) => {
+          const index = parseInt(node.getAttribute("data-jump-index") || "0", 10);
+          const active = index === activeIndex;
+          node.classList.toggle("ring-2", active);
+          node.classList.toggle("ring-cyan-300", active);
+          node.classList.toggle("is-current", active);
+        });
+        const panel = getActivePanel();
+        const activeSection = panel ? panel.dataset.section || "" : "";
+        document.querySelectorAll("[data-section-tab]").forEach((node) => {
+          const isActive = node.getAttribute("data-section-tab") === activeSection;
+          node.classList.toggle("is-active", isActive);
+          node.style.display = "inline-flex";
+          node.style.opacity = "1";
+          node.style.visibility = "visible";
+        });
+        document.querySelectorAll("[data-section-nav]").forEach((node) => {
+          node.classList.toggle("hidden", node.getAttribute("data-section-nav") !== activeSection);
+        });
+      }
+
+      function updateControlState() {
+        if (prevBtn) prevBtn.disabled = activeIndex <= 1;
+        if (nextBtn) {
+          const disableNext =
+            activeIndex >= questionCount ||
+            (objectiveCount > 0 && theoryCount > 0 && !theoryUnlocked && activeIndex >= objectiveCount);
+          nextBtn.disabled = disableNext;
+        }
+        if (moveTheoryBtn) {
+          const showMoveTheory = objectiveCount > 0 && theoryCount > 0 && !theoryUnlocked && activeIndex === objectiveCount;
+          moveTheoryBtn.classList.toggle("hidden", !showMoveTheory);
+        }
+      }
+
+      function setNavigationBusy(isBusy) {
+        navBusy = !!isBusy;
+        if (prevBtn) prevBtn.disabled = navBusy || activeIndex <= 1;
+        if (nextBtn) {
+          const disableNext =
+            activeIndex >= questionCount ||
+            (objectiveCount > 0 && theoryCount > 0 && !theoryUnlocked && activeIndex >= objectiveCount);
+          nextBtn.disabled = navBusy || disableNext;
+        }
+        if (reviewBtn) reviewBtn.disabled = navBusy;
+        if (moveTheoryBtn) moveTheoryBtn.disabled = navBusy || moveTheoryBtn.classList.contains("hidden");
+        if (submitBtn) submitBtn.disabled = navBusy;
+        if (padPrevBtn) padPrevBtn.disabled = navBusy || activeIndex <= 1;
+        if (padNextBtn) {
+          const disableNext =
+            activeIndex >= questionCount ||
+            (objectiveCount > 0 && theoryCount > 0 && !theoryUnlocked && activeIndex >= objectiveCount);
+          padNextBtn.disabled = navBusy || disableNext;
+        }
+        if (padTheoryBtn) padTheoryBtn.disabled = navBusy || padTheoryBtn.classList.contains("hidden");
+        if (padSubmitBtn) padSubmitBtn.disabled = navBusy || !hasQuestionFlow;
+        document.querySelectorAll("[data-jump-index]").forEach((node) => {
+          if (node.hasAttribute("data-section-tab")) {
+            return;
+          }
+          if (navBusy) {
+            node.classList.add("pointer-events-none", "opacity-60");
+            node.setAttribute("aria-disabled", "true");
+          } else {
+            node.classList.remove("pointer-events-none", "opacity-60");
+            node.removeAttribute("aria-disabled");
+          }
+        });
+      }
+
+      function setAnswerPadButtonState(button, selected) {
+        if (!button) return;
+        button.classList.toggle("border-cyan-400/70", selected);
+        button.classList.toggle("bg-cyan-500/20", selected);
+        button.classList.toggle("text-cyan-100", selected);
+        button.classList.toggle("border-slate-600", !selected);
+        button.classList.toggle("bg-slate-800", !selected);
+        button.classList.toggle("text-slate-100", !selected);
+      }
+
+      function syncAnswerPad() {
+        if (!answerPadCard) return;
+        const panel = getActivePanel();
+        const questionType = panel ? String(panel.dataset.questionType || "").toUpperCase() : "";
+        const objectivePanel = questionType === "OBJECTIVE" || questionType === "MULTI_SELECT";
+        answerPadButtons.forEach(function (button) {
+          const label = button.getAttribute("data-answer-pad");
+          const input = objectivePanel && panel
+            ? panel.querySelector("input[name='selected_options'][data-option-label='" + label + "']")
+            : null;
+          const visible = !!input;
+          button.classList.toggle("hidden", !visible);
+          button.disabled = !visible;
+          button.classList.toggle("opacity-50", !visible);
+          setAnswerPadButtonState(button, !!(input && input.checked));
+        });
+        if (padPrevBtn) {
+          const disablePrev = activeIndex <= 1;
+          padPrevBtn.disabled = disablePrev;
+          padPrevBtn.classList.toggle("opacity-50", disablePrev);
+        }
+        if (padNextBtn) {
+          const disableNext =
+            activeIndex >= questionCount ||
+            (objectiveCount > 0 && theoryCount > 0 && !theoryUnlocked && activeIndex >= objectiveCount);
+          padNextBtn.disabled = disableNext;
+          padNextBtn.classList.toggle("opacity-50", disableNext);
+        }
+        if (padTheoryBtn) {
+          const showMoveTheory = objectiveCount > 0 && theoryCount > 0 && !theoryUnlocked && activeIndex === objectiveCount;
+          padTheoryBtn.classList.toggle("hidden", !showMoveTheory);
+          padTheoryBtn.disabled = !showMoveTheory;
+          padTheoryBtn.classList.toggle("opacity-50", !showMoveTheory);
+        }
+        if (padSubmitBtn) {
+          padSubmitBtn.disabled = !hasQuestionFlow;
+        }
+        if (padClearBtn) {
+          const clearVisible = objectivePanel;
+          padClearBtn.classList.toggle("hidden", !clearVisible);
+          padClearBtn.disabled = !clearVisible;
+          padClearBtn.classList.toggle("opacity-50", !clearVisible);
+        }
+      }
+
+      function clearObjectiveSelection(panel) {
+        if (!panel) return false;
+        const optionInputs = Array.from(panel.querySelectorAll("input[name='selected_options']"));
+        if (!optionInputs.length) return false;
+        let changed = false;
+        optionInputs.forEach(function (input) {
+          if (input.checked) {
+            input.checked = false;
+            changed = true;
+          }
+        });
+        if (changed) {
+          markPanelAnswered(activeIndex, false);
+          syncAnswerPad();
+          autosaveDirty = true;
+          setAutoMessage("Cleared. Press Next to save.", true);
+        }
+        return changed;
+      }
+
+      function showQuestion(index) {
+        if (!hasQuestionFlow) return;
+        activeIndex = clampIndex(index);
+        if (commandQuestionIndex) commandQuestionIndex.textContent = activeIndex;
+        if (window.history && window.history.replaceState) {
+          window.history.replaceState(null, "", window.location.pathname + "?q=" + activeIndex);
+        }
+        const requestedPanel = getPanelByIndex(activeIndex);
+        const showCompletePaperTheory = !!(
+          paperTheoryMode
+          && requestedPanel
+          && requestedPanel.dataset.theoryPage === "1"
+        );
+        questionPanels.forEach((panel) => {
+          const panelIndex = parseInt(panel.dataset.index || "0", 10);
+          const visible = showCompletePaperTheory
+            ? panel.dataset.theoryPage === "1"
+            : panelIndex === activeIndex;
+          panel.classList.toggle("hidden", !visible);
+        });
+        updateNavHighlights();
+        updateControlState();
+        updatePhaseUi();
+        syncAnswerPad();
+        if (flagReviewBtn) {
+          const activePanel = getActivePanel();
+          flagReviewBtn.textContent = activePanel && activePanel.dataset.flagged === "1"
+            ? "Remove Review Flag"
+            : "Flag for Review";
+        }
+        ensureQuestionTextVisible(getActivePanel());
+        questionShownAt = Date.now();
+        if (started) {
+          const activePanel = getActivePanel();
+          recordEvidence("QUESTION_OPENED", {
+            question_index: activeIndex,
+            section: activePanel ? activePanel.dataset.section || "" : "",
+          });
+        }
+      }
+
+      function ensureQuestionTextVisible(panel) {
+        if (!panel) return;
+        const questionText = panel.querySelector("[data-question-fallback]");
+        const fallbackNode = panel.querySelector("[data-question-fallback-target]");
+        if (!questionText || !fallbackNode) return;
+        const visibleText = (questionText.textContent || "").replace(/\s+/g, " ").trim();
+        const fallbackText = (questionText.getAttribute("data-question-fallback") || "").trim();
+        if (!visibleText && fallbackText) {
+          fallbackNode.textContent = fallbackText;
+          fallbackNode.classList.remove("hidden");
+          questionText.classList.add("hidden");
+        } else {
+          fallbackNode.classList.add("hidden");
+          fallbackNode.textContent = "";
+          questionText.classList.remove("hidden");
+        }
+      }
+
+      function buildFormData(action, extraData) {
+        const panel = getActivePanel();
+        return buildFormDataFromPanel(panel, activeIndex, action, extraData);
+      }
+
+      function buildFormDataFromPanel(panel, index, action, extraData) {
+        if (!panel) return null;
+        const payload = new FormData(panel);
+        payload.delete("selected_options");
+        panel.querySelectorAll("input[name='selected_options']:checked").forEach(function (input) {
+          payload.append("selected_options", input.value);
+        });
+        payload.set("q", String(index));
+        payload.set("action", action);
+        if (extraData) {
+          Object.keys(extraData).forEach((key) => {
+            payload.set(key, String(extraData[key]));
+          });
+        }
+        return payload;
+      }
+
+      function syncSubmitFallback(action, extraData) {
+        const panel = getActivePanel();
+        const payload = buildFormData(action, extraData);
+        if (!panel || !payload) return false;
+        suppressViolation = true;
+        isSubmitting = action === "submit";
+        panel.querySelectorAll(".fallback-extra-input").forEach(function (node) {
+          node.remove();
+        });
+        if (extraData) {
+          Object.keys(extraData).forEach(function (key) {
+            const input = document.createElement("input");
+            input.type = "hidden";
+            input.name = key;
+            input.value = String(extraData[key]);
+            input.className = "fallback-extra-input";
+            panel.appendChild(input);
+          });
+        }
+        const actionNode = panel.querySelector(".attempt-action-input");
+        if (actionNode) {
+          actionNode.value = action;
+        }
+        panel.submit();
+        return true;
+      }
+
+      async function ajaxAction(action, extraData) {
+        const panel = getActivePanel();
+        const payload = buildFormData(action, extraData);
+        return ajaxActionForPayload(action, extraData, panel, payload, activeIndex);
+      }
+
+      async function ajaxActionForPayload(action, extraData, panel, payload, index) {
+        if (!panel || !payload) {
+          return { ok: false, error: "No active question." };
+        }
+        const csrfToken = getCsrfToken(panel);
+        try {
+          const response = await xhrRequest(
+            window.location.pathname + "?q=" + index,
+            "POST",
+            {
+              "X-Requested-With": "XMLHttpRequest",
+              "X-CSRFToken": csrfToken,
+            },
+            payload
+          );
+          const data = await response.json().catch(() => ({}));
+          const responseUrl = String(response.url || "");
+          if (responseUrl.indexOf("/auth/login/") !== -1 || (response.ok && typeof data.ok === "undefined")) {
+            if (action === "save_stay") {
+              return { ok: false, error: "Session needs refresh. Please reopen the CBT page." };
+            }
+            if (syncSubmitFallback(action, extraData)) {
+              return { ok: true, fallback: true };
+            }
+            return { ok: false, error: "Session needs refresh. Please reopen the CBT page." };
+          }
+          if (!response.ok && !data.ok) {
+            return { ok: false, error: data.error || "Request failed." };
+          }
+          return data;
+        } catch (_error) {
+          if (action === "save_stay") {
+            return { ok: false, error: "Autosave is retrying. Use Next to save and move." };
+          }
+          if (syncSubmitFallback(action, extraData)) {
+            return { ok: true, fallback: true };
+          }
+          return { ok: false, error: "Network error while saving." };
+        }
+      }
+
+      function isPanelAnswered(panel) {
+        if (!panel) return false;
+        const checkedOptions = panel.querySelectorAll("input[name='selected_options']:checked");
+        if (checkedOptions.length > 0) return true;
+        const responseTextNode = panel.querySelector("textarea[name='response_text']");
+        const textValue = ((responseTextNode ? responseTextNode.value : "") || "").trim();
+        return textValue.length > 0;
+      }
+
+      function updateAttemptedCounters() {
+        document.querySelectorAll("[data-attempted-label]").forEach(function (labelNode) {
+          const section = labelNode.getAttribute("data-attempted-label") || "";
+          const total = parseInt(labelNode.getAttribute("data-total") || "0", 10) || 0;
+          const answered = document.querySelectorAll("[data-nav-section='" + section.replace(/'/g, "\\'") + "'][data-answered='1']").length;
+          labelNode.textContent = "Attempted " + answered + "/" + total;
+        });
+      }
+
+      function markPanelAnswered(index, answered) {
+        if (answered) {
+          answeredQuestionIndexes.add(index);
+        } else {
+          answeredQuestionIndexes.delete(index);
+        }
+        document.querySelectorAll(".js-nav-item").forEach((node) => {
+          const nodeIndex = parseInt(node.getAttribute("data-jump-index") || "0", 10);
+          if (nodeIndex !== index) return;
+          if (node.hasAttribute("data-section-tab")) {
+            return;
+          }
+          node.setAttribute("data-answered", answered ? "1" : "0");
+          node.classList.remove(
+            "border-slate-600",
+            "bg-slate-800",
+            "text-slate-300",
+            "border-amber-500/70",
+            "bg-amber-500/15",
+            "text-amber-200",
+            "border-emerald-500/70",
+            "bg-emerald-500/15",
+            "text-emerald-200"
+          );
+          if (answered) {
+            node.classList.add("border-emerald-500/70", "bg-emerald-500/15", "text-emerald-200");
+          } else {
+            node.classList.add("border-slate-600", "bg-slate-800", "text-slate-300");
+          }
+        });
+        updateAttemptedCounters();
+        if (examProgressLabel) {
+          examProgressLabel.textContent = answeredQuestionIndexes.size + " / " + questionCount + " answered";
+        }
+        if (examProgressBar) {
+          examProgressBar.style.width = (questionCount ? (answeredQuestionIndexes.size / questionCount) * 100 : 0) + "%";
+        }
+        const objectiveAnswered = Array.from(answeredQuestionIndexes).filter(function (value) {
+          return value <= objectiveCount;
+        }).length;
+        const theoryAnswered = Array.from(answeredQuestionIndexes).filter(function (value) {
+          return value > objectiveCount;
+        }).length;
+        if (objectiveProgressLabel) {
+          objectiveProgressLabel.textContent = "Objective: " + objectiveAnswered + "/" + objectiveCount + " completed";
+        }
+        if (theoryProgressLabel) {
+          theoryProgressLabel.textContent = "Theory: " + theoryAnswered + "/" + theoryCount + (theoryAnswered >= theoryCount ? " completed" : " pending");
+        }
+        if (secureProgressBar) {
+          secureProgressBar.style.width = (questionCount ? (answeredQuestionIndexes.size / questionCount) * 100 : 0) + "%";
+        }
+      }
+
+      function markPanelFlagged(index, flagged) {
+        const panel = getPanelByIndex(index);
+        if (panel) panel.dataset.flagged = flagged ? "1" : "0";
+        document.querySelectorAll(".js-nav-item").forEach(function (node) {
+          const nodeIndex = parseInt(node.getAttribute("data-jump-index") || "0", 10);
+          if (nodeIndex === index && !node.hasAttribute("data-section-tab")) {
+            node.setAttribute("data-flagged", flagged ? "1" : "0");
+          }
+        });
+        if (flagReviewBtn) {
+          flagReviewBtn.textContent = flagged ? "Remove Review Flag" : "Flag for Review";
+        }
+      }
+
+      async function handleQuestionAction(action, extraData, options) {
+        if (!hasQuestionFlow || !started || violationSent || isSubmitting || navBusy) return;
+        const movingToTheory = action === "move_to_theory";
+        if (movingToTheory) {
+          // This is an intentional stage transition, never a navigation breach.
+          // Set this before the request/fallback so browsers do not show their
+          // generic "Leave site?" prompt while opening the theory section.
+          suppressViolation = true;
+        }
+        if (autosaveDelayTimer) {
+          window.clearTimeout(autosaveDelayTimer);
+          autosaveDelayTimer = 0;
+        }
+        const settings = options || {};
+        const currentPanel = getActivePanel();
+        const currentAnswered = isPanelAnswered(currentPanel);
+        const isNavigationAction = action !== "save_stay";
+
+        if (action === "save_next" || action === "save_prev" || action === "jump") {
+          const fromIndex = activeIndex;
+          let targetIndex = fromIndex;
+          if (action === "save_next") {
+            targetIndex = fromIndex + 1;
+          } else if (action === "save_prev") {
+            targetIndex = fromIndex - 1;
+          } else if (extraData && extraData.jump_to) {
+            targetIndex = parseInt(extraData.jump_to, 10) || fromIndex;
+          }
+          targetIndex = clampIndex(targetIndex);
+          if (objectiveCount > 0 && theoryCount > 0 && !theoryUnlocked) {
+            targetIndex = Math.min(targetIndex, objectiveCount);
+          }
+          const payload = buildFormDataFromPanel(currentPanel, fromIndex, action, extraData);
+          setNavigationBusy(true);
+          const response = await ajaxActionForPayload(action, extraData, currentPanel, payload, fromIndex);
+          if (response.fallback) {
+            return;
+          }
+          setNavigationBusy(false);
+          if (!response || !response.ok) {
+            setAutoMessage((response && response.error) || "Answer was not saved. Please wait and try again.", false);
+            autosaveDirty = true;
+            return;
+          }
+          markPanelAnswered(fromIndex, currentAnswered);
+          autosaveDirty = false;
+          showQuestion(targetIndex);
+          if (settings.closeReview && reviewModal) {
+            reviewModal.classList.add("hidden");
+          }
+          setAutoMessage("Saved", true);
+          window.setTimeout(function () {
+            setAutoMessage("", true);
+          }, 700);
+          return;
+        }
+
+        if (isNavigationAction) {
+          setNavigationBusy(true);
+        }
+        const response = await ajaxAction(action, extraData);
+        if (response.fallback) {
+          if (isNavigationAction && !response.submitted) {
+            setNavigationBusy(false);
+          }
+          return;
+        }
+        if (isNavigationAction && !response.submitted) {
+          setNavigationBusy(false);
+        }
+        if (!response.ok) {
+          if (movingToTheory) {
+            suppressViolation = false;
+          }
+          setAutoMessage(response.error || "Unable to save.", false);
+          return;
+        }
+        markPanelAnswered(activeIndex, currentAnswered);
+        if (action === "toggle_flag" && Object.prototype.hasOwnProperty.call(response, "flagged")) {
+          markPanelFlagged(activeIndex, !!response.flagged);
+          setAutoMessage(response.flagged ? "Question flagged for review" : "Review flag removed", true);
+          return;
+        }
+        autosaveDirty = false;
+        if (response.submitted) {
+          isSubmitting = true;
+          suppressViolation = true;
+          sessionStorage.removeItem(startedKey);
+          if (document.fullscreenElement && document.exitFullscreen) {
+            document.exitFullscreen().catch(function () { return null; });
+          }
+          window.location.href = response.redirect_url || resultUrl;
+          return;
+        }
+        if (action === "move_to_theory") {
+          theoryUnlocked = true;
+          suppressViolation = true;
+          [submitBtn, commandSubmitBtn, padSubmitBtn].forEach(function (button) {
+            if (button) button.classList.remove("hidden");
+          });
+        }
+        if (response.next_index) {
+          const nextIndex = parseInt(response.next_index, 10) || activeIndex;
+          const nextPanel = getPanelByIndex(nextIndex);
+          if (nextPanel) {
+            showQuestion(nextIndex);
+          } else {
+            window.location.href = response.redirect_url || (window.location.pathname + "?q=" + nextIndex);
+            return;
+          }
+        }
+        if (settings.closeReview && reviewModal) {
+          reviewModal.classList.add("hidden");
+        }
+        setAutoMessage("Saved", true);
+        window.setTimeout(function () {
+          setAutoMessage("", true);
+        }, 1000);
+      }
+
+      function scheduleAutosave(delay) {
+        if (autosaveDelayTimer) {
+          window.clearTimeout(autosaveDelayTimer);
+        }
+        autosaveDelayTimer = window.setTimeout(function () {
+          autosaveDelayTimer = 0;
+          autosaveCurrentQuestion();
+        }, delay || 700);
+      }
+
+      async function autosaveCurrentQuestion() {
+        if (!hasQuestionFlow || !started || violationSent || autosaveBusy || isSubmitting || navBusy || !autosaveDirty) return;
+        autosaveBusy = true;
+        const response = await ajaxAction("save_stay", null);
+        if (!response.ok) {
+          setAutoMessage(response.error || "Autosave failed", false);
+        } else {
+          markPanelAnswered(activeIndex, isPanelAnswered(getActivePanel()));
+          autosaveDirty = false;
+          setAutoMessage("Autosaved", true);
+          window.setTimeout(function () {
+            setAutoMessage("", true);
+          }, 900);
+        }
+        autosaveBusy = false;
+      }
+
+      async function restoreFullscreen() {
+        if (!lockOn || document.fullscreenElement) return true;
+        try {
+          await document.documentElement.requestFullscreen({ navigationUI: "hide" });
+        } catch (_error1) {
+          try {
+            await document.documentElement.requestFullscreen();
+          } catch (_error2) {
+            return !!document.fullscreenElement;
+          }
+        }
+        return !!document.fullscreenElement;
+      }
+
+      function setGateStatus(message, isError) {
+        if (!gateStatusText) return;
+        gateStatusText.textContent = message;
+        gateStatusText.className = "mt-4 text-xs font-bold " + (isError ? "text-red-700" : "text-slate-600");
+      }
+
+      function setInvigilatorState(state, label) {
+        if (!invigilatorBadge) return;
+        invigilatorBadge.dataset.state = state || "live";
+        const text = document.getElementById("invigilatorText");
+        if (text) text.textContent = label || "SECURE";
+      }
+
+      function showSecurityWarning(label, isFinal) {
+        if (!securityWarningModal) return;
+        if (securityWarningCountText) {
+          securityWarningCountText.textContent = isFinal
+            ? "3 — attempt locked"
+            : Math.min(warningCount, 2) + " of 2";
+        }
+        if (securityWarningTitle) {
+          securityWarningTitle.textContent = "Exam Security Warning";
+        }
+        if (securityWarningMessage) {
+          securityWarningMessage.textContent = isFinal
+            ? (String(label || "").toLowerCase().includes("multiple login")
+                ? "This student account was opened in another CBT session. Both sessions are locked and a one-minute login timeout has started."
+                : "Microphone noise was flagged for a third time. Your answers are preserved and you are being logged out for IT review.")
+            : (warningCount >= warningAllowance
+                ? "Microphone noise detected. This is your final warning. The next flag logs you out."
+                : "Microphone noise detected. One warning remains before the final warning.");
+        }
+        if (securityWarningAckBtn) {
+          securityWarningAckBtn.classList.toggle("hidden", !!isFinal);
+        }
+        securityWarningModal.classList.remove("hidden");
+        if (securityToastTimer) window.clearTimeout(securityToastTimer);
+        if (!isFinal) {
+          securityToastTimer = window.setTimeout(function () {
+            securityWarningModal.classList.add("hidden");
+          }, 9000);
+        }
+      }
+
+      function setTimerPausedState(isPaused, reason) {
+        timerPaused = !!isPaused;
+        if (!timerStateBadge) return;
+        if (timerPaused) {
+          timerStateBadge.classList.remove("hidden");
+          timerStateBadge.textContent = reason ? "Timer Paused: " + reason : "Timer Paused By IT";
+          setAutoMessage(timerStateBadge.textContent, false);
+          return;
+        }
+        timerStateBadge.classList.add("hidden");
+        if (!warningBusy && !violationSent && !isSubmitting) {
+          setAutoMessage("", true);
+        }
+      }
+
+      function updateWarningUi(reasonLabel) {
+        if (!lockOn) {
+          if (warningHelpText) {
+            warningHelpText.textContent = "Live invigilation only. Use Next, Prev, and Submit while the timer runs.";
+          }
+          return;
+        }
+        if (warningCountNode) {
+          warningCountNode.textContent = Math.min(warningCount, warningAllowance) + " / " + warningAllowance;
+        }
+        if (warningHelpText) {
+          let message = warningCount >= warningAllowance
+            ? "FINAL MICROPHONE WARNING USED. The next sound flag locks the CBT."
+            : (warningCount
+                ? "Microphone warning 1 of 2 used. One warning remains."
+                : "Two microphone warnings are allowed. The third sound flag locks the CBT.");
+          if (reasonLabel) {
+            message = (warningCount >= warningAllowance ? "FINAL WARNING: " : "WARNING: ")
+              + reasonLabel + ".";
+          }
+          warningHelpText.textContent = message;
+        }
+      }
+
+      function updatePhaseUi() {
+        if (!phasePill) return;
+        if (objectiveCount > 0 && activeIndex > objectiveCount) {
+          phasePill.textContent = "Theory Stage";
+          return;
+        }
+        if (objectiveCount > 0) {
+          phasePill.textContent = "Objective Stage";
+          return;
+        }
+        phasePill.textContent = "Live Exam";
+      }
+
+      async function postWarning(eventType, details, csrfToken) {
+        if (!warningUrl) return { ok: true };
+        try {
+          const response = await postJson(
+            warningUrl,
+            {
+              event_type: eventType,
+              details: details || {},
+              tab_token: token,
+            },
+            csrfToken || getCsrfToken(getActivePanel())
+          );
+          return await response.json().catch(() => ({ ok: true }));
+        } catch (_error) {
+          return { ok: false };
+        }
+      }
+
+      function recordEvidence(eventType, details) {
+        if (!lockOn || suppressViolation || violationSent || isSubmitting || !warningUrl) {
+          return;
+        }
+        postJson(
+          warningUrl,
+          {
+            event_type: eventType,
+            details: details || {},
+            tab_token: token,
+            evidence_only: true,
+          },
+          getCsrfToken(getActivePanel())
+        ).catch(function () {
+          return null;
+        });
+      }
+
+      function paintMicrophoneWave(timestamp) {
+        if (!microphoneAnalyser || !audioBars.length) return;
+        microphoneAnimationFrame = window.requestAnimationFrame(paintMicrophoneWave);
+        if (timestamp - lastAudioPaintAt < 120) return;
+        lastAudioPaintAt = timestamp;
+        const samples = new Uint8Array(microphoneAnalyser.fftSize);
+        microphoneAnalyser.getByteTimeDomainData(samples);
+        let energy = 0;
+        samples.forEach(function (sample) {
+          const normalized = (sample - 128) / 128;
+          energy += normalized * normalized;
+        });
+        const rms = Math.sqrt(energy / Math.max(samples.length, 1));
+        audioBars.forEach(function (bar, index) {
+          const shape = 0.65 + ((index % 3) * 0.2);
+          bar.style.transform = "scaleY(" + Math.max(0.25, Math.min(1.8, rms * 7 * shape)).toFixed(2) + ")";
+          bar.style.animation = "none";
+        });
+        if (rms >= 0.12) {
+          if (audioMonitor) audioMonitor.dataset.audioState = "noise";
+          if (audioStatusText) audioStatusText.textContent = "NOISE DETECTED";
+          if (audioNoiseResetTimer) window.clearTimeout(audioNoiseResetTimer);
+          audioNoiseResetTimer = window.setTimeout(function () {
+            if (audioMonitor) audioMonitor.dataset.audioState = "listening";
+            if (audioStatusText) audioStatusText.textContent = "LISTENING";
+          }, 1800);
+        }
+        if (rms >= 0.2) {
+          if (!loudAudioStartedAt) loudAudioStartedAt = Date.now();
+          if (
+            Date.now() - loudAudioStartedAt >= 8000
+            && Date.now() - lastAudioSpikeEvidenceAt >= 60000
+          ) {
+            lastAudioSpikeEvidenceAt = Date.now();
+            recordEvidence("AUDIO_LEVEL_SPIKE", {
+              question_index: activeIndex,
+              level: Number(rms.toFixed(3)),
+              sustained_seconds: 8
+            });
+          }
+        } else {
+          loudAudioStartedAt = 0;
+        }
+      }
+
+      function showAudioInterrupted(reason) {
+        if (microphoneStopping || violationSent || isSubmitting) return;
+        recordEvidence("AUDIO_INTERRUPTED", {
+          question_index: activeIndex,
+          reason: reason || "track_ended"
+        });
+        if (audioMonitor) audioMonitor.dataset.audioState = "unavailable";
+        if (audioStatusText) audioStatusText.textContent = "MIC OFF";
+        if (audioBlocker && microphoneRequired) audioBlocker.classList.remove("hidden");
+      }
+
+      async function ensureMicrophoneActive(isRestore) {
+        const liveTrack = microphoneStream
+          ? microphoneStream.getAudioTracks().find(function (track) { return track.readyState === "live"; })
+          : null;
+        if (liveTrack) return true;
+        if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          recordEvidence("AUDIO_PERMISSION_DENIED", {
+            question_index: activeIndex,
+            reason: "insecure_or_unsupported"
+          });
+          return false;
+        }
+        try {
+          microphoneStopping = false;
+          microphoneStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true
+            },
+            video: false
+          });
+          const track = microphoneStream.getAudioTracks()[0];
+          if (!track || track.readyState !== "live") {
+            throw new Error("No live audio track");
+          }
+          track.addEventListener("ended", function () { showAudioInterrupted("track_ended"); });
+          track.addEventListener("mute", function () { showAudioInterrupted("track_muted"); });
+          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+          if (AudioContextClass) {
+            microphoneContext = microphoneContext || new AudioContextClass();
+            if (microphoneContext.state === "suspended") {
+              await microphoneContext.resume();
+            }
+            microphoneAnalyser = microphoneContext.createAnalyser();
+            microphoneAnalyser.fftSize = 256;
+            microphoneContext.createMediaStreamSource(microphoneStream).connect(microphoneAnalyser);
+            if (microphoneAnimationFrame) {
+              window.cancelAnimationFrame(microphoneAnimationFrame);
+            }
+            microphoneAnimationFrame = window.requestAnimationFrame(paintMicrophoneWave);
+          }
+          if (audioMonitor) audioMonitor.dataset.audioState = "listening";
+          if (audioStatusText) audioStatusText.textContent = "LISTENING";
+          if (audioBlocker) audioBlocker.classList.add("hidden");
+          if (restoreAudioError) restoreAudioError.textContent = "";
+          recordEvidence(isRestore ? "AUDIO_RESTORED" : "AUDIO_PERMISSION_GRANTED", {
+            question_index: activeIndex
+          });
+          return true;
+        } catch (error) {
+          recordEvidence("AUDIO_PERMISSION_DENIED", {
+            question_index: activeIndex,
+            reason: error && error.name ? error.name : "permission_denied"
+          });
+          if (audioMonitor) audioMonitor.dataset.audioState = "unavailable";
+          if (audioStatusText) audioStatusText.textContent = "MIC OFF";
+          return false;
+        }
+      }
+
+      function stopMicrophoneMonitoring() {
+        microphoneStopping = true;
+        if (microphoneAnimationFrame) {
+          window.cancelAnimationFrame(microphoneAnimationFrame);
+          microphoneAnimationFrame = 0;
+        }
+        if (audioNoiseResetTimer) {
+          window.clearTimeout(audioNoiseResetTimer);
+          audioNoiseResetTimer = 0;
+        }
+        if (microphoneStream) {
+          microphoneStream.getTracks().forEach(function (track) { track.stop(); });
+          microphoneStream = null;
+        }
+        if (microphoneContext && microphoneContext.state !== "closed") {
+          microphoneContext.close().catch(function () { return null; });
+        }
+        microphoneContext = null;
+        microphoneAnalyser = null;
+      }
+
+      async function issueWarning(eventType, details, options) {
+        if (!lockOn) return;
+        if (!started || suppressViolation || violationSent || isSubmitting) return;
+        const groupedBreach = ["TAB_SWITCH", "FOCUS_LOSS", "FULLSCREEN_EXIT", "BLOCKED_SHORTCUT"].includes(eventType);
+        const now = Date.now();
+        if (groupedBreach && now - lastBreachWarningAt < 2500) {
+          recordEvidence(eventType, { ...(details || {}), deduplicated: true });
+          return;
+        }
+        if (groupedBreach) lastBreachWarningAt = now;
+        if (warningBusy) return;
+        warningBusy = true;
+        warningCount += 1;
+        const settings = options || {};
+        const label = settings.label || eventType.replace(/_/g, " ");
+        updateWarningUi(label);
+        setInvigilatorState(
+          warningCount >= warningLimit ? "alert" : "warning",
+          warningCount >= warningLimit
+            ? "LOCKED"
+            : (warningCount >= warningAllowance ? "FINAL WARNING" : "WARNING 1 OF 2")
+        );
+        const warningResponse = await postWarning(
+          eventType,
+          {
+            ...(details || {}),
+            warning_count: warningCount,
+            warning_limit: warningLimit,
+          },
+          getCsrfToken(getActivePanel())
+        );
+        if (warningResponse && warningResponse.warning_count) {
+          warningCount = Math.max(parseInt(warningResponse.warning_count, 10) || warningCount, warningCount);
+          updateWarningUi(label);
+        }
+        if (warningResponse && warningResponse.locked) {
+          timeoutSubmitTriggered = true;
+          suppressViolation = true;
+          violationSent = true;
+          warningBusy = false;
+          sessionStorage.removeItem(startedKey);
+          setAutoMessage("Third security breach detected. Attempt locked and sent to IT review.", false);
+          showSecurityWarning(label, true);
+          if (document.fullscreenElement && document.exitFullscreen) {
+            document.exitFullscreen().catch(function () { return null; });
+          }
+          window.setTimeout(function () {
+            window.location.href = warningResponse.redirect_url || "{% url 'accounts:logout' %}";
+          }, 900);
+          return;
+        }
+        if (warningCount >= warningLimit) {
+          setAutoMessage("Security warning limit reached. Processing automatic submission.", false);
+          warningBusy = false;
+          return;
+        }
+        if (settings.tryRestore !== false && lockOn && !document.fullscreenElement) {
+          await restoreFullscreen();
+        }
+        setAutoMessage(
+          (warningCount >= warningAllowance ? "FINAL WARNING: " : "WARNING: ") + label + ".",
+          false
+        );
+        showSecurityWarning(label, false);
+        window.setTimeout(function () {
+          if (!violationSent && !isSubmitting) {
+            setAutoMessage("", true);
+          }
+        }, 1800);
+        warningBusy = false;
+      }
+
+      function heartbeat() {
+        if (!started || violationSent || isSubmitting) return;
+        const csrfToken = getCsrfToken(getActivePanel());
+        postJson(
+          hbUrl,
+          {
+            tab_token: token,
+            q: activeIndex,
+            visible: document.visibilityState === "visible",
+            fullscreen: !!document.fullscreenElement,
+            ts: Date.now(),
+          },
+          csrfToken
+        )
+          .then((response) => response.json().catch(() => ({})))
+          .then((data) => {
+            if (data && data.locked) {
+              timeoutSubmitTriggered = true;
+              suppressViolation = true;
+              violationSent = true;
+              isSubmitting = true;
+              sessionStorage.removeItem(startedKey);
+              warningCount = Math.max(
+                parseInt(data.manual_audio_warning_count || "3", 10),
+                3
+              );
+              const lockLabel = data.session_conflict
+                ? "Multiple login detected"
+                : (data.lock_reason || "Exam security violation");
+              updateWarningUi(lockLabel);
+              showSecurityWarning(lockLabel, true);
+              stopMicrophoneMonitoring();
+              window.setTimeout(function () {
+                window.location.replace(data.redirect_url || "{% url 'accounts:logout' %}");
+              }, 650);
+              return;
+            }
+            if (data && data.attempt_closed) {
+              suppressViolation = true;
+              isSubmitting = true;
+              sessionStorage.removeItem(startedKey);
+              if (document.fullscreenElement && document.exitFullscreen) {
+                document.exitFullscreen().catch(function () { return null; });
+              }
+              window.location.href = data.redirect_url || resultUrl;
+              return;
+            }
+            if (data && Object.prototype.hasOwnProperty.call(data, "remaining_seconds")) {
+              seconds = Math.max(parseInt(data.remaining_seconds || 0, 10), 0);
+              paintTimer();
+            }
+            if (data && Object.prototype.hasOwnProperty.call(data, "paused")) {
+              setTimerPausedState(!!data.paused, data.pause_reason || "");
+            }
+            const manualWarningCount = Math.max(
+              parseInt((data && data.manual_audio_warning_count) || "0", 10),
+              0
+            );
+            if (manualWarningCount > warningCount) {
+              warningCount = manualWarningCount;
+              if (audioMonitor) audioMonitor.dataset.audioState = "noise";
+              if (audioStatusText) audioStatusText.textContent = "NOISE DETECTED";
+              window.setTimeout(function () {
+                if (audioMonitor) audioMonitor.dataset.audioState = "listening";
+                if (audioStatusText) audioStatusText.textContent = "LISTENING";
+              }, 3200);
+              updateWarningUi("Microphone noise detected");
+              setInvigilatorState(
+                "warning",
+                warningCount >= warningAllowance ? "FINAL WARNING" : "WARNING"
+              );
+              showSecurityWarning("Microphone noise detected", false);
+            }
+          })
+          .catch(function () {
+            return null;
+          });
+      }
+      function startRunUi() {
+        started = true;
+        startedAt = Date.now();
+        sessionStorage.setItem(startedKey, "1");
+        if (gate) gate.classList.add("hidden");
+        if (runWrap) runWrap.classList.remove("hidden");
+        setInvigilatorState("live", "SECURE");
+        setGateStatus(lockOn ? "Secure exam monitoring is active." : "Exam monitoring is active.", false);
+        updateWarningUi();
+        setTimerPausedState(timerPaused, "{{ timer_pause_reason|escapejs }}");
+        showQuestion(activeIndex);
+        paintTimer();
+        heartbeat();
+      }
+
+      async function beginRun() {
+        if (beginBtn) beginBtn.disabled = true;
+        if (gateErr) gateErr.textContent = "";
+        if (audioMonitor) audioMonitor.dataset.audioState = "listening";
+        if (audioStatusText) audioStatusText.textContent = "LISTENING";
+        setGateStatus("Exam monitoring is ready.", false);
+        if (!lockOn) {
+          startRunUi();
+          return;
+        }
+        const ok = await restoreFullscreen();
+        if (!ok) {
+          if (gateErr) gateErr.textContent = "Fullscreen is required for secure CBT.";
+          setGateStatus("Fullscreen must be allowed before the exam can begin.", true);
+          if (beginBtn) beginBtn.disabled = false;
+          return;
+        }
+        startRunUi();
+      }
+
+      async function submitAttempt(forceSubmit) {
+        if (isSubmitting || violationSent) return;
+        if (hasQuestionFlow) {
+          const payload = forceSubmit ? { force_submit: 1 } : null;
+          await handleQuestionAction("submit", payload);
+          return;
+        }
+        if (practicalSubmitForm) {
+          suppressViolation = true;
+          isSubmitting = true;
+          stopMicrophoneMonitoring();
+          sessionStorage.removeItem(startedKey);
+          if (document.fullscreenElement && document.exitFullscreen) {
+            document.exitFullscreen().catch(function () { return null; });
+          }
+          practicalSubmitForm.submit();
+        }
+      }
+
+      const mockDictionary = {
+        acceleration: "Rate at which velocity changes with time.",
+        acid: "A substance that produces hydrogen ions in water and turns blue litmus red.",
+        atom: "The smallest particle of an element that can take part in a chemical reaction.",
+        biology: "The study of living things.",
+        catalyst: "A substance that changes the rate of a reaction without being used up.",
+        cell: "The basic structural and functional unit of life.",
+        chemistry: "The study of matter, its properties, and its changes.",
+        density: "Mass per unit volume.",
+        energy: "The capacity to do work.",
+        force: "A push or pull that can change the motion of a body.",
+        frequency: "The number of complete waves or cycles per second.",
+        gene: "A unit of heredity made of DNA.",
+        gradient: "The measure of the slope of a line.",
+        isotope: "Atoms of the same element with different numbers of neutrons.",
+        momentum: "Mass multiplied by velocity.",
+        neutralization: "The reaction between an acid and a base to form salt and water.",
+        pressure: "Force acting per unit area.",
+        probability: "The chance that an event will occur.",
+        refraction: "The bending of light as it passes from one medium to another.",
+        respiration: "The process by which cells release energy from food.",
+        velocity: "Speed in a stated direction.",
+        work: "Force multiplied by distance moved in the direction of the force."
+      };
+
+      function lookupDictionaryWord() {
+        if (!mockDictionaryInput || !mockDictionaryResult) return;
+        const word = (mockDictionaryInput.value || "").trim().toLowerCase();
+        if (!word) {
+          mockDictionaryResult.textContent = "Enter a word and press Search.";
+          return;
+        }
+        const meaning = mockDictionary[word];
+        mockDictionaryResult.textContent = meaning || "No local definition found for \"" + word + "\". Check spelling or ask the invigilator after the paper.";
+      }
+
+      async function sendMockReport() {
+        if (!mockReportText || !mockReportStatus) return;
+        const message = (mockReportText.value || "").trim();
+        if (!message) {
+          mockReportStatus.textContent = "Type what is wrong before sending.";
+          mockReportStatus.className = "mt-2 text-xs font-semibold text-rose-600";
+          return;
+        }
+        mockReportSendBtn.disabled = true;
+        mockReportStatus.textContent = "Sending...";
+        mockReportStatus.className = "mt-2 text-xs font-semibold text-slate-600";
+        await postWarning(
+          "STUDENT_REPORT_ERROR",
+          {
+            q: activeIndex,
+            message: message,
+          },
+          getCsrfToken(getActivePanel())
+        );
+        mockReportStatus.textContent = "Report sent to invigilator.";
+        mockReportStatus.className = "mt-2 text-xs font-semibold text-emerald-700";
+        setAutoMessage("Report sent for question " + activeIndex + ".", true);
+        window.setTimeout(function () {
+          if (mockReportModal) mockReportModal.classList.add("hidden");
+          if (mockReportText) mockReportText.value = "";
+          if (mockReportStatus) mockReportStatus.textContent = "";
+          mockReportSendBtn.disabled = false;
+        }, 900);
+      }
+
+      async function handleMockTool(tool) {
+        if (tool === "logout") {
+          if (window.confirm("Log out from this practice now?")) {
+            suppressViolation = true;
+            sessionStorage.removeItem(startedKey);
+            window.location.href = "{% url 'accounts:logout' %}";
+          }
+          return;
+        }
+        if (tool === "calculator") {
+          openCalculatorPanel();
+          setAutoMessage("Calculator opened. Drag it by the top bar if it covers the question.", true);
+          return;
+        }
+        if (tool === "bookmark") {
+          await handleQuestionAction("toggle_flag");
+          setAutoMessage("Bookmark updated for question " + activeIndex + ".", true);
+          return;
+        }
+        if (tool === "report") {
+          if (mockReportModal) mockReportModal.classList.remove("hidden");
+          if (mockReportText) mockReportText.focus();
+          return;
+        }
+        if (tool === "dictionary") {
+          setAutoMessage("Dictionary is locked during practice. Use review mode after submission to learn.", false);
+        }
+      }
+
+      if (beginBtn) {
+        beginBtn.addEventListener("click", beginRun);
+      }
+      if (securityWarningAckBtn) {
+        securityWarningAckBtn.addEventListener("click", async function () {
+          if (securityWarningModal) securityWarningModal.classList.add("hidden");
+          if (lockOn && !document.fullscreenElement) {
+            await restoreFullscreen();
+          }
+        });
+      }
+      if (restoreAudioBtn) {
+        restoreAudioBtn.addEventListener("click", async function () {
+          restoreAudioBtn.disabled = true;
+          if (restoreAudioError) restoreAudioError.textContent = "Requesting microphone access…";
+          const restored = await ensureMicrophoneActive(true);
+          if (!restored && restoreAudioError) {
+            restoreAudioError.textContent = "Microphone is still blocked. Allow it in browser permissions and try again.";
+          }
+          restoreAudioBtn.disabled = false;
+        });
+      }
+
+      mockToolButtons.forEach(function (button) {
+        button.addEventListener("click", function () {
+          handleMockTool(button.getAttribute("data-mock-tool") || "");
+        });
+      });
+
+      if (mockReportCloseBtn && mockReportModal) {
+        mockReportCloseBtn.addEventListener("click", function () {
+          mockReportModal.classList.add("hidden");
+        });
+      }
+      if (mockReportSendBtn) {
+        mockReportSendBtn.addEventListener("click", sendMockReport);
+      }
+      if (mockDictionaryCloseBtn && mockDictionaryModal) {
+        mockDictionaryCloseBtn.addEventListener("click", function () {
+          mockDictionaryModal.classList.add("hidden");
+        });
+      }
+      if (mockDictionarySearchBtn) {
+        mockDictionarySearchBtn.addEventListener("click", lookupDictionaryWord);
+      }
+      if (mockDictionaryInput) {
+        mockDictionaryInput.addEventListener("keydown", function (event) {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            lookupDictionaryWord();
+          }
+        });
+      }
+
+      if (started) {
+        startRunUi();
+      }
+
+      if (prevBtn) {
+        prevBtn.addEventListener("click", function () {
+          handleQuestionAction("save_prev");
+        });
+      }
+
+      if (nextBtn) {
+        nextBtn.addEventListener("click", function () {
+          handleQuestionAction("save_next");
+        });
+      }
+
+      if (padPrevBtn) {
+        padPrevBtn.addEventListener("click", function () {
+          handleQuestionAction("save_prev");
+        });
+      }
+
+      if (padNextBtn) {
+        padNextBtn.addEventListener("click", function () {
+          handleQuestionAction("save_next");
+        });
+      }
+
+      if (reviewBtn && reviewModal) {
+        reviewBtn.addEventListener("click", function () {
+          reviewModal.classList.remove("hidden");
+        });
+      }
+
+      if (closeReviewBtn && reviewModal) {
+        closeReviewBtn.addEventListener("click", function () {
+          reviewModal.classList.add("hidden");
+        });
+      }
+
+      if (moveTheoryBtn) {
+        moveTheoryBtn.addEventListener("click", function () {
+          handleQuestionAction("move_to_theory");
+        });
+      }
+      if (cbtRefreshBtn) {
+        cbtRefreshBtn.addEventListener("click", function () {
+          suppressViolation = true;
+          window.location.reload();
+        });
+      }
+      if (flagReviewBtn) {
+        flagReviewBtn.addEventListener("click", function () {
+          handleQuestionAction("toggle_flag");
+        });
+      }
+
+      if (padTheoryBtn) {
+        padTheoryBtn.addEventListener("click", function () {
+          handleQuestionAction("move_to_theory");
+        });
+      }
+
+      if (submitBtn && submitModal) {
+        submitBtn.addEventListener("click", function () {
+          openSubmitModal();
+        });
+      }
+      if (commandSubmitBtn && submitModal) {
+        commandSubmitBtn.addEventListener("click", function () {
+          openSubmitModal();
+        });
+      }
+
+      if (mockSubmitProxy && submitModal) {
+        mockSubmitProxy.addEventListener("click", function () {
+          openSubmitModal();
+        });
+      }
+
+      if (padSubmitBtn && submitModal) {
+        padSubmitBtn.addEventListener("click", function () {
+          openSubmitModal();
+        });
+      }
+
+      if (cancelSubmitBtn && submitModal) {
+        cancelSubmitBtn.addEventListener("click", function () {
+          submitModal.classList.add("hidden");
+        });
+      }
+
+      if (confirmSubmitBtn && submitModal) {
+        confirmSubmitBtn.addEventListener("click", function () {
+          submitModal.classList.add("hidden");
+          suppressViolation = true;
+          if (!syncSubmitFallback("submit")) {
+            submitAttempt(false);
+          }
+        });
+      }
+
+      questionPanels.forEach((panel) => {
+        panel.addEventListener("submit", function (event) {
+          event.preventDefault();
+        });
+        const optionInputs = Array.from(panel.querySelectorAll("input[name='selected_options']"));
+        const responseTextNode = panel.querySelector("textarea[name='response_text']");
+        optionInputs.forEach(function (input) {
+          if (input.type === "radio") {
+            input.addEventListener("pointerdown", function () {
+              input.dataset.wasChecked = input.checked ? "1" : "0";
+            });
+            input.addEventListener("click", function (event) {
+              if (input.dataset.wasChecked === "1") {
+                event.preventDefault();
+                input.checked = false;
+                delete input.dataset.wasChecked;
+                markPanelAnswered(activeIndex, false);
+                syncAnswerPad();
+                autosaveDirty = true;
+                setAutoMessage("Cleared. Press Next to save.", true);
+                return;
+              }
+              delete input.dataset.wasChecked;
+            });
+          }
+          input.addEventListener("change", function () {
+            const panelIndex = parseInt(panel.dataset.index || String(activeIndex), 10) || activeIndex;
+            const wasAnswered = answeredQuestionIndexes.has(panelIndex);
+            const isAnswered = isPanelAnswered(panel);
+            if (isAnswered) {
+              answeredQuestionIndexes.add(panelIndex);
+              recordEvidence(wasAnswered ? "ANSWER_CHANGED" : "ANSWER_SELECTED", {
+                question_index: panelIndex,
+                elapsed_ms: Math.max(Date.now() - questionShownAt, 0),
+              });
+              if (!wasAnswered && Date.now() - questionShownAt < 1200) {
+                recordEvidence("SUSPICIOUS_FAST_ANSWER", {
+                  question_index: panelIndex,
+                  elapsed_ms: Math.max(Date.now() - questionShownAt, 0),
+                });
+              }
+            } else {
+              answeredQuestionIndexes.delete(panelIndex);
+              recordEvidence("ANSWER_CHANGED", {
+                question_index: panelIndex,
+                cleared: true,
+              });
+            }
+            autosaveDirty = true;
+            syncAnswerPad();
+            markPanelAnswered(activeIndex, isPanelAnswered(panel));
+            setAutoMessage("Selected. Press Next to save.", true);
+          });
+        });
+        if (responseTextNode) {
+          let theorySaveDelay = 0;
+          const wordCountNode = panel.querySelector(".theory-word-count");
+          const characterCountNode = panel.querySelector(".theory-character-count");
+          const theorySaveState = panel.querySelector(".theory-save-state");
+          function updateTheoryCount() {
+            const value = responseTextNode.value || "";
+            const words = value.trim() ? value.trim().split(/\s+/).length : 0;
+            if (wordCountNode) wordCountNode.textContent = String(words);
+            if (characterCountNode) characterCountNode.textContent = String(value.length);
+          }
+          updateTheoryCount();
+          responseTextNode.addEventListener("input", function () {
+            if (theorySaveDelay) {
+              window.clearTimeout(theorySaveDelay);
+            }
+            autosaveDirty = true;
+            updateTheoryCount();
+            if (theorySaveState) theorySaveState.textContent = "Saving...";
+            theorySaveDelay = window.setTimeout(function () {
+              scheduleAutosave(0);
+              if (theorySaveState) theorySaveState.textContent = "Autosaved";
+            }, 900);
+          });
+          responseTextNode.addEventListener("blur", function () {
+            scheduleAutosave(0);
+          });
+        }
+      });
+
+      answerPadButtons.forEach(function (button) {
+        button.addEventListener("click", function () {
+          if (!started || violationSent || isSubmitting) return;
+          const panel = getActivePanel();
+          if (!panel) return;
+          const optionLabel = button.getAttribute("data-answer-pad");
+          const input = panel.querySelector("input[name='selected_options'][data-option-label='" + optionLabel + "']");
+          if (!input) return;
+          if (input.type === "checkbox") {
+            input.checked = !input.checked;
+          } else {
+            input.checked = true;
+          }
+          autosaveDirty = true;
+          input.dispatchEvent(new Event("change", { bubbles: true }));
+          markPanelAnswered(activeIndex, isPanelAnswered(panel));
+          syncAnswerPad();
+        });
+      });
+
+      if (padClearBtn) {
+        padClearBtn.addEventListener("click", function () {
+          if (!started || violationSent || isSubmitting) return;
+          clearObjectiveSelection(getActivePanel());
+        });
+      }
+
+      document.querySelectorAll("[data-jump-index]").forEach((node) => {
+        node.addEventListener("click", function (event) {
+          event.preventDefault();
+          if (!hasQuestionFlow) return;
+          const jumpTo = parseInt(node.getAttribute("data-jump-index") || "0", 10);
+          if (!jumpTo) return;
+          if (objectiveCount > 0 && theoryCount > 0 && !theoryUnlocked && jumpTo > objectiveCount) {
+            return;
+          }
+          handleQuestionAction("jump", { jump_to: jumpTo });
+        });
+      });
+
+      ["click", "keydown", "mousemove", "input"].forEach((eventName) => {
+        document.addEventListener(
+          eventName,
+          function () {
+            lastActivity = Date.now();
+          },
+          true
+        );
+      });
+
+      document.addEventListener("copy", function (event) {
+        event.preventDefault();
+      });
+      document.addEventListener("paste", function (event) {
+        event.preventDefault();
+      });
+      document.addEventListener("cut", function (event) {
+        event.preventDefault();
+      });
+
+      document.addEventListener("visibilitychange", function () {
+        if (browserBreachDetection && started && document.visibilityState !== "visible") {
+          issueWarning("TAB_SWITCH", { visibility: document.visibilityState }, { label: "Tab switch detected", tryRestore: false });
+        }
+      });
+      window.addEventListener("blur", function () {
+        if (browserBreachDetection && started) {
+          issueWarning("FOCUS_LOSS", {
+            question_index: activeIndex,
+            visibility: document.visibilityState,
+          }, { label: "Exam window left", tryRestore: false });
+        }
+      });
+      window.addEventListener("offline", function () {
+        recordEvidence("NETWORK_OFFLINE", { question_index: activeIndex });
+        setAutoMessage("Network connection lost. Answers remain on screen while reconnection is attempted.", false);
+      });
+      window.addEventListener("online", function () {
+        recordEvidence("NETWORK_RECONNECTED", { question_index: activeIndex });
+        setAutoMessage("Network reconnected. Autosave is resuming.", true);
+        autosaveDirty = true;
+        scheduleAutosave(0);
+      });
+      window.addEventListener("beforeprint", function () {
+        recordEvidence("PRINT_ATTEMPT", { question_index: activeIndex });
+      });
+
+      document.addEventListener("fullscreenchange", function () {
+        if (browserBreachDetection && started && lockOn && !document.fullscreenElement && !suppressViolation && !isSubmitting) {
+          issueWarning("FULLSCREEN_EXIT", { source: "fullscreenchange" }, { label: "Fullscreen exit detected" });
+        }
+      });
+
+      function blockHardwareKeyboard(event) {
+        if (!started || violationSent || isSubmitting) return;
+        const key = String(event.key || "");
+        const lowerKey = key.toLowerCase();
+        const blockedShortcut = (
+          key === "F12"
+          || key === "PrintScreen"
+          || event.altKey
+          || ((event.ctrlKey || event.metaKey) && ["l", "n", "p", "s", "t", "u", "w"].includes(lowerKey))
+        );
+        if (!blockedShortcut) return;
+        if (event.type === "keydown") {
+          recordEvidence(
+            key === "PrintScreen" ? "PRINT_SCREEN_ATTEMPT" : "BLOCKED_SHORTCUT",
+            {
+              question_index: activeIndex,
+              key: key,
+              alt: !!event.altKey,
+              ctrl: !!event.ctrlKey,
+              meta: !!event.metaKey,
+            }
+          );
+        }
+        event.preventDefault();
+        event.stopPropagation();
+      }
+
+      ["keydown", "keypress", "keyup"].forEach(function (eventName) {
+        document.addEventListener(eventName, blockHardwareKeyboard, true);
+      });
+
+      window.addEventListener("beforeunload", function (event) {
+        if (!isMockPractice && started && !suppressViolation && !isSubmitting && seconds > 0) {
+          event.preventDefault();
+          event.returnValue = "";
+        }
+      });
+      window.addEventListener("pagehide", stopMicrophoneMonitoring);
+
+      window.setInterval(function () {
+        if (!started || violationSent || isSubmitting) return;
+        const idle = Math.floor((Date.now() - lastActivity) / 1000);
+        if (idle >= idleSeconds) {
+          recordEvidence("INACTIVITY_TIMEOUT", { idle_seconds: idle, question_index: activeIndex });
+          suppressViolation = true;
+          window.setTimeout(function () {
+            window.location.replace("{% url 'accounts:logout' %}");
+          }, 250);
+        }
+      }, 5000);
+
+      window.setInterval(function () {
+        if (!started || violationSent || isSubmitting || timerPaused) return;
+        seconds = Math.max(0, seconds - 1);
+        paintTimer();
+        if (seconds <= 0 && !timeoutSubmitTriggered) {
+          if (navBusy || isSubmitting) return;
+          timeoutSubmitTriggered = true;
+          suppressViolation = true;
+          setAutoMessage("Time is up. Submitting your saved answers now...", true);
+          questionPanels.forEach(function (panel) {
+            panel.style.pointerEvents = "none";
+          });
+          submitAttempt(true);
+        }
+      }, 1000);
+
+      const calcDisplay = document.getElementById("calcDisplay");
+      const calcStatus = document.getElementById("calcStatus");
+      const calculatorButtons = Array.from(document.querySelectorAll("[data-calc-token], [data-calc-action]"));
+
+      function keepCalculatorInViewport() {
+        if (!examToolCard || examToolCard.classList.contains("hidden")) return;
+        const margin = 12;
+        const rect = examToolCard.getBoundingClientRect();
+        let left = rect.left;
+        let top = rect.top;
+        const maxLeft = Math.max(margin, window.innerWidth - rect.width - margin);
+        const maxTop = Math.max(margin, window.innerHeight - rect.height - margin);
+        left = Math.min(Math.max(margin, left), maxLeft);
+        top = Math.min(Math.max(margin, top), maxTop);
+        examToolCard.style.left = left + "px";
+        examToolCard.style.top = top + "px";
+        examToolCard.style.right = "auto";
+      }
+
+      function openCalculatorPanel() {
+        if (!examToolCard) return;
+        const wasHidden = examToolCard.classList.contains("hidden");
+        examToolCard.classList.remove("hidden");
+        if (wasHidden && !examToolCard.dataset.positioned) {
+          examToolCard.style.left = Math.max(12, window.innerWidth - examToolCard.offsetWidth - 16) + "px";
+          examToolCard.style.top = "72px";
+          examToolCard.style.right = "auto";
+          examToolCard.dataset.positioned = "1";
+        }
+        keepCalculatorInViewport();
+      }
+
+      if (calculatorToggleBtn && examToolCard) {
+        calculatorToggleBtn.addEventListener("click", function () {
+          if (examToolCard.classList.contains("hidden")) {
+            openCalculatorPanel();
+            calculatorToggleBtn.setAttribute("aria-label", "Close calculator");
+          } else {
+            examToolCard.classList.add("hidden");
+            calculatorToggleBtn.setAttribute("aria-label", "Open calculator");
+          }
+        });
+      }
+      if (calculatorCloseBtn && examToolCard) {
+        calculatorCloseBtn.addEventListener("click", function (event) {
+          event.preventDefault();
+          event.stopPropagation();
+          examToolCard.classList.add("hidden");
+          if (calculatorToggleBtn) calculatorToggleBtn.setAttribute("aria-label", "Open calculator");
+        });
+      }
+      if (calculatorDragHandle && examToolCard) {
+        calculatorDragHandle.addEventListener("pointerdown", function (event) {
+          if (event.target.closest("button")) return;
+          if (event.button !== 0) return;
+          const rect = examToolCard.getBoundingClientRect();
+          const offsetX = event.clientX - rect.left;
+          const offsetY = event.clientY - rect.top;
+          calculatorDragHandle.setPointerCapture(event.pointerId);
+          function movePanel(moveEvent) {
+            const margin = 12;
+            const maxLeft = Math.max(margin, window.innerWidth - examToolCard.offsetWidth - margin);
+            const maxTop = Math.max(margin, window.innerHeight - examToolCard.offsetHeight - margin);
+            const left = Math.min(Math.max(margin, moveEvent.clientX - offsetX), maxLeft);
+            const top = Math.min(Math.max(margin, moveEvent.clientY - offsetY), maxTop);
+            examToolCard.style.left = left + "px";
+            examToolCard.style.top = top + "px";
+            examToolCard.style.right = "auto";
+          }
+          function stopDrag() {
+            calculatorDragHandle.removeEventListener("pointermove", movePanel);
+            calculatorDragHandle.removeEventListener("pointerup", stopDrag);
+            calculatorDragHandle.removeEventListener("pointercancel", stopDrag);
+          }
+          calculatorDragHandle.addEventListener("pointermove", movePanel);
+          calculatorDragHandle.addEventListener("pointerup", stopDrag);
+          calculatorDragHandle.addEventListener("pointercancel", stopDrag);
+        });
+        window.addEventListener("resize", keepCalculatorInViewport);
+      }
+
+      function updateCalcStatus(message, isError) {
+        if (!calcStatus) return;
+        calcStatus.textContent = message;
+        calcStatus.className = "mt-1.5 text-[10px] font-bold " + (isError ? "text-rose-700" : "text-slate-500");
+      }
+
+      function evaluateCalcExpression() {
+        if (!calcDisplay) return;
+        const raw = calcDisplay.value || "";
+        if (!raw.trim()) {
+          updateCalcStatus("Enter an expression first.", true);
+          return;
+        }
+        const normalized = raw.replace(/,/g, "");
+        if (!/^[0-9+\-*/().,\s]*$/.test(normalized)) {
+          updateCalcStatus("Unsupported expression.", true);
+          return;
+        }
+        try {
+          const tokens = normalized.match(/\d+(?:\.\d+)?|\.\d+|[+\-*/()]/g) || [];
+          let position = 0;
+          function peek() {
+            return tokens[position];
+          }
+          function consume(expected) {
+            const token = tokens[position];
+            if (expected && token !== expected) {
+              throw new Error("expected_token");
+            }
+            position += 1;
+            return token;
+          }
+          function parseFactor() {
+            const token = peek();
+            if (token === "+" || token === "-") {
+              consume();
+              const value = parseFactor();
+              return token === "-" ? -value : value;
+            }
+            if (token === "(") {
+              consume("(");
+              const value = parseExpression();
+              consume(")");
+              return value;
+            }
+            if (!token || !/^\d+(?:\.\d+)?$|^\.\d+$/.test(token)) {
+              throw new Error("invalid_number");
+            }
+            consume();
+            return Number(token);
+          }
+          function parseTerm() {
+            let value = parseFactor();
+            while (peek() === "*" || peek() === "/") {
+              const operator = consume();
+              const right = parseFactor();
+              value = operator === "*" ? value * right : value / right;
+            }
+            return value;
+          }
+          function parseExpression() {
+            let value = parseTerm();
+            while (peek() === "+" || peek() === "-") {
+              const operator = consume();
+              const right = parseTerm();
+              value = operator === "+" ? value + right : value - right;
+            }
+            return value;
+          }
+          const result = parseExpression();
+          if (position !== tokens.length) {
+            throw new Error("trailing_token");
+          }
+          if (typeof result === "number" && Number.isFinite(result)) {
+            calcDisplay.value = String(Math.round((result + Number.EPSILON) * 100000000) / 100000000);
+            updateCalcStatus("Calculated.", false);
+          } else {
+            updateCalcStatus("Could not evaluate expression.", true);
+          }
+        } catch (_error) {
+          updateCalcStatus("Invalid expression.", true);
+        }
+      }
+
+      calculatorButtons.forEach(function (button) {
+        button.addEventListener("click", function () {
+          if (!calcDisplay) return;
+          const tokenValue = button.getAttribute("data-calc-token");
+          const actionValue = button.getAttribute("data-calc-action");
+          if (tokenValue) {
+            calcDisplay.value += tokenValue;
+            updateCalcStatus("Ready.", false);
+            return;
+          }
+          if (actionValue === "clear") {
+            calcDisplay.value = "";
+            updateCalcStatus("Cleared.", false);
+            return;
+          }
+          if (actionValue === "backspace") {
+            calcDisplay.value = calcDisplay.value.slice(0, -1);
+            updateCalcStatus("Ready.", false);
+            return;
+          }
+          if (actionValue === "evaluate") {
+            evaluateCalcExpression();
+          }
+        });
+      });
+      function scheduleHeartbeat() {
+        const pollMs = 2500;
+        const jitterMs = (Math.random() * 0.12 - 0.06) * pollMs;
+        window.setTimeout(function () {
+          heartbeat();
+          scheduleHeartbeat();
+        }, Math.max(2200, pollMs + jitterMs));
+      }
+      scheduleHeartbeat();
+      window.setInterval(autosaveCurrentQuestion, 45000);
+
+      showQuestion(activeIndex);
+      paintTimer();
+      updateWarningUi();
+      updatePhaseUi();
+      syncAnswerPad();
+      setTimerPausedState(timerPaused, "{{ timer_pause_reason|escapejs }}");
+    })();
+  </script>
+{% endblock %}

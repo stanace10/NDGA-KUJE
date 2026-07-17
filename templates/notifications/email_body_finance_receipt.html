@@ -1,0 +1,52 @@
+<div style="font-size:15px; line-height:1.75; color:#334155;">
+  <p style="margin:0 0 16px;">
+    This is to confirm that payment has been received for your ward and the official NDGA receipt has been attached to this email for your records.
+  </p>
+
+  <div style="margin:0 0 18px; border:1px solid #e2e8f0; border-radius:18px; overflow:hidden; background:#ffffff;">
+    <table role="presentation" style="width:100%; border-collapse:collapse;">
+      <tr>
+        <td style="width:42%; padding:12px 16px; font-size:12px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:#64748b; background:#f8fafc;">Ward Name</td>
+        <td style="padding:12px 16px; font-size:14px; color:#0f172a; font-weight:700;">{{ student_name }}</td>
+      </tr>
+      <tr>
+        <td style="padding:12px 16px; font-size:12px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:#64748b; background:#f8fafc;">Admission Number</td>
+        <td style="padding:12px 16px; font-size:14px; color:#0f172a;">{{ student_number }}</td>
+      </tr>
+      <tr>
+        <td style="padding:12px 16px; font-size:12px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:#64748b; background:#f8fafc;">Receipt Number</td>
+        <td style="padding:12px 16px; font-size:14px; color:#0f172a;">{{ receipt_number }}</td>
+      </tr>
+      <tr>
+        <td style="padding:12px 16px; font-size:12px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:#64748b; background:#f8fafc;">Academic Window</td>
+        <td style="padding:12px 16px; font-size:14px; color:#0f172a;">{{ term_label }} | {{ session_label }}</td>
+      </tr>
+      <tr>
+        <td style="padding:12px 16px; font-size:12px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:#64748b; background:#f8fafc;">Amount Paid</td>
+        <td style="padding:12px 16px; font-size:14px; color:#0f172a; font-weight:700;">{{ amount_text }}</td>
+      </tr>
+      <tr>
+        <td style="padding:12px 16px; font-size:12px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:#64748b; background:#f8fafc;">Payment Method</td>
+        <td style="padding:12px 16px; font-size:14px; color:#0f172a;">{{ payment_method }}</td>
+      </tr>
+      <tr>
+        <td style="padding:12px 16px; font-size:12px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:#64748b; background:#f8fafc;">Payment Date</td>
+        <td style="padding:12px 16px; font-size:14px; color:#0f172a;">{{ payment_date }}</td>
+      </tr>
+    </table>
+  </div>
+
+  <p style="margin:0 0 16px;">
+    You can also sign in to the student portal at any time to review payment history, outstanding balances, and future receipts.
+  </p>
+
+  <p style="margin:0 0 20px;">
+    <a href="{{ portal_url }}" style="display:inline-block; padding:12px 20px; border-radius:999px; background:#173a66; color:#ffffff; font-size:14px; font-weight:700; text-decoration:none;">
+      Open Student Finance Portal
+    </a>
+  </p>
+
+  <p style="margin:0;">
+    Thank you for your continued support.
+  </p>
+</div>

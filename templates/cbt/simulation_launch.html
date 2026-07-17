@@ -1,0 +1,23 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Simulation Preview{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Simulation Preview</p>
+          <h1 class="mt-1 text-2xl font-bold text-ndga-navy">{{ wrapper.tool_name }}</h1>
+          <p class="mt-1 text-sm text-slate-600">
+            {{ wrapper.get_tool_category_display }} | {{ wrapper.get_source_provider_display }}
+          </p>
+        </div>
+        <a href="javascript:history.back()" class="ndga-btn ndga-btn-secondary">Back</a>
+      </div>
+      <div class="mt-4 h-[72vh] overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+        <iframe src="{{ simulation_url }}" class="h-full w-full border-0" allowfullscreen loading="lazy"></iframe>
+      </div>
+    </article>
+  </section>
+{% endblock %}

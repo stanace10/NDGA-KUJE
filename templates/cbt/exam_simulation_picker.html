@@ -1,0 +1,166 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Simulation Selection{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">CBT Entry</p>
+          <h1 class="mt-1 text-2xl font-bold text-ndga-navy">{{ exam.title }}</h1>
+          <p class="mt-1 text-sm text-slate-600">
+            {{ exam.academic_class.code }} | {{ exam.subject.name }} | {{ exam.session.name }} | {{ exam.term.get_name_display }}
+          </p>
+        </div>
+        <a href="{% url 'cbt:authoring-home' %}" class="ndga-btn ndga-btn-secondary">Back</a>
+      </div>
+    </article>
+
+    <form method="post" class="mt-5 space-y-5">
+      {% csrf_token %}
+      <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <h2 class="text-lg font-semibold text-ndga-navy">Select Simulation Cards</h2>
+          <p class="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Step 2 of 2</p>
+        </div>
+        <input type="hidden" name="writeback_target" value="{{ writeback_target }}">
+        <input type="hidden" name="required_for_submission" value="on">
+
+        <div class="mt-4 grid gap-3 md:grid-cols-3">
+          <div class="md:col-span-1">
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500" for="simSearch">Search</label>
+            <input
+              id="simSearch"
+              type="text"
+              placeholder="Search by simulation name or description"
+              class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+            >
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500" for="simProviderFilter">Provider</label>
+            <select id="simProviderFilter" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+              <option value="">All providers</option>
+              {% for wrapper in wrappers|dictsort:"source_provider" %}
+                {% ifchanged wrapper.source_provider %}
+                  <option value="{{ wrapper.get_source_provider_display|lower }}">{{ wrapper.get_source_provider_display }}</option>
+                {% endifchanged %}
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500" for="simCategoryFilter">Category</label>
+            <select id="simCategoryFilter" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm">
+              <option value="">All categories</option>
+              {% for wrapper in wrappers|dictsort:"tool_category" %}
+                {% ifchanged wrapper.tool_category %}
+                  <option value="{{ wrapper.get_tool_category_display|lower }}">{{ wrapper.get_tool_category_display }}</option>
+                {% endifchanged %}
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+        <p class="mt-3 text-xs text-slate-500"><span id="simVisibleCount">{{ wrappers|length }}</span> simulation(s) visible</p>
+
+        <div id="simGrid" class="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {% for wrapper in wrappers %}
+            <label
+              class="sim-card block rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:border-ndga-navy/35"
+              data-name="{{ wrapper.tool_name|lower }}"
+              data-provider="{{ wrapper.get_source_provider_display|lower }}"
+              data-category="{{ wrapper.get_tool_category_display|lower }}"
+              data-description="{{ wrapper.description|default:'Simulation practical tool.'|lower }}"
+            >
+              <div class="flex items-start justify-between gap-2">
+                <div>
+                  <p class="text-sm font-semibold text-slate-900">{{ wrapper.tool_name }}</p>
+                  <p class="mt-1 text-xs text-slate-500">{{ wrapper.get_source_provider_display }} | {{ wrapper.get_tool_category_display }}</p>
+                </div>
+                <input type="checkbox" name="simulation_ids" value="{{ wrapper.id }}" class="mt-1 h-4 w-4 rounded border-slate-300 text-ndga-navy" {% if wrapper.id in selected_ids %}checked{% endif %} {% if not can_edit %}disabled{% endif %}>
+              </div>
+              <p class="mt-2 text-xs text-slate-600">{{ wrapper.description|default:"Simulation practical tool." }}</p>
+              <div class="mt-3 flex items-center justify-between text-xs text-slate-600">
+                <span>Mode: {{ wrapper.get_score_mode_display }}</span>
+                <span>Max: {{ wrapper.max_score }}</span>
+              </div>
+              {% if wrapper.preview_url %}
+                <a href="{% url 'cbt:simulation-launch' wrapper.id %}" target="_blank" rel="noopener" class="mt-3 inline-flex text-xs font-semibold text-ndga-navy hover:text-ndga-gold">
+                  Preview Simulation
+                </a>
+              {% endif %}
+            </label>
+          {% empty %}
+            <div class="sm:col-span-2 xl:col-span-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              No approved simulations available yet for this subject.
+            </div>
+          {% endfor %}
+        </div>
+        <div id="simNoMatch" class="mt-4 hidden rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          No simulations match your search/filter.
+        </div>
+      </article>
+
+      {% if can_edit %}
+        <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+          <label class="mb-1 block text-sm font-semibold text-slate-700" for="dean_comment">Dean Comment (Optional)</label>
+          <textarea id="dean_comment" name="dean_comment" rows="2" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"></textarea>
+          <div class="mt-3 flex flex-wrap gap-2">
+            <button type="submit" name="action" value="save" class="ndga-btn ndga-btn-secondary">Save Selection</button>
+            <button type="submit" name="action" value="submit_to_dean" class="ndga-btn ndga-btn-primary">Submit To Dean</button>
+          </div>
+        </article>
+      {% endif %}
+    </form>
+  </section>
+{% endblock %}
+
+{% block extra_scripts %}
+  <script>
+    (function () {
+      const searchInput = document.getElementById("simSearch");
+      const providerSelect = document.getElementById("simProviderFilter");
+      const categorySelect = document.getElementById("simCategoryFilter");
+      const cards = Array.from(document.querySelectorAll(".sim-card"));
+      const visibleCount = document.getElementById("simVisibleCount");
+      const noMatch = document.getElementById("simNoMatch");
+
+      if (!cards.length || !searchInput || !providerSelect || !categorySelect) {
+        return;
+      }
+
+      function normalize(value) {
+        return (value || "").toString().toLowerCase().trim();
+      }
+
+      function applyFilter() {
+        const query = normalize(searchInput.value);
+        const provider = normalize(providerSelect.value);
+        const category = normalize(categorySelect.value);
+        let shown = 0;
+
+        cards.forEach((card) => {
+          const name = normalize(card.getAttribute("data-name"));
+          const description = normalize(card.getAttribute("data-description"));
+          const cardProvider = normalize(card.getAttribute("data-provider"));
+          const cardCategory = normalize(card.getAttribute("data-category"));
+
+          const queryMatch = !query || name.includes(query) || description.includes(query);
+          const providerMatch = !provider || cardProvider === provider;
+          const categoryMatch = !category || cardCategory === category;
+          const visible = queryMatch && providerMatch && categoryMatch;
+
+          card.style.display = visible ? "" : "none";
+          if (visible) shown += 1;
+        });
+
+        if (visibleCount) visibleCount.textContent = String(shown);
+        if (noMatch) noMatch.classList.toggle("hidden", shown > 0);
+      }
+
+      searchInput.addEventListener("input", applyFilter);
+      providerSelect.addEventListener("change", applyFilter);
+      categorySelect.addEventListener("change", applyFilter);
+      applyFilter();
+    })();
+  </script>
+{% endblock %}

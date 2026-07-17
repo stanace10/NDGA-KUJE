@@ -1,0 +1,85 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Principal Oversight{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="flex items-center justify-between gap-4">
+        <div>
+          <h1 class="text-2xl font-bold text-ndga-navy">Principal Results Oversight</h1>
+          <p class="mt-1 text-sm text-slate-600">
+            Read-only governance view with policy-based override controls.
+          </p>
+        </div>
+        <a
+          href="{% url 'results:grade-entry-home' %}"
+          class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+        >
+          Back
+        </a>
+      </div>
+    </div>
+
+    <div class="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      {% if not override_enabled %}
+        <div class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Principal override policy is currently disabled.
+        </div>
+      {% endif %}
+
+      <div class="overflow-x-auto rounded-2xl border border-slate-200">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+          <thead>
+            <tr class="bg-slate-50 text-left text-slate-500">
+              <th class="px-3 py-2">Class</th>
+              <th class="px-3 py-2">Session/Term</th>
+              <th class="px-3 py-2">Status</th>
+              <th class="px-3 py-2">VP Actor</th>
+              <th class="px-3 py-2">Principal Override</th>
+              <th class="px-3 py-2">Timeline</th>
+              <th class="px-3 py-2">Override Action</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            {% for row in compilations %}
+              <tr>
+                <td class="px-3 py-2 font-semibold text-slate-800">{{ row.academic_class.code }}</td>
+                <td class="px-3 py-2 text-slate-700">{{ row.session.name }} | {{ row.term.get_name_display }}</td>
+                <td class="px-3 py-2 text-slate-700">{{ row.get_status_display }}</td>
+                <td class="px-3 py-2 text-slate-700">
+                  {% if row.vp_actor %}{{ row.vp_actor.username }}{% else %}-{% endif %}
+                </td>
+                <td class="px-3 py-2 text-slate-700">
+                  {% if row.principal_override_actor %}
+                    {{ row.principal_override_actor.username }}
+                  {% else %}
+                    -
+                  {% endif %}
+                </td>
+                <td class="px-3 py-2">
+                  <a href="{% url 'results:class-timeline' row.academic_class_id %}" class="font-semibold text-ndga-navy">
+                    Open Timeline
+                  </a>
+                </td>
+                <td class="px-3 py-2">
+                  {% if override_enabled %}
+                    <a href="{% url 'results:principal-override' row.id %}" class="font-semibold text-ndga-navy">
+                      Open Override
+                    </a>
+                  {% else %}
+                    <span class="text-slate-400">Disabled</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="7" class="px-3 py-4 text-slate-500">No class compilations found.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+{% endblock %}

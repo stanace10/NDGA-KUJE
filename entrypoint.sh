@@ -1,0 +1,28 @@
+#!/usr/bin/env sh
+set -e
+
+export DJANGO_SETTINGS_MODULE="${DJANGO_SETTINGS_MODULE:-core.settings.prod}"
+
+if [ "$DJANGO_SETTINGS_MODULE" = "core.settings.local" ]; then
+  echo "Refusing to start deployment container with core.settings.local" >&2
+  exit 1
+fi
+
+if [ -z "${DJANGO_SECRET_KEY:-}" ] || [ ${#DJANGO_SECRET_KEY} -lt 32 ]; then
+  echo "DJANGO_SECRET_KEY must be set to a real value with at least 32 characters." >&2
+  exit 1
+fi
+
+python manage.py migrate --noinput
+python manage.py ensure_default_portal_accounts
+python manage.py collectstatic --noinput
+
+exec gunicorn core.wsgi:application \
+  -k "${GUNICORN_WORKER_CLASS:-gthread}" \
+  --bind 0.0.0.0:8000 \
+  --workers "${GUNICORN_WORKERS:-4}" \
+  --threads "${GUNICORN_THREADS:-40}" \
+  --keep-alive "${GUNICORN_KEEPALIVE:-5}" \
+  --max-requests "${GUNICORN_MAX_REQUESTS:-5000}" \
+  --max-requests-jitter "${GUNICORN_MAX_REQUESTS_JITTER:-500}" \
+  --timeout "${GUNICORN_TIMEOUT:-120}"

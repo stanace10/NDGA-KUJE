@@ -1,0 +1,48 @@
+.git
+.github
+.venv
+.postgres
+.run
+.tools
+.chrome-*
+SCHOOL FOLDER
+exports
+tmp
+media
+staticfiles
+backups
+*.log
+node_modules
+staticfiles
+media
+backups
+certs
+tmp
+NDGA-transfer-backup-*/
+NDGA-Codex-VSCode-Backup-*/
+NDGA-Recovery-Backups/
+*.xlsx
+*.xls
+*.docx
+*.pdf
+.env
+.env.cloud
+.env.lan
+__pycache__
+*.pyc
+*.dump
+*.sql
+*.sql.gz
+*.tar
+*.tar.gz
+*.tgz
+SCHOOL/ndga_generated_credentials.txt
+
+README copy.md
+
+NDGA_result_preview.pdf
+NDGA_result_preview.png
+gradex format/
+SCHOOL FOLDER/
+assets/cbt-active-*.png
+assets/cbt-responsive-*.png

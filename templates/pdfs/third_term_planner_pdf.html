@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <style>
+    @page {
+      size: A4;
+      margin: 12mm 12mm 14mm 12mm;
+    }
+    body {
+      font-family: "DejaVu Serif", "Times New Roman", serif;
+      color: #1e293b;
+      margin: 0;
+      font-size: 11.6px;
+      line-height: 1.5;
+      background: #ffffff;
+    }
+    .page {
+      position: relative;
+    }
+    .watermark {
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0.05;
+      z-index: -1;
+    }
+    .watermark img {
+      width: 340px;
+      height: auto;
+    }
+    .masthead {
+      position: relative;
+      overflow: hidden;
+      border-radius: 18px;
+      background: linear-gradient(135deg, #002147 0%, #03152d 62%, #d4af37 100%);
+      color: #ffffff;
+      padding: 18px 20px 16px;
+      margin-bottom: 12px;
+    }
+    .masthead-table,
+    .meta-table,
+    .month-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .masthead-table td,
+    .meta-table td,
+    .month-table td {
+      vertical-align: top;
+    }
+    .logo-wrap {
+      width: 74px;
+    }
+    .logo-badge {
+      width: 62px;
+      height: 62px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.97);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px;
+      box-sizing: border-box;
+    }
+    .logo-badge img {
+      width: 46px;
+      height: 46px;
+      object-fit: contain;
+    }
+    .memo-kicker {
+      display: inline-block;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.16);
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+    .school-name {
+      margin: 8px 0 4px;
+      font-size: 22px;
+      font-weight: 700;
+      line-height: 1.15;
+    }
+    .school-subline {
+      margin: 0;
+      color: #e2e8f0;
+      font-size: 10px;
+    }
+    .desk-title {
+      margin: 8px 0 0;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #f7d58b;
+    }
+    .memo-card {
+      border: 1px solid #dbe5f0;
+      border-radius: 16px;
+      padding: 14px 16px;
+      background: #ffffff;
+      margin-bottom: 10px;
+    }
+    .meta-table td {
+      padding: 0 10px 8px 0;
+      width: 50%;
+    }
+    .meta-label {
+      display: block;
+      font-size: 8.5px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #9a6b08;
+      margin-bottom: 3px;
+    }
+    .meta-value {
+      font-size: 11px;
+      font-weight: 600;
+      color: #0f172a;
+    }
+    .opening {
+      margin: 0 0 10px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #334155;
+    }
+    .intro {
+      margin: 0 0 12px;
+    }
+    .month-block {
+      margin: 0 0 12px;
+      page-break-inside: avoid;
+      border: 1px solid #dbe5f0;
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    .month-header {
+      padding: 10px 14px;
+      background: #002147;
+      color: #ffffff;
+    }
+    .month-name {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .month-body {
+      padding: 10px 12px 4px;
+      background: #ffffff;
+    }
+    .month-table td {
+      padding: 0 0 8px;
+      font-size: 10.8px;
+      line-height: 1.45;
+    }
+    .date-col {
+      width: 34%;
+      padding-right: 10px;
+      font-weight: 700;
+      color: #163f73;
+    }
+    .event-col {
+      color: #334155;
+    }
+    .closing-box {
+      margin-top: 14px;
+      padding: 12px 14px;
+      border-left: 4px solid #d4af37;
+      background: #fffaf0;
+      border-radius: 0 12px 12px 0;
+    }
+    .closing-box p {
+      margin: 0;
+      font-size: 11px;
+      color: #5b4630;
+    }
+    .signature-block {
+      margin-top: 18px;
+      page-break-inside: avoid;
+    }
+    .signature-line {
+      width: 200px;
+      border-top: 1.5px solid #94a3b8;
+      margin-top: 8px;
+      margin-bottom: 6px;
+    }
+    .signoff-name {
+      font-weight: 700;
+      font-size: 11.8px;
+      color: #0f172a;
+      margin: 0 0 1px;
+    }
+    .signoff-role {
+      margin: 0;
+      color: #475569;
+      font-size: 10.8px;
+    }
+    .footer {
+      margin-top: 12px;
+      padding-top: 8px;
+      border-top: 1px solid #dbe5f0;
+      font-size: 8.8px;
+      color: #64748b;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    {% if logo_data_uri %}
+      <div class="watermark">
+        <img src="{{ logo_data_uri }}" alt="School watermark">
+      </div>
+    {% endif %}
+
+    <div class="masthead">
+      <table class="masthead-table">
+        <tr>
+          <td class="logo-wrap">
+            {% if logo_data_uri %}
+              <div class="logo-badge">
+                <img src="{{ logo_data_uri }}" alt="{{ school_profile.school_name }}">
+              </div>
+            {% endif %}
+          </td>
+          <td>
+            <div class="memo-kicker">Official Memo</div>
+            <div class="school-name">{{ school_profile.school_name|default:"Notre Dame Girls' Academy" }}</div>
+            <p class="school-subline">{{ school_address }}</p>
+            <p class="desk-title">From the School Management Desk</p>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="memo-card">
+      <table class="meta-table">
+        <tr>
+          <td>
+            <span class="meta-label">Date</span>
+            <div class="meta-value">{{ memo_date }}</div>
+          </td>
+          <td>
+            <span class="meta-label">To</span>
+            <div class="meta-value">{{ recipient_line }}</div>
+          </td>
+        </tr>
+        <tr>
+          <td colspan="2">
+            <span class="meta-label">Subject</span>
+            <div class="meta-value">{{ subject }}</div>
+          </td>
+        </tr>
+      </table>
+
+      <p class="opening">{{ salutation }}</p>
+      <p class="intro">{{ intro_paragraph }}</p>
+
+      {% for month in months %}
+        <div class="month-block">
+          <div class="month-header">
+            <p class="month-name">{{ month.name }}</p>
+          </div>
+          <div class="month-body">
+            <table class="month-table">
+              {% for item in month.items %}
+                <tr>
+                  <td class="date-col">{{ item.date_label }}</td>
+                  <td class="event-col">{{ item.description }}</td>
+                </tr>
+              {% endfor %}
+            </table>
+          </div>
+        </div>
+      {% endfor %}
+
+      <div class="closing-box">
+        <p>{{ closing_note }}</p>
+      </div>
+
+      <div class="signature-block">
+        <p style="margin:0 0 8px;">Yours faithfully,</p>
+        <div class="signature-line"></div>
+        <p class="signoff-name">{{ signoff_name }}</p>
+        <p class="signoff-role">{{ signoff_role }}</p>
+      </div>
+    </div>
+
+    <div class="footer">
+      {{ school_profile.school_name|default:"Notre Dame Girls' Academy" }}
+      {% if school_profile.contact_email %} | {{ school_profile.contact_email }}{% endif %}
+      {% if school_profile.contact_phone %} | {{ school_profile.contact_phone }}{% endif %}
+      {% if school_profile.website %} | {{ school_profile.website }}{% endif %}
+    </div>
+  </div>
+</body>
+</html>

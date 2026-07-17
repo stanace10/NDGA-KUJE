@@ -1,0 +1,173 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Election Portal{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+    <div class="animate-soft-reveal rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Election Operations</p>
+          <h1 class="mt-2 text-2xl font-bold text-slate-900">Election Operations Center</h1>
+          <p class="mt-2 max-w-3xl text-sm text-slate-600">
+            Cast votes position-by-position, monitor turnout analytics, and manage official election workflows.
+          </p>
+        </div>
+        <div class="flex flex-wrap items-center justify-end gap-2">
+          <div class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+            {% if voter_photo_url %}
+              <img src="{{ voter_photo_url }}" alt="{{ voter_name }}" class="h-11 w-11 rounded-xl border border-slate-200 object-cover">
+            {% else %}
+              <span class="relative inline-flex h-11 w-11 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                <svg viewBox="0 0 64 64" class="absolute inset-0 h-full w-full text-slate-300" fill="currentColor" aria-hidden="true">
+                  <circle cx="32" cy="24" r="12"></circle>
+                  <path d="M12 56c2-12 11-18 20-18s18 6 20 18"></path>
+                </svg>
+                <span class="relative text-sm font-semibold text-slate-700">{{ voter_name|slice:":1"|upper }}</span>
+              </span>
+            {% endif %}
+            <div class="text-right">
+              <p class="text-sm font-semibold text-slate-900">{{ voter_name }}</p>
+              <p class="text-xs text-slate-600">{{ voter_identifier }}{% if voter_class_code %} | {{ voter_class_code }}{% endif %}</p>
+              <p class="text-[11px] uppercase tracking-[0.14em] text-slate-500">{{ voter_role }}</p>
+            </div>
+          </div>
+          {% if show_management %}
+            <a href="{% url 'elections:it-manage' %}" class="ndga-btn ndga-btn-primary">Election Setup</a>
+          {% endif %}
+          {% if show_analytics and recent_closed %}
+            <a href="{% url 'elections:analytics' recent_closed.0.id %}" class="ndga-btn ndga-btn-secondary">Latest Analytics</a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {% if monitor_elections %}
+      <article class="mt-4 animate-soft-reveal-delay rounded-3xl border border-emerald-200 bg-emerald-50/70 p-5 shadow-sm">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Live Started</p>
+          <h2 class="mt-2 text-lg font-semibold text-slate-900">Election monitoring</h2>
+          <p class="mt-1 text-sm text-slate-600">Track the active election window, live turnout, and direct analytics from the election portal only.</p>
+        </div>
+        <div class="mt-4 grid gap-3 lg:grid-cols-2">
+          {% for row in monitor_elections %}
+            <div class="rounded-2xl border border-emerald-200 bg-white p-4">
+              <div class="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p class="text-sm font-semibold text-slate-900">{{ row.election.title }}</p>
+                  <p class="mt-1 text-xs uppercase tracking-[0.16em] text-emerald-700">{{ row.analytics.status }}</p>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  {% if show_analytics %}
+                    <a href="{% url 'elections:analytics' row.election.id %}" class="ndga-btn ndga-btn-secondary">Live Analytics</a>
+                  {% endif %}
+                  {% if show_management %}
+                    <a href="{% url 'elections:it-manage-detail' row.election.id %}" class="ndga-btn ndga-btn-primary">Election Setup</a>
+                  {% endif %}
+                </div>
+              </div>
+              <div class="mt-3 grid gap-3 sm:grid-cols-3">
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                  <p class="text-[11px] uppercase tracking-[0.16em] text-slate-500">Eligible</p>
+                  <p class="mt-1 text-lg font-bold text-slate-900">{{ row.analytics.eligible_voters }}</p>
+                </div>
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                  <p class="text-[11px] uppercase tracking-[0.16em] text-slate-500">Votes Cast</p>
+                  <p class="mt-1 text-lg font-bold text-slate-900">{{ row.analytics.votes_cast }}</p>
+                </div>
+                <div class="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                  <p class="text-[11px] uppercase tracking-[0.16em] text-slate-500">Turnout</p>
+                  <p class="mt-1 text-lg font-bold text-slate-900">{{ row.analytics.turnout_percent }}%</p>
+                </div>
+              </div>
+              <p class="mt-3 text-xs text-slate-500">
+                {% if row.election.starts_at %}Start: {{ row.election.starts_at|date:"d M Y H:i" }}{% else %}Start: Open now{% endif %}
+                {% if row.election.ends_at %} | End: {{ row.election.ends_at|date:"d M Y H:i" }}{% endif %}
+                | Positions: {{ row.position_count }}
+              </p>
+            </div>
+          {% endfor %}
+        </div>
+      </article>
+    {% endif %}
+
+    <div class="mt-4 grid gap-4 lg:grid-cols-2">
+      <article class="animate-soft-reveal-delay rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 class="text-lg font-semibold text-slate-900">Open Elections</h2>
+        <p class="mt-1 text-sm text-slate-600">You can only vote in elections where your profile is eligible.</p>
+        <div class="mt-4 space-y-3">
+          {% for row in open_elections %}
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div class="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p class="text-sm font-semibold text-slate-900">{{ row.election.title }}</p>
+                  <p class="mt-1 text-xs text-slate-600">
+                    Positions: {{ row.position_count }} | Completed: {{ row.voted_count }}
+                  </p>
+                </div>
+                {% if row.is_completed %}
+                  <span class="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-800">
+                    Completed
+                  </span>
+                {% else %}
+                  <a href="{% url 'elections:vote-start' row.election.id %}" class="ndga-btn ndga-btn-primary">
+                    Continue Voting
+                  </a>
+                {% endif %}
+              </div>
+              {% if row.election.description %}
+                <p class="mt-2 text-sm text-slate-600">{{ row.election.description }}</p>
+              {% endif %}
+              <div class="mt-2 text-xs text-slate-500">
+                {% if row.election.starts_at %}Start: {{ row.election.starts_at|date:"d M Y H:i" }}{% else %}Start: Open now{% endif %}
+                {% if row.election.ends_at %} | End: {{ row.election.ends_at|date:"d M Y H:i" }}{% endif %}
+              </div>
+            </div>
+          {% empty %}
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+              {% if show_management or show_analytics %}
+                No open voter ballot is mapped to your profile. Use the live monitoring panel above to supervise the election.
+              {% else %}
+                No open elections mapped to your voter profile yet.
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      </article>
+
+      {% if show_closed_elections %}
+        <article class="animate-soft-reveal-delay-2 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 class="text-lg font-semibold text-slate-900">Closed Elections</h2>
+          <p class="mt-1 text-sm text-slate-600">Review final counts and generate official result PDFs.</p>
+          <div class="mt-4 space-y-3">
+            {% for election in recent_closed %}
+              <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p class="text-sm font-semibold text-slate-900">{{ election.title }}</p>
+                    <p class="mt-1 text-xs text-slate-600">
+                      Closed:
+                      {% if election.closed_at %}
+                        {{ election.closed_at|date:"d M Y H:i" }}
+                      {% else %}
+                        -
+                      {% endif %}
+                    </p>
+                  </div>
+                  <div class="flex flex-wrap gap-2">
+                    <a href="{% url 'elections:analytics' election.id %}" class="ndga-btn ndga-btn-secondary">Analytics</a>
+                    <a href="{% url 'elections:result-pdf' election.id %}" class="ndga-btn ndga-btn-primary">Result PDF</a>
+                  </div>
+                </div>
+              </div>
+            {% empty %}
+              <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+                No closed elections available yet.
+              </div>
+            {% endfor %}
+          </div>
+        </article>
+      {% endif %}
+    </div>
+  </section>
+{% endblock %}

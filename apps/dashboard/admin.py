@@ -1,0 +1,133 @@
+from django.contrib import admin
+
+from apps.dashboard.models import (
+    LearningResource,
+    LessonPlanDraft,
+    PortalDocument,
+    PrincipalSignature,
+    PublicAdmissionPaymentTransaction,
+    PublicAdmissionWorkflowStatus,
+    PublicEventImage,
+    PublicEventPost,
+    PublicGalleryCategory,
+    PublicGalleryImage,
+    PublicNewsPost,
+    PublicSiteSubmission,
+    PublicWebsiteSettings,
+)
+
+
+@admin.register(PrincipalSignature)
+class PrincipalSignatureAdmin(admin.ModelAdmin):
+    list_display = ("user", "updated_at")
+    search_fields = ("user__username", "user__display_name")
+
+
+@admin.register(LearningResource)
+class LearningResourceAdmin(admin.ModelAdmin):
+    list_display = ("title", "category", "academic_class", "subject", "is_published", "due_date")
+    list_filter = ("category", "is_published", "session", "term")
+    search_fields = ("title", "description", "subject__name", "academic_class__code")
+
+
+@admin.register(LessonPlanDraft)
+class LessonPlanDraftAdmin(admin.ModelAdmin):
+    list_display = ("topic", "subject", "academic_class", "teacher", "publish_to_learning_hub", "assignment_due_date")
+    list_filter = ("publish_to_learning_hub", "session", "term")
+    search_fields = ("topic", "subject__name", "academic_class__code", "teacher__username")
+
+
+@admin.register(PortalDocument)
+class PortalDocumentAdmin(admin.ModelAdmin):
+    list_display = ("title", "category", "student", "academic_class", "is_visible_to_student", "created_at")
+    list_filter = ("category", "is_visible_to_student", "session", "term")
+    search_fields = ("title", "student__username", "student__student_profile__student_number")
+
+
+@admin.register(PublicSiteSubmission)
+class PublicSiteSubmissionAdmin(admin.ModelAdmin):
+    list_display = (
+        "submission_type",
+        "status",
+        "admissions_status",
+        "payment_status",
+        "applicant_name",
+        "contact_name",
+        "contact_email",
+        "intended_class",
+        "generated_admission_number",
+        "created_at",
+    )
+    list_filter = (
+        "submission_type",
+        "status",
+        "admissions_status",
+        "payment_status",
+        "intended_class",
+        "boarding_option",
+    )
+    search_fields = (
+        "contact_name",
+        "contact_email",
+        "contact_phone",
+        "applicant_name",
+        "guardian_name",
+        "guardian_phone",
+        "subject",
+        "generated_admission_number",
+        "application_fee_reference",
+    )
+    actions = ("mark_admission_pending",)
+
+    @admin.action(description="Mark selected admissions as pending review")
+    def mark_admission_pending(self, request, queryset):
+        queryset.filter(submission_type="ADMISSION").update(
+            admissions_status=PublicAdmissionWorkflowStatus.PENDING
+        )
+
+
+@admin.register(PublicAdmissionPaymentTransaction)
+class PublicAdmissionPaymentTransactionAdmin(admin.ModelAdmin):
+    list_display = ("reference", "submission", "provider", "status", "amount", "created_at")
+    list_filter = ("provider", "status")
+    search_fields = ("reference", "gateway_reference", "submission__applicant_name", "submission__application_fee_reference")
+
+
+@admin.register(PublicWebsiteSettings)
+class PublicWebsiteSettingsAdmin(admin.ModelAdmin):
+    list_display = ("singleton_key", "updated_at", "updated_by")
+
+
+@admin.register(PublicGalleryCategory)
+class PublicGalleryCategoryAdmin(admin.ModelAdmin):
+    list_display = ("title", "slug", "sort_order", "is_active", "updated_at")
+    list_filter = ("is_active",)
+    search_fields = ("title", "slug", "summary")
+
+
+@admin.register(PublicGalleryImage)
+class PublicGalleryImageAdmin(admin.ModelAdmin):
+    list_display = ("title", "category", "sort_order", "is_active", "updated_at")
+    list_filter = ("is_active", "category")
+    search_fields = ("title", "caption", "category__title")
+
+
+@admin.register(PublicNewsPost)
+class PublicNewsPostAdmin(admin.ModelAdmin):
+    list_display = ("title", "category", "published_on", "sort_order", "is_published")
+    list_filter = ("is_published", "category")
+    search_fields = ("title", "summary", "body")
+
+
+@admin.register(PublicEventPost)
+class PublicEventPostAdmin(admin.ModelAdmin):
+    list_display = ("title", "meta", "event_date", "sort_order", "is_published")
+    list_filter = ("is_published", "meta")
+    search_fields = ("title", "summary", "body", "location")
+
+
+@admin.register(PublicEventImage)
+class PublicEventImageAdmin(admin.ModelAdmin):
+    list_display = ("title", "event", "sort_order", "is_active", "updated_at")
+    list_filter = ("is_active", "event")
+    search_fields = ("title", "caption", "event__title")

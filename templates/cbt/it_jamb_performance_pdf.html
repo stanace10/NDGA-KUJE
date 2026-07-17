@@ -1,0 +1,25 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  @page { size: A4 landscape; margin: 10mm; @bottom-center { content: "Page " counter(page) " of " counter(pages); font-size: 8pt; color: #64748b; } }
+  body { font-family: DejaVu Sans, Arial, sans-serif; color: #172033; font-size: 8pt; }
+  h1 { margin: 0; color: #0b2545; text-align: center; font-size: 17pt; }
+  .sub { text-align: center; color: #475569; margin: 3px 0 10px; }
+  .top { display: flex; gap: 8px; margin-bottom: 10px; }
+  .top div { flex: 1; border: 1px solid #d6a72f; background: #fffaf0; padding: 7px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: #0b2545; color: #fff; padding: 5px; text-align: left; }
+  td { border: .5px solid #cbd5e1; padding: 5px; vertical-align: top; }
+  tr:nth-child(even) td { background: #f8fafc; }
+</style></head><body>
+  <h1>NOTRE DAME GIRLS' ACADEMY, KUJE</h1>
+  <div class="sub"><b>SS2 JAMB CBT Performance</b> · Generated {{ generated_at|date:"d M Y H:i" }}</div>
+  <div class="top">
+    {% for row in top_rows %}<div><b>Position {{ forloop.counter }}</b><br>{{ row.name }}<br>{{ row.admission_no }} · {{ row.total_score }}/400</div>{% endfor %}
+  </div>
+  <table><thead><tr><th>S/N</th><th>Student</th><th>Admission No.</th><th>Selected Subjects</th><th>Score / 400</th><th>Percent</th><th>Status</th></tr></thead>
+  <tbody>
+    {% for row in rows %}
+      <tr><td>{{ forloop.counter }}</td><td>{{ row.name }}</td><td>{{ row.admission_no }}</td><td>{{ row.sections|join:", " }}</td><td>{{ row.total_score }}</td><td>{{ row.percent }}%</td><td>{{ row.status }}</td></tr>
+    {% empty %}<tr><td colspan="7">No submitted JAMB attempts yet.</td></tr>{% endfor %}
+  </tbody></table>
+</body></html>

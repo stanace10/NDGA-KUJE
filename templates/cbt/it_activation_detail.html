@@ -1,0 +1,288 @@
+{% extends "layouts/base.html" %}
+{% load cbt_text %}
+
+{% block title %}IT Activation Detail{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div class="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+      <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h1 class="text-2xl font-bold text-ndga-navy">{{ exam.title }}</h1>
+        <p class="mt-1 text-sm text-slate-600">{{ exam.subject.name }} | {{ exam.academic_class.code }} | {{ exam.get_exam_type_display }}</p>
+        <div class="mt-3 flex flex-wrap gap-2 text-xs font-semibold">
+          <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-700">Status: {{ exam.get_status_display }}</span>
+          <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-700">Dean: {{ exam.dean_reviewed_by.username|default:"-" }}</span>
+          <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-700">Questions: {{ exam_questions|length }}</span>
+          <span class="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-700">Active Attempts: {{ active_attempt_count }}</span>
+          {% if timer_is_paused %}
+            <span class="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-amber-700">Timer Paused</span>
+          {% endif %}
+        </div>
+        <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          Timed CBTs close automatically once the end time passes. Use timer pause only for hall-wide interruptions such as power outage.
+        </div>
+        {% if exam_blueprint and exam_blueprint.instructions %}
+          <div class="mt-4 rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-slate-700">
+            <p class="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-800">Current Instructions</p>
+            <div class="mt-2 leading-relaxed">{{ exam_blueprint.instructions|linebreaksbr }}</div>
+          </div>
+        {% endif %}
+        {% if exam.activation_snapshot_hash %}
+          <div class="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-slate-700">
+            <p class="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-800">Immutable Activation Snapshot</p>
+            <p class="mt-2 font-mono text-xs text-emerald-900 break-all">{{ exam.activation_snapshot_hash }}</p>
+            <p class="mt-2 text-xs text-slate-600">
+              Frozen at {{ exam.activated_at|date:"d M Y H:i" }} |
+              Questions: {{ exam.activation_snapshot.questions|length }} |
+              Simulations: {{ exam.activation_snapshot.simulations|length }}
+            </p>
+          </div>
+        {% endif %}
+
+        <div class="mt-4 flex flex-wrap gap-3">
+          <a href="{{ builder_url }}" class="ndga-btn ndga-btn-primary">Edit Questions</a>
+          <a href="{{ detail_url }}" class="ndga-btn ndga-btn-secondary">Open Exam Detail</a>
+        </div>
+
+        <h2 class="mt-6 text-lg font-semibold text-ndga-navy">Attempt & Writeback Evidence</h2>
+        <div class="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          {% if result_sheet %}
+            <p class="font-semibold text-slate-800">Linked result sheet: {{ result_sheet.get_status_display }}</p>
+            <p class="mt-1 text-xs text-slate-500">This shows each student CBT attempt, the writeback payload, and the current score row stored for this exam subject.</p>
+          {% else %}
+            <p class="font-semibold text-slate-800">No result sheet linked yet.</p>
+            <p class="mt-1 text-xs text-slate-500">Once writeback creates a grade row, it will appear here for verification.</p>
+          {% endif %}
+        </div>
+        <div class="mt-3 overflow-x-auto rounded-2xl border border-slate-200">
+          <table class="min-w-full divide-y divide-slate-200 text-sm">
+            <thead>
+              <tr class="bg-slate-50 text-left text-slate-500">
+                <th class="px-3 py-2">Student</th>
+                <th class="px-3 py-2">Attempt</th>
+                <th class="px-3 py-2">CBT Scores</th>
+                <th class="px-3 py-2">Writeback</th>
+                <th class="px-3 py-2">Result Row</th>
+                <th class="px-3 py-2">Updated</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              {% for row in attempt_rows %}
+                <tr>
+                  <td class="px-3 py-2">
+                    <p class="font-semibold text-slate-800">{{ row.attempt.student.username }}</p>
+                    {% if row.attempt.student.student_profile %}
+                      <p class="text-xs text-slate-500">{{ row.attempt.student.student_profile.student_number }}</p>
+                    {% endif %}
+                  </td>
+                  <td class="px-3 py-2 text-slate-700">
+                    <p class="font-semibold">{{ row.attempt.get_status_display }}</p>
+                    <p class="text-xs text-slate-500">No. {{ row.attempt.attempt_number }}</p>
+                  </td>
+                  <td class="px-3 py-2 text-slate-700">
+                    <p>Obj: {{ row.attempt.objective_score }}</p>
+                    <p>Thy: {{ row.attempt.theory_score }}</p>
+                    <p>Total: {{ row.attempt.total_score }}</p>
+                  </td>
+                  <td class="px-3 py-2 text-xs text-slate-600">
+                    <p>Objective: {{ row.objective_writeback.field|default:"-" }}{% if row.objective_writeback.after %} -> {{ row.objective_writeback.after }}{% endif %}</p>
+                    <p>Theory: {{ row.theory_writeback.field|default:"-" }}{% if row.theory_writeback.after %} -> {{ row.theory_writeback.after }}{% endif %}</p>
+                    {% if row.objective_writeback.reason %}
+                      <p class="mt-1 text-amber-700">{{ row.objective_writeback.reason }}</p>
+                    {% endif %}
+                    {% if row.theory_writeback.reason %}
+                      <p class="mt-1 text-amber-700">{{ row.theory_writeback.reason }}</p>
+                    {% endif %}
+                  </td>
+                  <td class="px-3 py-2 text-xs text-slate-600">
+                    {% if row.score_row %}
+                      <p>CA1 {{ row.score_row.ca1 }} | CA2 {{ row.score_row.ca2 }} | CA3 {{ row.score_row.ca3 }} | Assignment/Project/Practical {{ row.score_row.ca4 }} | Class Participation {{ row.score_row.class_participation }}</p>
+                      <p>OBJ {{ row.score_row.objective }} | THY {{ row.score_row.theory }}</p>
+                      <p class="font-semibold text-slate-800">GT {{ row.score_row.grand_total }} | {{ row.score_row.grade }}</p>
+                    {% else %}
+                      <p class="text-slate-500">No linked result row yet.</p>
+                    {% endif %}
+                  </td>
+                  <td class="px-3 py-2 text-xs text-slate-500">
+                    <p>{{ row.attempt.updated_at|date:"d M Y H:i" }}</p>
+                    {% if row.attempt.submitted_at %}
+                      <p>Submitted {{ row.attempt.submitted_at|date:"d M Y H:i" }}</p>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="6" class="px-3 py-4 text-slate-500">No student attempts recorded for this exam yet.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <h2 class="mt-6 text-lg font-semibold text-ndga-navy">Schedule / Reopen Exam</h2>
+        <form method="post" class="mt-3 space-y-3">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="activate">
+          {% for field in activation_form %}
+            <div>
+              <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ field.id_for_label }}">{{ field.label }}</label>
+              {{ field }}
+              {% if field.help_text %}<p class="mt-1 text-xs text-slate-500">{{ field.help_text }}</p>{% endif %}
+              {% if field.errors %}<p class="mt-1 text-xs text-rose-700">{{ field.errors|striptags }}</p>{% endif %}
+            </div>
+          {% endfor %}
+          <button type="submit" class="ndga-btn ndga-btn-primary" {% if not can_activate %}disabled{% endif %}>Save Schedule</button>
+          {% if not can_activate %}<p class="text-xs text-slate-500">Only approved, active, or closed current-term CBTs can be scheduled here.</p>{% endif %}
+        </form>
+
+        <h2 class="mt-6 text-lg font-semibold text-ndga-navy">Quick Reopen / Extend</h2>
+        <div class="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+          <p>Use these when a live paper needs more time immediately. Closed papers reopen from now; active papers extend from their current end time. Any submitted, unfinalized attempts are restored so students can continue.</p>
+        </div>
+        <div class="mt-3 flex flex-wrap gap-3">
+          {% for minutes in quick_window_minutes %}
+            <form method="post">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="quick_extend">
+              <input type="hidden" name="minutes" value="{{ minutes }}">
+              <button type="submit" class="ndga-btn ndga-btn-secondary" {% if exam.status != "ACTIVE" and exam.status != "CLOSED" %}disabled{% endif %}>
+                {% if exam.status == "CLOSED" %}Reopen{% else %}Extend{% endif %} {{ minutes }} min
+              </button>
+            </form>
+          {% endfor %}
+        </div>
+
+        <h2 class="mt-6 text-lg font-semibold text-ndga-navy">Timer Controls</h2>
+        <div class="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+          {% if timer_is_paused %}
+            <p class="font-semibold text-amber-700">Timer is currently paused for this exam.</p>
+            <p class="mt-1">Students who reconnect will keep the same remaining time until you resume.</p>
+            {% if timer_pause_reason %}<p class="mt-2 text-xs text-slate-500">Reason: {{ timer_pause_reason }}</p>{% endif %}
+          {% else %}
+            <p class="font-semibold text-slate-800">Timer is running normally.</p>
+            <p class="mt-1">Pause only when the whole hall is interrupted and every candidate must keep the same remaining time.</p>
+          {% endif %}
+        </div>
+        <div class="mt-3 grid gap-3 md:grid-cols-2">
+          <form method="post" class="space-y-3 rounded-2xl border border-slate-200 p-4">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="pause_timer">
+            <div>
+              <label for="timerPauseReason" class="mb-1 block text-sm font-semibold text-slate-700">Pause Reason</label>
+              <input id="timerPauseReason" type="text" name="timer_pause_reason" class="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" placeholder="e.g. Hall power outage">
+            </div>
+            <button type="submit" class="ndga-btn ndga-btn-secondary" {% if exam.status != "ACTIVE" or timer_is_paused %}disabled{% endif %}>Pause Timer</button>
+          </form>
+          <form method="post" class="space-y-3 rounded-2xl border border-slate-200 p-4">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="resume_timer">
+            <p class="text-sm text-slate-600">Resume the exam timer and restore the paused time to all active attempts.</p>
+            <button type="submit" class="ndga-btn ndga-btn-primary" {% if not timer_is_paused %}disabled{% endif %}>Resume Timer</button>
+          </form>
+        </div>
+
+        <h2 class="mt-6 text-lg font-semibold text-ndga-navy">Close Active Exam</h2>
+        <form method="post" class="mt-3 space-y-3">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="close">
+          {% for field in close_form %}
+            <div>
+              <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ field.id_for_label }}">{{ field.label }}</label>
+              {{ field }}
+              {% if field.errors %}<p class="mt-1 text-xs text-rose-700">{{ field.errors|striptags }}</p>{% endif %}
+            </div>
+          {% endfor %}
+          <button type="submit" class="ndga-btn ndga-btn-secondary" {% if exam.status != "ACTIVE" %}disabled{% endif %}>Close Exam</button>
+        </form>
+
+        <h2 class="mt-6 text-lg font-semibold text-ndga-navy">Revoke From CBT Board</h2>
+        <div class="mt-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+          {% if can_revoke %}
+            <p>Use revoke only before any student starts the paper. The exam moves back to the approved queue and disappears from the student CBT board until you publish it again.</p>
+          {% else %}
+            <p>Revoke is unavailable once any student has started. Total attempts recorded: {{ total_attempt_count }}. Use Close to stop an active paper instead.</p>
+          {% endif %}
+        </div>
+        <form method="post" class="mt-3 space-y-3">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="revoke">
+          {% for field in revoke_form %}
+            <div>
+              <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ field.id_for_label }}">{{ field.label }}</label>
+              {{ field }}
+              {% if field.errors %}<p class="mt-1 text-xs text-rose-700">{{ field.errors|striptags }}</p>{% endif %}
+            </div>
+          {% endfor %}
+          <button type="submit" class="ndga-btn ndga-btn-secondary" {% if not can_revoke %}disabled{% endif %}>Revoke Exam</button>
+        </form>
+      </article>
+
+      <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-semibold text-ndga-navy">Workflow Timeline</h2>
+        <div class="mt-3 space-y-2">
+          {% for row in review_actions %}
+            <div class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+              <p class="text-sm font-semibold text-slate-800">{{ row.action }} | {{ row.from_status }} -> {{ row.to_status }}</p>
+              <p class="text-xs text-slate-500">{{ row.created_at|date:"d M Y H:i" }}{% if row.actor %} | {{ row.actor.username }}{% endif %}</p>
+              {% if row.comment %}<p class="mt-1 text-xs text-slate-600">{{ row.comment }}</p>{% endif %}
+            </div>
+          {% empty %}
+            <p class="text-sm text-slate-500">No workflow timeline events yet.</p>
+          {% endfor %}
+        </div>
+
+        <h3 class="mt-6 text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">Question Preview</h3>
+        <div class="mt-2 max-h-72 overflow-auto rounded-2xl border border-slate-200">
+          <table class="min-w-full divide-y divide-slate-200 text-sm">
+            <thead>
+              <tr class="bg-slate-50 text-left text-slate-500">
+                <th class="px-3 py-2">#</th>
+                <th class="px-3 py-2">Question</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              {% for row in exam_questions %}
+                <tr>
+                  <td class="px-3 py-2 font-semibold text-slate-800">{{ row.sort_order }}</td>
+                  <td class="px-3 py-2 text-slate-700">
+                    <div class="max-w-2xl truncate">{% if row.question.rich_stem %}{{ row.question.rich_stem|safe|cbt_notation|truncatechars_html:130 }}{% else %}{{ row.question.stem|cbt_notation|truncatechars_html:130 }}{% endif %}</div>
+                    {% if row.question.stimulus_caption %}
+                      <p class="mt-2 text-xs font-semibold text-cyan-700">{{ row.question.stimulus_caption }}</p>
+                    {% endif %}
+                    {% if row.question.stimulus_image %}
+                      <img src="{{ row.question.stimulus_image.url }}" alt="Question diagram" class="mt-2 max-h-28 w-full max-w-xs rounded-lg border border-slate-200 object-contain bg-white p-1.5">
+                    {% endif %}
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="2" class="px-3 py-4 text-slate-500">No attached questions.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <h3 class="mt-6 text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">Simulation Preview</h3>
+        <div class="mt-2 max-h-72 overflow-auto rounded-2xl border border-slate-200">
+          <table class="min-w-full divide-y divide-slate-200 text-sm">
+            <thead>
+              <tr class="bg-slate-50 text-left text-slate-500">
+                <th class="px-3 py-2">#</th>
+                <th class="px-3 py-2">Tool</th>
+                <th class="px-3 py-2">Mode</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              {% for row in exam_simulations %}
+                <tr>
+                  <td class="px-3 py-2 font-semibold text-slate-800">{{ row.sort_order }}</td>
+                  <td class="px-3 py-2 text-slate-700">{{ row.simulation_wrapper.tool_name }}</td>
+                  <td class="px-3 py-2 text-slate-700">{{ row.simulation_wrapper.get_score_mode_display }}</td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="3" class="px-3 py-4 text-slate-500">No simulations attached.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </article>
+    </div>
+  </section>
+{% endblock %}

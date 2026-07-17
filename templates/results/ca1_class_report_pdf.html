@@ -1,0 +1,588 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    @page {
+      size: A4 landscape;
+      margin: 4mm 4mm 7mm 4mm;
+      @bottom-left {
+        content: "Notre Dame Girls' Academy · {{ selected_ca_label }} · {{ selected_class.display_name|default:selected_class.code }} · {{ current_session.name }}";
+        font-family: Arial, sans-serif;
+        font-size: 7px;
+        color: #4a5565;
+      }
+      @bottom-right {
+        content: "Page " counter(page) " of " counter(pages);
+        font-family: Arial, sans-serif;
+        font-size: 7px;
+        color: #4a5565;
+      }
+    }
+
+    * { box-sizing: border-box; }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: "Arial Narrow", "Roboto Condensed", Arial, sans-serif;
+      color: #0f172a;
+      background: #fff;
+      font-size: {% if selected_ca_component == "cumulative" %}{{ matrix.print_widths.typography.annual_score_font|default:"5pt" }}{% else %}{{ matrix.print_widths.typography.score_font|default:"5.8pt" }}{% endif %};
+      line-height: 1.08;
+      --subject-code-font: {{ matrix.print_widths.typography.subject_code_font|default:"5.6pt" }};
+      --score-font: {{ matrix.print_widths.typography.score_font|default:"5.8pt" }};
+      --student-font: {{ matrix.print_widths.typography.student_font|default:"6.4pt" }};
+      --annual-code-font: {{ matrix.print_widths.typography.annual_code_font|default:"5.4pt" }};
+      --annual-key-font: {{ matrix.print_widths.typography.annual_key_font|default:"4.4pt" }};
+      --annual-score-font: {{ matrix.print_widths.typography.annual_score_font|default:"5pt" }};
+      --annual-student-font: {{ matrix.print_widths.typography.annual_student_font|default:"6.2pt" }};
+      --annual-row-min: {{ matrix.print_widths.typography.annual_row_min|default:"8.2mm" }};
+    }
+
+    .watermark {
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0.035;
+      z-index: -1;
+    }
+
+    .watermark img {
+      width: 132mm;
+      height: auto;
+    }
+
+    .print-report {
+      width: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: visible !important;
+      height: auto !important;
+      min-height: 0 !important;
+      transform: none !important;
+    }
+
+    .report-header {
+      margin: 0 0 1.8mm;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    .school-header {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      margin: 0 0 1mm;
+    }
+
+    .school-header td {
+      border: 0;
+      padding: 0;
+      vertical-align: top;
+    }
+
+    .logo-cell { width: 18mm; }
+    .contact-cell { width: 52mm; }
+
+    .logo {
+      width: 14mm;
+      height: 14mm;
+      object-fit: contain;
+      display: block;
+    }
+
+    .school-title {
+      margin: 0;
+      color: #295b94;
+      font-size: 10.5pt;
+      line-height: 1;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: .02em;
+    }
+
+    .school-address {
+      margin: .4mm 0 0;
+      color: #c62828;
+      font-size: 5.7pt;
+      line-height: 1.05;
+      font-weight: 800;
+    }
+
+    .school-subtext {
+      margin: .2mm 0 0;
+      color: #334155;
+      font-size: 5.2pt;
+      line-height: 1.05;
+    }
+
+    .contact-box {
+      border-left: .45mm solid #7f9ab6 !important;
+      padding-left: 1.6mm !important;
+      color: #111827;
+      font-size: 5.25pt;
+      line-height: 1.18;
+      white-space: nowrap;
+    }
+
+    .report-rule {
+      border-top: .45mm solid #295b94;
+      margin: 0 0 1mm;
+    }
+
+    .report-title {
+      margin: 0;
+      color: #061A33;
+      text-align: center;
+      font-size: 8pt;
+      line-height: 1.05;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: .03em;
+    }
+
+    .report-meta {
+      margin: .3mm 0 .7mm;
+      color: #334155;
+      text-align: center;
+      font-size: 5.8pt;
+      line-height: 1;
+      font-weight: 800;
+    }
+
+    .top-strip-title {
+      margin: 0 0 .5mm;
+      color: #061A33;
+      text-align: center;
+      font-size: 5.9pt;
+      line-height: 1;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .top-strip {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      margin: 0 0 1mm;
+    }
+
+    .top-strip td {
+      border: .18mm solid #64748b;
+      padding: .8mm 1mm;
+      vertical-align: middle;
+      background: #f8fafc;
+    }
+
+    .top-rank {
+      display: inline-block;
+      margin-right: 1mm;
+      color: #082449;
+      font-size: 5.2pt;
+      font-weight: 900;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    .top-name {
+      color: #111827;
+      font-size: 6pt;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .top-meta {
+      display: block;
+      margin-top: .2mm;
+      color: #334155;
+      font-size: 5.1pt;
+      line-height: 1.05;
+      font-weight: 700;
+    }
+
+    .score-sheet {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      margin: 0;
+    }
+
+    .score-sheet thead {
+      display: table-header-group;
+    }
+
+    .score-sheet tbody {
+      display: table-row-group;
+    }
+
+    .score-sheet tr {
+      break-inside: avoid-page;
+      page-break-inside: avoid;
+    }
+
+    .score-sheet th,
+    .score-sheet td {
+      box-sizing: border-box;
+      border: .18mm solid #657487;
+      padding: .35mm;
+      vertical-align: middle;
+    }
+
+    .score-sheet th {
+      background: #e8eef5;
+      color: #0f172a;
+      text-align: center;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .score-sheet td {
+      background: #fff;
+      color: #111827;
+    }
+
+    .score-sheet tbody tr:nth-child(even) td {
+      background: #f7f9fb;
+    }
+
+    .score-sheet tbody tr td {
+      border-top-color: #475569;
+      border-bottom-color: #475569;
+    }
+
+    .sn-col,
+    .summary-col,
+    .position-col,
+    .subject-cell,
+    .numeric {
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .student-col {
+      text-align: left;
+      padding-left: .8mm !important;
+    }
+
+    .student-name {
+      display: block;
+      color: #111827;
+      font-size: {% if selected_ca_component == "cumulative" %}var(--annual-student-font){% else %}var(--student-font){% endif %};
+      line-height: 1.05;
+      font-weight: 900;
+      text-transform: uppercase;
+      overflow-wrap: normal;
+      word-break: normal;
+    }
+
+    .student-number {
+      display: block;
+      margin-top: .2mm;
+      color: #405268;
+      font-size: .82em;
+      line-height: 1;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .subject-code {
+      display: block;
+      color: #0f172a;
+      font-size: var(--subject-code-font);
+      line-height: 1;
+      font-weight: 900;
+      letter-spacing: .01em;
+      white-space: nowrap;
+    }
+
+    .annual-subject-heading {
+      padding: .35mm !important;
+    }
+
+    .annual-subject-name {
+      display: block;
+      color: #0f172a;
+      font-size: var(--annual-code-font);
+      line-height: 1.05;
+      font-weight: 900;
+      letter-spacing: .005em;
+      text-align: center;
+      white-space: normal;
+      overflow-wrap: normal;
+      word-break: normal;
+    }
+
+    .annual-labelled-lines {
+      display: block;
+      width: 100%;
+      min-width: 0;
+      font-size: var(--annual-score-font);
+      line-height: 1.03;
+      font-weight: 800;
+    }
+
+    .annual-labelled-lines > span {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .25mm;
+      min-width: 0;
+      white-space: nowrap;
+      line-height: 1;
+      padding: .16mm .15mm;
+      border-bottom: .12mm solid #cbd5e1;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .annual-labelled-lines > span:last-child {
+      border-bottom: 0;
+    }
+
+    .annual-labelled-lines b {
+      min-width: 4.3mm;
+      color: #405268;
+      font-weight: 900;
+      text-align: left;
+    }
+
+    .annual-labelled-lines em {
+      color: #0f172a;
+      font-style: normal;
+      font-weight: 800;
+      text-align: right;
+    }
+
+    .annual-subject-cell {
+      padding: .35mm !important;
+      min-height: var(--annual-row-min);
+      vertical-align: middle;
+      overflow: visible;
+    }
+
+    .annual-average {
+      font-weight: 900;
+      background: #eef3f8;
+      color: #082449;
+    }
+
+    .annual-average b,
+    .annual-average em {
+      color: #082449;
+      font-weight: 900;
+    }
+
+    .annual-not-offered {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 5.5mm;
+      color: #405268;
+      font-weight: 900;
+      font-size: var(--annual-score-font);
+    }
+
+    .overall-score {
+      display: block;
+      font-size: var(--score-font);
+      line-height: 1;
+      font-weight: 900;
+      color: #061A33;
+      white-space: nowrap;
+    }
+
+    .not-offered {
+      color: #64748b;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .summary-col,
+    .position-col {
+      font-size: {% if selected_ca_component == "cumulative" %}5.2pt{% else %}5.8pt{% endif %};
+      font-weight: 900;
+    }
+
+    .legend {
+      margin-top: 1.8mm;
+      color: #334155;
+      font-size: 5.4pt;
+      line-height: 1.25;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+
+    .legend strong {
+      color: #082449;
+    }
+  </style>
+</head>
+<body>
+  <div class="watermark">
+    {% if watermark_data_uri %}<img src="{{ watermark_data_uri }}" alt="">{% endif %}
+  </div>
+
+  <main class="print-report">
+    <section class="report-header">
+      <table class="school-header">
+        <tr>
+          <td class="logo-cell">
+            {% if logo_data_uri %}<img src="{{ logo_data_uri }}" alt="School logo" class="logo">{% endif %}
+          </td>
+          <td>
+            <p class="school-title">{{ school_profile.school_name|default:"Notre Dame Girls' Academy" }}</p>
+            <p class="school-address">{{ school_profile.address|default:"P.O.Box 46 Kuje Abuja" }}</p>
+            <p class="school-subtext">{{ school_profile.tagline|default:"(After SS Simon and Jude Minor Seminary, Kuchiyako, Kuje Abuja)" }}</p>
+          </td>
+          <td class="contact-cell contact-box">
+            Email: {{ school_profile.contact_email|default:"office@ndgakuje.org" }}<br>
+            Phone: {{ school_profile.contact_phone|default:"+234 902 940 5413" }}<br>
+            Website: {{ school_profile.website|default:"ndgakuje.org" }}
+          </td>
+        </tr>
+      </table>
+      <div class="report-rule"></div>
+      <h1 class="report-title">
+        {% if selected_ca_component == "cumulative" %}
+          Annual Cumulative Academic Performance Score Sheet
+        {% else %}
+          {{ selected_ca_label }} Academic Performance Score Sheet
+        {% endif %}
+      </h1>
+      <p class="report-meta">
+        Class: {{ selected_class.display_name|default:selected_class.code }} · {{ current_session.name }} ·
+        {% if selected_ca_component == "cumulative" %}Annual Cumulative{% else %}{{ current_term.get_name_display }} · {{ selected_ca_label }}{% endif %}
+      </p>
+      <div class="top-strip-title">Top Three For Assembly</div>
+      <table class="top-strip">
+        <tr>
+          {% for row in matrix.top_three %}
+            <td>
+              <span class="top-rank">{{ row.position }}{% if row.position == 1 %}ST{% elif row.position == 2 %}ND{% elif row.position == 3 %}RD{% else %}TH{% endif %}</span>
+              <span class="top-name">{{ row.student.get_full_name|default:row.student.username }}</span>
+              <span class="top-meta">AVG {{ row.average }} · TOTAL {{ row.total }} · {{ row.student_number }}</span>
+            </td>
+          {% empty %}
+            <td>No ranked students available.</td>
+          {% endfor %}
+        </tr>
+      </table>
+    </section>
+
+    {% if matrix.rows %}
+      <table class="score-sheet">
+        <colgroup>
+          <col style="width: {{ matrix.print_widths.sn|default:"6" }}mm">
+          <col style="width: {{ matrix.print_widths.student|default:"38" }}mm">
+          {% for subject in matrix.print_subjects %}
+            <col style="width: {{ matrix.print_widths.subject|default:"12" }}mm">
+          {% endfor %}
+          <col style="width: {{ matrix.print_widths.subjects_offered|default:"8" }}mm">
+          <col style="width: {{ matrix.print_widths.total|default:"13" }}mm">
+          <col style="width: {{ matrix.print_widths.average|default:"12" }}mm">
+          <col style="width: {{ matrix.print_widths.position|default:"7" }}mm">
+        </colgroup>
+        <thead>
+          <tr>
+            <th class="sn-col">S/N</th>
+            <th class="student-col">Student Name</th>
+            {% for subject in matrix.print_subjects %}
+              {% if selected_ca_component == "cumulative" or selected_ca_component == "overall" %}
+                <th class="annual-subject-heading">
+                  <span class="annual-subject-name">{{ subject.name }}</span>
+                </th>
+              {% else %}
+                <th><span class="subject-code">{{ subject.code }}</span></th>
+              {% endif %}
+            {% endfor %}
+            <th class="summary-col">Subj.</th>
+            <th class="summary-col">Total</th>
+            <th class="summary-col">Avg.</th>
+            <th class="position-col">Pos.</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in matrix.rows %}
+            <tr>
+              <td class="sn-col">{{ forloop.counter }}</td>
+              <td class="student-col">
+                <span class="student-name">{{ row.student.get_full_name|default:row.student.username }}</span>
+                <span class="student-number">{{ row.student_number }}</span>
+              </td>
+              {% for cell in row.subjects %}
+                {% if selected_ca_component == "cumulative" %}
+                  <td class="annual-subject-cell">
+                    {% if cell.offered %}
+                      <span class="annual-labelled-lines">
+                        <span><b>T1</b><em>{{ cell.ca.t1_compact }}</em></span>
+                        <span><b>T2</b><em>{{ cell.ca.t2_compact }}</em></span>
+                        <span><b>T3</b><em>{{ cell.ca.t3_compact }}</em></span>
+                        <span class="annual-average"><b>AVG</b><em>{{ cell.ca.avg_compact }}</em></span>
+                      </span>
+                    {% else %}
+                      <span class="annual-not-offered">N/O</span>
+                    {% endif %}
+                  </td>
+                {% elif selected_ca_component == "overall" %}
+                  <td class="annual-subject-cell">
+                    {% if cell.offered %}
+                      <span class="annual-labelled-lines">
+                        <span><b>CA1</b><em>{{ cell.ca.ca1_compact }}</em></span>
+                        <span><b>CA2</b><em>{{ cell.ca.ca2_compact }}</em></span>
+                        <span><b>CA3</b><em>{{ cell.ca.ca3_compact }}</em></span>
+                        <span><b>EXAM</b><em>{{ cell.ca.exam_compact }}</em></span>
+                        <span class="annual-average"><b>TOTAL</b><em>{{ cell.ca.total_compact }}</em></span>
+                      </span>
+                    {% else %}
+                      <span class="annual-not-offered">N/O</span>
+                    {% endif %}
+                  </td>
+                {% else %}
+                  <td class="subject-cell">
+                    {% if cell.offered %}
+                      <span class="overall-score">{{ cell.ca.total }}</span>
+                    {% else %}
+                      <span class="not-offered">—</span>
+                    {% endif %}
+                  </td>
+                {% endif %}
+              {% endfor %}
+              <td class="summary-col">{{ row.offered_count }}</td>
+              <td class="summary-col">{{ row.total }}</td>
+              <td class="summary-col">{{ row.average }}</td>
+              <td class="position-col">{{ row.position }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <section class="legend">
+        {% if selected_ca_component == "cumulative" or selected_ca_component == "overall" %}
+          <strong>Subject headers use full subject names.</strong>
+        {% else %}
+          <strong>Subject code legend:</strong>
+          {% for subject in matrix.print_subjects %}{{ subject.code }} = {{ subject.name }}{% if not forloop.last %}; {% endif %}{% endfor %}.
+        {% endif %}
+        {% if selected_ca_component == "cumulative" %}
+          <br><strong>Annual cell key:</strong> T1 = First Term, T2 = Second Term, T3 = Third Term, AVG = Annual Subject Average, — = Term Not Offered, N/O = Subject Not Offered.
+        {% elif selected_ca_component == "overall" %}
+          <br><strong>Overall cell key:</strong> CA1 = First CA, CA2 = Second CA, CA3 = Third CA, EXAM = Exam Score, N/O = Subject Not Offered.
+        {% else %}
+          <br><strong>Score key:</strong> — = Subject Not Offered.
+        {% endif %}
+      </section>
+    {% else %}
+      <p>No academic performance rows available.</p>
+    {% endif %}
+  </main>
+</body>
+</html>

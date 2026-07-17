@@ -1,0 +1,125 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    @page {
+      size: A4 landscape;
+      margin: 5mm 5mm 8mm 5mm;
+      @bottom-left {
+        content: "Notre Dame Girls' Academy · Highest In Each Subject · {{ selected_class.display_name|default:selected_class.code }} · {{ current_session.name }}";
+        font-family: Arial, sans-serif;
+        font-size: 7px;
+        color: #4a5565;
+      }
+      @bottom-right {
+        content: "Page " counter(page) " of " counter(pages);
+        font-family: Arial, sans-serif;
+        font-size: 7px;
+        color: #4a5565;
+      }
+    }
+    body { font-family: Arial, sans-serif; color: #111827; font-size: 8pt; position: relative; margin: 0; }
+    .watermark { position: fixed; top: 0; right: 0; bottom: 0; left: 0; display: flex; align-items: center; justify-content: center; opacity: 0.045; z-index: -1; }
+    .watermark img { width: 145mm; height: auto; }
+    .header { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
+    .header td { border: 0; padding: 0; vertical-align: top; }
+    .logo { width: 15mm; height: 15mm; object-fit: contain; }
+    .school-title { margin: 0; font-size: 11pt; line-height: 1; color: #295b94; font-weight: 900; text-transform: uppercase; }
+    .school-address { margin: 1px 0; font-size: 6pt; color: #c62828; font-weight: 800; }
+    .school-subtext { margin: 0; font-size: 5.5pt; color: #334155; }
+    .contact-box { width: 48mm; border-left: 2px solid #7f9ab6 !important; padding-left: 6px !important; font-size: 5.7pt; line-height: 1.22; }
+    .rule { border-top: 2px solid #295b94; margin: 4px 0 5px; }
+    h1 { margin: 0; text-align: center; font-size: 10pt; line-height: 1.1; text-transform: uppercase; color: #061A33; }
+    .meta { text-align: center; font-size: 7pt; font-weight: 800; margin: 2px 0 3px; color: #082449; }
+    .scope-note { text-align: center; font-size: 6.4pt; color: #475569; margin: 0 0 5px; }
+    .summary { display: table; width: 100%; margin-bottom: 5px; border-spacing: 4px 0; }
+    .summary-card { display: table-cell; border: 1px solid #D9E2EF; background: #F8FAFC; padding: 4px 6px; }
+    .summary-label { font-size: 5.8pt; text-transform: uppercase; color: #64748B; letter-spacing: 1px; }
+    .summary-value { margin-top: 1px; font-size: 9pt; font-weight: 900; color: #082449; }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    thead { display: table-header-group; }
+    tbody tr { break-inside: avoid-page; page-break-inside: avoid; }
+    th, td { border: 1px solid #94A3B8; padding: 3.2px 5px; vertical-align: middle; overflow-wrap: break-word; word-break: normal; }
+    th { background: #082449; color: #fff; text-transform: uppercase; font-size: 6.8pt; letter-spacing: .4px; }
+    td { font-size: 7.6pt; }
+    .sn { width: 8mm; text-align: center; }
+    .subject { width: 58mm; font-weight: 700; color: #061A33; }
+    .student { width: 70mm; }
+    .admission-col { width: 38mm; text-align: center; }
+    .class-col { width: 20mm; text-align: center; }
+    .score { width: 38mm; text-align: center; font-weight: 900; color: #047857; }
+    .student-name { font-weight: 800; color: #111827; }
+    .footer { margin-top: 8px; font-size: 6.8pt; color: #475569; text-align: right; }
+  </style>
+</head>
+<body>
+  <div class="watermark">{% if watermark_data_uri %}<img src="{{ watermark_data_uri }}" alt="">{% endif %}</div>
+  <table class="header">
+    <tr>
+      <td style="width: 21mm;">{% if logo_data_uri %}<img src="{{ logo_data_uri }}" alt="School logo" class="logo">{% endif %}</td>
+      <td>
+        <p class="school-title">{{ school_profile.school_name|default:"Notre Dame Girls' Academy" }}</p>
+        <p class="school-address">{{ school_profile.address|default:"P.O.Box 46 Kuje Abuja" }}</p>
+        <p class="school-subtext">{{ school_profile.tagline|default:"Just after SS Simon and Jude Minor Seminary, Kuchiyako, Kuje Abuja" }}</p>
+      </td>
+      <td class="contact-box">
+        Email: {{ school_profile.contact_email|default:"office@ndgakuje.org" }}<br>
+        Phone: {{ school_profile.contact_phone|default:"+234 902 940 5413" }}<br>
+        Website: {{ school_profile.website|default:"ndgakuje.org" }}
+      </td>
+    </tr>
+  </table>
+  <div class="rule"></div>
+  <h1>Highest Student In Each Subject</h1>
+  <p class="meta">
+    {{ selected_class.display_name|default:selected_class.code }} - {{ current_session.name }} -
+    {% if selected_ca_component == "cumulative" %}
+      Annual Cumulative
+    {% else %}
+      {{ current_term.get_name_display }} - {{ selected_ca_label }}
+    {% endif %}
+  </p>
+  <p class="scope-note">
+    {% if selected_ca_component == "cumulative" %}
+      Subject leaders are based on annual cumulative subject averages for this class.
+    {% else %}
+      Subject leaders are based on the selected term/component score for this class.
+    {% endif %}
+  </p>
+
+  <div class="summary">
+    <div class="summary-card"><div class="summary-label">Component</div><div class="summary-value">{{ selected_ca_label }}</div></div>
+    <div class="summary-card"><div class="summary-label">Subjects</div><div class="summary-value">{{ leaders|length }}</div></div>
+    <div class="summary-card"><div class="summary-label">Students</div><div class="summary-value">{{ matrix.student_count }}</div></div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th class="sn">S/N</th>
+        <th class="subject">Subject</th>
+        <th class="student">Best Student</th>
+        <th class="admission-col">Admission Number</th>
+        <th class="class-col">Class</th>
+        <th class="score">{{ score_label|default:"Subject Score" }}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in leaders %}
+        <tr>
+          <td class="sn">{{ forloop.counter }}</td>
+          <td class="subject">{{ row.subject }}</td>
+          <td class="student"><div class="student-name">{{ row.student_name }}</div></td>
+          <td class="admission-col">{{ row.student_number }}</td>
+          <td class="class-col">{{ row.class_name }}</td>
+          <td class="score">{{ row.score }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6" style="text-align:center; padding: 18px;">No subject leaders available for this selection.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div class="footer">Generated {{ generated_at|date:"d M Y H:i" }}</div>
+</body>
+</html>

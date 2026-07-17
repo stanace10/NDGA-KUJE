@@ -1,0 +1,149 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Asset Management{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+    <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Inventory & Assets</p>
+          <h1 class="mt-2 text-2xl font-bold text-slate-900">Asset Tracking Center</h1>
+          <p class="mt-2 text-sm text-slate-600">
+            Track school assets, stock levels, and movement history in one place.
+          </p>
+        </div>
+        <a href="{% url 'finance:bursar-dashboard' %}" class="ndga-btn ndga-btn-secondary">Back to Dashboard</a>
+      </div>
+    </article>
+
+    <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Total Assets</p>
+        <p class="mt-2 text-2xl font-bold text-slate-900">{{ assets|length }}</p>
+      </article>
+      <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Total Value</p>
+        <p class="mt-2 text-2xl font-bold text-slate-900">{{ asset_total_value }}</p>
+      </article>
+      <article class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700">Active Assets</p>
+        <p class="mt-2 text-2xl font-bold text-emerald-900">{{ assets|length }}</p>
+      </article>
+      <article class="rounded-2xl border border-indigo-200 bg-indigo-50 p-4 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-[0.14em] text-indigo-700">Recent Movements</p>
+        <p class="mt-2 text-2xl font-bold text-indigo-900">{{ recent_movements|length }}</p>
+      </article>
+    </div>
+
+    <div class="mt-4 grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+      <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 class="text-base font-semibold text-slate-900">Create Asset</h2>
+        <form method="post" class="mt-4 space-y-3">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="create_asset">
+          {% for field in asset_form %}
+            <div>
+              <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ field.id_for_label }}">{{ field.label }}</label>
+              {{ field }}
+              {% if field.errors %}<p class="mt-1 text-xs text-rose-700">{{ field.errors|striptags }}</p>{% endif %}
+            </div>
+          {% endfor %}
+          <button type="submit" class="ndga-btn ndga-btn-primary">Save Asset</button>
+        </form>
+      </article>
+
+      <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 class="text-base font-semibold text-slate-900">Record Movement</h2>
+        <form method="post" class="mt-4 space-y-3">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="record_movement">
+          {% for field in movement_form %}
+            <div>
+              <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ field.id_for_label }}">{{ field.label }}</label>
+              {{ field }}
+              {% if field.errors %}<p class="mt-1 text-xs text-rose-700">{{ field.errors|striptags }}</p>{% endif %}
+            </div>
+          {% endfor %}
+          <button type="submit" class="ndga-btn ndga-btn-secondary">Save Movement</button>
+        </form>
+
+        <div class="mt-5 max-h-[16rem] overflow-auto rounded-2xl border border-slate-200">
+          <table class="min-w-full divide-y divide-slate-200 text-sm">
+            <thead class="bg-slate-50">
+              <tr>
+                <th class="px-3 py-2 text-left font-semibold text-slate-700">Time</th>
+                <th class="px-3 py-2 text-left font-semibold text-slate-700">Asset</th>
+                <th class="px-3 py-2 text-left font-semibold text-slate-700">Type</th>
+                <th class="px-3 py-2 text-left font-semibold text-slate-700">Qty</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 bg-white">
+              {% for row in recent_movements %}
+                <tr>
+                  <td class="px-3 py-2 text-slate-600">{{ row.created_at|date:"Y-m-d H:i" }}</td>
+                  <td class="px-3 py-2 text-slate-800">{{ row.asset.asset_code }}</td>
+                  <td class="px-3 py-2 text-slate-700">{{ row.get_movement_type_display }}</td>
+                  <td class="px-3 py-2 text-slate-700">{{ row.quantity }}</td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="4" class="px-3 py-6 text-center text-slate-500">No movements yet.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </article>
+    </div>
+
+    <article class="mt-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h2 class="text-base font-semibold text-slate-900">Asset Register</h2>
+      <div class="mt-3 max-h-[22rem] overflow-auto rounded-2xl border border-slate-200">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+          <thead class="bg-slate-50">
+            <tr>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Code</th>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Name</th>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Category</th>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Location</th>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Available/Total</th>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Value</th>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Action</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 bg-white">
+            {% for row in assets %}
+              <tr>
+                <td class="px-3 py-2 font-semibold text-slate-800">{{ row.asset_code }}</td>
+                <td class="px-3 py-2 text-slate-700">{{ row.name }}</td>
+                <td class="px-3 py-2 text-slate-700">{{ row.get_category_display }}</td>
+                <td class="px-3 py-2 text-slate-700">{{ row.location|default:"-" }}</td>
+                <td class="px-3 py-2 text-slate-700">{{ row.quantity_available }}/{{ row.quantity_total }}</td>
+                <td class="px-3 py-2 text-slate-700">{{ row.total_value }}</td>
+                <td class="px-3 py-2">
+                  <div class="flex flex-wrap gap-2">
+                    <form method="post">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="toggle_asset">
+                      <input type="hidden" name="asset_id" value="{{ row.id }}">
+                      <button type="submit" class="ndga-btn ndga-btn-secondary !rounded-lg !px-2.5 !py-1.5 !text-xs">
+                        {% if row.is_active %}Deactivate{% else %}Activate{% endif %}
+                      </button>
+                    </form>
+                    <form method="post" data-confirm-message="Delete this asset permanently?">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="delete_asset">
+                      <input type="hidden" name="asset_id" value="{{ row.id }}">
+                      <button type="submit" class="ndga-btn !rounded-lg !bg-rose-600 !px-2.5 !py-1.5 !text-xs !text-white hover:!bg-rose-700">Delete</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="7" class="px-3 py-6 text-center text-slate-500">No assets created yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </section>
+{% endblock %}

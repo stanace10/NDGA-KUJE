@@ -1,0 +1,227 @@
+{% extends "layouts/base.html" %}
+{% load dashboard_tags %}
+
+{% block title %}Student LMS{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-[96rem] px-4 py-5 sm:px-6 lg:px-8">
+    <div class="grid gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
+      <aside class="space-y-5">
+        <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Classroom LMS</p>
+          <h1 class="mt-2 text-2xl font-bold text-slate-900">Your active classrooms</h1>
+          <p class="mt-1 text-sm text-slate-600">Follow modules, complete lessons, submit assignments, and read teacher feedback.</p>
+          <div class="mt-4 space-y-3">
+            {% for row in classroom_rows %}
+              <a href="?classroom={{ row.id }}" class="block rounded-2xl border px-4 py-3 transition {% if selected_classroom and row.id == selected_classroom.id %}border-ndga-navy bg-ndga-navy text-white{% else %}border-slate-200 bg-slate-50 hover:border-ndga-navy/40 hover:bg-white{% endif %}">
+                <p class="text-sm font-semibold">{{ row.title }}</p>
+                <p class="mt-1 text-xs {% if selected_classroom and row.id == selected_classroom.id %}text-blue-100{% else %}text-slate-500{% endif %}">
+                  {{ row.teacher_assignment.academic_class.code }} | {{ row.teacher_assignment.subject.name }}
+                </p>
+              </a>
+            {% empty %}
+              <p class="text-sm text-slate-500">No published classroom is available for your current enrolled subjects yet.</p>
+            {% endfor %}
+          </div>
+        </article>
+
+        {% if selected_classroom %}
+          <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Progress</p>
+            <p class="mt-2 text-3xl font-bold text-slate-900">{{ completion_percent }}%</p>
+            <p class="mt-1 text-sm text-slate-600">{{ completed_lessons }} of {{ total_lessons }} lessons completed.</p>
+            <div class="mt-4 h-3 rounded-full bg-slate-100">
+              <div class="h-3 rounded-full bg-ndga-navy transition-all" style="width: {{ completion_percent }}%"></div>
+            </div>
+          </article>
+        {% endif %}
+      </aside>
+
+      <div class="space-y-5">
+        {% if selected_classroom %}
+          <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div class="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{{ selected_classroom.teacher_assignment.subject.name }}</p>
+                <h2 class="mt-2 text-2xl font-bold text-slate-900">{{ selected_classroom.title }}</h2>
+                {% if selected_classroom.overview %}<p class="mt-2 max-w-3xl text-sm text-slate-600">{{ selected_classroom.overview }}</p>{% endif %}
+              </div>
+              <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                <p class="font-semibold text-slate-900">{{ selected_classroom.teacher_assignment.teacher.get_full_name|default:selected_classroom.teacher_assignment.teacher.username }}</p>
+                <p>{{ selected_classroom.teacher_assignment.session.name }} | {{ selected_classroom.teacher_assignment.term.get_name_display }}</p>
+              </div>
+            </div>
+            {% if selected_classroom.welcome_note %}
+              <div class="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                {{ selected_classroom.welcome_note }}
+              </div>
+            {% endif %}
+          </article>
+
+          <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h3 class="text-lg font-semibold text-slate-900">Module pathway</h3>
+            <div class="mt-4 space-y-4">
+              {% for module in module_rows %}
+                <section class="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+                  <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Module {{ module.sort_order }}</p>
+                      <h4 class="mt-1 text-lg font-semibold text-slate-900">{{ module.title }}</h4>
+                      {% if module.summary %}<p class="mt-2 text-sm text-slate-600">{{ module.summary }}</p>{% endif %}
+                    </div>
+                  </div>
+                  <div class="mt-4 grid gap-3 lg:grid-cols-2">
+                    {% for lesson in module.lessons.all %}
+                      {% with progress=progress_rows|get_item:lesson.id %}
+                        <article class="rounded-2xl border border-slate-200 bg-white p-4">
+                          <div class="flex items-start justify-between gap-3">
+                            <div>
+                              <p class="text-sm font-semibold text-slate-900">{{ lesson.title }}</p>
+                              <p class="mt-1 text-xs text-slate-500">{{ lesson.estimated_minutes }} mins</p>
+                            </div>
+                            {% if progress and progress.is_completed %}
+                              <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-800">Completed</span>
+                            {% else %}
+                              <span class="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800">Pending</span>
+                            {% endif %}
+                          </div>
+                          {% if lesson.summary %}<p class="mt-3 text-sm text-slate-600">{{ lesson.summary }}</p>{% endif %}
+                          {% if lesson.content_text %}<p class="mt-3 whitespace-pre-line text-sm text-slate-700">{{ lesson.content_text|truncatechars:260 }}</p>{% endif %}
+                          <div class="mt-4 flex flex-wrap gap-3 text-sm">
+                            {% if lesson.resource_file %}<a href="{{ lesson.resource_file.url }}" class="font-semibold text-ndga-navy hover:text-ndga-gold">Open file</a>{% endif %}
+                            {% if lesson.external_url %}<a href="{{ lesson.external_url }}" target="_blank" rel="noreferrer" class="font-semibold text-ndga-navy hover:text-ndga-gold">Open link</a>{% endif %}
+                          </div>
+                          <form method="post" class="mt-4">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="mark_lesson_complete">
+                            <input type="hidden" name="classroom_id" value="{{ selected_classroom.id }}">
+                            <input type="hidden" name="lesson_id" value="{{ lesson.id }}">
+                            <button type="submit" class="ndga-btn ndga-btn-secondary">{% if progress and progress.is_completed %}Refresh progress{% else %}Mark complete{% endif %}</button>
+                          </form>
+                        </article>
+                      {% endwith %}
+                    {% empty %}
+                      <p class="text-sm text-slate-500 lg:col-span-2">No lessons published in this module yet.</p>
+                    {% endfor %}
+                  </div>
+                </section>
+              {% empty %}
+                <p class="text-sm text-slate-500">No modules are published for this classroom yet.</p>
+              {% endfor %}
+            </div>
+          </article>
+
+          <div class="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+            <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h3 class="text-lg font-semibold text-slate-900">Assignments and feedback</h3>
+              <div class="mt-4 space-y-3">
+                {% for row in assignment_rows %}
+                  {% with submission=submission_rows|get_item:row.id %}
+                    <a href="?classroom={{ selected_classroom.id }}&assignment={{ row.id }}" class="block rounded-2xl border px-4 py-4 transition {% if selected_assignment and row.id == selected_assignment.id %}border-ndga-navy bg-ndga-navy text-white{% else %}border-slate-200 bg-slate-50 hover:border-ndga-navy/40 hover:bg-white{% endif %}">
+                      <div class="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p class="text-sm font-semibold">{{ row.title }}</p>
+                          <p class="mt-1 text-xs {% if selected_assignment and row.id == selected_assignment.id %}text-blue-100{% else %}text-slate-500{% endif %}">
+                            {% if row.module %}{{ row.module.title }} | {% endif %}
+                            {% if row.due_at %}Due {{ row.due_at|date:"M j, Y g:i A" }}{% else %}No due date yet{% endif %}
+                          </p>
+                        </div>
+                        {% if submission %}
+                          <span class="rounded-full px-2 py-1 text-xs font-semibold {% if selected_assignment and row.id == selected_assignment.id %}bg-white/15 text-white{% else %}bg-emerald-100 text-emerald-800{% endif %}">{{ submission.get_status_display }}</span>
+                        {% else %}
+                          <span class="rounded-full px-2 py-1 text-xs font-semibold {% if selected_assignment and row.id == selected_assignment.id %}bg-white/15 text-white{% else %}bg-amber-100 text-amber-800{% endif %}">Not submitted</span>
+                        {% endif %}
+                      </div>
+                    </a>
+                  {% endwith %}
+                {% empty %}
+                  <p class="text-sm text-slate-500">No assignments are published in this classroom yet.</p>
+                {% endfor %}
+              </div>
+            </article>
+
+            <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h3 class="text-lg font-semibold text-slate-900">Submit work</h3>
+              {% if selected_assignment %}
+                {% with submission=submission_rows|get_item:selected_assignment.id %}
+                  <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <p class="text-sm font-semibold text-slate-900">{{ selected_assignment.title }}</p>
+                    <p class="mt-2 whitespace-pre-line text-sm text-slate-600">{{ selected_assignment.instructions }}</p>
+                    {% if submission and submission.feedback %}
+                      <div class="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+                        <p class="font-semibold">Teacher feedback</p>
+                        <p class="mt-2 whitespace-pre-line">{{ submission.feedback }}</p>
+                        {% if submission.score is not None %}<p class="mt-2 font-semibold">Score: {{ submission.score }} / {{ selected_assignment.max_score }}</p>{% endif %}
+                      </div>
+                    {% endif %}
+                  </div>
+                  <form method="post" enctype="multipart/form-data" class="mt-4 space-y-3">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="submit_assignment">
+                    <input type="hidden" name="classroom_id" value="{{ selected_classroom.id }}">
+                    <input type="hidden" name="assignment_id" value="{{ selected_assignment.id }}">
+                    {% for field in submission_form %}
+                      <div>
+                        <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                        {{ field }}
+                        {% if field.errors %}<p class="mt-1 text-xs text-rose-700">{{ field.errors|striptags }}</p>{% endif %}
+                      </div>
+                    {% endfor %}
+                    <button type="submit" class="ndga-btn ndga-btn-primary">{% if submission %}Resubmit assignment{% else %}Submit assignment{% endif %}</button>
+                  </form>
+                {% endwith %}
+              {% else %}
+                <p class="mt-4 text-sm text-slate-500">Choose an assignment to submit your work.</p>
+              {% endif %}
+            </article>
+          </div>
+
+          <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 class="text-lg font-semibold text-slate-900">Class discussion</h3>
+                <p class="mt-1 text-sm text-slate-600">Ask for clarification, read class notes, and follow teacher updates.</p>
+              </div>
+            </div>
+            <form method="post" class="mt-4 space-y-3">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="post_comment">
+              <input type="hidden" name="classroom_id" value="{{ selected_classroom.id }}">
+              {% for field in comment_form %}
+                {% if field.name != "classroom" %}
+                  <div>
+                    <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.errors %}<p class="mt-1 text-xs text-rose-700">{{ field.errors|striptags }}</p>{% endif %}
+                  </div>
+                {% endif %}
+              {% endfor %}
+              <button type="submit" class="ndga-btn ndga-btn-secondary">Post comment</button>
+            </form>
+            <div class="mt-5 space-y-3">
+              {% for row in comment_rows %}
+                <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p class="text-sm font-semibold text-slate-900">{{ row.author.get_full_name|default:row.author.username }}</p>
+                      <p class="mt-1 text-xs text-slate-500">{{ row.created_at|date:"M j, Y g:i A" }}{% if row.module %} | {{ row.module.title }}{% elif row.assignment %} | {{ row.assignment.title }}{% endif %}</p>
+                    </div>
+                    {% if row.is_staff_note %}<span class="rounded-full bg-ndga-navy px-2 py-1 text-xs font-semibold text-white">Teacher</span>{% endif %}
+                  </div>
+                  <p class="mt-3 whitespace-pre-line text-sm text-slate-700">{{ row.body }}</p>
+                </article>
+              {% empty %}
+                <p class="text-sm text-slate-500">No class comments yet.</p>
+              {% endfor %}
+            </div>
+          </article>
+        {% else %}
+          <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 class="text-xl font-semibold text-slate-900">No classroom available yet</h2>
+            <p class="mt-2 text-sm text-slate-600">When your teachers publish classroom modules for your current subjects, they will appear here.</p>
+          </article>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+{% endblock %}

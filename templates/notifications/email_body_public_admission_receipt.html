@@ -1,0 +1,14 @@
+<div>
+  <p>Dear Parent/Guardian,</p>
+  <p>Your NDGA online registration payment has been confirmed successfully.</p>
+  <p>
+    <strong>Application Code:</strong> {{ submission.application_fee_reference }}<br>
+    <strong>Applicant:</strong> {{ submission.applicant_name }}<br>
+    <strong>Intended Class:</strong> {{ submission.intended_class }}<br>
+    <strong>Amount Paid:</strong> NGN {{ submission.application_fee_amount }}<br>
+    <strong>Gateway:</strong> {{ gateway_label }}<br>
+    <strong>Payment Reference:</strong> {{ transaction.reference }}
+  </p>
+  <p>Please print the acknowledgement page and bring it with the completed admission form to the school.</p>
+  <p><a href="{{ acknowledgement_url }}">Open acknowledgement page</a></p>
+</div>

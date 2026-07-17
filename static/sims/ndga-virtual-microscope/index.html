@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>NDGA Virtual Microscope Lab</title>
+    <style>
+      body { margin: 0; font-family: "Segoe UI", Tahoma, sans-serif; background: #eef3f8; color: #0f172a; }
+      .wrap { max-width: 1180px; margin: 0 auto; padding: 14px; display: grid; gap: 12px; grid-template-columns: 1.3fr 1fr; }
+      .card { background: #fff; border: 1px solid #dce3ee; border-radius: 14px; box-shadow: 0 8px 24px rgba(2, 6, 23, 0.08); }
+      .panel { padding: 14px; }
+      h1 { margin: 0; font-size: 18px; color: #0b1f51; }
+      p { margin: 6px 0 0; font-size: 12px; color: #475569; }
+      .scope-shell {
+        position: relative;
+        border: 1px solid #dce3ee;
+        border-radius: 12px;
+        background: radial-gradient(circle at center, #1e293b 0, #0f172a 62%, #020617 100%);
+        padding: 16px;
+      }
+      canvas { width: 100%; display: block; border-radius: 10px; background: #000; }
+      .crosshair::before, .crosshair::after {
+        content: "";
+        position: absolute;
+        pointer-events: none;
+        background: rgba(255, 255, 255, 0.28);
+      }
+      .crosshair::before { left: 50%; top: 8%; width: 1px; height: 84%; transform: translateX(-0.5px); }
+      .crosshair::after { top: 50%; left: 8%; height: 1px; width: 84%; transform: translateY(-0.5px); }
+      .controls { margin-top: 10px; display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
+      .full { grid-column: 1 / -1; }
+      label { font-size: 12px; font-weight: 600; color: #334155; display: block; margin-bottom: 4px; }
+      input, select, textarea, button {
+        width: 100%;
+        border: 1px solid #cbd5e1;
+        border-radius: 10px;
+        padding: 8px 10px;
+        font-size: 13px;
+        box-sizing: border-box;
+      }
+      textarea { min-height: 92px; resize: vertical; }
+      .actions { margin-top: 10px; display: grid; gap: 8px; grid-template-columns: repeat(3, 1fr); }
+      button { background: #0b1f51; color: #fff; border: 1px solid #0b1f51; font-weight: 600; cursor: pointer; }
+      button.alt { background: #fff; color: #0b1f51; }
+      .mini {
+        margin-top: 8px;
+        font-size: 12px;
+        color: #334155;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        background: #f8fafc;
+        padding: 8px;
+      }
+      @media (max-width: 980px) { .wrap { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <section class="card panel">
+        <h1>NDGA Virtual Microscope Lab</h1>
+        <p>Adjust slide, magnification, focus and light to inspect specimen structures.</p>
+        <div class="scope-shell crosshair">
+          <canvas id="scope" width="860" height="560"></canvas>
+        </div>
+      </section>
+
+      <aside class="card panel">
+        <div class="controls">
+          <div>
+            <label for="slideType">Slide</label>
+            <select id="slideType">
+              <option value="onion">Onion Epidermis</option>
+              <option value="blood">Blood Smear</option>
+              <option value="pollen">Pollen Grains</option>
+            </select>
+          </div>
+          <div>
+            <label for="magnification">Magnification</label>
+            <select id="magnification">
+              <option value="4">4x</option>
+              <option value="10">10x</option>
+              <option value="40" selected>40x</option>
+            </select>
+          </div>
+          <div>
+            <label for="focus">Focus</label>
+            <input id="focus" type="range" min="0" max="100" value="78">
+          </div>
+          <div>
+            <label for="light">Light</label>
+            <input id="light" type="range" min="20" max="140" value="92">
+          </div>
+          <div class="full">
+            <label for="labels">Observed Labels</label>
+            <textarea id="labels" placeholder="Example: A=Cell wall; B=Nucleus; C=Cytoplasm"></textarea>
+          </div>
+          <div class="full">
+            <label for="observation">Observation Note</label>
+            <textarea id="observation" placeholder="Write what you observed under this microscope view."></textarea>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button type="button" id="resetView" class="alt">Reset</button>
+          <button type="button" id="sendEvidence">Send</button>
+          <button type="button" id="copySummary" class="alt">Copy</button>
+        </div>
+        <div class="mini" id="status">Slide: Onion Epidermis | 40x</div>
+      </aside>
+    </div>
+
+    <script>
+      (function () {
+        const canvas = document.getElementById("scope");
+        const ctx = canvas.getContext("2d");
+        const slideType = document.getElementById("slideType");
+        const magnification = document.getElementById("magnification");
+        const focus = document.getElementById("focus");
+        const light = document.getElementById("light");
+        const labels = document.getElementById("labels");
+        const observation = document.getElementById("observation");
+        const resetView = document.getElementById("resetView");
+        const sendEvidence = document.getElementById("sendEvidence");
+        const copySummary = document.getElementById("copySummary");
+        const status = document.getElementById("status");
+
+        function rand(seed) {
+          const x = Math.sin(seed) * 10000;
+          return x - Math.floor(x);
+        }
+
+        function drawOnion(level) {
+          ctx.strokeStyle = "rgba(164, 255, 201, 0.65)";
+          ctx.lineWidth = Math.max(1, level / 14);
+          const cols = 11;
+          const rows = 7;
+          const w = canvas.width / cols;
+          const h = canvas.height / rows;
+          for (let r = 0; r < rows; r += 1) {
+            for (let c = 0; c < cols; c += 1) {
+              const x = c * w + (rand((r + 1) * (c + 2)) * 8 - 4);
+              const y = r * h + (rand((r + 5) * (c + 3)) * 8 - 4);
+              ctx.strokeRect(x, y, w - 6, h - 6);
+            }
+          }
+        }
+
+        function drawBlood(level) {
+          const count = 220;
+          for (let i = 0; i < count; i += 1) {
+            const x = rand(i * 2.31) * canvas.width;
+            const y = rand(i * 7.17) * canvas.height;
+            const radius = Math.max(2.5, level / 10 + rand(i * 1.17) * 4);
+            ctx.fillStyle = i % 19 === 0 ? "rgba(164, 52, 235, 0.68)" : "rgba(239, 68, 68, 0.58)";
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+
+        function drawPollen(level) {
+          const count = 85;
+          for (let i = 0; i < count; i += 1) {
+            const x = rand(i * 5.37) * canvas.width;
+            const y = rand(i * 8.81) * canvas.height;
+            const radius = Math.max(6, level / 6 + rand(i * 2.13) * 8);
+            ctx.fillStyle = "rgba(250, 204, 21, 0.64)";
+            ctx.strokeStyle = "rgba(120, 53, 15, 0.8)";
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+          }
+        }
+
+        function snapshotPayload() {
+          return {
+            sim: "ndga_virtual_microscope",
+            slide: slideType.value,
+            magnification: Number(magnification.value || "40"),
+            focus: Number(focus.value || "78"),
+            light: Number(light.value || "92"),
+            labels: labels.value || "",
+            observation: observation.value || "",
+            timestamp: new Date().toISOString()
+          };
+        }
+
+        function render() {
+          const mag = Number(magnification.value || "40");
+          const focusValue = Number(focus.value || "78");
+          const lightValue = Number(light.value || "92");
+          const blurPx = Math.max(0, (60 - Math.abs(focusValue - 80)) / 10);
+          const brightness = lightValue / 100;
+
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.fillStyle = "#0b1020";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.save();
+          ctx.filter = `blur(${blurPx.toFixed(1)}px) brightness(${brightness.toFixed(2)})`;
+
+          if (slideType.value === "onion") drawOnion(mag);
+          if (slideType.value === "blood") drawBlood(mag);
+          if (slideType.value === "pollen") drawPollen(mag);
+          ctx.restore();
+
+          ctx.strokeStyle = "rgba(226, 232, 240, 0.35)";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(canvas.width / 2, canvas.height / 2, Math.min(canvas.width, canvas.height) * 0.45, 0, Math.PI * 2);
+          ctx.stroke();
+
+          status.textContent = `Slide: ${slideType.options[slideType.selectedIndex].text} | ${mag}x | Focus ${focusValue}`;
+          window.parent.postMessage({ type: "NDGA_SIM_EVENT", payload: snapshotPayload() }, "*");
+        }
+
+        function reset() {
+          slideType.value = "onion";
+          magnification.value = "40";
+          focus.value = "78";
+          light.value = "92";
+          labels.value = "";
+          observation.value = "";
+          render();
+        }
+
+        slideType.addEventListener("change", render);
+        magnification.addEventListener("change", render);
+        focus.addEventListener("input", render);
+        light.addEventListener("input", render);
+        resetView.addEventListener("click", reset);
+        sendEvidence.addEventListener("click", function () {
+          window.parent.postMessage({ type: "NDGA_SIM_SUBMIT", payload: snapshotPayload() }, "*");
+          alert("Microscope evidence sent to CBT host.");
+        });
+        copySummary.addEventListener("click", async function () {
+          const text = JSON.stringify(snapshotPayload(), null, 2);
+          try {
+            await navigator.clipboard.writeText(text);
+            alert("Summary copied.");
+          } catch (_err) {
+            alert("Copy failed. Browser blocked clipboard.");
+          }
+        });
+
+        render();
+      })();
+    </script>
+  </body>
+</html>

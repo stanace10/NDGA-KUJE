@@ -1,0 +1,262 @@
+{% extends "layouts/base.html" %}
+{% load cbt_text %}
+
+{% block title %}CBT Submission Result{% endblock %}
+{% block body_class %}min-h-screen bg-[#f8fafc]{% endblock %}
+
+{% block content %}
+  <style>
+    .result-shell { --navy:#082449; --deep:#061a33; --gold:#d6a21e; --line:#d9e2ef; }
+    .result-card { border:1px solid var(--line); border-radius:1rem; background:#fff; box-shadow:0 14px 38px rgba(8,36,73,.08); }
+    .result-header { background:#082449 !important; color:#fff !important; }
+    .result-header h1 { color:#fff !important; }
+    .result-header .result-subtitle { color:#d9e2ef !important; }
+    .result-header .result-eyebrow { color:#f3cf68 !important; }
+    .result-score { border:1px solid var(--line); border-radius:.85rem; background:#f8fafc; padding:1rem; }
+    .result-tab.is-active { border-color:var(--gold); background:var(--deep); color:#fff; box-shadow:inset 0 3px 0 var(--gold); }
+    .review-number.is-active { border-color:var(--gold); background:var(--gold); color:var(--deep); }
+    @media (max-width:640px) { .result-shell { padding-inline:.75rem; } }
+  </style>
+
+  <section
+    class="result-shell mx-auto max-w-6xl px-4 py-6 sm:px-6"
+    {% if ai_tutor_enabled %}data-ai-tutor-url="{% url 'cbt:student-attempt-ai-tutor' attempt.id %}"{% endif %}
+    data-question-report-url="{% url 'cbt:attempt-warning' attempt.id %}"
+  >
+    <div class="result-card overflow-hidden">
+      <header class="result-header px-5 py-4 text-white">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p class="result-eyebrow text-[11px] font-black uppercase tracking-[.18em] text-[#f3cf68]">NDGA Secure Exam Console</p>
+            <h1 class="mt-1 text-xl font-black">Submission received</h1>
+            <p class="result-subtitle mt-1 text-sm font-semibold text-slate-200">{{ exam.title }} · {{ exam.subject.name }} · {{ exam.academic_class.code }}</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="rounded-full border border-emerald-300/40 bg-emerald-500/15 px-3 py-1.5 text-xs font-black text-emerald-100">{{ attempt.get_status_display }}</span>
+            <span id="autoLogoutCountdown" class="rounded-xl bg-[#d6a21e] px-3 py-2 text-sm font-black text-[#061a33]">{% if review_seconds == 1500 %}25:00{% else %}01:00{% endif %}</span>
+          </div>
+        </div>
+      </header>
+
+      <div class="border-b border-[#d9e2ef] p-4 sm:p-5">
+        <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <article class="result-score lg:col-span-2">
+            <p class="text-[10px] font-black uppercase tracking-[.14em] text-slate-500">Objective Score</p>
+            <p class="mt-1 text-3xl font-black text-[#082449]">{{ objective_display_score }} <span class="text-base text-slate-500">/ {{ objective_display_max }}</span></p>
+          </article>
+          <article class="result-score">
+            <p class="text-[10px] font-black uppercase tracking-[.14em] text-slate-500">Theory</p>
+            <p class="mt-1 text-2xl font-black {% if theory_pending %}text-amber-700{% else %}text-[#082449]{% endif %}">
+              {% if theory_pending %}Pending{% elif theory_rows %}{{ attempt.theory_score }}{% else %}Not applicable{% endif %}
+            </p>
+          </article>
+          <article class="result-score">
+            <p class="text-[10px] font-black uppercase tracking-[.14em] text-slate-500">Total Score</p>
+            <p class="mt-1 text-2xl font-black text-[#082449]">{{ attempt.total_score }}</p>
+            {% if theory_pending %}<p class="mt-1 text-[10px] font-bold text-amber-700">Updates after theory marking</p>{% endif %}
+          </article>
+          <article class="result-score">
+            <p class="text-[10px] font-black uppercase tracking-[.14em] text-slate-500">Attempt</p>
+            <p class="mt-1 text-2xl font-black text-[#082449]">#{{ attempt.attempt_number }}</p>
+            <p class="mt-1 text-[10px] font-bold text-emerald-700">SUBMISSION SAVED</p>
+          </article>
+        </div>
+      </div>
+
+      {% if section_review_groups %}
+        <section class="p-4 sm:p-5">
+          <div class="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p class="text-[10px] font-black uppercase tracking-[.16em] text-[#9a6700]">{% if is_jamb_practice %}JAMB Review{% else %}Answer Review{% endif %}</p>
+              <h2 class="mt-1 text-lg font-black text-[#082449]">Review your objective answers</h2>
+            </div>
+            <p class="text-xs font-bold text-slate-600">Review closes automatically when the timer reaches zero.</p>
+          </div>
+
+          <div class="mt-4 flex flex-wrap gap-2">
+            {% for group in section_review_groups %}
+              <button type="button" class="result-tab {% if forloop.first %}is-active{% endif %} rounded-xl border border-[#d9e2ef] bg-white px-4 py-2 text-sm font-black text-[#082449]" data-review-subject="{{ group.label }}">
+                {{ group.label }} <span class="ml-1 text-xs opacity-75">{{ group.correct }}/{{ group.total }}</span>
+              </button>
+            {% endfor %}
+          </div>
+
+          {% for group in section_review_groups %}
+            <div class="{% if not forloop.first %}hidden{% endif %} mt-4" data-review-subject-panel="{{ group.label }}">
+              <div class="flex flex-wrap gap-1.5">
+                {% for row in group.rows %}
+                  <button type="button" class="review-number {% if forloop.first %}is-active{% endif %} flex h-9 min-w-9 items-center justify-center rounded-lg border border-[#d9e2ef] bg-white px-2 text-xs font-black text-[#082449]" data-review-question="{{ group.label }}::{{ forloop.counter }}">{{ forloop.counter }}</button>
+                {% endfor %}
+              </div>
+              <div class="mt-3">
+                {% for row in group.rows %}
+                  <article class="{% if not forloop.first %}hidden{% endif %} rounded-xl border border-[#d9e2ef] bg-white p-4" data-review-question-panel="{{ group.label }}::{{ forloop.counter }}">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                      <p class="text-sm font-black text-[#082449]">{{ group.label }} · Question {{ forloop.counter }}</p>
+                      {% if row.answer.is_correct %}
+                        <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-800">Correct</span>
+                      {% else %}
+                        <span class="rounded-full bg-red-100 px-3 py-1 text-xs font-black text-red-800">Incorrect</span>
+                      {% endif %}
+                    </div>
+                    <div class="mt-3 rounded-xl bg-slate-50 p-3 text-base font-semibold leading-relaxed text-slate-950" data-math-render="1">
+                      {% if row.question.rich_stem %}{{ row.question.rich_stem|safe|cbt_notation }}{% else %}{{ row.question.stem|cbt_notation }}{% endif %}
+                    </div>
+                    <div class="mt-3 grid gap-2">
+                      {% for option in row.option_entries %}
+                        <div class="rounded-xl border px-3 py-2 text-sm font-semibold {% if option.is_correct %}border-emerald-400 bg-emerald-50 text-emerald-950{% elif option.is_selected %}border-red-400 bg-red-50 text-red-950{% else %}border-slate-200 bg-white text-slate-800{% endif %}">
+                          <span class="font-black">{{ option.label }}.</span> {{ option.option.option_text|cbt_notation }}
+                          {% if option.is_correct %}<span class="ml-2 text-xs font-black">Correct answer</span>{% endif %}
+                          {% if option.is_selected and not option.is_correct %}<span class="ml-2 text-xs font-black">Your choice</span>{% endif %}
+                        </div>
+                      {% endfor %}
+                    </div>
+                    <div class="mt-3 flex items-center justify-end gap-2">
+                      <span class="js-question-report-status text-xs font-bold text-slate-600" aria-live="polite"></span>
+                      <button
+                        type="button"
+                        class="js-question-report rounded-lg border border-amber-400 bg-amber-50 px-3 py-2 text-xs font-black text-amber-900"
+                        data-question-index="{{ forloop.counter }}"
+                        data-answer-id="{{ row.answer.id }}"
+                      >Report Question Issue</button>
+                    </div>
+                    {% if row.explanation or ai_tutor_enabled %}
+                      <div class="mt-3 rounded-xl border border-[#d6a21e] bg-[#fff6dd] p-3 text-sm text-slate-950">
+                        <p class="text-[10px] font-black uppercase tracking-[.14em] text-[#7a4b00]">Explanation</p>
+                        <p class="mt-1 leading-relaxed">{{ row.explanation|default:"Compare your choice with the correct answer and revise the rule or idea being tested."|cbt_notation }}</p>
+                        {% if ai_tutor_enabled %}
+                          <button type="button" class="js-ai-tutor mt-3 rounded-lg bg-[#082449] px-3 py-2 text-xs font-black text-white" data-answer-id="{{ row.answer.id }}">Ask AI Tutor</button>
+                          <div class="js-ai-tutor-response mt-3 hidden rounded-lg border border-amber-300 bg-white p-3"></div>
+                        {% endif %}
+                      </div>
+                    {% endif %}
+                  </article>
+                {% endfor %}
+              </div>
+            </div>
+          {% endfor %}
+        </section>
+      {% endif %}
+
+      <footer class="flex flex-wrap items-center justify-between gap-3 border-t border-[#d9e2ef] bg-slate-50 p-4">
+        <p class="text-xs font-semibold text-slate-600">
+          {% if review_seconds == 1500 %}25-minute review{% else %}{{ review_seconds }}-second review{% endif %} · then you will be signed out automatically.
+        </p>
+        <button type="button" id="finishNowBtn" class="rounded-xl bg-[#082449] px-4 py-2 text-sm font-black text-white">Done &amp; Sign Out</button>
+      </footer>
+      <form id="autoLogoutForm" method="post" action="{% url 'accounts:logout' %}" class="hidden">{% csrf_token %}</form>
+    </div>
+  </section>
+
+  <script>
+    (function () {
+      const countdownNode = document.getElementById("autoLogoutCountdown");
+      const logoutForm = document.getElementById("autoLogoutForm");
+      const finishNowBtn = document.getElementById("finishNowBtn");
+      const tutorRoot = document.querySelector("[data-ai-tutor-url]");
+      const tutorUrl = tutorRoot ? tutorRoot.dataset.aiTutorUrl : "";
+      const reportRoot = document.querySelector("[data-question-report-url]");
+      const reportUrl = reportRoot ? reportRoot.dataset.questionReportUrl : "";
+      const csrfNode = logoutForm ? logoutForm.querySelector("input[name='csrfmiddlewaretoken']") : null;
+      let remaining = Math.max(parseInt("{{ review_seconds|default:60 }}", 10) || 0, 0);
+
+      function mmss(value) {
+        value = Math.max(value, 0);
+        return String(Math.floor(value / 60)).padStart(2, "0") + ":" + String(value % 60).padStart(2, "0");
+      }
+      function selectSubject(label) {
+        document.querySelectorAll("[data-review-subject]").forEach(function (node) {
+          node.classList.toggle("is-active", node.dataset.reviewSubject === label);
+        });
+        document.querySelectorAll("[data-review-subject-panel]").forEach(function (node) {
+          node.classList.toggle("hidden", node.dataset.reviewSubjectPanel !== label);
+        });
+      }
+      function selectQuestion(key) {
+        document.querySelectorAll("[data-review-question]").forEach(function (node) {
+          node.classList.toggle("is-active", node.dataset.reviewQuestion === key);
+        });
+        document.querySelectorAll("[data-review-question-panel]").forEach(function (node) {
+          node.classList.toggle("hidden", node.dataset.reviewQuestionPanel !== key);
+        });
+      }
+      document.querySelectorAll("[data-review-subject]").forEach(function (node) {
+        node.addEventListener("click", function () { selectSubject(node.dataset.reviewSubject); });
+      });
+      document.querySelectorAll("[data-review-question]").forEach(function (node) {
+        node.addEventListener("click", function () { selectQuestion(node.dataset.reviewQuestion); });
+      });
+      document.querySelectorAll(".js-ai-tutor").forEach(function (button) {
+        button.addEventListener("click", async function () {
+          if (!tutorUrl || button.disabled) return;
+          const output = button.parentElement.querySelector(".js-ai-tutor-response");
+          button.disabled = true;
+          button.textContent = "Preparing explanation...";
+          if (output) { output.classList.remove("hidden"); output.textContent = "AI Tutor is thinking..."; }
+          try {
+            const response = await fetch(tutorUrl, {
+              method: "POST",
+              credentials: "same-origin",
+              headers: { "Content-Type": "application/json", "X-CSRFToken": csrfNode ? csrfNode.value : "" },
+              body: JSON.stringify({ answer_id: button.dataset.answerId })
+            });
+            const data = await response.json();
+            if (!response.ok || !data.ok) throw new Error(data.error || "AI Tutor is unavailable.");
+            if (output) output.textContent = data.answer || "Review the correct option and the rule tested.";
+            button.textContent = "Explain again";
+          } catch (error) {
+            if (output) output.textContent = error.message || "AI Tutor is temporarily unavailable.";
+            button.textContent = "Try again";
+          }
+          button.disabled = false;
+        });
+      });
+      document.querySelectorAll(".js-question-report").forEach(function (button) {
+        button.addEventListener("click", async function () {
+          if (!reportUrl || button.disabled) return;
+          const status = button.parentElement.querySelector(".js-question-report-status");
+          button.disabled = true;
+          if (status) status.textContent = "Sending...";
+          try {
+            const response = await fetch(reportUrl, {
+              method: "POST",
+              credentials: "same-origin",
+              headers: { "Content-Type": "application/json", "X-CSRFToken": csrfNode ? csrfNode.value : "" },
+              body: JSON.stringify({
+                event_type: "STUDENT_REPORT_ERROR",
+                details: {
+                  question_index: parseInt(button.dataset.questionIndex || "0", 10),
+                  answer_id: button.dataset.answerId || "",
+                  message: "Student reported this question during answer review."
+                }
+              })
+            });
+            const data = await response.json().catch(function () { return {}; });
+            if (!response.ok || !data.ok) throw new Error(data.error || "Unable to send report.");
+            if (status) status.textContent = "Reported to IT";
+            button.textContent = "Issue Reported";
+          } catch (error) {
+            if (status) status.textContent = error.message || "Unable to send report.";
+            button.disabled = false;
+          }
+        });
+      });
+      if (finishNowBtn && logoutForm) finishNowBtn.addEventListener("click", function () { logoutForm.submit(); });
+      if (countdownNode && logoutForm) {
+        countdownNode.textContent = mmss(remaining);
+        if (remaining <= 0) {
+          logoutForm.submit();
+          return;
+        }
+        const timer = window.setInterval(function () {
+          remaining -= 1;
+          countdownNode.textContent = mmss(remaining);
+          if (remaining <= 0) {
+            window.clearInterval(timer);
+            logoutForm.submit();
+          }
+        }, 1000);
+      }
+    })();
+  </script>
+{% endblock %}

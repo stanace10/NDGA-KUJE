@@ -1,0 +1,5385 @@
+from __future__ import annotations
+
+import base64
+import json
+import hashlib
+import mimetypes
+import logging
+import os
+import re
+from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
+from pathlib import Path
+import random
+import shutil
+import tempfile
+import zipfile
+from copy import deepcopy
+from datetime import datetime, timedelta
+
+from django.conf import settings
+from django.core.cache import cache
+from django.core.exceptions import ValidationError
+from django.db import DatabaseError, connection, transaction
+from django.db.models import Count, F, Max, Q
+from django.utils.text import slugify
+from django.utils import timezone
+
+from core.ai import ai_json_response
+
+logger = logging.getLogger(__name__)
+
+from apps.accounts.constants import (
+    ROLE_IT_MANAGER,
+    ROLE_STUDENT,
+)
+from apps.accounts.permissions import (
+    SCOPE_MANAGE_ALL_CBT,
+    SCOPE_UNLOCK_CBT,
+    has_any_role,
+    has_scope,
+)
+from apps.academics.models import (
+    StudentClassEnrollment,
+    StudentSubjectEnrollment,
+    TeacherSubjectAssignment,
+)
+from apps.academics.term_policy import (
+    class_is_external_exam_class_for_term,
+    exclude_external_exam_classes_for_term,
+)
+from apps.academics.subject_policy import subject_is_excluded_from_results
+from apps.cbt.models import (
+    CBTSimulationCallbackType,
+    CBTAttemptStatus,
+    CBTDocumentStatus,
+    CBTExamType,
+    CBTExamStatus,
+    CBTQuestionType,
+    CBTQuestionDifficulty,
+    CBTSimulationAttemptStatus,
+    CBTSimulationScoreMode,
+    CBTSimulationWrapperStatus,
+    CBTWritebackTarget,
+    CorrectAnswer,
+    Exam,
+    ExamAttempt,
+    ExamAttemptAnswer,
+    ExamBlueprint,
+    ExamDocumentImport,
+    ExamQuestion,
+    ExamReviewAction,
+    ExamSimulation,
+    Option,
+    Question,
+    QuestionBank,
+    SimulationAttemptRecord,
+    SimulationWrapper,
+)
+from apps.cbt.simulation_catalog import CURATED_SIMULATION_CATALOG, grouped_catalog_labels
+from apps.cbt.subject_matrix import resolve_subject_simulation_profile
+from apps.results.cbt_policy import merge_policy_from_blueprint, normalize_result_cbt_policies
+from apps.results.models import ResultSheet, ResultSheetStatus, StudentSubjectScore
+from apps.audit.services import log_event, log_lockdown_violation
+from apps.audit.models import AuditCategory, AuditStatus
+from apps.setup_wizard.services import get_setup_state
+from apps.sync.services import queue_exam_attempt_sync, queue_simulation_attempt_sync
+
+QUESTION_START_PATTERN = re.compile(r"^\s*(\d+)[\).\:-]\s*(.+)$")
+QUESTION_PREFIX_PATTERN = re.compile(r"^\s*(?:question|q)\s*(\d+)\s*[\).\:-]?\s*(.*)$", re.IGNORECASE)
+QUESTION_BLOCK_SPLIT_PATTERN = re.compile(r"(?im)^(?:\s*(?:question|q)\s*)?(\d{1,3})\s*[\)\.\:-]\s*")
+OPTION_PATTERN = re.compile(r"^\s*([A-Da-d])(?:\s*[\)\.\:-]|\s+)\s*(.+)$")
+ANSWER_PATTERN = re.compile(
+    r"^\s*(?:answer|ans|correct(?:\s*answer|\s*option)?)\s*[\.:\-]?\s*(.+)$",
+    re.IGNORECASE,
+)
+DOUBLE_NEWLINE_SPLIT_PATTERN = re.compile(r"\n\s*\n+")
+INLINE_OPTION_BOUNDARY_PATTERN = re.compile(r"(?<=\S)\s+(?=[A-Da-d][\)\.\:-]\s*)")
+INLINE_ANSWER_BOUNDARY_PATTERN = re.compile(
+    r"(?<=\S)\s+(?=(?:answer|ans|correct(?:\s*answer|\s*option)?)\s*[\.:\-])",
+    re.IGNORECASE,
+)
+INLINE_QUESTION_BOUNDARY_PATTERN = re.compile(r"(?<=\S)\s+(?=\d+\s*[\)\.\:-]\s*)")
+INLINE_OPTION_GLUE_PATTERN = re.compile(r"([^\s])([A-Da-d][\)\.\:-]\s*)")
+INLINE_ANSWER_GLUE_PATTERN = re.compile(
+    r"([^\s])((?:answer|ans|correct(?:\s*answer|\s*option)?)\s*[\.:\-]\s*)",
+    re.IGNORECASE,
+)
+INLINE_QUESTION_GLUE_PATTERN = re.compile(r"([^\s])(\d+\s*[\)\.\:-]\s*)")
+INLINE_QUESTION_PREFIX_GLUE_PATTERN = re.compile(
+    r"([^\s])((?:question|q)\s*\d+\s*[\)\.\:-]\s*)",
+    re.IGNORECASE,
+)
+
+
+def _repair_postgres_pk_sequence(model):
+    if connection.vendor != "postgresql":
+        return
+    table_name = model._meta.db_table
+    max_pk = model.objects.order_by("-pk").values_list("pk", flat=True).first() or 0
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT pg_get_serial_sequence(%s, 'id')", [table_name])
+        row = cursor.fetchone()
+        sequence_name = row[0] if row else ""
+        if not sequence_name:
+            return
+        next_seed = max(max_pk, 1)
+        cursor.execute(
+            "SELECT setval(%s, %s, %s)",
+            [sequence_name, next_seed, bool(max_pk)],
+        )
+
+
+def _repair_cbt_create_sequences():
+    for model in (
+        ExamDocumentImport,
+        QuestionBank,
+        Exam,
+        Question,
+        Option,
+        ExamQuestion,
+        CorrectAnswer,
+    ):
+        _repair_postgres_pk_sequence(model)
+INLINE_OPTION_MARKER_PATTERN = re.compile(r"(?i)\b([A-D])\s*[\)\.\:-]\s*")
+HEADER_NOISE_PATTERN = re.compile(
+    r"^\s*(?:topic|subject|section|instruction|instructions|time|duration|class|name|date)\b",
+    re.IGNORECASE,
+)
+
+
+@dataclass
+class RawQuestionBlock:
+    number: str
+    body: str
+
+
+def _request_context_payload(request):
+    if request is None:
+        return {}
+    return {
+        "host": request.get_host(),
+        "path": getattr(request, "path", ""),
+        "method": getattr(request, "method", ""),
+        "remote_addr": request.META.get("REMOTE_ADDR", ""),
+        "forwarded_for": request.META.get("HTTP_X_FORWARDED_FOR", ""),
+        "user_agent": request.META.get("HTTP_USER_AGENT", ""),
+        "referer": request.META.get("HTTP_REFERER", ""),
+    }
+
+
+def _integrity_hash(payload):
+    serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def _build_attempt_integrity_bundle(attempt, *, event_type, request=None, details=None):
+    bundle = deepcopy(attempt.integrity_bundle or {})
+    session_context = dict(bundle.get("session_context") or {})
+    request_context = _request_context_payload(request)
+    if request_context:
+        session_context.setdefault("initial_request", request_context)
+        session_context["last_request"] = request_context
+    session_context.setdefault("exam_id", attempt.exam_id)
+    session_context.setdefault("student_id", attempt.student_id)
+    session_context.setdefault("attempt_number", attempt.attempt_number)
+    session_context.setdefault("started_at", attempt.started_at.isoformat() if attempt.started_at else "")
+    session_context.setdefault("exam_snapshot_hash", getattr(attempt.exam, "activation_snapshot_hash", ""))
+
+    event_list = list(bundle.get("events") or [])
+    event_payload = {
+        "event_type": event_type,
+        "at": timezone.now().isoformat(),
+        "status": attempt.status,
+        "is_locked": bool(attempt.is_locked),
+        "details": details or {},
+        "request": request_context,
+    }
+    previous_event_hash = event_list[-1].get("event_hash", "") if event_list else ""
+    event_payload["previous_event_hash"] = previous_event_hash
+    event_payload["event_hash"] = _integrity_hash({
+        "event_type": event_payload["event_type"],
+        "at": event_payload["at"],
+        "status": event_payload["status"],
+        "is_locked": event_payload["is_locked"],
+        "details": event_payload["details"],
+        "request": event_payload["request"],
+        "previous_event_hash": previous_event_hash,
+    })
+    event_list.append(event_payload)
+
+    summary = {
+        "status": attempt.status,
+        "submitted_at": attempt.submitted_at.isoformat() if attempt.submitted_at else "",
+        "finalized_at": attempt.finalized_at.isoformat() if attempt.finalized_at else "",
+        "last_heartbeat_at": attempt.last_heartbeat_at.isoformat() if attempt.last_heartbeat_at else "",
+        "last_activity_at": attempt.last_activity_at.isoformat() if attempt.last_activity_at else "",
+        "is_locked": bool(attempt.is_locked),
+        "lock_reason": attempt.lock_reason,
+        "allow_resume_by_it": bool(attempt.allow_resume_by_it),
+        "extra_time_minutes": int(attempt.extra_time_minutes or 0),
+        "event_count": len(event_list),
+        "violation_count": sum(1 for row in event_list if row.get("event_type") in LOCKDOWN_EVENT_TYPES),
+        "score_total": str(attempt.total_score),
+        "objective_score": str(attempt.objective_score),
+        "theory_score": str(attempt.theory_score),
+        "auto_marking_completed": bool(attempt.auto_marking_completed),
+        "theory_marking_completed": bool(attempt.theory_marking_completed),
+        "writeback_completed": bool(attempt.writeback_completed),
+        "malpractice_flagged": bool(
+            ((attempt.writeback_metadata or {}).get("malpractice_flag") or {}).get("flagged")
+        ),
+        "excluded_from_result_calculations": bool(
+            ((attempt.writeback_metadata or {}).get("malpractice_flag") or {}).get(
+                "excluded_from_result_calculations"
+            )
+        ),
+    }
+
+    bundle = {
+        "exam_snapshot_hash": session_context.get("exam_snapshot_hash", ""),
+        "session_context": session_context,
+        "events": event_list,
+        "summary": summary,
+    }
+    bundle["bundle_hash"] = _integrity_hash(bundle)
+    return bundle
+
+
+def _save_attempt_integrity_bundle(attempt, *, event_type, request=None, details=None):
+    attempt.integrity_bundle = _build_attempt_integrity_bundle(
+        attempt,
+        event_type=event_type,
+        request=request,
+        details=details,
+    )
+    attempt.save(update_fields=["integrity_bundle", "updated_at"])
+    return attempt.integrity_bundle
+
+
+def _exam_live_pause_seconds(exam):
+    if not getattr(exam, "timer_is_paused", False):
+        return 0
+    paused_at = getattr(exam, "timer_paused_at", None)
+    if not paused_at:
+        return 0
+    return max(int((timezone.now() - paused_at).total_seconds()), 0)
+
+
+def attempt_timer_is_paused(attempt):
+    exam = getattr(attempt, "exam", None)
+    return bool(exam and getattr(exam, "timer_is_paused", False) and getattr(exam, "timer_paused_at", None))
+
+
+def attempt_remaining_seconds(attempt):
+    return max(int((attempt_deadline(attempt) - timezone.now()).total_seconds()), 0)
+
+
+def can_manage_all_cbt(user):
+    return bool(
+        getattr(user, "is_superuser", False)
+        or has_any_role(user, {ROLE_IT_MANAGER})
+        or (
+            has_any_role(user, {ROLE_IT_MANAGER})
+            and has_scope(user, SCOPE_MANAGE_ALL_CBT)
+        )
+    )
+
+
+def current_cbt_session_term():
+    setup_state = get_setup_state()
+    if setup_state.current_session_id and setup_state.current_term_id:
+        return setup_state.current_session, setup_state.current_term
+    return None, None
+
+
+def cbt_exam_is_current(exam):
+    session, term = current_cbt_session_term()
+    if session is None or term is None:
+        return True
+    return exam.session_id == session.id and exam.term_id == term.id
+
+
+def authoring_assignment_queryset(
+    user,
+    *,
+    include_all_periods=False,
+    selected_session=None,
+    selected_term=None,
+):
+    setup_state = get_setup_state()
+    qs = TeacherSubjectAssignment.objects.select_related(
+        "teacher",
+        "subject",
+        "academic_class",
+        "session",
+        "term",
+    ).filter(is_active=True)
+    if selected_session:
+        qs = qs.filter(session=selected_session)
+    if selected_term:
+        qs = qs.filter(term=selected_term)
+    if setup_state.current_session_id and setup_state.current_term_id:
+        qs = qs.filter(
+            session=setup_state.current_session,
+            term=setup_state.current_term,
+        )
+        qs = exclude_external_exam_classes_for_term(
+            qs,
+            setup_state.current_term,
+            field_name="academic_class",
+        )
+    if can_manage_all_cbt(user):
+        return qs.order_by("academic_class__code", "subject__name", "teacher__username")
+    return qs.filter(teacher=user).order_by("academic_class__code", "subject__name")
+
+
+def authoring_question_bank_queryset(
+    user,
+    *,
+    include_all_periods=False,
+    selected_session=None,
+    selected_term=None,
+):
+    setup_state = get_setup_state()
+    qs = QuestionBank.objects.select_related(
+        "owner",
+        "subject",
+        "academic_class",
+        "session",
+        "term",
+    )
+    if selected_session:
+        qs = qs.filter(session=selected_session)
+    if selected_term:
+        qs = qs.filter(term=selected_term)
+    if setup_state.current_session_id and setup_state.current_term_id:
+        qs = qs.filter(
+            session=setup_state.current_session,
+            term=setup_state.current_term,
+        )
+        qs = exclude_external_exam_classes_for_term(
+            qs,
+            setup_state.current_term,
+            field_name="academic_class",
+        )
+    if can_manage_all_cbt(user):
+        return qs.order_by("-updated_at")
+    return qs.filter(owner=user).order_by("-updated_at")
+
+
+def authoring_exam_queryset(
+    user,
+    *,
+    include_all_periods=False,
+    selected_session=None,
+    selected_term=None,
+):
+    setup_state = get_setup_state()
+    qs = Exam.objects.select_related(
+        "created_by",
+        "subject",
+        "academic_class",
+        "session",
+        "term",
+        "question_bank",
+    )
+    if selected_session:
+        qs = qs.filter(session=selected_session)
+    if selected_term:
+        qs = qs.filter(term=selected_term)
+    if setup_state.current_session_id and setup_state.current_term_id:
+        qs = qs.filter(
+            session=setup_state.current_session,
+            term=setup_state.current_term,
+        )
+        qs = exclude_external_exam_classes_for_term(
+            qs,
+            setup_state.current_term,
+            field_name="academic_class",
+        )
+    if can_manage_all_cbt(user):
+        return qs.order_by("-updated_at")
+    return qs.filter(created_by=user).order_by("-updated_at")
+
+
+def simulation_registry_queryset():
+    return SimulationWrapper.objects.select_related(
+        "created_by",
+        "dean_reviewed_by",
+    ).order_by("tool_name", "-updated_at")
+
+
+def simulation_catalog_grouped_labels():
+    return grouped_catalog_labels()
+
+
+def _is_safe_zip_member(member_name):
+    member_path = Path(member_name)
+    if member_path.is_absolute():
+        return False
+    if ".." in member_path.parts:
+        return False
+    return True
+
+
+def store_simulation_bundle(*, wrapper, uploaded_bundle):
+    if uploaded_bundle is None:
+        raise ValidationError("Simulation bundle file is required.")
+
+    media_root = Path(settings.MEDIA_ROOT)
+    media_root.mkdir(parents=True, exist_ok=True)
+    slug = slugify(wrapper.tool_name) or "simulation"
+    bundle_root = media_root / "sims" / f"{wrapper.id}-{slug}"
+    if bundle_root.exists():
+        shutil.rmtree(bundle_root)
+    bundle_root.mkdir(parents=True, exist_ok=True)
+
+    tmp_bundle_path = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as temp_zip:
+            tmp_bundle_path = Path(temp_zip.name)
+            for chunk in uploaded_bundle.chunks():
+                temp_zip.write(chunk)
+
+        try:
+            with zipfile.ZipFile(tmp_bundle_path) as zip_file:
+                for member in zip_file.infolist():
+                    member_name = member.filename or ""
+                    if not member_name.strip():
+                        continue
+                    if not _is_safe_zip_member(member_name):
+                        raise ValidationError("Invalid ZIP structure detected.")
+                    zip_file.extract(member, bundle_root)
+        except zipfile.BadZipFile as exc:
+            raise ValidationError("Upload a valid ZIP simulation bundle.") from exc
+
+        html_candidates = list(bundle_root.rglob("index.html"))
+        if not html_candidates:
+            html_candidates = list(bundle_root.rglob("*.html"))
+        if not html_candidates:
+            raise ValidationError("No HTML entry file found in uploaded ZIP.")
+
+        entry_file = sorted(
+            html_candidates,
+            key=lambda row: (len(row.parts), row.name.lower()),
+        )[0]
+        relative = entry_file.relative_to(media_root).as_posix()
+        media_url = settings.MEDIA_URL.rstrip("/")
+        return f"{media_url}/{relative}"
+    finally:
+        if tmp_bundle_path and tmp_bundle_path.exists():
+            tmp_bundle_path.unlink(missing_ok=True)
+
+
+@transaction.atomic
+def seed_simulation_library_rows(*, actor, rows):
+    created = 0
+    updated = 0
+    skipped = 0
+    seeded_ids = []
+    for row in rows:
+        defaults = {
+            "tool_type": row.get("tool_type", "").strip(),
+            "source_provider": row.get("source_provider", "OTHER"),
+            "source_reference_url": row.get("source_reference_url", "").strip(),
+            "description": row.get("description", "").strip(),
+            "online_url": row.get("online_url", "").strip(),
+            "offline_asset_path": row.get("offline_asset_path", "").strip(),
+            "score_mode": row.get("score_mode", CBTSimulationScoreMode.AUTO),
+            "max_score": row.get("max_score", "10.00"),
+            "scoring_callback_type": row.get(
+                "scoring_callback_type",
+                CBTSimulationCallbackType.POST_MESSAGE,
+            ),
+            "evidence_required": bool(row.get("evidence_required", False)),
+            "is_active": True,
+        }
+        wrapper, was_created = SimulationWrapper.objects.get_or_create(
+            tool_name=row["tool_name"],
+            tool_category=row["tool_category"],
+            defaults={**defaults, "created_by": actor},
+        )
+        if was_created:
+            created += 1
+            seeded_ids.append(wrapper.id)
+            continue
+
+        changed_fields = []
+        for field_name, field_value in defaults.items():
+            if getattr(wrapper, field_name) != field_value:
+                setattr(wrapper, field_name, field_value)
+                changed_fields.append(field_name)
+        if changed_fields:
+            wrapper.save(update_fields=[*changed_fields, "updated_at"])
+            updated += 1
+        else:
+            skipped += 1
+        seeded_ids.append(wrapper.id)
+
+    return {
+        "created": created,
+        "updated": updated,
+        "skipped": skipped,
+        "seeded_ids": seeded_ids,
+        "total_seed_rows": len(rows),
+    }
+
+
+def seed_curated_simulation_library(*, actor):
+    return seed_simulation_library_rows(
+        actor=actor,
+        rows=CURATED_SIMULATION_CATALOG,
+    )
+
+
+def simulation_recommendation_for_subject(subject):
+    return resolve_subject_simulation_profile(subject)
+
+
+def approved_simulation_queryset(subject=None):
+    return SimulationWrapper.objects.filter(
+        status=CBTSimulationWrapperStatus.APPROVED,
+        is_active=True,
+    ).order_by("tool_name")
+
+
+def recommended_simulation_queryset(subject=None):
+    approved = approved_simulation_queryset()
+    profile = simulation_recommendation_for_subject(subject)
+    preferred_categories = profile.get("tool_categories") or []
+    preferred_providers = profile.get("preferred_providers") or []
+    if not preferred_categories and not preferred_providers:
+        return approved
+
+    filter_q = Q()
+    if preferred_categories:
+        filter_q |= Q(tool_category__in=preferred_categories)
+    if preferred_providers:
+        filter_q |= Q(source_provider__in=preferred_providers)
+
+    recommended = approved.filter(filter_q)
+
+    subject_name = (getattr(subject, "name", "") or "").strip().lower()
+    subject_tokens = [token for token in re.findall(r"[a-z0-9]+", subject_name) if len(token) >= 4]
+    if subject_tokens:
+        keyword_q = Q()
+        for token in subject_tokens:
+            keyword_q |= Q(tool_name__icontains=token)
+            keyword_q |= Q(description__icontains=token)
+        keyword_hits = approved.filter(keyword_q)
+        if keyword_hits.exists():
+            recommended = approved.filter(Q(id__in=recommended.values("id")) | keyword_q)
+
+    if recommended.exists():
+        return recommended
+    return approved
+
+
+def _extract_docx_text_with_xml_order(path):
+    import xml.etree.ElementTree as ET
+
+    namespaces = {
+        "w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
+        "m": "http://schemas.openxmlformats.org/officeDocument/2006/math",
+        "v": "urn:schemas-microsoft-com:vml",
+        "wp": "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing",
+    }
+
+    def _clean_join(parts):
+        value = re.sub(r"\s+", " ", " ".join(part for part in parts if part)).strip()
+        return value
+
+    with zipfile.ZipFile(path) as zf:
+        xml_raw = zf.read("word/document.xml")
+    root = ET.fromstring(xml_raw)
+
+    extracted_rows = []
+    for paragraph in root.findall(".//w:body/w:p", namespaces):
+        fragments = []
+        has_equation = False
+        has_embedded_object = False
+
+        for node in paragraph.iter():
+            tag = node.tag
+            if not isinstance(tag, str):
+                continue
+            if tag.endswith("}t"):
+                text_value = (node.text or "").strip()
+                if text_value:
+                    fragments.append(text_value)
+                continue
+            if tag.endswith("}oMath") or tag.endswith("}oMathPara"):
+                has_equation = True
+                equation_tokens = []
+                for eq_node in node.iter():
+                    eq_tag = eq_node.tag if isinstance(eq_node.tag, str) else ""
+                    if eq_tag.endswith("}t"):
+                        token = (eq_node.text or "").strip()
+                        if token:
+                            equation_tokens.append(token)
+                    elif eq_tag.endswith("}chr"):
+                        token = (eq_node.attrib.get(f"{{{namespaces['m']}}}val", "") or "").strip()
+                        if token:
+                            equation_tokens.append(token)
+                    elif eq_tag.endswith("}sym"):
+                        token = (eq_node.attrib.get(f"{{{namespaces['m']}}}char", "") or "").strip()
+                        if token:
+                            equation_tokens.append(token)
+                eq_text = _clean_join(equation_tokens)
+                fragments.append(f"[EQ: {eq_text}]" if eq_text else "[EQUATION]")
+                continue
+            if tag.endswith("}drawing") or tag.endswith("}pict") or tag.endswith("}shape"):
+                has_embedded_object = True
+
+        row_text = _clean_join(fragments)
+        if row_text:
+            extracted_rows.append(row_text)
+            continue
+        if has_equation:
+            extracted_rows.append("[EQUATION]")
+        elif has_embedded_object:
+            extracted_rows.append("[EMBEDDED_OBJECT]")
+
+    if extracted_rows:
+        return "\n".join(extracted_rows)
+
+    # Fallback generic extraction of any text runs if paragraph order extraction is empty.
+    texts = [node.text for node in root.findall(".//w:t", namespaces) if node.text]
+    math_texts = [node.text for node in root.findall(".//m:t", namespaces) if node.text]
+    merged = texts + math_texts
+    return "\n".join(merged)
+
+
+def _extract_docx_text(path):
+    try:
+        from docx import Document
+
+        document = Document(str(path))
+        paragraph_rows = [paragraph.text for paragraph in document.paragraphs if paragraph.text]
+        table_rows = []
+        for table in document.tables:
+            for row in table.rows:
+                cells = [re.sub(r"\s+", " ", (cell.text or "").strip()) for cell in row.cells]
+                cell_text = " | ".join(cell for cell in cells if cell)
+                if cell_text:
+                    table_rows.append(cell_text)
+        direct_text = "\n".join(paragraph_rows + table_rows)
+    except Exception:
+        direct_text = ""
+
+    xml_order_text = ""
+    try:
+        xml_order_text = _extract_docx_text_with_xml_order(path)
+    except Exception:
+        xml_order_text = ""
+
+    def _density(value):
+        return len(re.sub(r"\s+", "", str(value or "")))
+
+    if _density(xml_order_text) >= _density(direct_text):
+        return xml_order_text or direct_text
+    return direct_text or xml_order_text
+
+
+def _openai_vision_text_response(*, prompt_text, data_url):
+    api_key = str(
+        getattr(settings, "OPENAI_API_KEY", "")
+        or os.getenv("OPENAI_API_KEY", "")
+    ).strip()
+    model = str(
+        getattr(settings, "OPENAI_CBT_VISION_MODEL", "")
+        or os.getenv("OPENAI_CBT_VISION_MODEL", "")
+        or getattr(settings, "OPENAI_CBT_MODEL", "gpt-4.1-mini")
+        or os.getenv("OPENAI_CBT_MODEL", "gpt-4.1-mini")
+    ).strip()
+    if not api_key or not model or not data_url:
+        return ""
+    try:
+        from openai import OpenAI
+    except Exception:
+        return ""
+
+    client = OpenAI(api_key=api_key, max_retries=0)
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            temperature=0,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You extract visible exam text from a teacher upload. "
+                        "Return only the readable text in normal reading order. "
+                        "Do not summarize, explain, or add answers."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt_text},
+                        {"type": "image_url", "image_url": {"url": data_url}},
+                    ],
+                },
+            ],
+        )
+    except Exception:
+        return ""
+    return str(response.choices[0].message.content or "").strip()
+
+
+def _image_path_to_data_url(path):
+    mime_type = mimetypes.guess_type(str(path))[0] or "image/png"
+    encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+    return f"data:{mime_type};base64,{encoded}"
+
+
+def _extract_text_from_image_with_ai(path):
+    try:
+        data_url = _image_path_to_data_url(path)
+    except Exception:
+        return ""
+    return _openai_vision_text_response(
+        prompt_text=(
+            "Extract every visible question, option, heading, and note from this teacher upload. "
+            "Preserve numbering and line breaks where possible."
+        ),
+        data_url=data_url,
+    )
+
+
+def extract_text_from_document(path_or_file):
+    path = Path(str(path_or_file))
+    extension = path.suffix.lower()
+    if extension == ".pdf":
+        extraction_candidates = []
+
+        def _remember_candidate(raw_value):
+            value = str(raw_value or "").strip()
+            if value:
+                extraction_candidates.append(value)
+
+        try:
+            import pdfplumber
+
+            plumber_rows = []
+            with pdfplumber.open(str(path)) as document:
+                for page in document.pages:
+                    page_text = page.extract_text(x_tolerance=2, y_tolerance=3) or ""
+                    if not page_text.strip():
+                        page_text = page.extract_text_simple() or ""
+                    if page_text.strip():
+                        plumber_rows.append(page_text)
+            _remember_candidate("\n\n".join(plumber_rows))
+        except Exception:
+            pass
+
+        try:
+            from pdfminer.high_level import extract_text as pdf_extract_text
+
+            _remember_candidate(pdf_extract_text(str(path)) or "")
+        except Exception:
+            pass
+
+        try:
+            from pypdf import PdfReader
+
+            reader = PdfReader(str(path))
+            _remember_candidate("\n".join((page.extract_text() or "") for page in reader.pages))
+        except Exception:
+            pass
+
+        try:
+            from PyPDF2 import PdfReader as LegacyPdfReader
+
+            reader = LegacyPdfReader(str(path))
+            _remember_candidate("\n".join((page.extract_text() or "") for page in reader.pages))
+        except Exception:
+            pass
+
+        def _text_density(raw_value):
+            compact = re.sub(r"\s+", "", str(raw_value or ""))
+            return len(compact)
+
+        text = ""
+        if extraction_candidates:
+            text = max(
+                extraction_candidates,
+                key=lambda candidate: (
+                    _question_structure_score(candidate),
+                    _text_density(candidate),
+                ),
+            )
+        if _text_density(text) < 60:
+            try:
+                import fitz
+                import pytesseract
+                from PIL import Image
+
+                ocr_chunks = []
+                with fitz.open(str(path)) as document:
+                    for page in document:
+                        pix = page.get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False)
+                        image = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                        ocr_chunks.append(pytesseract.image_to_string(image) or "")
+                ocr_text = "\n".join(chunk for chunk in ocr_chunks if chunk.strip())
+                if _text_density(ocr_text) > _text_density(text):
+                    text = ocr_text
+            except Exception:
+                pass
+        if _text_density(text) < 60:
+            try:
+                import pytesseract
+                from pdf2image import convert_from_path
+
+                pages = convert_from_path(str(path), dpi=220)
+                ocr_text = "\n".join(pytesseract.image_to_string(image) or "" for image in pages)
+                if _text_density(ocr_text) > _text_density(text):
+                    text = ocr_text
+            except Exception:
+                pass
+        if not str(text or "").strip():
+            raise ValidationError(
+                "Could not extract readable text from PDF. Upload a clearer PDF, image, or paste text."
+            )
+        return str(text or "")
+    if extension == ".docx":
+        try:
+            text = _extract_docx_text(path)
+            if text.strip():
+                return text
+            raise ValidationError("DOCX file is empty or unreadable.")
+        except Exception:
+            try:
+                text = _extract_docx_text_with_xml_order(path)
+                if text.strip():
+                    return text
+                raise ValidationError("DOCX file is empty or unreadable.")
+            except Exception as exc:
+                raise ValidationError("Could not parse DOCX content.") from exc
+    if extension == ".doc":
+        raise ValidationError(
+            "Legacy .doc files are not accepted here. Save as .docx, TXT, or PDF and upload again."
+        )
+
+    if extension in {".txt", ".rtf"}:
+        raw = path.read_bytes()
+        try:
+            return raw.decode("utf-8")
+        except UnicodeDecodeError:
+            pass
+        try:
+            return raw.decode("utf-16")
+        except UnicodeDecodeError:
+            pass
+        return raw.decode("latin-1", errors="ignore")
+    if extension in {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp"}:
+        text = ""
+        try:
+            import pytesseract
+            from PIL import Image
+
+            image = Image.open(path)
+            text = pytesseract.image_to_string(image) or ""
+        except Exception:
+            text = ""
+        if str(text or "").strip():
+            return text
+        ai_text = _extract_text_from_image_with_ai(path)
+        if str(ai_text or "").strip():
+            return ai_text
+        raise ValidationError(
+            "Could not read text from image. Upload a clearer image, use a text-based PDF/DOCX, or paste the text."
+        )
+    raise ValidationError(
+        "Unsupported file type. Upload PDF, DOCX, TXT, or image file (PNG/JPG/JPEG/BMP/TIFF/WEBP)."
+    )
+
+
+def _normalize_extracted_text(raw_text):
+    text = str(raw_text or "")
+    if not text:
+        return ""
+    text = (
+        text.replace("\r\n", "\n")
+        .replace("\r", "\n")
+        .replace("\u00A0", " ")
+        .replace("\u2007", " ")
+        .replace("\u202F", " ")
+    )
+    text = re.sub(r"[ \t\f\v]+", " ", text)
+    text = re.sub(r"[ \t]*\n[ \t]*", "\n", text)
+    text = INLINE_QUESTION_PREFIX_GLUE_PATTERN.sub(r"\1\n\2", text)
+    text = INLINE_OPTION_GLUE_PATTERN.sub(r"\1\n\2", text)
+    text = INLINE_ANSWER_GLUE_PATTERN.sub(r"\1\n\2", text)
+    text = INLINE_QUESTION_GLUE_PATTERN.sub(r"\1\n\2", text)
+    text = INLINE_OPTION_BOUNDARY_PATTERN.sub("\n", text)
+    text = INLINE_ANSWER_BOUNDARY_PATTERN.sub("\n", text)
+    text = INLINE_QUESTION_BOUNDARY_PATTERN.sub("\n", text)
+    text = re.sub(r"(?im)(?<!\n)\(([A-Da-d])\)\s*", r"\n\1) ", text)
+    text = re.sub(r"(?im)(?<!\n)([A-Da-d])\s*[\)\.\:-]\s*", r"\n\1) ", text)
+    text = re.sub(r"(?im)^(?:question|q)\s*(\d+)\s*[\)\.\:-]?\s*", r"\1. ", text)
+    text = re.sub(r"(?im)^(\d{1,3})\s*\)\s*$", r"\1. ", text)
+    text = re.sub(r"(?im)^(\d{1,3})\s*\)\s*(\S)", r"\1. \2", text)
+
+    cleaned_rows = []
+    seen_question_like = False
+    for row in text.splitlines():
+        line = row.strip()
+        if not line:
+            cleaned_rows.append("")
+            continue
+        looks_like_question = bool(
+            QUESTION_BLOCK_SPLIT_PATTERN.match(line)
+            or OPTION_PATTERN.match(line)
+            or ANSWER_PATTERN.match(line)
+        )
+        if not seen_question_like and HEADER_NOISE_PATTERN.match(line) and not looks_like_question:
+            continue
+        if looks_like_question:
+            seen_question_like = True
+        cleaned_rows.append(line)
+
+    text = "\n".join(cleaned_rows)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
+def _question_structure_score(raw_value):
+    text = str(raw_value or "")
+    compact_len = len(re.sub(r"\s+", "", text))
+    question_markers = len(
+        re.findall(r"(?im)^(?:\s*(?:question|q)\s*)?\d{1,3}\s*[\)\.\:-]\s*", text)
+    )
+    option_markers = len(
+        re.findall(r"(?im)(?:^|\s)[A-Da-d]\s*[\)\.\:-]\s*", text)
+    )
+    answer_markers = len(
+        re.findall(
+            r"(?im)(?:^|\s)(?:answer|ans|correct(?:\s*answer|\s*option)?)\s*[\.:\-]?\s*",
+            text,
+        )
+    )
+    # Bias selection toward candidate text that preserves exam structure,
+    # not just raw character volume.
+    return (
+        (question_markers * 60)
+        + (option_markers * 30)
+        + (answer_markers * 20)
+        + min(compact_len, 12000) / 120
+    )
+
+
+def _split_into_question_blocks(normalized_text):
+    content = (normalized_text or "").strip()
+    if not content:
+        return []
+    matches = list(QUESTION_BLOCK_SPLIT_PATTERN.finditer(content))
+    blocks = []
+    if matches:
+        for index, match in enumerate(matches):
+            start = match.start()
+            end = matches[index + 1].start() if index + 1 < len(matches) else len(content)
+            body = content[start:end].strip()
+            if body:
+                blocks.append(RawQuestionBlock(number=match.group(1), body=body))
+        if blocks:
+            return blocks
+
+    chunks = [row.strip() for row in DOUBLE_NEWLINE_SPLIT_PATTERN.split(content) if row.strip()]
+    if len(chunks) > 1:
+        return [RawQuestionBlock(number=str(index), body=row) for index, row in enumerate(chunks, start=1)]
+    return [RawQuestionBlock(number="?", body=content)]
+
+
+def _resolve_correct_label_from_answer(*, options, answer_raw):
+    answer_text = (answer_raw or "").strip()
+    if not answer_text:
+        return ""
+    label_match = re.match(r"^\s*([A-Da-d])(?:\b|[\).\:-])?", answer_text)
+    if label_match:
+        label = label_match.group(1).upper()
+        if label in options:
+            return label
+    normalized_answer = re.sub(r"\s+", " ", answer_text).strip().lower()
+    if not normalized_answer:
+        return ""
+    for label, value in options.items():
+        normalized_option = re.sub(r"\s+", " ", str(value or "")).strip().lower()
+        if normalized_option and normalized_answer == normalized_option:
+            return label
+    for label, value in options.items():
+        normalized_option = re.sub(r"\s+", " ", str(value or "")).strip().lower()
+        if normalized_option and normalized_answer in normalized_option:
+            return label
+    return ""
+
+
+def _extract_inline_objective_from_text(text):
+    value = re.sub(r"\s+", " ", str(text or "")).strip()
+    if not value:
+        return None
+
+    answer_raw = ""
+    answer_match = re.search(
+        r"(?is)\b(?:answer|ans|correct(?:\s*answer|\s*option)?)\s*[\.:\-]?\s*(.+)$",
+        value,
+    )
+    if answer_match:
+        answer_raw = (answer_match.group(1) or "").strip()
+        value = value[: answer_match.start()].strip()
+
+    markers = list(INLINE_OPTION_MARKER_PATTERN.finditer(value))
+    if len(markers) < 4:
+        return None
+
+    first_seen = {}
+    for marker in markers:
+        label = marker.group(1).upper()
+        if label not in first_seen:
+            first_seen[label] = marker
+    if not all(label in first_seen for label in ("A", "B", "C", "D")):
+        return None
+
+    ordered_markers = [first_seen[label] for label in ("A", "B", "C", "D")]
+    if not (ordered_markers[0].start() < ordered_markers[1].start() < ordered_markers[2].start() < ordered_markers[3].start()):
+        return None
+
+    stem = value[: ordered_markers[0].start()].strip(" :-")
+    if not stem:
+        return None
+
+    options = {}
+    for index, marker in enumerate(ordered_markers):
+        label = marker.group(1).upper()
+        start = marker.end()
+        end = ordered_markers[index + 1].start() if index + 1 < len(ordered_markers) else len(value)
+        option_text = value[start:end].strip(" :-")
+        option_text = re.sub(r"\s+", " ", option_text).strip()
+        if not option_text:
+            return None
+        options[label] = option_text
+
+    return {"stem": stem, "options": options, "answer_raw": answer_raw}
+
+
+def _parse_question_block(block_text):
+    text = (block_text or "").strip()
+    if not text:
+        return None
+    lines = [re.sub(r"\s+", " ", row.strip()) for row in text.splitlines() if row.strip()]
+    if not lines:
+        return None
+
+    question_match = QUESTION_START_PATTERN.match(lines[0]) or QUESTION_PREFIX_PATTERN.match(lines[0])
+    if question_match:
+        lines[0] = (question_match.group(2) or "").strip()
+    lines = [row for row in lines if row]
+    if not lines:
+        return None
+
+    stem_chunks = []
+    options = {}
+    last_option_label = ""
+    answer_raw = ""
+    in_answer_block = False
+
+    for line in lines:
+        answer_match = ANSWER_PATTERN.match(line)
+        if answer_match:
+            answer_piece = (answer_match.group(1) or "").strip()
+            if answer_piece:
+                answer_raw = f"{answer_raw} {answer_piece}".strip() if answer_raw else answer_piece
+            in_answer_block = True
+            last_option_label = ""
+            continue
+
+        option_match = OPTION_PATTERN.match(line)
+        if option_match and not in_answer_block:
+            label = option_match.group(1).upper()
+            option_text = (option_match.group(2) or "").strip()
+            if option_text:
+                existing = options.get(label, "")
+                options[label] = f"{existing} {option_text}".strip() if existing else option_text
+                last_option_label = label
+            continue
+
+        if in_answer_block:
+            answer_raw = f"{answer_raw} {line}".strip() if answer_raw else line
+            continue
+
+        if last_option_label:
+            options[last_option_label] = f"{options[last_option_label]} {line}".strip()
+            continue
+
+        stem_chunks.append(line)
+
+    stem = re.sub(r"\s+", " ", " ".join(stem_chunks)).strip()
+    ordered_options = {
+        label: options[label]
+        for label in ("A", "B", "C", "D")
+        if options.get(label)
+    }
+
+    if stem and len(ordered_options) < 4:
+        inline_payload = _extract_inline_objective_from_text(text)
+        if inline_payload:
+            stem = inline_payload["stem"]
+            ordered_options = inline_payload["options"]
+            if not answer_raw:
+                answer_raw = inline_payload["answer_raw"]
+
+    if stem and len(ordered_options) >= 4:
+        return {
+            "question_type": "OBJECTIVE",
+            "stem": stem,
+            "options": ordered_options,
+            "correct_label": _resolve_correct_label_from_answer(
+                options=ordered_options,
+                answer_raw=answer_raw,
+            ),
+        }
+    if stem:
+        return {
+            "question_type": "THEORY",
+            "stem": stem,
+            "model_answer": re.sub(r"\s+", " ", answer_raw).strip(),
+        }
+    return None
+
+
+def _extract_json_payload(raw_text):
+    text = (raw_text or "").strip()
+    if not text:
+        return ""
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.IGNORECASE)
+        text = re.sub(r"\s*```$", "", text)
+    start_brace = text.find("{")
+    start_list = text.find("[")
+    starts = [value for value in [start_brace, start_list] if value >= 0]
+    if starts:
+        text = text[min(starts):]
+    last_brace = text.rfind("}")
+    last_list = text.rfind("]")
+    end_candidates = [value for value in [last_brace, last_list] if value >= 0]
+    if end_candidates:
+        text = text[: max(end_candidates) + 1]
+    return text.strip()
+
+
+def _openai_json_response(*, system_prompt, user_prompt):
+    return ai_json_response(system_prompt=system_prompt, user_prompt=user_prompt)
+
+
+def _normalize_objective_ai_rows(rows):
+    normalized = []
+    for row in rows or []:
+        if not isinstance(row, dict):
+            continue
+        stem = re.sub(r"\s+", " ", str(row.get("stem") or "")).strip()
+        options = row.get("options") or {}
+        if not stem or not isinstance(options, dict):
+            continue
+        option_map = {}
+        for label in ["A", "B", "C", "D"]:
+            value = re.sub(r"\s+", " ", str(options.get(label, "") or "")).strip()
+            if value:
+                option_map[label] = value
+        if len(option_map) < 4:
+            continue
+        correct_label = str(row.get("correct_label") or "").strip().upper()
+        if correct_label not in option_map:
+            correct_label = "A"
+        normalized.append(
+            {
+                "stem": stem,
+                "options": {label: option_map[label] for label in ["A", "B", "C", "D"]},
+                "correct_label": correct_label,
+            }
+        )
+    return normalized
+
+
+def _normalize_parsed_question_rows(rows):
+    normalized = []
+    for row in rows or []:
+        if not isinstance(row, dict):
+            continue
+        question_type = str(row.get("question_type") or "OBJECTIVE").strip().upper()
+        stem = re.sub(r"\s+", " ", str(row.get("stem") or "")).strip()
+        if not stem:
+            continue
+        if question_type == "OBJECTIVE":
+            options = row.get("options") or {}
+            if not isinstance(options, dict):
+                continue
+            option_map = {}
+            for label in ["A", "B", "C", "D"]:
+                value = re.sub(r"\s+", " ", str(options.get(label, "") or "")).strip()
+                if value:
+                    option_map[label] = value
+            if len(option_map) < 4:
+                continue
+            correct_label = str(row.get("correct_label") or "").strip().upper()
+            if correct_label and correct_label not in option_map:
+                correct_label = ""
+            normalized.append(
+                {
+                    "question_type": "OBJECTIVE",
+                    "stem": stem,
+                    "options": option_map,
+                    "correct_label": correct_label,
+                }
+            )
+            continue
+        model_answer = re.sub(r"\s+", " ", str(row.get("model_answer") or "")).strip()
+        normalized.append(
+            {
+                "question_type": "THEORY",
+                "stem": stem,
+                "model_answer": model_answer,
+            }
+        )
+    return normalized
+
+
+def _generate_ai_question_blocks_with_openai(*, subject_name, topic, question_count, lesson_note_text=""):
+    lesson_note_excerpt = _normalize_extracted_text(lesson_note_text)[:12000]
+    user_prompt = (
+        "Create objective CBT questions in strict JSON format.\n"
+        "Return ONLY JSON in this format:\n"
+        '{"questions":[{"stem":"...","options":{"A":"...","B":"...","C":"...","D":"..."},"correct_label":"A"}]}\n'
+        f"Subject: {subject_name}\n"
+        f"Topic: {topic}\n"
+        f"Question count: {max(int(question_count or 0), 1)}\n"
+        "Constraints:\n"
+        "- Questions must be classroom-level and solvable.\n"
+        "- If subject is math, use calculation/problem-solving style where possible.\n"
+        "- Options must be realistic distractors.\n"
+        "- correct_label must be one of A,B,C,D.\n"
+    )
+    if lesson_note_excerpt.strip():
+        user_prompt += f"\nLesson note/context:\n{lesson_note_excerpt}"
+
+    data = _openai_json_response(
+        system_prompt=(
+            "You are an NDGA exam drafting assistant. "
+            "Return strict JSON only. Do not include markdown."
+        ),
+        user_prompt=user_prompt,
+    )
+    if not isinstance(data, dict):
+        return []
+    rows = _normalize_objective_ai_rows(data.get("questions") or [])
+    if not rows:
+        return []
+    target_count = max(int(question_count or 0), 1)
+    return rows[:target_count]
+
+
+def _parse_questions_with_openai(*, extracted_text, subject_name, expected_count=0):
+    text_excerpt = _normalize_extracted_text(extracted_text)[:18000]
+    if not text_excerpt.strip():
+        return []
+    user_prompt = (
+        "Parse this question document text into JSON.\n"
+        "Return ONLY valid JSON in this exact shape:\n"
+        '{"questions":[{"question_type":"OBJECTIVE","stem":"...","options":{"A":"...","B":"...","C":"...","D":"..."},"correct_label":"A"},'
+        '{"question_type":"THEORY","stem":"...","model_answer":"..."}]}\n'
+        "Rules:\n"
+        "- Keep original question meaning.\n"
+        "- If and only if options A-D exist, output OBJECTIVE.\n"
+        "- If no options, output THEORY.\n"
+        "- For OBJECTIVE rows, include all options A, B, C, D.\n"
+        "- If answer key exists, set correct_label to A/B/C/D.\n"
+        "- Do not invent answers if none is provided.\n"
+        "- Do not add markdown, comments, or prose.\n"
+        f"Subject: {subject_name}\n"
+    )
+    if expected_count:
+        user_prompt += f"Expected around {expected_count} questions.\n"
+    user_prompt += f"\nSource text:\n{text_excerpt}"
+
+    data = _openai_json_response(
+        system_prompt=(
+            "You are an NDGA document-to-CBT parser. "
+            "Return strict JSON only. Do not include markdown."
+        ),
+        user_prompt=user_prompt,
+    )
+    if not isinstance(data, dict):
+        return []
+    return _normalize_parsed_question_rows(data.get("questions") or [])
+
+
+def _parse_questions_linewise(normalized_text):
+    source_rows = [str(row or "") for row in (normalized_text or "").splitlines()]
+    lines = []
+    for row in source_rows:
+        expanded = row
+        expanded = INLINE_OPTION_BOUNDARY_PATTERN.sub("\n", expanded)
+        expanded = INLINE_ANSWER_BOUNDARY_PATTERN.sub("\n", expanded)
+        expanded = INLINE_QUESTION_BOUNDARY_PATTERN.sub("\n", expanded)
+        expanded = re.sub(r"(?im)(?<!\n)\(([A-Da-d])\)\s*", r"\n\1) ", expanded)
+        expanded = re.sub(r"(?im)(?<!\n)([A-Da-d])\s*[\)\.\:-]\s*", r"\n\1) ", expanded)
+        for piece in expanded.splitlines():
+            cleaned = re.sub(r"\s+", " ", piece.strip())
+            if cleaned:
+                lines.append(cleaned)
+
+    parsed = []
+    current = None
+    pending_stem_lines = []
+    last_option_label = None
+    in_answer_block = False
+
+    def _new_question(stem_text=""):
+        return {
+            "stem": (stem_text or "").strip(),
+            "options": {},
+            "answer_raw": "",
+        }
+
+    def _append_stem(target, text):
+        cleaned = (text or "").strip()
+        if not cleaned:
+            return
+        if target.get("stem"):
+            target["stem"] = f"{target['stem']} {cleaned}".strip()
+        else:
+            target["stem"] = cleaned
+
+    def flush_current():
+        nonlocal current, last_option_label, in_answer_block
+        if not current:
+            return
+        options = current.get("options", {})
+        normalized_options = {
+            label: options[label]
+            for label in ["A", "B", "C", "D"]
+            if options.get(label)
+        }
+        stem = current.get("stem", "").strip()
+        answer_raw = (current.get("answer_raw") or "").strip()
+        if stem and len(normalized_options) >= 4:
+            parsed.append(
+                {
+                    "question_type": "OBJECTIVE",
+                    "stem": stem,
+                    "options": normalized_options,
+                    "correct_label": _resolve_correct_label_from_answer(
+                        options=normalized_options,
+                        answer_raw=answer_raw,
+                    ),
+                }
+            )
+        elif stem:
+            parsed.append(
+                {
+                    "question_type": "THEORY",
+                    "stem": stem,
+                    "model_answer": answer_raw,
+                }
+            )
+        current = None
+        last_option_label = None
+        in_answer_block = False
+
+    for line in lines:
+        if not line:
+            continue
+        line = re.sub(r"^[\-\u2022\u25AA\u25CF\u00B7]+\s*", "", line).strip()
+        if not line:
+            continue
+
+        numbered_match = QUESTION_START_PATTERN.match(line)
+        prefixed_match = QUESTION_PREFIX_PATTERN.match(line)
+        question_match = numbered_match or prefixed_match
+        if question_match:
+            flush_current()
+            stem_from_line = (question_match.group(2) or "").strip()
+            if not stem_from_line and pending_stem_lines:
+                stem_from_line = " ".join(pending_stem_lines).strip()
+                pending_stem_lines = []
+            current = _new_question(stem_from_line)
+            continue
+
+        option_match = OPTION_PATTERN.match(line)
+        if option_match is None:
+            option_match = re.match(r"^\s*([A-Da-d])\s+(.+)$", line)
+        if current is None:
+            if option_match:
+                stem = " ".join(pending_stem_lines).strip()
+                pending_stem_lines = []
+                current = _new_question(stem)
+            else:
+                pending_stem_lines.append(line)
+                continue
+
+        answer_match = ANSWER_PATTERN.match(line)
+        if answer_match:
+            answer_text = (answer_match.group(1) or "").strip()
+            if answer_text:
+                existing_answer = current.get("answer_raw", "")
+                current["answer_raw"] = (
+                    f"{existing_answer} {answer_text}".strip() if existing_answer else answer_text
+                )
+            in_answer_block = True
+            last_option_label = None
+            continue
+
+        if option_match and not in_answer_block:
+            label = option_match.group(1).upper()
+            option_text = option_match.group(2).strip()
+            existing = current["options"].get(label, "")
+            current["options"][label] = (
+                f"{existing} {option_text}".strip() if existing else option_text
+            )
+            last_option_label = label
+            continue
+
+        if in_answer_block:
+            if current.get("options") and re.match(r"^[A-Za-z0-9(]", line):
+                flush_current()
+                pending_stem_lines = [line]
+                continue
+            existing_answer = current.get("answer_raw", "")
+            current["answer_raw"] = (
+                f"{existing_answer} {line}".strip() if existing_answer else line
+            )
+            continue
+
+        if last_option_label:
+            current["options"][last_option_label] = (
+                f"{current['options'][last_option_label]} {line}"
+            ).strip()
+            continue
+
+        if current.get("options"):
+            flush_current()
+            pending_stem_lines = [line]
+            continue
+
+        _append_stem(current, line)
+
+    flush_current()
+    if pending_stem_lines:
+        stem = " ".join(pending_stem_lines).strip()
+        if stem:
+            parsed.append(
+                {
+                    "question_type": "THEORY",
+                    "stem": stem,
+                    "model_answer": "",
+                }
+            )
+    return parsed
+
+
+def _is_low_confidence_parse(rows, *, normalized_text):
+    if not rows:
+        return True
+    objective_count = sum(1 for row in rows if row.get("question_type") == "OBJECTIVE")
+    normalized_compact_len = len(re.sub(r"\s+", "", normalized_text or ""))
+    if len(rows) == 1 and objective_count == 0:
+        only_stem = (rows[0].get("stem") or "").strip()
+        if len(only_stem) > 200:
+            return True
+        if normalized_compact_len > 260:
+            return True
+    if objective_count == 0 and len(rows) <= 2 and normalized_compact_len > 700:
+        return True
+    return False
+
+
+def _objective_marker_count(text):
+    return len(
+        re.findall(r"(?im)(?:^|\s)[A-Da-d]\s*[\)\.\:-]\s*", str(text or ""))
+    )
+
+
+def _parsed_rows_quality(rows):
+    objective_count = sum(1 for row in rows if row.get("question_type") == "OBJECTIVE")
+    theory_count = sum(1 for row in rows if row.get("question_type") != "OBJECTIVE")
+    stem_chars = sum(len((row.get("stem") or "").strip()) for row in rows)
+    return (objective_count * 100) + (len(rows) * 12) + min(stem_chars, 4000) / 80 - (theory_count * 2)
+
+
+def parse_question_document(extracted_text):
+    normalized_text = _normalize_extracted_text(extracted_text)
+    if not normalized_text:
+        return {
+            "normalized_text": "",
+            "parsed_questions": [],
+            "flagged_blocks": [],
+            "used_line_fallback": False,
+            "low_confidence": True,
+        }
+
+    blocks = _split_into_question_blocks(normalized_text)
+    block_rows = []
+    flagged_blocks = []
+    used_line_fallback = False
+
+    if len(blocks) > 1:
+        for block in blocks:
+            parsed = _parse_question_block(block.body)
+            if parsed:
+                block_rows.append(parsed)
+            else:
+                flagged_blocks.append(
+                    {
+                        "number": block.number,
+                        "body": block.body,
+                        "reason": "deterministic_block_parse_failed",
+                    }
+                )
+    else:
+        used_line_fallback = True
+        block_rows = _parse_questions_linewise(normalized_text)
+        if not block_rows:
+            flagged_blocks.append(
+                {
+                    "number": "?",
+                    "body": normalized_text,
+                    "reason": "linewise_parse_failed",
+                }
+            )
+
+    line_rows = _parse_questions_linewise(normalized_text)
+    parsed_rows = block_rows
+    if line_rows:
+        block_quality = _parsed_rows_quality(block_rows)
+        line_quality = _parsed_rows_quality(line_rows)
+        block_objective = sum(1 for row in block_rows if row.get("question_type") == "OBJECTIVE")
+        line_objective = sum(1 for row in line_rows if row.get("question_type") == "OBJECTIVE")
+        option_markers = _objective_marker_count(normalized_text)
+
+        should_use_line_rows = (
+            line_quality > block_quality
+            or (
+                option_markers >= 8
+                and block_objective == 0
+                and line_objective > 0
+            )
+            or (
+                len(line_rows) >= max(len(block_rows) + 2, 4)
+                and line_objective >= block_objective
+            )
+        )
+        if should_use_line_rows:
+            parsed_rows = line_rows
+            used_line_fallback = True
+            # If linewise parser produced strong structure, ignore block-parse flags.
+            if line_quality >= block_quality:
+                flagged_blocks = []
+
+    low_confidence = _is_low_confidence_parse(parsed_rows, normalized_text=normalized_text)
+    if low_confidence and normalized_text:
+        flagged_blocks.append(
+            {
+                "number": "?",
+                "body": normalized_text[:2500],
+                "reason": "low_confidence_parse",
+            }
+        )
+        parsed_rows = []
+
+    return {
+        "normalized_text": normalized_text,
+        "parsed_questions": parsed_rows,
+        "flagged_blocks": flagged_blocks,
+        "used_line_fallback": used_line_fallback,
+        "low_confidence": low_confidence,
+    }
+
+
+def _repair_flagged_blocks_with_openai(*, flagged_blocks, subject_name):
+    if not flagged_blocks:
+        return []
+    repair_text_parts = []
+    for row in flagged_blocks:
+        body = (row.get("body") or "").strip()
+        if not body:
+            continue
+        block_no = row.get("number") or "?"
+        repair_text_parts.append(f"BLOCK {block_no}:\n{body}")
+    repair_text = "\n\n".join(repair_text_parts).strip()
+    if not repair_text:
+        return []
+    return _parse_questions_with_openai(
+        extracted_text=repair_text,
+        subject_name=subject_name,
+        expected_count=len(flagged_blocks),
+    )
+
+
+def parse_objective_questions(extracted_text):
+    return parse_question_document(extracted_text).get("parsed_questions") or []
+
+
+def _truncate_text(value, *, max_length=180):
+    text = re.sub(r"\s+", " ", (value or "").strip())
+    if len(text) <= max_length:
+        return text
+    return f"{text[: max_length - 3].rstrip()}..."
+
+
+def _extract_lesson_note_points(note_text, *, limit=120):
+    raw = (note_text or "").strip()
+    if not raw:
+        return []
+    candidates = []
+    for row in re.split(r"[\r\n]+", raw):
+        chunk = row.strip()
+        if not chunk:
+            continue
+        for sentence in re.split(r"(?<=[\.\?\!;:])\s+", chunk):
+            cleaned = re.sub(r"\s+", " ", sentence).strip(" -\t")
+            if len(cleaned) >= 14:
+                candidates.append(cleaned)
+    deduped = []
+    seen = set()
+    for row in candidates:
+        key = row.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(row)
+        if len(deduped) >= limit:
+            break
+    return deduped
+
+
+def _build_ai_question_options(*, subject_name, topic, rng, lesson_point=""):
+    subject = (subject_name or "").lower()
+    topic_text = topic.strip()
+    lesson_point = _truncate_text(lesson_point, max_length=170)
+    if lesson_point:
+        correct = lesson_point
+        distractors = [
+            f"A statement that is not supported by the class note on {topic_text}.",
+            f"An incorrect interpretation of {topic_text} from the note.",
+            f"A claim unrelated to the taught point on {topic_text}.",
+        ]
+    elif "math" in subject:
+        correct = f"The correct worked outcome for {topic_text}."
+        distractors = [
+            f"A wrong estimate for {topic_text}.",
+            f"A value that ignores the correct method for {topic_text}.",
+            f"An answer with incorrect operation order for {topic_text}.",
+        ]
+    elif "physics" in subject or "chem" in subject or "bio" in subject or "science" in subject:
+        correct = f"The scientifically valid explanation for {topic_text}."
+        distractors = [
+            f"A claim that confuses core principles of {topic_text}.",
+            f"A statement that ignores lab evidence for {topic_text}.",
+            f"An interpretation not supported by observed results in {topic_text}.",
+        ]
+    else:
+        correct = f"The best supported answer about {topic_text}."
+        distractors = [
+            f"A partially correct statement about {topic_text}.",
+            f"An unrelated interpretation of {topic_text}.",
+            f"A misleading summary for {topic_text}.",
+        ]
+    normalized_correct = _truncate_text(correct, max_length=180)
+    option_texts = [normalized_correct] + [
+        _truncate_text(item, max_length=180) for item in distractors
+    ]
+    rng.shuffle(option_texts)
+    labels = ["A", "B", "C", "D"]
+    options = {label: option_texts[idx] for idx, label in enumerate(labels)}
+    correct_label = labels[option_texts.index(normalized_correct)]
+    return options, correct_label
+
+
+def generate_ai_question_blocks(*, subject_name, topic, question_count, lesson_note_text=""):
+    templates = [
+        "Which option best matches what was taught about {topic}?",
+        "Based on class teaching, identify the accurate statement for {topic}.",
+        "Which choice reflects the correct understanding of {topic}?",
+        "Select the best supported statement about {topic}.",
+        "From your class note, which option is correct for {topic}?",
+        "Choose the option most consistent with the taught point on {topic}.",
+    ]
+    seed = f"{subject_name}|{topic}|{question_count}".lower()
+    rng = random.Random(seed)
+    lesson_points = _extract_lesson_note_points(lesson_note_text)
+    rows = []
+    for index in range(max(int(question_count or 0), 1)):
+        stem_template = templates[index % len(templates)]
+        lesson_point = lesson_points[index % len(lesson_points)] if lesson_points else ""
+        if lesson_point:
+            point_preview = _truncate_text(lesson_point, max_length=120)
+            stem = (
+                f"{stem_template.format(topic=topic.strip(), subject=subject_name)} "
+                f"Reference point: {point_preview}"
+            )
+        else:
+            stem = stem_template.format(topic=topic.strip(), subject=subject_name)
+        options, correct_label = _build_ai_question_options(
+            subject_name=subject_name,
+            topic=topic,
+            rng=rng,
+            lesson_point=lesson_point,
+        )
+        rows.append(
+            {
+                "stem": f"{index + 1}. {stem}",
+                "options": options,
+                "correct_label": correct_label,
+            }
+        )
+    return rows
+
+
+def _uses_ss3_mock_exam_totals(assignment):
+    class_code = (
+        getattr(getattr(assignment, "academic_class", None), "code", "") or ""
+    ).strip().upper()
+    return class_code.startswith("SS3")
+
+
+def _default_section_totals(*, exam_type, flow_type, assignment=None):
+    if exam_type == CBTExamType.FREE_TEST:
+        return Decimal("100.00"), Decimal("0.00")
+    if exam_type in {CBTExamType.CA, CBTExamType.PRACTICAL}:
+        if flow_type == "OBJECTIVE_THEORY":
+            return Decimal("5.00"), Decimal("5.00")
+        if flow_type == "THEORY_ONLY":
+            return Decimal("0.00"), Decimal("10.00")
+        return Decimal("10.00"), Decimal("0.00")
+    if exam_type == CBTExamType.EXAM:
+        if _uses_ss3_mock_exam_totals(assignment):
+            if flow_type == "OBJECTIVE_THEORY":
+                return Decimal("40.00"), Decimal("60.00")
+            if flow_type == "THEORY_ONLY":
+                return Decimal("0.00"), Decimal("60.00")
+            return Decimal("40.00"), Decimal("0.00")
+        if flow_type == "OBJECTIVE_THEORY":
+            return Decimal("20.00"), Decimal("30.00")
+        if flow_type == "THEORY_ONLY":
+            return Decimal("0.00"), Decimal("30.00")
+        return Decimal("20.00"), Decimal("0.00")
+    return Decimal("10.00"), Decimal("0.00")
+
+
+def is_free_test_exam(exam):
+    return bool(
+        getattr(exam, "is_free_test", False)
+        or getattr(exam, "exam_type", "") == CBTExamType.FREE_TEST
+    )
+
+
+def _normalized_ca_target_for_flow(*, ca_target, flow_type):
+    target = (ca_target or "").strip()
+    if flow_type == "OBJECTIVE_THEORY" and target == CBTWritebackTarget.CA3:
+        target = CBTWritebackTarget.CA2
+    return target
+
+
+def has_completed_ca_target_exam(*, assignment, ca_target, flow_type="OBJECTIVE_THEORY", exclude_exam_id=None):
+    target = _normalized_ca_target_for_flow(ca_target=ca_target, flow_type=flow_type)
+    if target not in {
+        CBTWritebackTarget.CA1,
+        CBTWritebackTarget.CA2,
+        CBTWritebackTarget.CA3,
+        CBTWritebackTarget.CA4,
+    }:
+        return False
+    candidate_exams = (
+        Exam.objects.filter(
+            assignment=assignment,
+            exam_type__in=[CBTExamType.CA, CBTExamType.PRACTICAL, CBTExamType.SIM],
+        )
+        .exclude(id=exclude_exam_id)
+        .select_related("blueprint")
+    )
+    for exam in candidate_exams:
+        blueprint = getattr(exam, "blueprint", None)
+        section_config = getattr(blueprint, "section_config", {}) if blueprint else {}
+        if not isinstance(section_config, dict):
+            section_config = {}
+        exam_target = (section_config.get("ca_target") or "").strip()
+        if not exam_target:
+            exam_target = (
+                CBTWritebackTarget.CA4
+                if exam.exam_type == CBTExamType.PRACTICAL
+                else CBTWritebackTarget.CA1
+            )
+        exam_flow_type = (
+            section_config.get("flow_type")
+            or ("SIMULATION" if exam.exam_type == CBTExamType.SIM else "OBJECTIVE_THEORY")
+        )
+        exam_target = _normalized_ca_target_for_flow(
+            ca_target=exam_target,
+            flow_type=exam_flow_type,
+        )
+        if exam_target != target:
+            continue
+        if exam.status == CBTExamStatus.CLOSED:
+            return True
+        if exam.attempts.filter(
+            status__in=[CBTAttemptStatus.SUBMITTED, CBTAttemptStatus.FINALIZED]
+        ).exists():
+            return True
+    return False
+
+
+def _distributed_section_marks(*, target_total, question_count):
+    if question_count <= 0:
+        return []
+    total = Decimal(str(target_total or 0)).quantize(Decimal("0.01"))
+    if total <= 0:
+        return [Decimal("1.00")] * question_count
+    per_mark = (total / Decimal(question_count)).quantize(Decimal("0.01"))
+    if per_mark <= 0:
+        per_mark = Decimal("0.01")
+    distributed = [per_mark for _ in range(question_count)]
+    remainder = (total - (per_mark * Decimal(question_count - 1))).quantize(Decimal("0.01"))
+    if remainder > 0:
+        distributed[-1] = remainder
+    return distributed
+
+
+def _apply_exam_row_marks(*, exam, objective_total, theory_total):
+    objective_rows = list(
+        exam.exam_questions.select_related("question")
+        .filter(question__question_type__in=OBJECTIVE_TYPES)
+        .order_by("sort_order", "id")
+    )
+    theory_rows = list(
+        exam.exam_questions.select_related("question")
+        .exclude(question__question_type__in=OBJECTIVE_TYPES)
+        .order_by("sort_order", "id")
+    )
+    objective_marks = _distributed_section_marks(
+        target_total=objective_total,
+        question_count=len(objective_rows),
+    )
+    theory_marks = _distributed_section_marks(
+        target_total=theory_total,
+        question_count=len(theory_rows),
+    )
+    for row, mark in zip(objective_rows, objective_marks):
+        row.marks = mark
+        row.save(update_fields=["marks", "updated_at"])
+        row.question.marks = mark
+        row.question.save(update_fields=["marks", "updated_at"])
+    for row, mark in zip(theory_rows, theory_marks):
+        row.marks = mark
+        row.save(update_fields=["marks", "updated_at"])
+        row.question.marks = mark
+        row.question.save(update_fields=["marks", "updated_at"])
+
+
+def _extract_text_from_uploaded_file(uploaded_file):
+    if not uploaded_file:
+        return ""
+    suffix = Path(getattr(uploaded_file, "name", "")).suffix.lower() or ".txt"
+    temp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as handle:
+            temp_path = handle.name
+            for chunk in uploaded_file.chunks():
+                handle.write(chunk)
+        return extract_text_from_document(temp_path)
+    finally:
+        if temp_path:
+            Path(temp_path).unlink(missing_ok=True)
+
+
+def _should_write_import_debug_artifacts():
+    value = (
+        getattr(settings, "CBT_IMPORT_DEBUG", "")
+        or os.getenv("CBT_IMPORT_DEBUG", "")
+    )
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _write_import_debug_artifacts(
+    *,
+    import_row,
+    raw_text,
+    normalized_text,
+    parsed_rows,
+    flagged_blocks=None,
+):
+    if not _should_write_import_debug_artifacts():
+        return {}
+    media_root = Path(settings.MEDIA_ROOT)
+    debug_root = media_root / "cbt" / "import_debug" / str(import_row.id)
+    debug_root.mkdir(parents=True, exist_ok=True)
+
+    raw_path = debug_root / "raw_text.txt"
+    normalized_path = debug_root / "normalized_text.txt"
+    blocks_path = debug_root / "blocks.json"
+
+    raw_path.write_text(str(raw_text or ""), encoding="utf-8", errors="ignore")
+    normalized_path.write_text(str(normalized_text or ""), encoding="utf-8", errors="ignore")
+    blocks_payload = _split_into_question_blocks(normalized_text or "")
+    blocks_rows = [
+        {
+            "number": row.number,
+            "body": row.body,
+        }
+        for row in blocks_payload
+    ]
+    blocks_path.write_text(
+        json.dumps(
+            {
+                "generated_at": timezone.now().isoformat(),
+                "block_count": len(blocks_rows),
+                "parsed_question_count": len(parsed_rows or []),
+                "flagged_block_count": len(flagged_blocks or []),
+                "blocks": blocks_rows,
+                "flagged_blocks": flagged_blocks or [],
+                "parsed_rows": parsed_rows or [],
+            },
+            indent=2,
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    return {
+        "debug_enabled": True,
+        "debug_dir": str(debug_root.relative_to(media_root)).replace("\\", "/"),
+        "raw_text_file": str(raw_path.relative_to(media_root)).replace("\\", "/"),
+        "normalized_text_file": str(normalized_path.relative_to(media_root)).replace("\\", "/"),
+        "blocks_file": str(blocks_path.relative_to(media_root)).replace("\\", "/"),
+    }
+
+
+def ensure_default_blueprint(exam):
+    blueprint, _ = ExamBlueprint.objects.get_or_create(
+        exam=exam,
+        defaults={
+            "duration_minutes": 60,
+            "max_attempts": 1,
+            "shuffle_questions": True,
+            "shuffle_options": True,
+            "instructions": "",
+            "section_config": [],
+            "passing_score": 0,
+        },
+    )
+    return blueprint
+
+
+@transaction.atomic
+def build_exam_with_ai_draft(
+    *,
+    actor,
+    assignment,
+    title,
+    topic,
+    question_count,
+    exam_type,
+    flow_type="OBJECTIVE_THEORY",
+    ca_target="",
+    difficulty=CBTQuestionDifficulty.MEDIUM,
+    lesson_note_text="",
+    lesson_note_file=None,
+):
+    _repair_cbt_create_sequences()
+    note_from_file = _extract_text_from_uploaded_file(lesson_note_file)
+    combined_note = "\n".join(
+        part.strip()
+        for part in [lesson_note_text or "", note_from_file or ""]
+        if part and part.strip()
+    )
+    bank_name = f"AI Draft Bank - {title}"
+    question_bank, _ = QuestionBank.objects.get_or_create(
+        owner=actor,
+        assignment=assignment,
+        subject=assignment.subject,
+        academic_class=assignment.academic_class,
+        session=assignment.session,
+        term=assignment.term,
+        name=bank_name,
+        defaults={"description": f"AI-assisted draft set for {topic}."},
+    )
+
+    exam = Exam.objects.create(
+        title=title,
+        description=(
+            f"AI-assisted draft generated for topic: {topic}."
+            if not combined_note
+            else f"AI-assisted draft generated for topic: {topic} using uploaded/pasted lesson note context."
+        ),
+        exam_type=exam_type,
+        status=CBTExamStatus.DRAFT,
+        created_by=actor,
+        assignment=assignment,
+        subject=assignment.subject,
+        academic_class=assignment.academic_class,
+        session=assignment.session,
+        term=assignment.term,
+        question_bank=question_bank,
+        is_free_test=(exam_type == CBTExamType.FREE_TEST),
+    )
+    ensure_default_blueprint(exam)
+
+    flow_type = (flow_type or "OBJECTIVE_THEORY").strip() or "OBJECTIVE_THEORY"
+    if exam_type == CBTExamType.FREE_TEST:
+        flow_type = "OBJECTIVE_ONLY"
+    target_count = max(int(question_count or 0), 1)
+    if exam_type != CBTExamType.FREE_TEST and flow_type == "OBJECTIVE_THEORY":
+        target_count = max(target_count, 2)
+    planned_theory_count = 0
+    if flow_type == "OBJECTIVE_THEORY" and exam_type != CBTExamType.FREE_TEST:
+        planned_theory_count = max(1, min(5, target_count // 4 or 1))
+    planned_objective_count = max(1, target_count - planned_theory_count) if flow_type != "THEORY_ONLY" else 0
+    generated = []
+    seen_stems = set()
+
+    def _append_generated_rows(rows):
+        for row in rows or []:
+            if not isinstance(row, dict):
+                continue
+            stem = re.sub(r"\s+", " ", str(row.get("stem") or "")).strip()
+            options = row.get("options") or {}
+            if not stem or not isinstance(options, dict):
+                continue
+            option_map = {}
+            for label in ("A", "B", "C", "D"):
+                value = re.sub(r"\s+", " ", str(options.get(label) or "")).strip()
+                if value:
+                    option_map[label] = value
+            if len(option_map) < 4:
+                continue
+            correct_label = str(row.get("correct_label") or "").strip().upper()
+            if correct_label not in option_map:
+                correct_label = "A"
+            key = stem.lower()
+            if key in seen_stems:
+                continue
+            seen_stems.add(key)
+            generated.append(
+                {
+                    "stem": stem,
+                    "options": {label: option_map[label] for label in ("A", "B", "C", "D")},
+                    "correct_label": correct_label,
+                }
+            )
+            if len(generated) >= target_count:
+                break
+
+    # First: if teacher materials already contain objective questions, use them directly.
+    if combined_note.strip():
+        note_payload = parse_question_document(combined_note)
+        objective_rows = [
+            {
+                "stem": row.get("stem") or "",
+                "options": row.get("options") or {},
+                "correct_label": row.get("correct_label") or "",
+            }
+            for row in (note_payload.get("parsed_questions") or [])
+            if str(row.get("question_type") or "").upper() == "OBJECTIVE"
+        ]
+        _append_generated_rows(objective_rows)
+
+    remaining = target_count - len(generated)
+    if remaining > 0:
+        ai_rows = _generate_ai_question_blocks_with_openai(
+            subject_name=assignment.subject.name,
+            topic=topic,
+            question_count=remaining,
+            lesson_note_text=combined_note,
+        )
+        _append_generated_rows(ai_rows)
+
+    remaining = target_count - len(generated)
+    if remaining > 0:
+        deterministic_rows = generate_ai_question_blocks(
+            subject_name=assignment.subject.name,
+            topic=topic,
+            question_count=remaining,
+            lesson_note_text=combined_note,
+        )
+        _append_generated_rows(deterministic_rows)
+
+    if not generated:
+        raise ValidationError(
+            "AI draft could not generate valid objective questions from the provided materials."
+        )
+
+    created_objective_count = 0
+    created_theory_count = 0
+    for index, row in enumerate(generated[:target_count], start=1):
+        if index <= planned_objective_count:
+            question = Question.objects.create(
+                question_bank=question_bank,
+                created_by=actor,
+                subject=assignment.subject,
+                question_type=CBTQuestionType.OBJECTIVE,
+                stem=row["stem"],
+                topic=topic,
+                difficulty=difficulty,
+                marks=Decimal("1.00"),
+                source_type=Question.SourceType.MANUAL,
+                source_reference="AI_DRAFT_NOTE" if combined_note else "AI_DRAFT",
+            )
+            ordered_labels = ["A", "B", "C", "D"]
+            for sort_order, label in enumerate(ordered_labels, start=1):
+                Option.objects.create(
+                    question=question,
+                    label=label,
+                    option_text=row["options"][label],
+                    sort_order=sort_order,
+                )
+            correct = CorrectAnswer.objects.create(question=question, is_finalized=True)
+            correct.correct_options.set(question.options.filter(label=row["correct_label"]))
+            ExamQuestion.objects.create(
+                exam=exam,
+                question=question,
+                sort_order=index,
+                marks=Decimal("1.00"),
+            )
+            created_objective_count += 1
+            continue
+
+        theory_question = Question.objects.create(
+            question_bank=question_bank,
+            created_by=actor,
+            subject=assignment.subject,
+            question_type=CBTQuestionType.SHORT_ANSWER,
+            stem=row["stem"],
+            topic=topic,
+            difficulty=difficulty,
+            marks=Decimal("1.00"),
+            source_type=Question.SourceType.MANUAL,
+            source_reference="THEORY_MODE:PAPER",
+        )
+        CorrectAnswer.objects.create(question=theory_question, is_finalized=False)
+        ExamQuestion.objects.create(
+            exam=exam,
+            question=theory_question,
+            sort_order=index,
+            marks=Decimal("1.00"),
+        )
+        created_theory_count += 1
+
+    objective_total, theory_total = _default_section_totals(
+        exam_type=exam_type,
+        flow_type=flow_type,
+        assignment=assignment,
+    )
+    blueprint = ensure_default_blueprint(exam)
+    if exam_type == CBTExamType.FREE_TEST:
+        objective_target = CBTWritebackTarget.NONE
+        theory_target = CBTWritebackTarget.NONE
+        effective_ca_target = ""
+    elif exam_type in {CBTExamType.CA, CBTExamType.PRACTICAL}:
+        default_ca_target = (
+            CBTWritebackTarget.CA4
+            if exam_type == CBTExamType.PRACTICAL
+            else CBTWritebackTarget.CA1
+        )
+        effective_ca_target = (ca_target or default_ca_target).strip()
+        if effective_ca_target == CBTWritebackTarget.CA3:
+            effective_ca_target = CBTWritebackTarget.CA2
+        if flow_type == "THEORY_ONLY":
+            objective_target = CBTWritebackTarget.NONE
+            theory_target = CBTWritebackTarget.NONE
+        elif effective_ca_target == CBTWritebackTarget.CA2 and flow_type == "OBJECTIVE_THEORY":
+            objective_target = CBTWritebackTarget.CA2
+            theory_target = CBTWritebackTarget.NONE
+            objective_total = Decimal("10.00")
+            theory_total = Decimal("10.00")
+        else:
+            objective_target = CBTWritebackTarget.CA2 if effective_ca_target == CBTWritebackTarget.CA2 else effective_ca_target
+            theory_target = CBTWritebackTarget.NONE
+    else:
+        objective_target = CBTWritebackTarget.OBJECTIVE
+        theory_target = CBTWritebackTarget.NONE
+        effective_ca_target = ""
+    blueprint.section_config = {
+        "flow_type": flow_type,
+        "objective_count": created_objective_count,
+        "theory_count": created_theory_count,
+        "theory_response_mode": "PAPER",
+        "ca_target": effective_ca_target,
+        "is_free_test": exam_type == CBTExamType.FREE_TEST,
+        "manual_score_split": exam_type in {CBTExamType.CA, CBTExamType.PRACTICAL, CBTExamType.EXAM} and flow_type == "OBJECTIVE_THEORY",
+        "objective_target_max": str(objective_total),
+        "theory_target_max": str(theory_total),
+    }
+    blueprint.objective_writeback_target = objective_target
+    blueprint.theory_enabled = created_theory_count > 0
+    blueprint.theory_writeback_target = theory_target
+    blueprint.save(
+        update_fields=[
+            "section_config",
+            "objective_writeback_target",
+            "theory_enabled",
+            "theory_writeback_target",
+            "updated_at",
+        ]
+    )
+    _apply_exam_row_marks(
+        exam=exam,
+        objective_total=objective_total,
+        theory_total=theory_total,
+    )
+
+    return exam, (created_objective_count + created_theory_count)
+
+
+def _upload_fallback_objective_count(*, exam_type, flow_type, assignment):
+    objective_total, _ = _default_section_totals(
+        exam_type=exam_type,
+        flow_type=flow_type,
+        assignment=assignment,
+    )
+    if flow_type == "THEORY_ONLY":
+        return 0
+    return max(1, min(int(objective_total or 0), 40))
+
+
+def _draft_theory_rows_from_note(*, note_text, question_count):
+    target_count = max(int(question_count or 0), 0)
+    if target_count <= 0:
+        return []
+    lesson_points = _extract_lesson_note_points(note_text, limit=max(target_count * 3, 12))
+    generated = []
+    seen = set()
+    for point in lesson_points:
+        cleaned = re.sub(r"\s+", " ", str(point or "")).strip(" .:-")
+        if not cleaned:
+            continue
+        key = cleaned.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        if cleaned.endswith("?"):
+            stem = cleaned
+        else:
+            stem = f"Explain {cleaned.lower()}."
+        generated.append(
+            {
+                "question_type": "THEORY",
+                "stem": stem,
+                "model_answer": "",
+            }
+        )
+        if len(generated) >= target_count:
+            break
+    return generated
+
+
+@transaction.atomic
+def build_exam_from_uploaded_document(
+    *,
+    actor,
+    assignment,
+    title,
+    exam_type,
+    flow_type="OBJECTIVE_THEORY",
+    ca_target="",
+    source_file,
+):
+    _repair_cbt_create_sequences()
+    import_row = ExamDocumentImport.objects.create(
+        uploaded_by=actor,
+        assignment=assignment,
+        source_file=source_file,
+        source_filename=source_file.name,
+        extraction_status=CBTDocumentStatus.PENDING,
+    )
+
+    bank_name = f"Imported Bank - {title}"
+    question_bank, _ = QuestionBank.objects.get_or_create(
+        owner=actor,
+        assignment=assignment,
+        subject=assignment.subject,
+        academic_class=assignment.academic_class,
+        session=assignment.session,
+        term=assignment.term,
+        name=bank_name,
+        defaults={"description": "Generated from uploaded document."},
+    )
+
+    exam = Exam.objects.create(
+        title=title,
+        description="Generated from uploaded document.",
+        exam_type=exam_type,
+        status=CBTExamStatus.DRAFT,
+        created_by=actor,
+        assignment=assignment,
+        subject=assignment.subject,
+        academic_class=assignment.academic_class,
+        session=assignment.session,
+        term=assignment.term,
+        question_bank=question_bank,
+        is_free_test=(exam_type == CBTExamType.FREE_TEST),
+    )
+    ensure_default_blueprint(exam)
+
+    try:
+        flow_type = (flow_type or "OBJECTIVE_THEORY").strip() or "OBJECTIVE_THEORY"
+        if exam_type == CBTExamType.FREE_TEST:
+            flow_type = "OBJECTIVE_ONLY"
+        extracted_text = extract_text_from_document(import_row.source_file.path)
+        parse_payload = parse_question_document(extracted_text)
+        normalized_text = parse_payload.get("normalized_text") or ""
+        parsed_questions = list(parse_payload.get("parsed_questions") or [])
+        flagged_blocks = list(parse_payload.get("flagged_blocks") or [])
+        parser_used = "deterministic"
+
+        if not parsed_questions:
+            linewise_rows = _parse_questions_linewise(normalized_text)
+            linewise_objective = sum(
+                1 for row in linewise_rows if row.get("question_type") == "OBJECTIVE"
+            )
+            if linewise_rows and (
+                linewise_objective > 0
+                or len(linewise_rows) >= 4
+                or _objective_marker_count(normalized_text) >= 8
+            ):
+                parsed_questions = linewise_rows
+                parser_used = "linewise_fallback"
+        if flagged_blocks:
+            raise ValidationError(
+                "Upload could not be parsed cleanly. Reformat the paper so each question is numbered clearly and every objective question has A-D options and an Answer line, then retry."
+            )
+        if not parsed_questions:
+            raise ValidationError(
+                "Could not detect a clean question paper. Upload numbered questions with A-D options, or use the AI Draft page for lesson notes."
+            )
+
+        created_count = 0
+        objective_count = 0
+        theory_count = 0
+        for index, row in enumerate(parsed_questions, start=1):
+            question_type = row.get("question_type", "OBJECTIVE")
+            if flow_type == "OBJECTIVE_ONLY" and question_type != "OBJECTIVE":
+                continue
+            if flow_type == "THEORY_ONLY" and question_type == "OBJECTIVE":
+                continue
+            question = Question.objects.create(
+                question_bank=question_bank,
+                created_by=actor,
+                subject=assignment.subject,
+                question_type=(
+                    CBTQuestionType.OBJECTIVE
+                    if question_type == "OBJECTIVE"
+                    else CBTQuestionType.SHORT_ANSWER
+                ),
+                stem=row["stem"],
+                topic="Imported",
+                difficulty="MEDIUM",
+                marks=1,
+                source_type=Question.SourceType.DOCUMENT,
+                source_reference=str(import_row.id),
+            )
+            if question_type == "OBJECTIVE":
+                option_order = 1
+                for label, text in row.get("options", {}).items():
+                    Option.objects.create(
+                        question=question,
+                        label=label,
+                        option_text=text,
+                        sort_order=option_order,
+                    )
+                    option_order += 1
+                answer = CorrectAnswer.objects.create(
+                    question=question,
+                    is_finalized=False,
+                )
+                correct_label = (row.get("correct_label") or "").strip().upper()
+                if correct_label:
+                    option_qs = question.options.filter(label=correct_label)
+                    if option_qs.exists():
+                        answer.correct_options.set(option_qs)
+                        answer.is_finalized = True
+                        answer.save(update_fields=["is_finalized", "updated_at"])
+                objective_count += 1
+            else:
+                CorrectAnswer.objects.create(
+                    question=question,
+                    is_finalized=False,
+                )
+                theory_count += 1
+            ExamQuestion.objects.create(
+                exam=exam,
+                question=question,
+                sort_order=index,
+                marks=question.marks,
+            )
+            created_count += 1
+
+        if exam_type != CBTExamType.FREE_TEST and flow_type != "THEORY_ONLY" and objective_count <= 0:
+            raise ValidationError(
+                "No valid objective questions were detected. Check numbering, A-D options, and answer lines, then retry."
+            )
+        if flow_type == "OBJECTIVE_THEORY" and theory_count <= 0:
+            raise ValidationError(
+                "No theory section was detected. Add the theory questions to the upload or switch the flow to Objective Only."
+            )
+
+        blueprint = ensure_default_blueprint(exam)
+        objective_total, theory_total = _default_section_totals(
+            exam_type=exam_type,
+            flow_type=flow_type,
+            assignment=assignment,
+        )
+        if exam_type == CBTExamType.FREE_TEST:
+            objective_target = CBTWritebackTarget.NONE
+            theory_target = CBTWritebackTarget.NONE
+            effective_ca_target = ""
+        elif exam_type in {CBTExamType.CA, CBTExamType.PRACTICAL}:
+            default_ca_target = (
+                CBTWritebackTarget.CA4
+                if exam_type == CBTExamType.PRACTICAL
+                else CBTWritebackTarget.CA1
+            )
+            effective_ca_target = (ca_target or default_ca_target).strip()
+            if effective_ca_target == CBTWritebackTarget.CA3:
+                effective_ca_target = CBTWritebackTarget.CA2
+            if flow_type == "THEORY_ONLY":
+                objective_target = CBTWritebackTarget.NONE
+                theory_target = CBTWritebackTarget.NONE
+            elif effective_ca_target == CBTWritebackTarget.CA2 and flow_type == "OBJECTIVE_THEORY":
+                objective_target = CBTWritebackTarget.CA2
+                theory_target = CBTWritebackTarget.NONE
+                objective_total = Decimal("10.00")
+                theory_total = Decimal("10.00")
+            else:
+                objective_target = CBTWritebackTarget.CA2 if effective_ca_target == CBTWritebackTarget.CA2 else effective_ca_target
+                theory_target = CBTWritebackTarget.NONE
+        else:
+            objective_target = CBTWritebackTarget.OBJECTIVE
+            theory_target = CBTWritebackTarget.NONE
+            effective_ca_target = ""
+        blueprint.section_config = {
+            "flow_type": flow_type,
+            "objective_count": objective_count,
+            "theory_count": theory_count,
+            "theory_response_mode": "PAPER",
+            "ca_target": effective_ca_target,
+            "is_free_test": exam_type == CBTExamType.FREE_TEST,
+            "manual_score_split": exam_type in {CBTExamType.CA, CBTExamType.PRACTICAL, CBTExamType.EXAM} and flow_type == "OBJECTIVE_THEORY",
+            "objective_target_max": str(objective_total),
+            "theory_target_max": str(theory_total),
+        }
+        blueprint.objective_writeback_target = objective_target
+        blueprint.theory_enabled = theory_count > 0
+        blueprint.theory_writeback_target = theory_target
+        blueprint.save(
+            update_fields=[
+                "section_config",
+                "objective_writeback_target",
+                "theory_enabled",
+                "theory_writeback_target",
+                "updated_at",
+            ]
+        )
+        _apply_exam_row_marks(
+            exam=exam,
+            objective_total=objective_total,
+            theory_total=theory_total,
+        )
+
+        import_row.exam = exam
+        import_row.extraction_status = CBTDocumentStatus.SUCCESS
+        import_row.extracted_text = extracted_text
+        debug_metadata = _write_import_debug_artifacts(
+            import_row=import_row,
+            raw_text=extracted_text,
+            normalized_text=normalized_text,
+            parsed_rows=parsed_questions,
+            flagged_blocks=flagged_blocks,
+        )
+        import_row.parse_summary = {
+            "parser_used": parser_used,
+            "normalized_char_count": len(normalized_text),
+            "flagged_block_count": len(flagged_blocks),
+            "used_line_fallback": bool(parse_payload.get("used_line_fallback")),
+            "low_confidence_detected": bool(parse_payload.get("low_confidence")),
+            "question_count": created_count,
+            "objective_count": objective_count,
+            "theory_count": theory_count,
+            "generated_at": timezone.now().isoformat(),
+            **debug_metadata,
+        }
+        import_row.error_message = ""
+        import_row.save(
+            update_fields=[
+                "exam",
+                "extraction_status",
+                "extracted_text",
+                "parse_summary",
+                "error_message",
+                "updated_at",
+            ]
+        )
+        return exam, import_row, created_count
+    except ValidationError as exc:
+        import_row.extraction_status = CBTDocumentStatus.FAILED
+        import_row.error_message = str(exc)
+        import_row.save(
+            update_fields=["extraction_status", "error_message", "updated_at"]
+        )
+        raise
+    except Exception as exc:
+        import_row.extraction_status = CBTDocumentStatus.FAILED
+        import_row.error_message = str(exc)
+        import_row.save(
+            update_fields=["extraction_status", "error_message", "updated_at"]
+        )
+        raise ValidationError(
+            "Could not process uploaded file. Verify format and content."
+        ) from exc
+
+
+OBJECTIVE_TYPES = {CBTQuestionType.OBJECTIVE, CBTQuestionType.MULTI_SELECT}
+THEORY_TYPES = {
+    CBTQuestionType.SHORT_ANSWER,
+}
+STRUCTURED_AUTO_TYPES = {
+    CBTQuestionType.LABELING,
+    CBTQuestionType.MATCHING,
+    CBTQuestionType.ORDERING,
+}
+DECIMAL_2 = Decimal("0.01")
+SIMULATION_STUDENT_COMPLETED_STATUSES = {
+    CBTSimulationAttemptStatus.AUTO_CAPTURED,
+    CBTSimulationAttemptStatus.VERIFY_PENDING,
+    CBTSimulationAttemptStatus.VERIFIED,
+    CBTSimulationAttemptStatus.RUBRIC_PENDING,
+    CBTSimulationAttemptStatus.RUBRIC_SCORED,
+    CBTSimulationAttemptStatus.IMPORTED,
+}
+
+
+def _queue_attempt_snapshot(attempt, *, event_type):
+    try:
+        queue_exam_attempt_sync(attempt=attempt, event_type=event_type)
+    except Exception:
+        return None
+    return None
+
+
+def _queue_simulation_snapshot(record, *, event_type):
+    try:
+        queue_simulation_attempt_sync(record=record, event_type=event_type)
+    except Exception:
+        return None
+    return None
+
+
+def _to_decimal(value):
+    try:
+        if value is None or value == "":
+            return Decimal("0.00")
+        return Decimal(str(value)).quantize(DECIMAL_2)
+    except (InvalidOperation, TypeError) as exc:
+        raise ValidationError("Invalid score value.") from exc
+
+
+def _target_max(target):
+    if target in {
+        CBTWritebackTarget.CA1,
+        CBTWritebackTarget.CA2,
+        CBTWritebackTarget.CA3,
+        CBTWritebackTarget.CA4,
+    }:
+        return Decimal("10.00")
+    if target == CBTWritebackTarget.OBJECTIVE:
+        return Decimal("20.00")
+    if target == CBTWritebackTarget.THEORY:
+        return Decimal("30.00")
+    return None
+
+
+def _section_target_max(blueprint, *, section_key):
+    config = getattr(blueprint, "section_config", {}) or {}
+    if not isinstance(config, dict):
+        return None
+    raw_value = config.get(section_key)
+    if raw_value in (None, ""):
+        return None
+    try:
+        parsed = Decimal(str(raw_value)).quantize(DECIMAL_2)
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+    if parsed <= 0:
+        return None
+    return parsed
+
+
+def _normalize_score(raw_score, raw_max_score, target, *, target_max_override=None):
+    raw = _to_decimal(raw_score)
+    raw_max = _to_decimal(raw_max_score)
+    target_max = None
+    if target_max_override not in (None, ""):
+        try:
+            target_max = _to_decimal(target_max_override)
+        except ValidationError:
+            target_max = None
+    if target_max is None:
+        target_max = _target_max(target)
+    if target_max is None:
+        return raw.quantize(DECIMAL_2)
+    if raw_max <= 0:
+        return Decimal("0.00")
+    return ((raw / raw_max) * target_max).quantize(DECIMAL_2)
+
+
+def _as_local_datetime(value):
+    if value is None:
+        return None
+    if timezone.is_naive(value):
+        value = timezone.make_aware(value, timezone.get_current_timezone())
+    return timezone.localtime(value)
+
+
+def exam_schedule_anchor(exam):
+    return _as_local_datetime(exam.schedule_start or exam.activated_at or exam.created_at)
+
+
+def exam_occurs_on_day(exam, target_day):
+    if target_day is None:
+        return True
+
+    start = _as_local_datetime(exam.schedule_start)
+    end = _as_local_datetime(exam.schedule_end)
+    anchor = start or _as_local_datetime(exam.activated_at) or _as_local_datetime(exam.updated_at)
+
+    if exam.status == CBTExamStatus.CLOSED:
+        return bool(anchor and anchor.date() == target_day)
+
+    if start and end:
+        return start.date() <= target_day <= end.date()
+    if start:
+        return start.date() == target_day
+    return bool(anchor and anchor.date() == target_day)
+
+
+def emergency_makeup_visible_today(exam, student, *, target_day=None):
+    if target_day is None:
+        return False
+    if exam.status != CBTExamStatus.ACTIVE or not exam.open_now:
+        return False
+    allowed_ids = _exam_emergency_allowed_student_ids(exam)
+    if not allowed_ids or student.id not in allowed_ids:
+        return False
+    return target_day == timezone.localdate()
+
+
+def _close_expired_exam(exam, *, now=None):
+    now = now or timezone.now()
+    if (
+        exam.status != CBTExamStatus.ACTIVE
+        or not exam.is_time_based
+        or not exam.schedule_end
+        or now <= exam.schedule_end
+    ):
+        return False
+
+    # The examination window is authoritative. Submit every unfinished
+    # question attempt before closing the paper, including an IT-flagged
+    # attempt. A malpractice flag remains locked and excluded, but its answers
+    # are still marked so IT can later pardon it and release the score.
+    unfinished_attempts = (
+        ExamAttempt.objects.select_related("exam", "exam__blueprint")
+        .filter(exam=exam, status=CBTAttemptStatus.IN_PROGRESS)
+        .order_by("id")
+    )
+    for attempt in unfinished_attempts.iterator(chunk_size=200):
+        try:
+            submit_attempt(attempt=attempt)
+        except ValidationError:
+            # Required simulations can legitimately prevent submission. Keep
+            # the exam close operation reliable while leaving that exceptional
+            # attempt for explicit IT review.
+            if has_pending_required_simulation(attempt):
+                continue
+            raise
+
+    exam.status = CBTExamStatus.CLOSED
+    exam.open_now = False
+    exam.save(update_fields=["status", "open_now", "updated_at"])
+    ExamReviewAction.objects.create(
+        exam=exam,
+        actor=None,
+        from_status=CBTExamStatus.ACTIVE,
+        to_status=CBTExamStatus.CLOSED,
+        action="AUTO_CLOSE",
+        comment="Closed automatically after schedule window ended.",
+    )
+    cache.set("cbt:student-exam-catalog-version", timezone.now().timestamp(), timeout=None)
+    return True
+
+
+def close_expired_exams(*, now=None, exam_ids=None):
+    now = now or timezone.now()
+    exams = Exam.objects.filter(
+        status=CBTExamStatus.ACTIVE,
+        is_time_based=True,
+        schedule_end__lt=now,
+    ).order_by("schedule_end", "id")
+    if exam_ids:
+        exams = exams.filter(id__in=exam_ids)
+
+    closed_ids = []
+    for exam in exams:
+        if _close_expired_exam(exam, now=now):
+            closed_ids.append(exam.id)
+    return closed_ids
+
+
+def _is_exam_open_now(exam, now=None):
+    now = now or timezone.now()
+    if _close_expired_exam(exam, now=now):
+        return False
+    if exam.status != CBTExamStatus.ACTIVE:
+        return False
+    if not exam.is_time_based:
+        return True
+    if exam.open_now:
+        if exam.schedule_end and now > exam.schedule_end:
+            return False
+        return True
+    if not exam.schedule_start or not exam.schedule_end:
+        return False
+    return exam.schedule_start <= now <= exam.schedule_end
+
+
+def _student_enrolled_for_exam(student, exam):
+    if not student.has_role(ROLE_STUDENT):
+        return False
+
+    class_enrolled = StudentClassEnrollment.objects.filter(
+        student=student,
+        academic_class_id__in=exam.academic_class.cohort_class_ids(),
+        session=exam.session,
+        is_active=True,
+    ).exists()
+    if not class_enrolled:
+        return False
+    if (getattr(exam.subject, "code", "") or "").upper() == "JAMB":
+        return True
+
+    any_subject_for_session = StudentSubjectEnrollment.objects.filter(
+        student=student,
+        session=exam.session,
+        is_active=True,
+    ).exists()
+    if not any_subject_for_session:
+        return True
+    return StudentSubjectEnrollment.objects.filter(
+        student=student,
+        subject=exam.subject,
+        session=exam.session,
+        is_active=True,
+    ).exists()
+
+
+def _allowed_attempt_count(blueprint):
+    if blueprint.allow_retake:
+        return max(blueprint.max_attempts, 1)
+    return 1
+
+
+def _has_unlimited_attempts(blueprint):
+    config = getattr(blueprint, "section_config", {}) if blueprint else {}
+    return bool(
+        blueprint
+        and blueprint.allow_retake
+        and isinstance(config, dict)
+        and config.get("unlimited_attempts") is True
+    )
+
+
+def _exam_emergency_allowed_student_ids(exam, *, now=None):
+    snapshot = exam.activation_snapshot if isinstance(exam.activation_snapshot, dict) else {}
+    raw_ids = snapshot.get("emergency_allowed_student_ids") or []
+    if not raw_ids:
+        return set()
+    restrict_until = snapshot.get("emergency_restrict_until") or ""
+    if restrict_until:
+        try:
+            until = timezone.datetime.fromisoformat(str(restrict_until))
+            if timezone.is_naive(until):
+                until = timezone.make_aware(until, timezone.get_current_timezone())
+            if (now or timezone.now()) > until:
+                return set()
+        except (TypeError, ValueError):
+            return set()
+    allowed = set()
+    for value in raw_ids:
+        try:
+            allowed.add(int(value))
+        except (TypeError, ValueError):
+            continue
+    return allowed
+
+
+def student_exam_authorization_reason(
+    *,
+    student,
+    exam,
+    now=None,
+    enrollment_verified=False,
+    current_period_verified=False,
+    prefetched_attempts=None,
+):
+    now = now or timezone.now()
+    _close_expired_exam(exam, now=now)
+    if not current_period_verified and not cbt_exam_is_current(exam):
+        return "This CBT is no longer available."
+    if exam.status != CBTExamStatus.ACTIVE:
+        return "Exam is not active."
+    if not _is_exam_open_now(exam, now=now):
+        return "Exam is outside schedule window."
+    if not enrollment_verified and not _student_enrolled_for_exam(student, exam):
+        return "You are not authorized for this exam."
+    emergency_allowed_ids = _exam_emergency_allowed_student_ids(exam, now=now)
+    if emergency_allowed_ids and student.id not in emergency_allowed_ids:
+        return "This makeup CBT is open only for selected students."
+
+    attempt_rows = prefetched_attempts
+    if attempt_rows is None:
+        attempt_rows = list(ExamAttempt.objects.filter(exam=exam, student=student))
+    if any(attempt.is_locked for attempt in attempt_rows):
+        return "CBT access is locked for this exam. Contact IT Manager."
+
+    blueprint = getattr(exam, "blueprint", None) or ensure_default_blueprint(exam)
+    if not blueprint.allow_retake and any(
+        attempt.status != CBTAttemptStatus.IN_PROGRESS for attempt in attempt_rows
+    ):
+        return "Attempt already submitted."
+
+    if any(attempt.status == CBTAttemptStatus.IN_PROGRESS for attempt in attempt_rows):
+        return ""
+
+    current_attempts = len(attempt_rows)
+    subject_code = (getattr(getattr(exam, "subject", None), "code", "") or "").upper()
+    section_config = getattr(blueprint, "section_config", {}) if blueprint else {}
+    if not isinstance(section_config, dict):
+        section_config = {}
+    paper_code = (section_config.get("paper_code") or "").strip().upper()
+    if subject_code == "JAMB" or paper_code == "JAMB-UTME-PRACTICE":
+        today = timezone.localdate(now)
+        daily_attempts = 0
+        for attempt in attempt_rows:
+            attempt_at = attempt.started_at or attempt.created_at
+            if attempt_at and timezone.localtime(attempt_at).date() == today:
+                daily_attempts += 1
+        if daily_attempts >= 2:
+            return "Daily JAMB practice limit reached. You can attempt again tomorrow."
+    if not _has_unlimited_attempts(blueprint) and current_attempts >= _allowed_attempt_count(blueprint):
+        return "Maximum attempt limit reached."
+    return ""
+
+
+def student_available_exams(student, *, target_day=None):
+    now = timezone.now()
+    recent_closed_cutoff = now - timezone.timedelta(hours=24)
+    close_expired_exams(now=now)
+    session, term = current_cbt_session_term()
+    if session is None or term is None:
+        return []
+
+    class_rows = list(
+        StudentClassEnrollment.objects.select_related("academic_class")
+        .filter(student=student, session=session, is_active=True)
+        .only("academic_class_id", "academic_class__base_class_id")
+    )
+    class_ids = set()
+    for enrollment in class_rows:
+        class_ids.add(enrollment.academic_class_id)
+        if enrollment.academic_class.base_class_id:
+            class_ids.add(enrollment.academic_class.base_class_id)
+    if not class_ids:
+        return []
+
+    subject_ids = list(
+        StudentSubjectEnrollment.objects.filter(
+            student=student,
+            session=session,
+            is_active=True,
+        ).values_list("subject_id", flat=True)
+    )
+    closed_attempt_exam_ids = list(
+        ExamAttempt.objects.filter(
+            student=student,
+            exam__session=session,
+            exam__term=term,
+            exam__status=CBTExamStatus.CLOSED,
+        )
+        .values_list("exam_id", flat=True)
+        .distinct()
+    )
+    catalog_version_qs = Exam.objects.filter(
+        session=session,
+        term=term,
+        academic_class_id__in=class_ids,
+        status=CBTExamStatus.ACTIVE,
+    )
+    if subject_ids:
+        catalog_version_qs = catalog_version_qs.filter(
+            Q(subject_id__in=subject_ids) | Q(subject__code="JAMB")
+        )
+    catalog_version = catalog_version_qs.aggregate(
+        latest=Max("updated_at"),
+        total=Count("id"),
+    )
+    catalog_fingerprint = hashlib.sha256(
+        (
+            f"{cache.get('cbt:student-exam-catalog-version', 1)}:"
+            f"{catalog_version['latest']}:{catalog_version['total']}:"
+            f"{session.id}:{term.id}:"
+            f"{student.id}:"
+            f"{','.join(str(value) for value in sorted(class_ids))}:"
+            f"{','.join(str(value) for value in sorted(subject_ids))}"
+        ).encode("utf-8")
+    ).hexdigest()[:20]
+    catalog_cache_key = f"cbt:student-exam-catalog:{catalog_fingerprint}"
+    active_exams = cache.get(catalog_cache_key)
+    if active_exams is None:
+        active_exam_qs = (
+            Exam.objects.select_related(
+                "subject",
+                "academic_class",
+                "session",
+                "term",
+                "blueprint",
+            )
+            .filter(
+                session=session,
+                term=term,
+                academic_class_id__in=class_ids,
+                status=CBTExamStatus.ACTIVE,
+            )
+            .order_by("academic_class__code", "schedule_start", "subject__name", "title")
+        )
+        if subject_ids:
+            active_exam_qs = active_exam_qs.filter(
+                Q(subject_id__in=subject_ids) | Q(subject__code="JAMB")
+            )
+        active_exam_qs = active_exam_qs.filter(
+            ~Q(subject__code="JAMB")
+            | Q(
+                activation_snapshot__emergency_allowed_student_ids__contains=[
+                    student.id
+                ]
+            )
+        )
+        active_exam_qs = exclude_external_exam_classes_for_term(
+            active_exam_qs,
+            term,
+            field_name="academic_class",
+        )
+        active_exams = list(active_exam_qs)
+        cache.set(catalog_cache_key, active_exams, timeout=30 * 60)
+
+    closed_exams = []
+    if closed_attempt_exam_ids:
+        closed_exam_qs = Exam.objects.select_related(
+            "subject",
+            "academic_class",
+            "session",
+            "term",
+            "blueprint",
+        ).filter(
+            id__in=closed_attempt_exam_ids,
+            session=session,
+            term=term,
+            academic_class_id__in=class_ids,
+            status=CBTExamStatus.CLOSED,
+        )
+        if subject_ids:
+            closed_exam_qs = closed_exam_qs.filter(
+                Q(subject_id__in=subject_ids) | Q(subject__code="JAMB")
+            )
+        closed_exam_qs = closed_exam_qs.filter(
+            ~Q(subject__code="JAMB")
+            | Q(
+                activation_snapshot__emergency_allowed_student_ids__contains=[
+                    student.id
+                ]
+            )
+        )
+        closed_exams = list(
+            exclude_external_exam_classes_for_term(
+                closed_exam_qs,
+                term,
+                field_name="academic_class",
+            )
+        )
+
+    exam_map = {exam.id: exam for exam in [*active_exams, *closed_exams]}
+    exams = sorted(
+        exam_map.values(),
+        key=lambda exam: (
+            exam.academic_class.code,
+            exam.schedule_start.timestamp() if exam.schedule_start else 0,
+            exam.subject.name,
+            exam.title,
+        ),
+    )
+    attempts_by_exam = {}
+    for attempt in ExamAttempt.objects.filter(
+        student=student,
+        exam_id__in=exam_map,
+    ).order_by("-updated_at", "-id"):
+        attempts_by_exam.setdefault(attempt.exam_id, []).append(attempt)
+    payload = []
+    for exam in exams:
+        if class_is_external_exam_class_for_term(exam.academic_class, exam.term):
+            continue
+        emergency_allowed_ids = _exam_emergency_allowed_student_ids(exam)
+        if emergency_allowed_ids and student.id not in emergency_allowed_ids:
+            continue
+        if (
+            target_day is not None
+            and not exam_occurs_on_day(exam, target_day)
+            and not emergency_makeup_visible_today(exam, student, target_day=target_day)
+        ):
+            continue
+
+        attempt_rows = attempts_by_exam.get(exam.id, [])
+        latest_attempt = attempt_rows[0] if attempt_rows else None
+        if exam.status == CBTExamStatus.CLOSED:
+            if latest_attempt is None:
+                continue
+            if target_day is None:
+                closed_anchor = exam.schedule_end or exam.updated_at
+                latest_seen_at = getattr(latest_attempt, "updated_at", None) or getattr(latest_attempt, "submitted_at", None)
+                if closed_anchor and closed_anchor < recent_closed_cutoff and latest_seen_at and latest_seen_at < recent_closed_cutoff:
+                    continue
+        blueprint = getattr(exam, "blueprint", None) or ensure_default_blueprint(exam)
+        is_done = bool(
+            latest_attempt and latest_attempt.status in {CBTAttemptStatus.SUBMITTED, CBTAttemptStatus.FINALIZED}
+        )
+        is_in_progress = bool(latest_attempt and latest_attempt.status == CBTAttemptStatus.IN_PROGRESS)
+        can_start = False
+        reason = ""
+
+        if (
+            is_done
+            and blueprint.allow_retake
+            and exam.status == CBTExamStatus.ACTIVE
+            and (
+                _has_unlimited_attempts(blueprint)
+                or len(attempt_rows) < _allowed_attempt_count(blueprint)
+            )
+        ):
+            reason = student_exam_authorization_reason(
+                student=student,
+                exam=exam,
+                now=now,
+                enrollment_verified=True,
+                current_period_verified=True,
+                prefetched_attempts=attempt_rows,
+            )
+            can_start = not bool(reason)
+            status_label = "Open" if can_start else "Unavailable"
+        elif is_done:
+            status_label = "Done"
+            reason = "Completed."
+        elif exam.status == CBTExamStatus.CLOSED:
+            status_label = "Closed"
+            reason = "Exam is closed."
+        else:
+            reason = student_exam_authorization_reason(
+                student=student,
+                exam=exam,
+                now=now,
+                enrollment_verified=True,
+                current_period_verified=True,
+                prefetched_attempts=attempt_rows,
+            )
+            can_start = not bool(reason)
+            if can_start:
+                status_label = "In Progress" if is_in_progress else "Open"
+            elif exam.schedule_start and now < exam.schedule_start:
+                start_label = _as_local_datetime(exam.schedule_start)
+                reason = f"Exam opens at {start_label.strftime('%H:%M')}." if start_label else "Exam is outside schedule window."
+                status_label = "Not Yet"
+            else:
+                status_label = "Unavailable"
+
+        payload.append(
+            {
+                "exam": exam,
+                "can_start": can_start,
+                "reason": reason,
+                "attempts_used": len(attempt_rows),
+                "latest_attempt": latest_attempt,
+                "max_attempts": _allowed_attempt_count(blueprint),
+                "attempt_limit_label": (
+                    "Unlimited"
+                    if _has_unlimited_attempts(blueprint)
+                    else str(_allowed_attempt_count(blueprint))
+                ),
+                "is_done": is_done,
+                "is_in_progress": is_in_progress,
+                "is_closed": exam.status == CBTExamStatus.CLOSED,
+                "status_label": status_label,
+            }
+        )
+    return payload
+
+
+def _next_attempt_number(student, exam):
+    latest = (
+        ExamAttempt.objects.filter(student=student, exam=exam)
+        .aggregate(max_value=Max("attempt_number"))
+        .get("max_value")
+    )
+    return int(latest or 0) + 1
+
+
+def _exam_section_config(exam):
+    blueprint = getattr(exam, "blueprint", None)
+    config = getattr(blueprint, "section_config", {}) if blueprint else {}
+    return config if isinstance(config, dict) else {}
+
+
+def _is_mock_practice_exam(exam):
+    subject = getattr(exam, "subject", None)
+    section_config = _exam_section_config(exam)
+    paper_code = (section_config.get("paper_code") or "").strip().upper()
+    return bool(
+        getattr(subject, "code", "") in {"MCK", "JAMB"}
+        or (getattr(exam, "title", "") or "").startswith("InterswitchSPAK Private Practice")
+        or (getattr(exam, "title", "") or "").startswith("JAMB UTME Practice")
+        or paper_code in {"INTERSWITCH-SPAK-PRACTICE", "JAMB-UTME-PRACTICE"}
+    )
+
+
+def _practice_section_label(question):
+    if question is None:
+        return ""
+    topic = (getattr(question, "topic", "") or "").strip()
+    if ":" in topic:
+        prefix = topic.split(":", 1)[0].strip()
+        if prefix:
+            return prefix
+    stem = (getattr(question, "stem", "") or "").strip()
+    match = re.match(r"^\[([^\]]+)\]", stem)
+    if match:
+        return match.group(1).strip()
+    return ""
+
+
+def _order_mock_practice_rows(question_rows, *, preferred_order=None):
+    if preferred_order is None:
+        preferred_order = ["Mathematics", "Physics", "Chemistry", "Biology"]
+    grouped = {label: [] for label in preferred_order}
+    overflow = []
+    for row in question_rows:
+        label = _practice_section_label(row.question)
+        if label in grouped:
+            grouped[label].append(row)
+        else:
+            overflow.append(row)
+    ordered_rows = []
+    for label in preferred_order:
+        rows = grouped[label]
+        if len(rows) > 1:
+            random.shuffle(rows)
+        ordered_rows.extend(rows)
+    ordered_rows.extend(overflow)
+    return ordered_rows
+
+
+def _ordered_exam_question_rows(exam, *, shuffle_questions=False):
+    question_rows = list(
+        exam.exam_questions.select_related("question")
+        .prefetch_related("question__options")
+        .filter(question__is_active=True)
+        .order_by("sort_order")
+    )
+    if not question_rows:
+        return []
+
+    objective_rows = []
+    theory_rows = []
+    for row in question_rows:
+        if row.question.question_type in {CBTQuestionType.OBJECTIVE, CBTQuestionType.MULTI_SELECT}:
+            objective_rows.append(row)
+        else:
+            theory_rows.append(row)
+
+    if _is_mock_practice_exam(exam):
+        section_config = _exam_section_config(exam)
+        configured_sections = section_config.get("sections") or {}
+        preferred_order = list(configured_sections.keys()) if isinstance(configured_sections, dict) else None
+        return _order_mock_practice_rows(objective_rows, preferred_order=preferred_order) + theory_rows
+
+    if shuffle_questions and len(objective_rows) > 1:
+        random.shuffle(objective_rows)
+    return objective_rows + theory_rows
+
+
+def _draw_mock_practice_question_rows(*, student, exam, question_rows, section_config):
+    if not _is_mock_practice_exam(exam) or not section_config.get("randomize_per_section"):
+        return question_rows
+
+    configured_sections = section_config.get("sections") or {}
+    if not isinstance(configured_sections, dict) or not configured_sections:
+        return question_rows
+
+    objective_rows = []
+    theory_rows = []
+    for row in question_rows:
+        if row.question.question_type in OBJECTIVE_TYPES:
+            objective_rows.append(row)
+        else:
+            theory_rows.append(row)
+
+    if not objective_rows:
+        return question_rows
+
+    previous_question_ids = set(
+        ExamAttemptAnswer.objects.filter(
+            attempt__student=student,
+            attempt__exam=exam,
+        ).values_list("exam_question__question_id", flat=True)
+    )
+
+    rng = random.SystemRandom()
+    grouped = {section: [] for section in configured_sections.keys()}
+    overflow = []
+    for row in objective_rows:
+        label = _practice_section_label(row.question)
+        if label in grouped:
+            grouped[label].append(row)
+        else:
+            overflow.append(row)
+
+    linked_question_ids = {row.question_id for row in objective_rows}
+    next_sort_order = (
+        ExamQuestion.objects.filter(exam=exam)
+        .aggregate(max_value=Max("sort_order"))
+        .get("max_value")
+        or 0
+    ) + 1
+
+    for section, raw_count in configured_sections.items():
+        try:
+            draw_count = int(raw_count)
+        except (TypeError, ValueError):
+            draw_count = 0
+        if draw_count <= 0:
+            continue
+        fresh_count = sum(1 for row in grouped.get(section, []) if row.question_id not in previous_question_ids)
+        if fresh_count >= draw_count:
+            continue
+
+        needed = max(draw_count * 3, draw_count - fresh_count)
+        candidate_questions = list(
+            Question.objects.filter(
+                subject=exam.subject,
+                is_active=True,
+                question_type__in=OBJECTIVE_TYPES,
+                topic__istartswith=f"{section}:",
+            )
+            .exclude(id__in=linked_question_ids)
+            .order_by("?")[:needed]
+        )
+        if not candidate_questions:
+            continue
+
+        new_rows = [
+            ExamQuestion(
+                exam=exam,
+                question=question,
+                sort_order=next_sort_order + index,
+                marks=getattr(question, "marks", Decimal("1.00")) or Decimal("1.00"),
+            )
+            for index, question in enumerate(candidate_questions)
+        ]
+        ExamQuestion.objects.bulk_create(new_rows, ignore_conflicts=True)
+        next_sort_order += len(new_rows)
+        linked_question_ids.update(question.id for question in candidate_questions)
+
+        created_rows = list(
+            ExamQuestion.objects.select_related("question")
+            .prefetch_related("question__options")
+            .filter(exam=exam, question_id__in=[question.id for question in candidate_questions])
+        )
+        grouped.setdefault(section, []).extend(created_rows)
+
+    selected_rows = []
+    for section, raw_count in configured_sections.items():
+        try:
+            draw_count = int(raw_count)
+        except (TypeError, ValueError):
+            draw_count = 0
+        rows = grouped.get(section, [])
+        if not rows or draw_count <= 0:
+            continue
+
+        fresh_rows = [row for row in rows if row.question_id not in previous_question_ids]
+        source_rows = fresh_rows if len(fresh_rows) >= draw_count else rows
+        source_rows = list(source_rows)
+        rng.shuffle(source_rows)
+        selected_rows.extend(source_rows[:draw_count])
+
+    if not selected_rows:
+        selected_rows = objective_rows
+
+    if overflow and section_config.get("include_unsectioned_overflow"):
+        rng.shuffle(overflow)
+        selected_rows.extend(overflow)
+
+    return selected_rows + theory_rows
+
+
+def ordered_exam_simulation_rows(exam):
+    return list(
+        exam.exam_simulations.select_related("simulation_wrapper").order_by("sort_order")
+    )
+
+
+def _build_option_order_map(question_rows, *, shuffle_options=False):
+    option_order_map = {}
+    for row in question_rows:
+        option_ids = list(row.question.options.order_by("sort_order", "label").values_list("id", flat=True))
+        if shuffle_options and len(option_ids) > 1:
+            random.shuffle(option_ids)
+        option_order_map[str(row.id)] = option_ids
+    return option_order_map
+
+
+def ensure_simulation_records_for_attempt(attempt):
+    simulation_rows = ordered_exam_simulation_rows(attempt.exam)
+    if not simulation_rows:
+        return []
+    existing_ids = set(
+        attempt.simulation_attempts.values_list("exam_simulation_id", flat=True)
+    )
+    to_create = []
+    for row in simulation_rows:
+        if row.id in existing_ids:
+            continue
+        to_create.append(
+            SimulationAttemptRecord(
+                attempt=attempt,
+                exam_simulation=row,
+                status=CBTSimulationAttemptStatus.NOT_STARTED,
+            )
+        )
+    if to_create:
+        SimulationAttemptRecord.objects.bulk_create(to_create)
+    return list(
+        attempt.simulation_attempts.select_related(
+            "exam_simulation",
+            "exam_simulation__simulation_wrapper",
+        ).order_by("exam_simulation__sort_order")
+    )
+
+
+def ordered_attempt_simulation_records(attempt):
+    return list(
+        attempt.simulation_attempts.select_related(
+            "exam_simulation",
+            "exam_simulation__simulation_wrapper",
+            "verified_by",
+            "imported_by",
+        ).order_by("exam_simulation__sort_order")
+    )
+
+
+@transaction.atomic
+def get_or_start_attempt(*, student, exam, request=None):
+    if not student.has_role(ROLE_STUDENT):
+        raise ValidationError("Only students can start CBT exams.")
+    reason = student_exam_authorization_reason(student=student, exam=exam)
+    if reason:
+        raise ValidationError(reason)
+
+    if connection.vendor == "postgresql":
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT pg_advisory_xact_lock(%s, %s)",
+                [int(exam.id), int(student.id)],
+            )
+
+    existing = (
+        ExamAttempt.objects.select_related("exam", "exam__blueprint")
+        .filter(
+            student=student,
+            exam=exam,
+            status=CBTAttemptStatus.IN_PROGRESS,
+        )
+        .order_by("-created_at")
+        .first()
+    )
+    if existing:
+        ensure_simulation_records_for_attempt(existing)
+        _save_attempt_integrity_bundle(
+            existing,
+            event_type="ATTEMPT_RESUMED",
+            request=request,
+            details={"resumed": True},
+        )
+        record_lockdown_evidence(
+            attempt=existing,
+            event_type="ATTEMPT_RESUMED",
+            request=request,
+            details={"resumed": True},
+        )
+        return existing, False
+
+    blueprint = getattr(exam, "blueprint", None) or ensure_default_blueprint(exam)
+    question_rows = _ordered_exam_question_rows(
+        exam,
+        shuffle_questions=blueprint.shuffle_questions,
+    )
+    section_config = getattr(blueprint, "section_config", {}) or {}
+    if not isinstance(section_config, dict):
+        section_config = {}
+    question_rows = _draw_mock_practice_question_rows(
+        student=student,
+        exam=exam,
+        question_rows=question_rows,
+        section_config=section_config,
+    )
+    objective_draw_count = int(section_config.get("objective_draw_count") or 0)
+    if objective_draw_count > 0 and not section_config.get("randomize_per_section"):
+        objective_rows = []
+        theory_rows = []
+        for row in question_rows:
+            if row.question.question_type in OBJECTIVE_TYPES:
+                objective_rows.append(row)
+            else:
+                theory_rows.append(row)
+        if len(objective_rows) > objective_draw_count:
+            question_rows = objective_rows[:objective_draw_count] + theory_rows
+    option_order_map = _build_option_order_map(
+        question_rows,
+        shuffle_options=blueprint.shuffle_options,
+    )
+    attempt = ExamAttempt.objects.create(
+        exam=exam,
+        student=student,
+        attempt_number=_next_attempt_number(student, exam),
+        writeback_metadata={
+            "question_order": [row.id for row in question_rows],
+            "option_order_map": option_order_map,
+        },
+    )
+    ExamAttemptAnswer.objects.bulk_create(
+        [
+            ExamAttemptAnswer(
+                attempt=attempt,
+                exam_question=row,
+            )
+            for row in question_rows
+        ]
+    )
+    ensure_simulation_records_for_attempt(attempt)
+    _save_attempt_integrity_bundle(
+        attempt,
+        event_type="ATTEMPT_STARTED",
+        request=request,
+        details={
+            "question_order": attempt.writeback_metadata.get("question_order", []),
+            "simulation_count": attempt.simulation_attempts.count(),
+        },
+    )
+    record_lockdown_evidence(
+        attempt=attempt,
+        event_type="ATTEMPT_OPENED",
+        request=request,
+        details={"created": True},
+    )
+    _queue_attempt_snapshot(attempt, event_type="ATTEMPT_STARTED")
+    return attempt, True
+
+
+def ordered_attempt_answers(attempt):
+    order = (attempt.writeback_metadata or {}).get("question_order") or []
+    answers = list(
+        attempt.answers.select_related("exam_question", "exam_question__question")
+        .prefetch_related("selected_options", "exam_question__question__options")
+    )
+    if getattr(settings, "EXAM_SAFE_MODE", False):
+        from apps.cbt.exam_runtime import overlay_live_answers
+
+        overlay_live_answers(attempt, answers)
+    # The runner renders the full navigator and all question panels at once.
+    # Materialize these prefetched relations so per-question helpers do not
+    # issue one selected-options query for every answer in the paper.
+    for answer in answers:
+        if not hasattr(answer, "_selected_option_ids"):
+            answer._selected_option_ids = {
+                option.id for option in answer.selected_options.all()
+            }
+        answer._question_options = list(
+            answer.exam_question.question.options.all()
+        )
+    if not order:
+        return sorted(answers, key=lambda row: row.exam_question.sort_order)
+    index_map = {int(value): idx for idx, value in enumerate(order)}
+    return sorted(
+        answers,
+        key=lambda row: index_map.get(row.exam_question_id, 10_000 + row.exam_question.sort_order),
+    )
+
+
+def ordered_attempt_answer_refs(attempt):
+    """Lightweight ordered attempt rows for POST/navigation paths."""
+    order = (attempt.writeback_metadata or {}).get("question_order") or []
+    answers = list(
+        attempt.answers.select_related("exam_question", "exam_question__question")
+    )
+    if getattr(settings, "EXAM_SAFE_MODE", False):
+        from apps.cbt.exam_runtime import overlay_live_answers
+
+        overlay_live_answers(attempt, answers)
+    if not order:
+        return sorted(answers, key=lambda row: row.exam_question.sort_order)
+    index_map = {int(value): idx for idx, value in enumerate(order)}
+    return sorted(
+        answers,
+        key=lambda row: index_map.get(row.exam_question_id, 10_000 + row.exam_question.sort_order),
+    )
+
+
+def option_list_for_attempt_answer(answer):
+    option_order_map = (answer.attempt.writeback_metadata or {}).get("option_order_map", {})
+    ordered_ids = option_order_map.get(str(answer.exam_question_id), [])
+    options = getattr(answer, "_question_options", None)
+    if options is None:
+        options = list(answer.exam_question.question.options.all())
+    if not ordered_ids:
+        return sorted(options, key=lambda row: (row.sort_order, row.label))
+    index_map = {int(value): idx for idx, value in enumerate(ordered_ids)}
+    return sorted(options, key=lambda row: index_map.get(row.id, 10_000 + row.sort_order))
+
+
+def _resolve_attempt_answer(attempt, exam_question_id):
+    answers = list(
+        ExamAttemptAnswer.objects.select_for_update()
+        .select_related("exam_question", "exam_question__question")
+        .prefetch_related("selected_options")
+        .filter(attempt=attempt, exam_question_id=exam_question_id)
+        .order_by("-updated_at", "-id")
+    )
+    if len(answers) <= 1:
+        return answers[0] if answers else None
+
+    keeper = answers[0]
+    selected_option_ids = set()
+    response_text = (keeper.response_text or "").strip()
+    response_payload = keeper.response_payload or {}
+    is_flagged = keeper.is_flagged
+    for duplicate in answers:
+        selected_option_ids.update(duplicate.selected_options.values_list("id", flat=True))
+        if not response_text and (duplicate.response_text or "").strip():
+            response_text = (duplicate.response_text or "").strip()
+        if not response_payload and duplicate.response_payload:
+            response_payload = duplicate.response_payload
+        is_flagged = is_flagged or duplicate.is_flagged
+
+    keeper.response_text = response_text
+    keeper.response_payload = response_payload or {}
+    keeper.is_flagged = is_flagged
+    keeper.save(update_fields=["response_text", "response_payload", "is_flagged", "updated_at"])
+    keeper.selected_options.set(sorted(selected_option_ids))
+    ExamAttemptAnswer.objects.filter(id__in=[answer.id for answer in answers[1:]]).delete()
+    return keeper
+
+
+@transaction.atomic
+def save_attempt_answer(
+    *,
+    attempt,
+    exam_question_id,
+    selected_option_ids=None,
+    response_text="",
+    response_payload=None,
+    is_flagged=None,
+):
+    if attempt.status != CBTAttemptStatus.IN_PROGRESS:
+        raise ValidationError("Attempt is no longer editable.")
+    answer = _resolve_attempt_answer(attempt, exam_question_id)
+    if answer is None:
+        raise ValidationError("Question answer record was not found. Please reload the CBT page.")
+    question = answer.exam_question.question
+    response_payload = response_payload or {}
+    if question.question_type in OBJECTIVE_TYPES:
+        metadata = attempt.writeback_metadata or {}
+        locked_answer_ids = set(metadata.get("locked_selected_answer_ids") or [])
+        locked_exam_question_ids = set(metadata.get("locked_selected_exam_question_ids") or [])
+        if answer.selected_options.exists() and (
+            answer.id in locked_answer_ids or answer.exam_question_id in locked_exam_question_ids
+        ):
+            if is_flagged is not None:
+                answer.is_flagged = bool(is_flagged)
+                answer.save(update_fields=["is_flagged", "updated_at"])
+            attempt.last_activity_at = timezone.now()
+            attempt.save(update_fields=["last_activity_at", "updated_at"])
+            return answer
+        valid_options = list(
+            question.options.filter(id__in=(selected_option_ids or [])).values_list("id", flat=True)
+        )
+        answer.selected_options.set(valid_options)
+        answer.response_text = ""
+        answer.response_payload = {}
+    else:
+        answer.selected_options.clear()
+        answer.response_text = (response_text or "").strip()
+        answer.response_payload = response_payload
+    if is_flagged is not None:
+        answer.is_flagged = bool(is_flagged)
+    answer.save(update_fields=["response_text", "response_payload", "is_flagged", "updated_at"])
+    attempt.last_activity_at = timezone.now()
+    attempt.save(update_fields=["last_activity_at", "updated_at"])
+    return answer
+
+
+@transaction.atomic
+def save_attempt_objective_answer_fast(*, attempt, exam_question_id, selected_option_ids=None):
+    """Lean objective-answer save for live CBT navigation.
+
+    The normal save path handles duplicate repair and broad validation. During
+    large CBT sessions, every Next click was paying that full cost. Attempt
+    answers are pre-created with a unique attempt/question row, so the hot path
+    can update the selected-options join table directly.
+    """
+    if attempt.status != CBTAttemptStatus.IN_PROGRESS:
+        raise ValidationError("Attempt is no longer editable.")
+
+    if getattr(settings, "EXAM_SAFE_MODE", False):
+        from apps.cbt.exam_runtime import save_live_objective_answer
+
+        try:
+            save_live_objective_answer(
+                attempt_id=attempt.id,
+                exam_question_id=exam_question_id,
+                selected_option_ids=selected_option_ids,
+            )
+            return None
+        except Exception:
+            logger.exception("Redis answer save failed; falling back to PostgreSQL")
+
+    try:
+        answer = (
+            ExamAttemptAnswer.objects.select_related("exam_question", "exam_question__question")
+            .only(
+                "id",
+                "attempt_id",
+                "exam_question_id",
+                "exam_question__question_id",
+                "exam_question__question__question_type",
+            )
+            .get(attempt_id=attempt.id, exam_question_id=exam_question_id)
+        )
+    except ExamAttemptAnswer.DoesNotExist as exc:
+        raise ValidationError("Question answer record was not found. Please reload the CBT page.") from exc
+
+    question = answer.exam_question.question
+    if question.question_type not in OBJECTIVE_TYPES:
+        raise ValidationError("This fast save path is only for objective questions.")
+
+    metadata = attempt.writeback_metadata or {}
+    locked_answer_ids = set(metadata.get("locked_selected_answer_ids") or [])
+    locked_exam_question_ids = set(metadata.get("locked_selected_exam_question_ids") or [])
+    through_model = ExamAttemptAnswer.selected_options.through
+    if answer.id in locked_answer_ids or answer.exam_question_id in locked_exam_question_ids:
+        if through_model.objects.filter(examattemptanswer_id=answer.id).exists():
+            now = timezone.now()
+            ExamAttempt.objects.filter(pk=attempt.pk).update(last_activity_at=now, updated_at=now)
+            return answer
+
+    raw_ids = []
+    for value in selected_option_ids or []:
+        try:
+            raw_ids.append(int(value))
+        except (TypeError, ValueError):
+            continue
+    valid_option_ids = list(
+        Option.objects.filter(question_id=question.id, id__in=raw_ids).order_by().values_list("id", flat=True)
+    )
+
+    now = timezone.now()
+    through_model.objects.filter(examattemptanswer_id=answer.id).delete()
+    if valid_option_ids:
+        through_model.objects.bulk_create(
+            [
+                through_model(examattemptanswer_id=answer.id, option_id=option_id)
+                for option_id in valid_option_ids
+            ],
+            ignore_conflicts=True,
+        )
+    ExamAttemptAnswer.objects.filter(pk=answer.pk).update(
+        response_text="",
+        response_payload={},
+        updated_at=now,
+    )
+    ExamAttempt.objects.filter(pk=attempt.pk).update(last_activity_at=now, updated_at=now)
+    return answer
+
+
+def _answer_is_correct(answer):
+    question = answer.exam_question.question
+    if question.question_type not in OBJECTIVE_TYPES:
+        return None
+    selected = set(answer.selected_options.values_list("id", flat=True))
+    correct_answer = getattr(question, "correct_answer", None)
+    if not correct_answer:
+        return False
+    correct = set(correct_answer.correct_options.values_list("id", flat=True))
+    if question.question_type == CBTQuestionType.OBJECTIVE:
+        return len(selected) == 1 and selected == correct
+    return selected == correct and len(correct) > 0
+
+
+def _result_field_for_target(target):
+    mapping = {
+        CBTWritebackTarget.CA1: "ca1",
+        CBTWritebackTarget.CA2: "ca2",
+        CBTWritebackTarget.CA3: "ca3",
+        CBTWritebackTarget.CA4: "ca4",
+        CBTWritebackTarget.OBJECTIVE: "objective",
+        CBTWritebackTarget.THEORY: "theory",
+    }
+    return mapping.get(target, "")
+
+
+def _get_or_create_score_row(attempt):
+    exam = attempt.exam
+    sheet, _ = ResultSheet.objects.get_or_create(
+        academic_class=exam.academic_class,
+        subject=exam.subject,
+        session=exam.session,
+        term=exam.term,
+        defaults={"created_by": exam.created_by},
+    )
+    score, _ = StudentSubjectScore.objects.get_or_create(
+        result_sheet=sheet,
+        student=attempt.student,
+    )
+    return sheet, score
+
+
+def _apply_writeback(*, attempt, target, score_value, component_key):
+    if subject_is_excluded_from_results(attempt.exam.subject):
+        return {
+            "skipped": True,
+            "reason": "Exam-only subject is excluded from official result calculations.",
+            "subject_code": attempt.exam.subject.code,
+        }
+    if target == CBTWritebackTarget.NONE:
+        return {"skipped": True, "reason": "Target disabled."}
+    field = _result_field_for_target(target)
+    if not field:
+        return {"skipped": True, "reason": "Unsupported target."}
+    sheet, score = _get_or_create_score_row(attempt)
+    if sheet.status == ResultSheetStatus.PUBLISHED:
+        return {"skipped": True, "reason": "Result sheet already published."}
+    blueprint = getattr(attempt.exam, "blueprint", None)
+    section_config = getattr(blueprint, "section_config", {}) if blueprint else {}
+    if not isinstance(section_config, dict):
+        section_config = {}
+    split_with_manual_theory = bool(
+        getattr(blueprint, "theory_enabled", False)
+        and target in {CBTWritebackTarget.CA1, CBTWritebackTarget.CA4}
+    )
+    if blueprint is not None and target != CBTWritebackTarget.NONE:
+        merged_policies = merge_policy_from_blueprint(sheet.cbt_component_policies, blueprint)
+        normalized_policies = normalize_result_cbt_policies(sheet.cbt_component_policies)
+        if merged_policies != normalized_policies:
+            sheet.cbt_component_policies = merged_policies
+            sheet.save(update_fields=["cbt_component_policies", "updated_at"])
+    previous = _to_decimal(getattr(score, field))
+    normalized = _to_decimal(score_value)
+
+    if split_with_manual_theory and component_key == "objective":
+        objective_key = f"{field}_objective"
+        theory_key = f"{field}_theory"
+        current_objective = score.breakdown_value(objective_key)
+        preserve_higher_objective = score.breakdown_value(f"{field}_preserve_higher_objective") > Decimal("0.00")
+        effective_objective = normalized
+        preserved_lower_rewrite = False
+        if preserve_higher_objective and current_objective > normalized:
+            effective_objective = current_objective
+            preserved_lower_rewrite = True
+        score.set_breakdown_value(objective_key, effective_objective)
+        current_theory = score.breakdown_value(theory_key)
+        total_value = (effective_objective + current_theory).quantize(DECIMAL_2)
+        setattr(score, field, total_value)
+        score.lock_components(field)
+        score.save()
+        writeback = {
+            "sheet_id": str(sheet.id),
+            "field": field,
+            "before": str(previous),
+            "after": str(total_value),
+            "objective_auto_score": str(effective_objective),
+            "incoming_objective_auto_score": str(normalized),
+            "manual_theory_score": str(current_theory),
+            "component": component_key,
+            "split_manual_theory": True,
+        }
+        if preserved_lower_rewrite:
+            writeback["preserved_higher_existing_score"] = True
+        return writeback
+
+    if target == CBTWritebackTarget.CA2 and component_key == "objective":
+        score.set_breakdown_value("ca2_objective", normalized)
+    elif target == CBTWritebackTarget.OBJECTIVE and component_key == "objective":
+        score.set_breakdown_value("objective_auto", normalized)
+        # Exam objective is officially recorded and displayed over 20.
+        # Older builds scaled this display helper to 40, which made teachers
+        # and admins see a different objective scale from the actual result
+        # calculation. Keep the persisted display helper aligned with the
+        # stored objective score.
+        score.set_breakdown_value("objective_display_raw", normalized)
+
+    preserve_higher_total = (
+        target in {CBTWritebackTarget.CA1, CBTWritebackTarget.CA2, CBTWritebackTarget.CA3, CBTWritebackTarget.CA4}
+        and score.breakdown_value(f"{field}_preserve_higher_total") > Decimal("0.00")
+        and previous > normalized
+    )
+    if preserve_higher_total:
+        normalized = previous
+
+    setattr(score, field, normalized)
+    score.lock_components(field)
+    score.save()
+    writeback = {
+        "sheet_id": str(sheet.id),
+        "field": field,
+        "before": str(previous),
+        "after": str(normalized),
+        "component": component_key,
+    }
+    if preserve_higher_total:
+        writeback["preserved_higher_existing_score"] = True
+        writeback["incoming_score"] = str(score_value)
+    return writeback
+
+
+def _mark_objective_component(attempt):
+    answers = (
+        attempt.answers.select_related("exam_question", "exam_question__question")
+        .prefetch_related("selected_options", "exam_question__question__correct_answer__correct_options")
+    )
+    objective_raw = Decimal("0.00")
+    objective_max = Decimal("0.00")
+    theory_max = Decimal("0.00")
+    changed_answers = []
+    now = timezone.now()
+    for answer in answers:
+        question = answer.exam_question.question
+        marks = _to_decimal(answer.exam_question.marks)
+        if question.question_type in OBJECTIVE_TYPES:
+            objective_max += marks
+            is_correct = _answer_is_correct(answer)
+            answer.is_correct = bool(is_correct)
+            answer.auto_score = marks if is_correct else Decimal("0.00")
+            objective_raw += answer.auto_score
+            answer.updated_at = now
+            changed_answers.append(answer)
+        elif question.question_type in STRUCTURED_AUTO_TYPES:
+            objective_max += marks
+            correct_answer = getattr(question, "correct_answer", None)
+            expected = re.sub(r"\s+", " ", (getattr(correct_answer, "note", "") or "")).strip().lower()
+            observed = re.sub(
+                r"\s+",
+                " ",
+                ((answer.response_text or "") or (answer.response_payload or {}).get("raw", "")),
+            ).strip().lower()
+            is_correct = bool(expected and observed and observed == expected)
+            answer.is_correct = is_correct
+            answer.auto_score = marks if is_correct else Decimal("0.00")
+            objective_raw += answer.auto_score
+            answer.updated_at = now
+            changed_answers.append(answer)
+        else:
+            theory_max += marks
+            answer.is_correct = None
+            answer.auto_score = Decimal("0.00")
+            answer.updated_at = now
+            changed_answers.append(answer)
+    if changed_answers:
+        ExamAttemptAnswer.objects.bulk_update(
+            changed_answers,
+            ["is_correct", "auto_score", "updated_at"],
+            batch_size=500,
+        )
+    blueprint = getattr(attempt.exam, "blueprint", None) or ensure_default_blueprint(attempt.exam)
+    objective_target_override = _section_target_max(
+        blueprint,
+        section_key="objective_target_max",
+    )
+    attempt.objective_raw_score = objective_raw.quantize(DECIMAL_2)
+    attempt.objective_max_score = objective_max.quantize(DECIMAL_2)
+    attempt.objective_score = _normalize_score(
+        objective_raw,
+        objective_max,
+        blueprint.objective_writeback_target,
+        target_max_override=objective_target_override,
+    )
+    attempt.theory_max_score = theory_max.quantize(DECIMAL_2)
+    return blueprint
+
+
+def has_pending_required_simulation(attempt):
+    if not attempt.exam.exam_simulations.exists():
+        return False
+    ensure_simulation_records_for_attempt(attempt)
+    return attempt.simulation_attempts.filter(
+        exam_simulation__is_required=True,
+    ).exclude(
+        status__in=SIMULATION_STUDENT_COMPLETED_STATUSES,
+    ).exists()
+
+
+@transaction.atomic
+def submit_attempt(*, attempt, request=None):
+    caller_attempt = attempt
+    if getattr(settings, "EXAM_SAFE_MODE", False):
+        from apps.cbt.exam_runtime import flush_attempt_live_state_to_db
+
+        flush_attempt_live_state_to_db(attempt.id)
+    attempt = (
+        ExamAttempt.objects.select_for_update(of=("self",))
+        .select_related("exam", "exam__subject", "exam__academic_class")
+        .get(pk=attempt.pk)
+    )
+    if attempt.status in {CBTAttemptStatus.SUBMITTED, CBTAttemptStatus.FINALIZED}:
+        caller_attempt.__dict__.update(attempt.__dict__)
+        return caller_attempt
+    if has_pending_required_simulation(attempt):
+        raise ValidationError("Complete all required simulation tasks before submitting.")
+    blueprint = _mark_objective_component(attempt)
+    has_theory_questions = attempt.answers.filter(
+        exam_question__question__question_type__in=THEORY_TYPES
+    ).exists()
+    attempt.auto_marking_completed = True
+    if not has_theory_questions or not blueprint.theory_enabled:
+        attempt.theory_marking_completed = True
+        attempt.theory_raw_score = Decimal("0.00")
+        attempt.theory_score = Decimal("0.00")
+        if not has_theory_questions:
+            attempt.theory_max_score = Decimal("0.00")
+    else:
+        attempt.theory_marking_completed = False
+    if not attempt.submitted_at:
+        attempt.submitted_at = timezone.now()
+    attempt.status = CBTAttemptStatus.SUBMITTED
+    malpractice_flag = dict(
+        ((attempt.writeback_metadata or {}).get("malpractice_flag") or {})
+    )
+    if malpractice_flag.get("flagged"):
+        objective_writeback = {
+            "skipped": True,
+            "reason": "Flagged attempt is excluded until IT resolves the flag.",
+        }
+    elif is_free_test_exam(attempt.exam):
+        objective_writeback = {
+            "skipped": True,
+            "reason": "Free test does not write into graded records.",
+        }
+    else:
+        objective_writeback = _apply_writeback(
+            attempt=attempt,
+            target=blueprint.objective_writeback_target,
+            score_value=attempt.objective_score,
+            component_key="objective",
+        )
+    attempt.total_score = (attempt.objective_score + attempt.theory_score).quantize(DECIMAL_2)
+    metadata = attempt.writeback_metadata or {}
+    metadata["objective_writeback"] = objective_writeback
+    attempt.writeback_metadata = metadata
+    attempt.writeback_completed = bool(attempt.theory_marking_completed)
+    attempt.save(
+        update_fields=[
+            "status",
+            "submitted_at",
+            "objective_raw_score",
+            "objective_max_score",
+            "objective_score",
+            "theory_raw_score",
+            "theory_max_score",
+            "theory_score",
+            "total_score",
+            "auto_marking_completed",
+            "theory_marking_completed",
+            "writeback_completed",
+            "writeback_metadata",
+            "updated_at",
+        ]
+    )
+    _save_attempt_integrity_bundle(
+        attempt,
+        event_type="ATTEMPT_SUBMITTED",
+        request=request,
+        details={"writeback_completed": bool(attempt.writeback_completed)},
+    )
+    _queue_attempt_snapshot(attempt, event_type="ATTEMPT_SUBMITTED")
+    if getattr(settings, "EXAM_SAFE_MODE", False):
+        from apps.cbt.exam_runtime import clear_live_attempt
+
+        transaction.on_commit(lambda: clear_live_attempt(attempt.id, keep_answers=False))
+    caller_attempt.__dict__.update(attempt.__dict__)
+    return caller_attempt
+
+
+def _teacher_can_mark_attempt(actor, attempt):
+    if can_manage_all_cbt(actor):
+        return True
+    return TeacherSubjectAssignment.objects.filter(
+        teacher=actor,
+        subject=attempt.exam.subject,
+        academic_class=attempt.exam.academic_class,
+        session=attempt.exam.session,
+        term=attempt.exam.term,
+        is_active=True,
+    ).exists()
+
+
+def teacher_can_manage_attempt(actor, attempt):
+    return _teacher_can_mark_attempt(actor, attempt)
+
+
+@transaction.atomic
+def apply_theory_scores(*, attempt, actor, score_payload):
+    if not _teacher_can_mark_attempt(actor, attempt):
+        raise ValidationError("You are not authorized to mark this attempt.")
+    if attempt.status not in {CBTAttemptStatus.SUBMITTED, CBTAttemptStatus.FINALIZED}:
+        raise ValidationError("Attempt must be submitted before theory marking.")
+    blueprint = getattr(attempt.exam, "blueprint", None) or ensure_default_blueprint(attempt.exam)
+    if not blueprint.theory_enabled:
+        raise ValidationError("Theory marking is disabled for this exam.")
+
+    theory_answers = list(
+        attempt.answers.select_related("exam_question", "exam_question__question").filter(
+            exam_question__question__question_type__in=THEORY_TYPES
+        )
+    )
+    if not theory_answers:
+        attempt.theory_marking_completed = True
+        attempt.theory_raw_score = Decimal("0.00")
+        attempt.theory_score = Decimal("0.00")
+        attempt.total_score = (attempt.objective_score + attempt.theory_score).quantize(DECIMAL_2)
+        attempt.writeback_completed = True
+        attempt.save(
+            update_fields=[
+                "theory_marking_completed",
+                "theory_raw_score",
+                "theory_score",
+                "total_score",
+                "writeback_completed",
+                "updated_at",
+            ]
+        )
+        _save_attempt_integrity_bundle(
+            attempt,
+            event_type="ATTEMPT_THEORY_MARKED",
+            details={"theory_marking_completed": True},
+        )
+        _queue_attempt_snapshot(attempt, event_type="ATTEMPT_THEORY_MARKED")
+        return attempt
+
+    now = timezone.now()
+    total_raw = Decimal("0.00")
+    total_max = Decimal("0.00")
+    all_marked = True
+    for answer in theory_answers:
+        marks = _to_decimal(answer.exam_question.marks)
+        total_max += marks
+        posted_value = score_payload.get(str(answer.id))
+        if posted_value in (None, ""):
+            all_marked = False
+            continue
+        parsed = _to_decimal(posted_value)
+        if parsed < Decimal("0.00") or parsed > marks:
+            raise ValidationError(
+                f"Score for question {answer.exam_question.sort_order} must be between 0 and {marks}."
+            )
+        answer.teacher_score = parsed
+        answer.teacher_marked_by = actor
+        answer.teacher_marked_at = now
+        answer.save(update_fields=["teacher_score", "teacher_marked_by", "teacher_marked_at", "updated_at"])
+
+    for answer in theory_answers:
+        if answer.teacher_score is None:
+            all_marked = False
+            continue
+        total_raw += _to_decimal(answer.teacher_score)
+
+    attempt.theory_raw_score = total_raw.quantize(DECIMAL_2)
+    attempt.theory_max_score = total_max.quantize(DECIMAL_2)
+    attempt.theory_marking_completed = all_marked
+    if all_marked:
+        theory_target_override = _section_target_max(
+            blueprint,
+            section_key="theory_target_max",
+        )
+        attempt.theory_score = _normalize_score(
+            attempt.theory_raw_score,
+            attempt.theory_max_score,
+            blueprint.theory_writeback_target,
+            target_max_override=theory_target_override,
+        )
+        if is_free_test_exam(attempt.exam):
+            writeback = {
+                "skipped": True,
+                "reason": "Free test does not write into graded records.",
+            }
+        else:
+            writeback_score = attempt.theory_score
+            writeback_component = "theory"
+            if (
+                blueprint.theory_writeback_target == blueprint.objective_writeback_target
+                and blueprint.theory_writeback_target
+                in {
+                    CBTWritebackTarget.CA1,
+                    CBTWritebackTarget.CA2,
+                    CBTWritebackTarget.CA3,
+                    CBTWritebackTarget.CA4,
+                }
+            ):
+                writeback_score = (attempt.objective_score + attempt.theory_score).quantize(DECIMAL_2)
+                writeback_component = "objective_theory_combined"
+            writeback = _apply_writeback(
+                attempt=attempt,
+                target=blueprint.theory_writeback_target,
+                score_value=writeback_score,
+                component_key=writeback_component,
+            )
+        metadata = attempt.writeback_metadata or {}
+        metadata["theory_writeback"] = writeback
+        attempt.writeback_metadata = metadata
+        attempt.writeback_completed = True
+    attempt.total_score = (attempt.objective_score + attempt.theory_score).quantize(DECIMAL_2)
+    attempt.save(
+        update_fields=[
+            "theory_raw_score",
+            "theory_max_score",
+            "theory_score",
+            "theory_marking_completed",
+            "total_score",
+            "writeback_completed",
+            "writeback_metadata",
+            "updated_at",
+        ]
+    )
+    _save_attempt_integrity_bundle(
+        attempt,
+        event_type="ATTEMPT_THEORY_MARKED",
+        details={"theory_marking_completed": bool(attempt.theory_marking_completed)},
+    )
+    _queue_attempt_snapshot(attempt, event_type="ATTEMPT_THEORY_MARKED")
+    return attempt
+
+
+def attempt_deadline(attempt):
+    blueprint = getattr(attempt.exam, "blueprint", None) or ensure_default_blueprint(attempt.exam)
+    pause_seconds = int(attempt.timer_pause_seconds or 0) + _exam_live_pause_seconds(attempt.exam)
+    duration_seconds = (int(blueprint.duration_minutes or 0) * 60) + (int(attempt.extra_time_minutes or 0) * 60) + pause_seconds
+    deadline = attempt.started_at + timezone.timedelta(seconds=duration_seconds)
+    if attempt.exam.schedule_end and int(attempt.extra_time_minutes or 0) <= 0:
+        deadline = min(deadline, attempt.exam.schedule_end + timezone.timedelta(seconds=pause_seconds))
+    return deadline
+
+
+def finalize_attempt(attempt):
+    if attempt.status == CBTAttemptStatus.FINALIZED:
+        return attempt
+    blueprint = getattr(attempt.exam, "blueprint", None) or ensure_default_blueprint(attempt.exam)
+    if attempt.status == CBTAttemptStatus.IN_PROGRESS:
+        submit_attempt(attempt=attempt)
+    if not blueprint.allow_retake:
+        attempt.status = CBTAttemptStatus.FINALIZED
+        attempt.finalized_at = timezone.now()
+        attempt.save(update_fields=["status", "finalized_at", "updated_at"])
+        _save_attempt_integrity_bundle(attempt, event_type="ATTEMPT_FINALIZED")
+        _queue_attempt_snapshot(attempt, event_type="ATTEMPT_FINALIZED")
+    return attempt
+
+
+def finalize_cbt_attempts_on_logout(student):
+    attempts = (
+        ExamAttempt.objects.select_related("exam", "exam__blueprint")
+        .filter(
+            student=student,
+            status__in=[CBTAttemptStatus.IN_PROGRESS, CBTAttemptStatus.SUBMITTED],
+        )
+        .filter(
+            Q(exam__blueprint__finalize_on_logout=True) | Q(exam__blueprint__isnull=True)
+        )
+    )
+    finalized_count = 0
+    for attempt in attempts:
+        previous_status = attempt.status
+        finalize_attempt(attempt)
+        attempt.refresh_from_db(fields=["status"])
+        if attempt.status == CBTAttemptStatus.FINALIZED and previous_status != CBTAttemptStatus.FINALIZED:
+            finalized_count += 1
+    return finalized_count
+
+
+def theory_marking_queryset_for_user(user):
+    session, term = current_cbt_session_term()
+    attempts = (
+        ExamAttempt.objects.select_related(
+            "exam",
+            "exam__subject",
+            "exam__academic_class",
+            "exam__session",
+            "exam__term",
+            "student",
+        )
+        .filter(
+            status__in=[CBTAttemptStatus.SUBMITTED, CBTAttemptStatus.FINALIZED],
+            exam__blueprint__theory_enabled=True,
+        )
+        .filter(
+            answers__exam_question__question__question_type__in=THEORY_TYPES
+        )
+        .distinct()
+        .order_by("-updated_at")
+    )
+    if session is not None and term is not None:
+        attempts = attempts.filter(exam__session=session, exam__term=term)
+    if can_manage_all_cbt(user):
+        return attempts
+    assignments = list(
+        TeacherSubjectAssignment.objects.filter(
+        teacher=user,
+        is_active=True,
+    ).values("subject_id", "academic_class_id", "session_id", "term_id")
+    )
+    if not assignments:
+        return attempts.none()
+    combined_q = Q()
+    for assignment in assignments:
+        combined_q |= Q(
+            exam__subject_id=assignment["subject_id"],
+            exam__academic_class_id=assignment["academic_class_id"],
+            exam__session_id=assignment["session_id"],
+            exam__term_id=assignment["term_id"],
+        )
+    return attempts.filter(combined_q)
+
+
+def simulation_marking_queryset_for_user(user):
+    session, term = current_cbt_session_term()
+    records = (
+        SimulationAttemptRecord.objects.select_related(
+            "attempt",
+            "attempt__student",
+            "attempt__exam",
+            "attempt__exam__subject",
+            "attempt__exam__academic_class",
+            "exam_simulation",
+            "exam_simulation__simulation_wrapper",
+            "verified_by",
+            "imported_by",
+        )
+        .exclude(status=CBTSimulationAttemptStatus.NOT_STARTED)
+        .order_by("-updated_at")
+    )
+    if session is not None and term is not None:
+        records = records.filter(attempt__exam__session=session, attempt__exam__term=term)
+    if can_manage_all_cbt(user):
+        return records
+    assignments = list(
+        TeacherSubjectAssignment.objects.filter(
+            teacher=user,
+            is_active=True,
+        ).values("subject_id", "academic_class_id", "session_id", "term_id")
+    )
+    if not assignments:
+        return records.none()
+    combined_q = Q()
+    for assignment in assignments:
+        combined_q |= Q(
+            attempt__exam__subject_id=assignment["subject_id"],
+            attempt__exam__academic_class_id=assignment["academic_class_id"],
+            attempt__exam__session_id=assignment["session_id"],
+            attempt__exam__term_id=assignment["term_id"],
+        )
+    return records.filter(combined_q)
+
+
+def _resolve_simulation_record(*, attempt, exam_simulation):
+    if exam_simulation.exam_id != attempt.exam_id:
+        raise ValidationError("Simulation does not belong to this attempt exam.")
+    record, _ = SimulationAttemptRecord.objects.get_or_create(
+        attempt=attempt,
+        exam_simulation=exam_simulation,
+        defaults={"status": CBTSimulationAttemptStatus.NOT_STARTED},
+    )
+    return record
+
+
+def _validate_simulation_score(value, max_score):
+    score = _to_decimal(value)
+    max_value = _to_decimal(max_score)
+    if score < Decimal("0.00") or score > max_value:
+        raise ValidationError(f"Simulation score must be between 0 and {max_value}.")
+    return score
+
+
+def _payload_value(payload, path):
+    current = payload
+    for key in path:
+        if not isinstance(current, dict):
+            return None
+        current = current.get(key)
+    return current
+
+
+def _find_xapi_statement(payload):
+    if not isinstance(payload, dict):
+        return {}
+    statement_paths = (
+        ("statement",),
+        ("xapi", "statement"),
+        ("xAPI", "statement"),
+        ("xapi_statement",),
+        ("data", "statement"),
+        ("detail", "statement"),
+    )
+    for path in statement_paths:
+        statement = _payload_value(payload, path)
+        if isinstance(statement, dict):
+            return statement
+    return {}
+
+
+def _extract_score_from_statement(statement, max_score):
+    if not isinstance(statement, dict):
+        return None
+    result = statement.get("result")
+    if not isinstance(result, dict):
+        return None
+    score = result.get("score")
+    if not isinstance(score, dict):
+        return None
+
+    max_value = _to_decimal(max_score)
+    scaled = score.get("scaled")
+    if scaled not in (None, ""):
+        scaled_decimal = _to_decimal(scaled)
+        if scaled_decimal < Decimal("0.00") or scaled_decimal > Decimal("1.00"):
+            raise ValidationError("xAPI scaled score must be between 0 and 1.")
+        return (scaled_decimal * max_value).quantize(DECIMAL_2)
+
+    raw = score.get("raw")
+    raw_max = score.get("max")
+    if raw not in (None, "") and raw_max not in (None, ""):
+        raw_decimal = _to_decimal(raw)
+        raw_max_decimal = _to_decimal(raw_max)
+        if raw_max_decimal <= 0:
+            return Decimal("0.00")
+        return ((raw_decimal / raw_max_decimal) * max_value).quantize(DECIMAL_2)
+
+    if raw not in (None, ""):
+        raw_decimal = _to_decimal(raw)
+        if raw_decimal <= Decimal("1.00"):
+            return (raw_decimal * max_value).quantize(DECIMAL_2)
+        return raw_decimal.quantize(DECIMAL_2)
+
+    return None
+
+
+def resolve_auto_simulation_score_from_payload(payload, max_score):
+    if not isinstance(payload, dict):
+        raise ValidationError("Invalid simulation callback payload.")
+
+    if payload.get("score") not in (None, ""):
+        score = _validate_simulation_score(payload.get("score"), max_score)
+        return score, "direct_score_field"
+
+    statement = _find_xapi_statement(payload)
+    statement_score = _extract_score_from_statement(statement, max_score)
+    if statement_score is not None:
+        score = _validate_simulation_score(statement_score, max_score)
+        return score, "xapi_statement_result"
+
+    candidate_paths = (
+        ("result", "score", "scaled"),
+        ("result", "score", "raw"),
+        ("score", "scaled"),
+        ("score", "raw"),
+    )
+    for path in candidate_paths:
+        value = _payload_value(payload, path)
+        if value in (None, ""):
+            continue
+        if path[-1] == "scaled":
+            scaled_score = (_to_decimal(value) * _to_decimal(max_score)).quantize(DECIMAL_2)
+            score = _validate_simulation_score(scaled_score, max_score)
+            return score, "scaled_payload_value"
+        score = _validate_simulation_score(value, max_score)
+        return score, "raw_payload_value"
+
+    raise ValidationError(
+        "No score found in callback payload. Ensure simulation sends score or xAPI statement."
+    )
+
+
+@transaction.atomic
+def capture_auto_simulation_score(*, attempt, exam_simulation, payload):
+    wrapper = exam_simulation.simulation_wrapper
+    if wrapper.score_mode != CBTSimulationScoreMode.AUTO:
+        raise ValidationError("Simulation is not configured for AUTO scoring.")
+    score, extraction_method = resolve_auto_simulation_score_from_payload(
+        payload,
+        exam_simulation.effective_max_score,
+    )
+    record = _resolve_simulation_record(attempt=attempt, exam_simulation=exam_simulation)
+    callback_payload = deepcopy(payload) if isinstance(payload, dict) else {"payload": payload}
+    callback_payload["_score_extraction"] = {
+        "method": extraction_method,
+        "final_score": str(score),
+    }
+    record.raw_score = score
+    record.final_score = score
+    record.callback_payload = callback_payload
+    record.status = CBTSimulationAttemptStatus.AUTO_CAPTURED
+    record.verify_comment = ""
+    record.save(
+        update_fields=[
+            "raw_score",
+            "final_score",
+            "callback_payload",
+            "status",
+            "verify_comment",
+            "updated_at",
+        ]
+    )
+    _queue_simulation_snapshot(record, event_type="SIMULATION_AUTO_CAPTURED")
+    return record
+
+
+@transaction.atomic
+def submit_verify_simulation_evidence(
+    *,
+    attempt,
+    exam_simulation,
+    evidence_file=None,
+    evidence_note="",
+    payload=None,
+):
+    wrapper = exam_simulation.simulation_wrapper
+    if wrapper.score_mode != CBTSimulationScoreMode.VERIFY:
+        raise ValidationError("Simulation is not configured for VERIFY mode.")
+    record = _resolve_simulation_record(attempt=attempt, exam_simulation=exam_simulation)
+    if wrapper.evidence_required and not evidence_file and not record.evidence_file:
+        raise ValidationError("Evidence upload is required for this simulation.")
+    if evidence_file is not None:
+        record.evidence_file = evidence_file
+    record.evidence_note = (evidence_note or "").strip()
+    record.callback_payload = payload if isinstance(payload, dict) else {"payload": payload or {}}
+    record.status = CBTSimulationAttemptStatus.VERIFY_PENDING
+    record.save(
+        update_fields=[
+            "evidence_file",
+            "evidence_note",
+            "callback_payload",
+            "status",
+            "updated_at",
+        ]
+    )
+    _queue_simulation_snapshot(record, event_type="SIMULATION_VERIFY_PENDING")
+    return record
+
+
+@transaction.atomic
+def submit_rubric_simulation_start(
+    *,
+    attempt,
+    exam_simulation,
+    evidence_file=None,
+    evidence_note="",
+    payload=None,
+):
+    wrapper = exam_simulation.simulation_wrapper
+    if wrapper.score_mode != CBTSimulationScoreMode.RUBRIC:
+        raise ValidationError("Simulation is not configured for RUBRIC mode.")
+    record = _resolve_simulation_record(attempt=attempt, exam_simulation=exam_simulation)
+    if wrapper.evidence_required and not evidence_file and not record.evidence_file:
+        raise ValidationError("Evidence upload is required for this simulation.")
+    if evidence_file is not None:
+        record.evidence_file = evidence_file
+    record.evidence_note = (evidence_note or "").strip()
+    record.callback_payload = payload if isinstance(payload, dict) else {"payload": payload or {}}
+    record.status = CBTSimulationAttemptStatus.RUBRIC_PENDING
+    record.save(
+        update_fields=[
+            "evidence_file",
+            "evidence_note",
+            "callback_payload",
+            "status",
+            "updated_at",
+        ]
+    )
+    _queue_simulation_snapshot(record, event_type="SIMULATION_RUBRIC_PENDING")
+    return record
+
+
+@transaction.atomic
+def teacher_verify_simulation_score(*, record, actor, verified_score, comment=""):
+    if not _teacher_can_mark_attempt(actor, record.attempt):
+        raise ValidationError("You are not authorized to verify this simulation.")
+    if record.exam_simulation.simulation_wrapper.score_mode != CBTSimulationScoreMode.VERIFY:
+        raise ValidationError("This simulation is not in VERIFY mode.")
+    score = _validate_simulation_score(
+        verified_score,
+        record.exam_simulation.effective_max_score,
+    )
+    record.raw_score = score
+    record.final_score = score
+    record.verify_comment = (comment or "").strip()
+    record.verified_by = actor
+    record.verified_at = timezone.now()
+    record.status = CBTSimulationAttemptStatus.VERIFIED
+    record.save(
+        update_fields=[
+            "raw_score",
+            "final_score",
+            "verify_comment",
+            "verified_by",
+            "verified_at",
+            "status",
+            "updated_at",
+        ]
+    )
+    _queue_simulation_snapshot(record, event_type="SIMULATION_VERIFIED")
+    return record
+
+
+@transaction.atomic
+def teacher_score_rubric_simulation(*, record, actor, rubric_scores, comment=""):
+    if not _teacher_can_mark_attempt(actor, record.attempt):
+        raise ValidationError("You are not authorized to score this simulation.")
+    if record.exam_simulation.simulation_wrapper.score_mode != CBTSimulationScoreMode.RUBRIC:
+        raise ValidationError("This simulation is not in RUBRIC mode.")
+    if not isinstance(rubric_scores, dict) or not rubric_scores:
+        raise ValidationError("Provide rubric criteria scores.")
+    parsed_scores = {}
+    for key, value in rubric_scores.items():
+        score = _to_decimal(value)
+        if score < Decimal("0.00") or score > Decimal("100.00"):
+            raise ValidationError("Rubric criteria scores must be between 0 and 100.")
+        parsed_scores[key] = score
+    average_percent = (
+        sum(parsed_scores.values()) / Decimal(len(parsed_scores))
+    ).quantize(DECIMAL_2)
+    max_score = _to_decimal(record.exam_simulation.effective_max_score)
+    final_score = ((average_percent / Decimal("100.00")) * max_score).quantize(DECIMAL_2)
+    record.rubric_breakdown = {
+        "criteria_scores": {key: str(value) for key, value in parsed_scores.items()},
+        "average_percent": str(average_percent),
+        "max_score": str(max_score),
+    }
+    record.raw_score = average_percent
+    record.final_score = final_score
+    record.verify_comment = (comment or "").strip()
+    record.verified_by = actor
+    record.verified_at = timezone.now()
+    record.status = CBTSimulationAttemptStatus.RUBRIC_SCORED
+    record.save(
+        update_fields=[
+            "rubric_breakdown",
+            "raw_score",
+            "final_score",
+            "verify_comment",
+            "verified_by",
+            "verified_at",
+            "status",
+            "updated_at",
+        ]
+    )
+    _queue_simulation_snapshot(record, event_type="SIMULATION_RUBRIC_SCORED")
+    return record
+
+
+@transaction.atomic
+def import_simulation_score_to_results(
+    *,
+    record,
+    actor,
+    writeback_target="",
+    manual_score=None,
+):
+    if not _teacher_can_mark_attempt(actor, record.attempt):
+        raise ValidationError("You are not authorized to import this simulation score.")
+    target = writeback_target or record.exam_simulation.writeback_target
+    if target == CBTWritebackTarget.NONE:
+        raise ValidationError("Choose a valid writeback target before importing.")
+
+    source_score = record.final_score
+    if manual_score not in (None, ""):
+        source_score = _to_decimal(manual_score)
+    if source_score is None:
+        raise ValidationError("No simulation score available to import.")
+
+    simulation_max = _to_decimal(record.exam_simulation.effective_max_score)
+    source_score = _validate_simulation_score(source_score, simulation_max)
+    normalized = _normalize_score(source_score, simulation_max, target)
+    writeback = _apply_writeback(
+        attempt=record.attempt,
+        target=target,
+        score_value=normalized,
+        component_key="simulation",
+    )
+    if writeback.get("skipped"):
+        raise ValidationError(writeback["reason"])
+
+    record.imported_target = target
+    record.imported_score = normalized
+    record.imported_by = actor
+    record.imported_at = timezone.now()
+    record.status = CBTSimulationAttemptStatus.IMPORTED
+    record.save(
+        update_fields=[
+            "imported_target",
+            "imported_score",
+            "imported_by",
+            "imported_at",
+            "status",
+            "updated_at",
+        ]
+    )
+
+    metadata = record.attempt.writeback_metadata or {}
+    imports = metadata.get("simulation_imports") or []
+    imports.append(
+        {
+            "record_id": str(record.id),
+            "exam_simulation_id": str(record.exam_simulation_id),
+            "target": target,
+            "source_score": str(source_score),
+            "imported_score": str(normalized),
+            "imported_by": actor.username,
+            "imported_at": record.imported_at.isoformat(),
+            "writeback": writeback,
+        }
+    )
+    metadata["simulation_imports"] = imports
+    record.attempt.writeback_metadata = metadata
+    record.attempt.save(update_fields=["writeback_metadata", "updated_at"])
+    _queue_simulation_snapshot(record, event_type="SIMULATION_IMPORTED")
+    _queue_attempt_snapshot(record.attempt, event_type="ATTEMPT_SIMULATION_WRITEBACK")
+    return writeback
+
+
+LOCKDOWN_EVENT_TYPES = {
+    "VISIBILITY_CHANGE",
+    "FOCUS_LOSS",
+    "TAB_SWITCH",
+    "MULTIPLE_TAB",
+    "COPY_ATTEMPT",
+    "PASTE_ATTEMPT",
+    "FULLSCREEN_EXIT",
+    "CAMERA_BLOCKED",
+    "INACTIVITY_TIMEOUT",
+    "CONTEXT_MENU",
+    "BLOCKED_SHORTCUT",
+    "PRINT_SCREEN_ATTEMPT",
+    "MANUAL_AUDIO_WARNING",
+    "MULTIPLE_LOGIN_ATTEMPT",
+}
+
+LOCKDOWN_EVIDENCE_EVENT_TYPES = {
+    "ATTEMPT_OPENED",
+    "ATTEMPT_RESUMED",
+    "QUESTION_OPENED",
+    "ANSWER_SELECTED",
+    "ANSWER_CHANGED",
+    "SUSPICIOUS_FAST_ANSWER",
+    "NETWORK_OFFLINE",
+    "NETWORK_RECONNECTED",
+    "DEVICE_OR_IP_CHANGED",
+    "HEARTBEAT_MISSING",
+    "MULTIPLE_LOGIN_ATTEMPT",
+    "ATTEMPT_SUBMITTED",
+    "BLOCKED_SHORTCUT",
+    "PRINT_SCREEN_ATTEMPT",
+    "PRINT_ATTEMPT",
+    "FOCUS_LOSS",
+    "AUDIO_PERMISSION_GRANTED",
+    "AUDIO_PERMISSION_DENIED",
+    "AUDIO_INTERRUPTED",
+    "AUDIO_RESTORED",
+    "AUDIO_LEVEL_SPIKE",
+    "STUDENT_REPORT_ERROR",
+}
+
+LOCKDOWN_DURABLE_EVIDENCE_TYPES = {
+    "NETWORK_OFFLINE",
+    "NETWORK_RECONNECTED",
+    "DEVICE_OR_IP_CHANGED",
+    "HEARTBEAT_MISSING",
+    "MULTIPLE_LOGIN_ATTEMPT",
+    "PRINT_SCREEN_ATTEMPT",
+    "PRINT_ATTEMPT",
+    "AUDIO_PERMISSION_DENIED",
+    "AUDIO_INTERRUPTED",
+    "AUDIO_RESTORED",
+    "AUDIO_LEVEL_SPIKE",
+    "STUDENT_REPORT_ERROR",
+}
+
+
+def _live_activity_cache_key(attempt_id):
+    return f"cbt:live-activity:{attempt_id}"
+
+
+def recent_lockdown_activity(attempt, *, limit=20):
+    rows = cache.get(_live_activity_cache_key(attempt.id)) or []
+    return list(reversed(rows[-max(int(limit or 1), 1):]))
+
+
+def record_lockdown_evidence(*, attempt, event_type, request=None, details=None):
+    event_type = (event_type or "").strip().upper()
+    if event_type not in LOCKDOWN_EVIDENCE_EVENT_TYPES:
+        raise ValidationError("Unsupported CBT evidence event type.")
+    details = details if isinstance(details, dict) else {}
+    row = {
+        "event_type": event_type,
+        "at": timezone.now().isoformat(),
+        "attempt_id": str(attempt.id),
+        "student_id": str(attempt.student_id),
+        "question_index": details.get("question_index"),
+        "details": details,
+    }
+    cache_key = _live_activity_cache_key(attempt.id)
+    recent = list(cache.get(cache_key) or [])
+    # Browser event pairs can fire twice within a few milliseconds. Keep one
+    # row when the type and question are identical.
+    if recent:
+        previous = recent[-1]
+        if (
+            previous.get("event_type") == event_type
+            and previous.get("question_index") == row.get("question_index")
+            and previous.get("details") == details
+        ):
+            return previous
+    recent.append(row)
+    cache.set(cache_key, recent[-120:], timeout=60 * 60 * 8)
+
+    if event_type in LOCKDOWN_DURABLE_EVIDENCE_TYPES:
+        log_event(
+            category=AuditCategory.LOCKDOWN,
+            event_type="LOCKDOWN_EVIDENCE",
+            status=AuditStatus.SUCCESS,
+            actor=attempt.student,
+            request=request,
+            metadata={
+                "event_type": event_type,
+                "attempt_id": str(attempt.id),
+                "exam_id": str(attempt.exam_id),
+                "student_id": str(attempt.student_id),
+                "device": request.META.get("HTTP_USER_AGENT", "") if request else "",
+                "details": details,
+            },
+        )
+    return row
+
+
+def lockdown_enabled():
+    return settings.FEATURE_FLAGS.get("LOCKDOWN_ENABLED", False)
+
+
+def lockdown_warning_count(attempt, *, event_type=""):
+    target = (event_type or "").strip().upper()
+    count = 0
+    for row in (attempt.integrity_bundle or {}).get("events") or []:
+        details = row.get("details") or {}
+        if not details.get("warning_only"):
+            continue
+        if target and (row.get("event_type") or "").strip().upper() != target:
+            continue
+        count += 1
+    return count
+
+
+def _revert_malpractice_result_writebacks(attempt, *, event_type):
+    metadata = dict(attempt.writeback_metadata or {})
+    reverted = []
+    skipped = []
+    for metadata_key in ("objective_writeback", "theory_writeback"):
+        writeback = metadata.get(metadata_key) or {}
+        sheet_id = writeback.get("sheet_id")
+        field = (writeback.get("field") or "").strip()
+        before = writeback.get("before")
+        after = writeback.get("after")
+        if not sheet_id or not field or before is None:
+            continue
+        score = StudentSubjectScore.objects.filter(
+            result_sheet_id=sheet_id,
+            student=attempt.student,
+        ).select_related("result_sheet").first()
+        if score is None:
+            continue
+        if score.result_sheet.status == ResultSheetStatus.PUBLISHED:
+            skipped.append({"key": metadata_key, "reason": "published_result_sheet"})
+            continue
+        current = _to_decimal(getattr(score, field, 0))
+        expected_after = _to_decimal(after)
+        if after is not None and current != expected_after:
+            skipped.append(
+                {
+                    "key": metadata_key,
+                    "reason": "score_changed_after_attempt",
+                    "current": str(current),
+                    "expected_after": str(expected_after),
+                }
+            )
+            continue
+        setattr(score, field, _to_decimal(before))
+        score.save()
+        reverted.append(
+            {
+                "key": metadata_key,
+                "sheet_id": str(sheet_id),
+                "field": field,
+                "restored": str(before),
+            }
+        )
+
+    metadata["malpractice_flag"] = {
+        "flagged": True,
+        "event_type": event_type,
+        "flagged_at": timezone.now().isoformat(),
+        "excluded_from_result_calculations": True,
+        "reverted_writebacks": reverted,
+        "skipped_writebacks": skipped,
+    }
+    attempt.writeback_metadata = metadata
+    attempt.writeback_completed = False
+    attempt.save(update_fields=["writeback_metadata", "writeback_completed", "updated_at"])
+    return metadata["malpractice_flag"]
+
+
+def register_lockdown_heartbeat(*, attempt, tab_token, request, client_state=None):
+    if attempt.is_locked:
+        return {"locked": True}
+    if attempt.status != CBTAttemptStatus.IN_PROGRESS:
+        return {"ok": True, "attempt_closed": True, "remaining_seconds": attempt_remaining_seconds(attempt)}
+    if attempt_timer_is_paused(attempt):
+        return {
+            "ok": True,
+            "paused": True,
+            "remaining_seconds": attempt_remaining_seconds(attempt),
+            "pause_reason": attempt.exam.timer_pause_reason,
+        }
+    if timezone.now() >= attempt_deadline(attempt):
+        submit_attempt(attempt=attempt, request=request)
+        return {"ok": True, "attempt_closed": True, "remaining_seconds": 0}
+    if not lockdown_enabled():
+        return {"ok": True, "lockdown_enabled": False, "remaining_seconds": attempt_remaining_seconds(attempt)}
+
+    token = (tab_token or "").strip()[:120]
+    if not token:
+        raise ValidationError("Missing tab token.")
+
+    if getattr(settings, "EXAM_SAFE_MODE", False):
+        from apps.cbt.exam_runtime import register_live_heartbeat
+
+        try:
+            heartbeat_registered = register_live_heartbeat(
+                attempt_id=attempt.id,
+                student_id=attempt.student_id,
+                tab_token=token,
+            )
+        except Exception:
+            logger.exception("Redis heartbeat failed; using PostgreSQL heartbeat fallback")
+            heartbeat_registered = None
+        if heartbeat_registered is False:
+            record_lockdown_violation(
+                attempt=attempt,
+                event_type="MULTIPLE_LOGIN_ATTEMPT",
+                request=request,
+                details={
+                    "client_state": client_state or {},
+                    "defer_submission_for_it": True,
+                    "malpractice_flagged": True,
+                    "reason": "Student account opened in a second CBT session.",
+                },
+            )
+            return {
+                "ok": False,
+                "locked": True,
+                "session_conflict": True,
+                "error": "Multiple CBT logins detected. Both sessions are locked for one minute.",
+            }
+        if heartbeat_registered is True:
+            now = timezone.now()
+            checkpoint_due = (
+                attempt.last_heartbeat_at is None
+                or now - attempt.last_heartbeat_at >= timedelta(seconds=60)
+            )
+            if checkpoint_due:
+                try:
+                    ExamAttempt.objects.filter(pk=attempt.pk).update(
+                        active_tab_token=token,
+                        last_heartbeat_at=now,
+                        last_activity_at=now,
+                        updated_at=now,
+                    )
+                except DatabaseError:
+                    logger.warning(
+                        "Skipped optional CBT heartbeat DB checkpoint for attempt %s after Redis heartbeat",
+                        attempt.pk,
+                        exc_info=True,
+                    )
+            return {
+                "ok": True,
+                "paused": False,
+                "remaining_seconds": attempt_remaining_seconds(attempt),
+                "pause_reason": "",
+            }
+
+    if attempt.active_tab_token and attempt.active_tab_token != token:
+        record_lockdown_violation(
+            attempt=attempt,
+            event_type="MULTIPLE_LOGIN_ATTEMPT",
+            request=request,
+            details={
+                "client_state": client_state or {},
+                "defer_submission_for_it": True,
+                "malpractice_flagged": True,
+                "reason": "Student account opened in a second CBT session.",
+            },
+        )
+        return {
+            "ok": False,
+            "locked": True,
+            "session_conflict": True,
+            "error": "Multiple CBT logins detected. Both sessions are locked for one minute.",
+        }
+
+    now = timezone.now()
+    initial_request = (
+        ((attempt.integrity_bundle or {}).get("session_context") or {}).get("initial_request")
+        or {}
+    )
+    current_request = _request_context_payload(request)
+    initial_ip = initial_request.get("forwarded_for") or initial_request.get("remote_addr") or ""
+    current_ip = current_request.get("forwarded_for") or current_request.get("remote_addr") or ""
+    initial_device = initial_request.get("user_agent") or ""
+    current_device = current_request.get("user_agent") or ""
+    if (
+        (initial_ip and current_ip and initial_ip != current_ip)
+        or (initial_device and current_device and initial_device != current_device)
+    ):
+        recent_types = {
+            row.get("event_type")
+            for row in recent_lockdown_activity(attempt, limit=20)
+        }
+        if "DEVICE_OR_IP_CHANGED" not in recent_types:
+            record_lockdown_evidence(
+                attempt=attempt,
+                event_type="DEVICE_OR_IP_CHANGED",
+                request=request,
+                details={
+                    "initial_ip": initial_ip,
+                    "current_ip": current_ip,
+                    "initial_device": initial_device[:180],
+                    "current_device": current_device[:180],
+                },
+            )
+    # Bind the browser tab atomically. Two first heartbeats with different
+    # tokens must not both see an empty token and silently replace each other.
+    updated = (
+        ExamAttempt.objects.filter(pk=attempt.pk)
+        .filter(Q(active_tab_token="") | Q(active_tab_token=token))
+        .update(
+            active_tab_token=token,
+            last_heartbeat_at=now,
+            last_activity_at=now,
+            updated_at=now,
+        )
+    )
+    if not updated:
+        attempt.refresh_from_db(fields=["active_tab_token"])
+        record_lockdown_violation(
+            attempt=attempt,
+            event_type="MULTIPLE_LOGIN_ATTEMPT",
+            request=request,
+            details={
+                "client_state": client_state or {},
+                "atomic_bind_rejected": True,
+                "defer_submission_for_it": True,
+                "malpractice_flagged": True,
+                "reason": "Student account opened in a second CBT session.",
+            },
+        )
+        return {
+            "ok": False,
+            "locked": True,
+            "session_conflict": True,
+            "error": "Multiple CBT logins detected. Both sessions are locked for one minute.",
+        }
+
+    attempt.active_tab_token = token
+    attempt.last_heartbeat_at = now
+    attempt.last_activity_at = now
+    attempt.updated_at = now
+
+    # Heartbeats prove liveness, but adding every one to the hash-chained JSON
+    # bundle makes the row grow throughout a long exam. The ATTEMPT_STARTED
+    # event covers initial contact; retain one heartbeat checkpoint every five
+    # minutes. Violations and answer events remain immediate.
+    last_checkpoint_at = attempt.started_at
+    for event in reversed((attempt.integrity_bundle or {}).get("events") or []):
+        if event.get("event_type") != "LOCKDOWN_HEARTBEAT":
+            continue
+        try:
+            last_checkpoint_at = datetime.fromisoformat(str(event.get("at") or ""))
+        except (TypeError, ValueError):
+            last_checkpoint_at = None
+        break
+    should_checkpoint = (
+        last_checkpoint_at is None
+        or now - last_checkpoint_at >= timedelta(minutes=5)
+    )
+    if should_checkpoint:
+        _save_attempt_integrity_bundle(
+            attempt,
+            event_type="LOCKDOWN_HEARTBEAT",
+            request=request,
+            details={"client_state": client_state or {}, "tab_token": token},
+        )
+    return {"ok": True, "paused": False, "remaining_seconds": attempt_remaining_seconds(attempt), "pause_reason": ""}
+
+
+@transaction.atomic
+def record_lockdown_warning(*, attempt, event_type, request, details=None):
+    if not lockdown_enabled():
+        return attempt
+    if event_type not in LOCKDOWN_EVENT_TYPES:
+        raise ValidationError("Unsupported lockdown event type.")
+    if attempt.is_locked:
+        return attempt
+
+    details = details or {}
+    metadata = {
+        "event_type": event_type,
+        "attempt_id": str(attempt.id),
+        "exam_id": str(attempt.exam_id),
+        "student_id": str(attempt.student_id),
+        "device": request.META.get("HTTP_USER_AGENT", ""),
+        "warning_only": True,
+        "details": details,
+    }
+    log_event(
+        category=AuditCategory.LOCKDOWN,
+        event_type="LOCKDOWN_WARNING",
+        status=AuditStatus.DENIED,
+        actor=attempt.student,
+        request=request,
+        metadata=metadata,
+    )
+    _save_attempt_integrity_bundle(
+        attempt,
+        event_type=event_type,
+        request=request,
+        details={**details, "warning_only": True},
+    )
+    _queue_attempt_snapshot(attempt, event_type="ATTEMPT_LOCKDOWN_WARNING")
+    return attempt
+
+
+@transaction.atomic
+def record_lockdown_violation(*, attempt, event_type, request, details=None):
+    if not lockdown_enabled():
+        return attempt
+    if event_type not in LOCKDOWN_EVENT_TYPES:
+        raise ValidationError("Unsupported lockdown event type.")
+    if attempt.is_locked:
+        return attempt
+
+    # In the controlled exam-hall build Safe Exam Browser owns browser/app
+    # enforcement. Browser-side signals are evidence only: they must never
+    # lock a candidate or affect every paper belonging to that candidate.
+    # A lock is reserved for an IT-issued third audio strike only. Multiple
+    # browser/login conflicts are handled as short cooldown/session replacement
+    # events so power cuts and SEB restarts do not trap students in a flag loop.
+    lock_capable_events = {"MANUAL_AUDIO_WARNING"}
+    if getattr(settings, "EXAM_SAFE_MODE", False) and event_type not in lock_capable_events:
+        details = details or {}
+        log_event(
+            category=AuditCategory.LOCKDOWN,
+            event_type="LOCKDOWN_EVIDENCE_ONLY",
+            status=AuditStatus.DENIED,
+            actor=attempt.student,
+            request=request,
+            metadata={
+                "event_type": event_type,
+                "attempt_id": str(attempt.id),
+                "exam_id": str(attempt.exam_id),
+                "student_id": str(attempt.student_id),
+                "details": details,
+            },
+        )
+        return attempt
+
+    details = details or {}
+    metadata = {
+        "event_type": event_type,
+        "attempt_id": str(attempt.id),
+        "exam_id": str(attempt.exam_id),
+        "student_id": str(attempt.student_id),
+        "device": request.META.get("HTTP_USER_AGENT", ""),
+        "details": details,
+    }
+    log_lockdown_violation(
+        actor=attempt.student,
+        request=request,
+        metadata=metadata,
+    )
+
+    defer_submission_for_it = bool(details.get("defer_submission_for_it"))
+    should_lock_for_review = (
+        event_type in {"CAMERA_BLOCKED"}
+        or defer_submission_for_it
+    )
+    if attempt.status == CBTAttemptStatus.IN_PROGRESS and not should_lock_for_review:
+        submit_attempt(attempt=attempt, request=request)
+        _revert_malpractice_result_writebacks(attempt, event_type=event_type)
+    elif defer_submission_for_it:
+        _revert_malpractice_result_writebacks(attempt, event_type=event_type)
+
+    attempt.is_locked = True
+    attempt.lock_reason = (
+        f"MALPRACTICE_{event_type}"[:64]
+        if defer_submission_for_it or not should_lock_for_review
+        else event_type
+    )
+    attempt.locked_at = timezone.now()
+    attempt.allow_resume_by_it = bool(should_lock_for_review)
+    attempt.active_tab_token = ""
+    update_fields = [
+        "is_locked",
+        "lock_reason",
+        "locked_at",
+        "allow_resume_by_it",
+        "active_tab_token",
+        "updated_at",
+    ]
+    if should_lock_for_review:
+        if attempt.status == CBTAttemptStatus.FINALIZED and not attempt.finalized_at:
+            attempt.finalized_at = timezone.now()
+            update_fields.append("finalized_at")
+    else:
+        attempt.status = CBTAttemptStatus.FINALIZED
+        if not attempt.finalized_at:
+            attempt.finalized_at = timezone.now()
+        update_fields.extend(["status", "finalized_at"])
+    attempt.save(update_fields=update_fields)
+    _save_attempt_integrity_bundle(
+        attempt,
+        event_type=event_type,
+        request=request,
+        details=details,
+    )
+    _queue_attempt_snapshot(attempt, event_type="ATTEMPT_LOCKDOWN_LOCKED")
+    return attempt
+
+
+@transaction.atomic
+def pause_exam_timer(*, exam, actor, reason="", request=None):
+    if not has_scope(actor, SCOPE_UNLOCK_CBT):
+        raise ValidationError("You do not have scope to pause CBT timers.")
+    if exam.status != CBTExamStatus.ACTIVE:
+        raise ValidationError("Only active exams can be paused.")
+    if exam.timer_is_paused:
+        return exam
+
+    now = timezone.now()
+    exam.timer_is_paused = True
+    exam.timer_paused_at = now
+    exam.timer_paused_by = actor
+    exam.timer_pause_reason = (reason or "").strip()
+    exam.save(update_fields=["timer_is_paused", "timer_paused_at", "timer_paused_by", "timer_pause_reason", "updated_at"])
+
+    active_attempts = list(
+        ExamAttempt.objects.select_related("exam").filter(
+            exam=exam,
+            status=CBTAttemptStatus.IN_PROGRESS,
+        )
+    )
+    if active_attempts:
+        ExamAttempt.objects.filter(id__in=[row.id for row in active_attempts]).update(active_tab_token="")
+        for attempt in active_attempts:
+            attempt.active_tab_token = ""
+            _save_attempt_integrity_bundle(
+                attempt,
+                event_type="ATTEMPT_TIMER_PAUSED",
+                request=request,
+                details={"reason": exam.timer_pause_reason},
+            )
+            _queue_attempt_snapshot(attempt, event_type="ATTEMPT_TIMER_PAUSED")
+
+    if request is not None:
+        log_event(
+            category=AuditCategory.CBT,
+            event_type="CBT_TIMER_PAUSED",
+            status=AuditStatus.SUCCESS,
+            actor=actor,
+            request=request,
+            metadata={"exam_id": str(exam.id), "reason": exam.timer_pause_reason},
+        )
+    return exam
+
+
+@transaction.atomic
+def resume_exam_timer(*, exam, actor, request=None):
+    if not has_scope(actor, SCOPE_UNLOCK_CBT):
+        raise ValidationError("You do not have scope to resume CBT timers.")
+    if not exam.timer_is_paused or not exam.timer_paused_at:
+        return 0
+
+    paused_seconds = max(int((timezone.now() - exam.timer_paused_at).total_seconds()), 0)
+    exam.timer_is_paused = False
+    exam.timer_paused_at = None
+    exam.timer_pause_reason = ""
+    exam.timer_paused_by = None
+    exam.save(update_fields=["timer_is_paused", "timer_paused_at", "timer_pause_reason", "timer_paused_by", "updated_at"])
+
+    active_attempts = list(
+        ExamAttempt.objects.select_related("exam").filter(
+            exam=exam,
+            status=CBTAttemptStatus.IN_PROGRESS,
+        )
+    )
+    if paused_seconds and active_attempts:
+        ExamAttempt.objects.filter(id__in=[row.id for row in active_attempts]).update(
+            timer_pause_seconds=F("timer_pause_seconds") + paused_seconds,
+            active_tab_token="",
+        )
+        for attempt in active_attempts:
+            attempt.timer_pause_seconds = int(attempt.timer_pause_seconds or 0) + paused_seconds
+            attempt.active_tab_token = ""
+            _save_attempt_integrity_bundle(
+                attempt,
+                event_type="ATTEMPT_TIMER_RESUMED",
+                request=request,
+                details={"paused_seconds": paused_seconds},
+            )
+            _queue_attempt_snapshot(attempt, event_type="ATTEMPT_TIMER_RESUMED")
+
+    if request is not None:
+        log_event(
+            category=AuditCategory.CBT,
+            event_type="CBT_TIMER_RESUMED",
+            status=AuditStatus.SUCCESS,
+            actor=actor,
+            request=request,
+            metadata={"exam_id": str(exam.id), "paused_seconds": paused_seconds},
+        )
+    return paused_seconds
+
+
+@transaction.atomic
+def it_unlock_attempt(*, attempt, actor, allow_resume=False, extra_time_minutes=0, request=None):
+    if not has_scope(actor, SCOPE_UNLOCK_CBT):
+        raise ValidationError("You do not have scope to unlock CBT attempts.")
+
+    extra_time_minutes = int(extra_time_minutes or 0)
+    if extra_time_minutes < 0:
+        raise ValidationError("Extra time cannot be negative.")
+
+    attempt.is_locked = False
+    attempt.lock_reason = ""
+    attempt.locked_at = None
+    attempt.active_tab_token = ""
+    writeback_metadata = dict(attempt.writeback_metadata or {})
+    malpractice_flag = dict(writeback_metadata.get("malpractice_flag") or {})
+    if malpractice_flag:
+        malpractice_flag.update(
+            {
+                "flagged": False,
+                "excluded_from_result_calculations": False,
+                "resolved_by_it": actor.username,
+                "resolved_at": timezone.now().isoformat(),
+                "resolution": "RESUME" if allow_resume else "SUBMIT",
+            }
+        )
+        writeback_metadata["malpractice_flag"] = malpractice_flag
+    lock_appeal = dict(writeback_metadata.get("lock_appeal") or {})
+    if lock_appeal:
+        lock_appeal.update(
+            {
+                "status": "APPROVED",
+                "resolved_by_it": actor.username,
+                "resolved_at": timezone.now().isoformat(),
+            }
+        )
+        writeback_metadata["lock_appeal"] = lock_appeal
+    attempt.writeback_metadata = writeback_metadata
+    if extra_time_minutes:
+        attempt.extra_time_minutes = int(attempt.extra_time_minutes or 0) + extra_time_minutes
+
+    if allow_resume:
+        attempt.allow_resume_by_it = True
+        attempt.status = CBTAttemptStatus.IN_PROGRESS
+        attempt.finalized_at = None
+        attempt.submitted_at = None
+    else:
+        attempt.allow_resume_by_it = False
+        if attempt.status in {
+            CBTAttemptStatus.IN_PROGRESS,
+            CBTAttemptStatus.SUBMITTED,
+        }:
+            submit_attempt(attempt=attempt, request=request)
+        attempt.status = CBTAttemptStatus.FINALIZED
+        if not attempt.finalized_at:
+            attempt.finalized_at = timezone.now()
+
+    attempt.save(
+        update_fields=[
+            "is_locked",
+            "lock_reason",
+            "locked_at",
+            "active_tab_token",
+            "extra_time_minutes",
+            "allow_resume_by_it",
+            "status",
+            "finalized_at",
+            "submitted_at",
+            "writeback_metadata",
+            "updated_at",
+        ]
+    )
+    _save_attempt_integrity_bundle(
+        attempt,
+        event_type="ATTEMPT_UNLOCKED_BY_IT",
+        request=request,
+        details={"allow_resume": bool(allow_resume), "extra_time_minutes_added": extra_time_minutes},
+    )
+    _queue_attempt_snapshot(attempt, event_type="ATTEMPT_UNLOCKED_BY_IT")
+    if request is not None and getattr(settings, "EXAM_SAFE_MODE", False):
+        try:
+            from apps.cbt.exam_runtime import clear_live_attempt
+
+            clear_live_attempt(attempt.id, keep_answers=True)
+        except Exception:
+            logger.exception("Unable to clear live presence after IT unlock for attempt %s", attempt.id)
+    if request is not None:
+        log_event(
+            category=AuditCategory.LOCKDOWN,
+            event_type="LOCKDOWN_UNLOCK",
+            status=AuditStatus.SUCCESS,
+            actor=actor,
+            request=request,
+            metadata={
+                "attempt_id": str(attempt.id),
+                "allow_resume": bool(allow_resume),
+                "extra_time_minutes_added": extra_time_minutes,
+            },
+        )
+    return attempt

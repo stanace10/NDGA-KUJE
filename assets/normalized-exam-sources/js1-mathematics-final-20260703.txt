@@ -1,0 +1,324 @@
+JS1 MATHEMATICS EXAMINATION - THIRD TERM
+
+OBJECTIVE QUESTIONS
+
+1. A polygon with five (5) sides is called ----?
+A. Pentagon
+B. Hexagon
+C. Heptagon
+D. Decagon
+ANSWER = A
+
+2. Which of the following is not a property of an isosceles triangle?
+A. Two base angles are equal
+B. Two sides are equal
+C. It has one line of symmetry
+D. All the three sides are different.
+ANSWER = D
+
+3. Solve the equation: 3(a - 2) + 2a = 24
+A. 6
+B. 7
+C. 5
+D. 8
+ANSWER = A
+
+4. Solve: 4(y + 3) = 6(y - 1)
+A. 7
+B. 8
+C. 9
+D. 10
+ANSWER = C
+
+5. A cube has how many edges?
+A. 6
+B. 8
+C. 12
+D. 16
+ANSWER = C
+
+6. A rectangular pyramid has how many vertices?
+A. 5
+B. 6
+C. 7
+D. 8
+ANSWER = A
+
+7. A three-dimensional shape that has no edges and vertices is called ----?
+A. Rectangle
+B. Square
+C. Triangle
+D. Sphere
+ANSWER = D
+
+8. A solid figure or shape with uniform cross-sectional area is called ----?
+A. Prism
+B. Square
+C. Triangle
+D. Diamond
+ANSWER = A
+
+9. Translate the sentence into a mathematical statement: Add 7 to a number n and then multiply by 3.
+A. 3(n + 7)
+B. 7n + 3
+C. 3n + 7
+D. 3 + n × 7
+ANSWER = A
+
+10. Calculate the value of a: 2a + 4 = 3a - 1
+A. 5
+B. 6
+C. 7
+D. 8
+ANSWER = A
+
+11. A polygon with four sides is called ----?
+A. Quadrilateral
+B. Pentagon
+C. Nonagon
+D. Telegram
+ANSWER = A
+
+12. The distance round a circle is called ----?
+A. Diameter
+B. Radius
+C. Circumference
+D. Chord
+ANSWER = C
+
+13. Which of the following is not a quadrilateral?
+A. Trapezium
+B. Parallelogram
+C. Kite
+D. Sphere
+ANSWER = D
+
+14. Solve the equation: 4(y - 1) + 5(y + 1) = 100
+A. 10
+B. 11
+C. 12
+D. 13
+ANSWER = B
+
+15. A right angle is equal to ----?
+A. 90°
+B. 180°
+C. 270°
+D. 360°
+ANSWER = A
+
+16. Two angles are complementary to each other if their sum is ----?
+A. 360°
+B. 270°
+C. 180°
+D. 90°
+ANSWER = D
+
+17. Two angles are supplementary to each other if their sum is equal to ----?
+A. 180°
+B. 360°
+C. 90°
+D. 270°
+ANSWER = A
+
+18. The instrument used in measuring angles is called ----?
+A. Set square
+B. Ruler
+C. Protractor
+D. Compasses
+ANSWER = C
+
+19. Which of the following is an obtuse angle?
+A. 50°
+B. 89°
+C. 106°
+D. 185°
+ANSWER = C
+
+20. What is the sum of angles on a straight line?
+A. 90°
+B. 180°
+C. 270°
+D. 360°
+ANSWER = B
+
+21. Which of the following is a reflex angle?
+A. 110°
+B. 150°
+C. 180°
+D. 230°
+ANSWER = D
+
+22. What is the sum of angles in a triangle?
+A. 360°
+B. 270°
+C. 180°
+D. 90°
+ANSWER = C
+
+23. The sum of angles at a point is ----?
+A. 180°
+B. 270°
+C. 90°
+D. 360°
+ANSWER = D
+
+24. Express 48°42′ as a decimal number in degrees.
+A. 48.4°
+B. 48.7°
+C. 48.68°
+D. 48°
+ANSWER = B
+
+25. What angle do the minute hand and hour hand make at 3 o'clock?
+A. 90°
+B. 30°
+C. 45°
+D. 60°
+ANSWER = A
+
+26. Find the third angle of triangle ABC if angle A = 42° and angle B = 92°.
+A. 16°
+B. 46°
+C. 36°
+D. 26°
+ANSWER = B
+
+27. If 2x° and 3x° are two supplementary angles, find the value of x.
+A. 36°
+B. 46°
+C. 174°
+D. 110°
+ANSWER = A
+
+28. Find the value of y in the figure below.
+Figure: A right angle is divided into two adjacent angles labelled y° and 65°.
+A. 25°
+B. 35°
+C. 45°
+D. 55°
+ANSWER = A
+
+29. Which of the following angles is formed when an angle of 90° is bisected?
+A. 30°
+B. 40°
+C. 45°
+D. 22.5°
+ANSWER = C
+
+30. An acute angle is less than ----?
+A. 90°
+B. 100°
+C. 180°
+D. 260°
+ANSWER = A
+
+31. Find the value of y.
+Figure: A straight line is divided into two adjacent angles labelled y and 35°.
+A. 125°
+B. 135°
+C. 145°
+D. 155°
+ANSWER = C
+
+32. Which of the following triangles has three different sides?
+A. Right angle triangle
+B. Isosceles triangle
+C. Equilateral triangle
+D. Scalene triangle
+ANSWER = D
+
+33. The following instruments are used in drawing angles EXCEPT ----?
+A. Protractor
+B. Ruler
+C. Pencil
+D. Pliers
+ANSWER = D
+
+34. Find the value of x.
+Figure: A triangle has angles 74°, 52°, and x°.
+A. 54°
+B. 56°
+C. 46°
+D. 44°
+ANSWER = A
+
+35. Which of the following statements is not true?
+A. Alternate angles are equal
+B. Corresponding angles are equal
+C. Vertically opposite angles are equal
+D. None of the above
+ANSWER = D
+
+36. How many days are there in a leap year?
+A. 360
+B. 366
+C. 365
+D. 370
+ANSWER = B
+
+37. How many quarters make up a year?
+A. 6
+B. 3
+C. 4
+D. 1
+ANSWER = C
+
+38. A line that divides a circle into two equal halves is called ----?
+A. Radius
+B. Diameter
+C. Sector
+D. Arc
+ANSWER = B
+
+39. Solve: 7w - 6 = 8
+A. 2
+B. 4
+C. 6
+D. 8
+ANSWER = A
+
+40. Find the value of r: 3 - 0.5 = 2.5r
+A. 1
+B. 2
+C. 3
+D. 4
+ANSWER = A
+
+
+THEORY
+
+INSTRUCTIONS: Answer any four (4) questions.
+
+41. With the aid of a pencil, protractor, and ruler, draw the following angles:
+i. 46°
+ii. 109°
+iii. 160°
+iv. 34°
+
+42. With the aid of diagrams, define the following types of angles:
+i. Acute angle
+ii. Reflex angle
+iii. Right angle
+iv. Obtuse angle
+
+43. Find the value of the lettered angles.
+Figure: Two parallel horizontal lines are cut by a slanting transversal. At the upper intersection, 57° is at the top-left angle, a is at the top-right angle, b is at the bottom-left angle, and c is at the bottom-right angle. At the lower intersection, g is at the top-left angle and h is at the top-right angle.
+
+44. Draw each of the three-dimensional shapes and state two (2) properties:
+i. Cuboid
+ii. Cone
+iii. Cylinder
+
+45. Find the value of x in the figure.
+Figure: Angles around a point are labelled x, 2x, 3x, and 3x.
+
+46. Each of fifteen people was asked to name his or her favourite colour. Their responses are shown in the table below:
+
+Colour      Blue    Red    Green    Yellow    Black
+Frequency   3       4      1        5         2
+
+i. Which is the most popular colour?
+ii. How many colours are there altogether?
+iii. Use tallies to represent the frequencies.
+iv. Add the frequency of yellow colour to blue colour.

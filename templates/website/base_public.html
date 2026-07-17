@@ -1,0 +1,401 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ page_title|default:seo_default_title }}{% endblock %}</title>
+  <meta name="description" content="{% block meta_description %}{{ page_description|default:seo_default_description }}{% endblock %}">
+  <meta name="robots" content="{{ seo_robots_content }}">
+  <link rel="canonical" href="{{ seo_canonical_url }}">
+  <link rel="sitemap" type="application/xml" title="Sitemap" href="{{ seo_sitemap_url }}">
+  <link rel="icon" type="image/x-icon" href="{% static 'favicon.ico' %}">
+  <link rel="icon" type="image/png" sizes="32x32" href="{% static 'favicon-32x32.png' %}">
+  <link rel="icon" type="image/png" sizes="16x16" href="{% static 'favicon-16x16.png' %}">
+  <link rel="apple-touch-icon" href="{% static 'apple-touch-icon.png' %}">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="{{ seo_site_name }}">
+  <meta property="og:title" content="{% block og_title %}{{ page_title|default:seo_default_title }}{% endblock %}">
+  <meta property="og:description" content="{% block og_description %}{{ page_description|default:seo_default_description }}{% endblock %}">
+  <meta property="og:url" content="{{ seo_url }}">
+  <meta property="og:image" content="{{ seo_image_url }}">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{% block twitter_title %}{{ page_title|default:seo_default_title }}{% endblock %}">
+  <meta name="twitter:description" content="{% block twitter_description %}{{ page_description|default:seo_default_description }}{% endblock %}">
+  <meta name="twitter:image" content="{{ seo_image_url }}">
+  {% if seo_google_site_verification %}
+    <meta name="google-site-verification" content="{{ seo_google_site_verification }}">
+  {% endif %}
+  {% if seo_schema_json and seo_is_public_indexable %}
+    <script type="application/ld+json">{{ seo_schema_json|safe }}</script>
+  {% endif %}
+  {% if seo_google_analytics_id or seo_google_ads_id %}
+    <script async src="https://www.googletagmanager.com/gtag/js?id={{ seo_google_analytics_id|default:seo_google_ads_id }}"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag("js", new Date());
+      {% if seo_google_analytics_id %}gtag("config", "{{ seo_google_analytics_id }}", {"anonymize_ip": true});{% endif %}
+      {% if seo_google_ads_id %}gtag("config", "{{ seo_google_ads_id }}");{% endif %}
+    </script>
+  {% endif %}
+  {% if seo_google_adsense_client_id and seo_is_public_indexable %}
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ seo_google_adsense_client_id }}" crossorigin="anonymous"></script>
+  {% endif %}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Cormorant+Garamond:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/public-website.css' %}?v=20260608a">
+  {% block extra_head %}{% endblock %}
+</head>
+<body class="public-body {% if page_key == 'home' %}public-body-home{% endif %}">
+  <div class="site-shell">
+    <header class="public-header {% if page_key == 'home' %}is-home{% endif %}" data-public-header>
+      <div class="public-announcement-bar" data-announcement-bar>
+        <div class="public-container public-announcement-track">
+          <div class="public-announcement-copy">
+            <strong>Admissions Open</strong>
+            <span>Faith-led learning, disciplined boarding culture, and guided online registration now open.</span>
+          </div>
+          <a href="{{ public_apply_url }}" class="public-announcement-link">Start Admission</a>
+        </div>
+      </div>
+      <div class="public-header-inner">
+        <a href="/" class="public-brand" aria-label="Notre Dame Girls' Academy home">
+          <img src="{% static public_images.logo %}" alt="Notre Dame Girls' Academy logo">
+          <div>
+            <span class="public-brand-kicker">Notre Dame Girls' Academy</span>
+            <span class="public-brand-text">Kuje Abuja</span>
+          </div>
+        </a>
+
+        <nav class="public-nav" aria-label="Primary">
+          {% for item in public_navigation %}
+            <div class="public-nav-item {% if item.children or item.mega %}has-dropdown{% endif %}" {% if item.children or item.mega %}data-nav-item{% endif %}>
+              <a href="{{ item.url }}" class="public-nav-link">{{ item.label }}</a>
+              {% if item.children %}
+                <div class="public-dropdown-panel">
+                  <div class="public-dropdown-links">
+                    {% for child in item.children %}
+                      <a href="{{ child.url }}">{{ child.label }}</a>
+                    {% endfor %}
+                  </div>
+                </div>
+              {% elif item.mega %}
+                <div class="public-mega-panel">
+                  <div class="public-mega-grid">
+                    {% for column in item.columns %}
+                      <div class="public-mega-column">
+                        <p>{{ column.title }}</p>
+                        {% for child in column.items %}
+                          <a href="{{ child.url }}">{{ child.label }}</a>
+                        {% endfor %}
+                      </div>
+                    {% endfor %}
+                    <a href="{{ item.featured.cta_url }}" class="public-mega-feature">
+                      <img src="{% static item.featured.image %}" alt="{{ item.featured.title }}">
+                      <div>
+                        <span>{{ item.featured.title }}</span>
+                        <p>{{ item.featured.text }}</p>
+                        <strong>{{ item.featured.cta_label }}</strong>
+                      </div>
+                    </a>
+                  </div>
+                </div>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </nav>
+
+        <div class="public-header-actions">
+          <button type="button" class="public-icon-button" data-search-open aria-label="Open site search">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 4a6.5 6.5 0 1 0 4.03 11.6l4.43 4.42 1.06-1.06-4.42-4.43A6.5 6.5 0 0 0 10.5 4Zm0 1.5a5 5 0 1 1 0 10 5 5 0 0 1 0-10Z"/></svg>
+          </button>
+          <a href="{{ public_portal_url }}" class="public-portal-link">{{ public_portal_text }}</a>
+          <button type="button" class="public-menu-button" data-mobile-menu-open aria-label="Open menu">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <div class="public-mobile-backdrop" data-mobile-backdrop></div>
+    <aside class="public-mobile-drawer" data-mobile-drawer aria-label="Mobile menu">
+      <div class="public-mobile-top">
+        <strong>NDGA</strong>
+        <button type="button" data-mobile-menu-close aria-label="Close menu">Close</button>
+      </div>
+      <nav class="public-mobile-nav">
+        {% for item in public_navigation %}
+          <details {% if page_key == 'home' and item.label == 'Home' %}open{% endif %}>
+            <summary>
+              <span>{{ item.label }}</span>
+              {% if item.children or item.mega %}<span>+</span>{% endif %}
+            </summary>
+            <div class="public-mobile-links">
+              <a href="{{ item.url }}">{{ item.label }}</a>
+              {% if item.children %}
+                {% for child in item.children %}
+                  <a href="{{ child.url }}">{{ child.label }}</a>
+                {% endfor %}
+              {% elif item.mega %}
+                {% for column in item.columns %}
+                  {% for child in column.items %}
+                    <a href="{{ child.url }}">{{ child.label }}</a>
+                  {% endfor %}
+                {% endfor %}
+              {% endif %}
+            </div>
+          </details>
+        {% endfor %}
+      </nav>
+      <div class="public-mobile-actions">
+        <a href="{{ public_apply_url }}" class="public-cta">Start Your Daughter's Admission</a>
+        <a href="/contact/" class="public-secondary-cta">Speak With Admissions</a>
+      </div>
+    </aside>
+
+    <main>
+      {% block content %}{% endblock %}
+    </main>
+
+    <section class="public-global-cta">
+      <div class="public-container public-global-cta-grid">
+        <div class="public-global-cta-copy">
+          <span class="public-eyebrow">Why Families Choose NDGA</span>
+          <h2>A calm, disciplined, faith-filled learning environment for girls.</h2>
+          <p>Families meet strong academics, Catholic formation, boarding support, and a school culture built on dignity, order, and care.</p>
+          <div class="public-marketing-badges">
+            <span>Girls' Catholic Education</span>
+            <span>Boarding & Day Options</span>
+            <span>Safe Learning Culture</span>
+            <span>Simple Online Admission</span>
+          </div>
+          <div class="public-button-row">
+            <a href="{{ public_apply_url }}" class="public-cta magnetic">Start Admission</a>
+            <a href="/contact/" class="public-secondary-cta magnetic">Book a Visit</a>
+            <a href="/hostel-boarding/" class="public-secondary-cta magnetic">Hostel & Boarding</a>
+          </div>
+        </div>
+        <article class="public-global-cta-card">
+          <p class="public-global-cta-label">Admissions Support</p>
+          <h3>Talk to the school directly</h3>
+          <div class="public-global-cta-points">
+            <article>
+              <strong>Call</strong>
+              <span>{{ public_contact.phone_primary }}</span>
+            </article>
+            <article>
+              <strong>Alternative Line</strong>
+              <span>{{ public_contact.phone_secondary }}</span>
+            </article>
+            <article>
+              <strong>Email</strong>
+              <span>{{ public_contact.email }}</span>
+            </article>
+            <article>
+              <strong>Location</strong>
+              <span>{{ public_contact.address }}</span>
+            </article>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <footer class="public-footer">
+      <div class="public-container public-footer-top">
+        <div class="public-footer-brand">
+          <img src="{% static public_images.logo %}" alt="NDGA logo">
+          <div>
+            <strong>{{ public_contact.school_name }}</strong>
+            <p>{{ public_site_settings.footer_statement }}</p>
+          </div>
+        </div>
+      </div>
+      <div class="public-container public-footer-grid">
+        <div>
+          <h3>School</h3>
+          <a href="/about/">About NDGA</a>
+          <a href="/principal/">Principal's Welcome</a>
+          <a href="/about/mission-vision-values/">Mission, Vision & Values</a>
+          <a href="/life-at-ndga/">Life at NDGA</a>
+        </div>
+        <div>
+          <h3>Academics</h3>
+          <a href="/academics/">Academics Overview</a>
+          <a href="/academics/subjects-departments/">Subjects Offered</a>
+          <a href="/academics/co-curricular-activities/">Clubs & Activities</a>
+          <a href="/academics/examinations-assessment/">Assessment</a>
+        </div>
+        <div>
+          <h3>Admissions</h3>
+          <a href="/admissions/">Admissions Overview</a>
+          <a href="/admissions/how-to-apply/">How to Apply</a>
+          <a href="/admissions/registration/">Online Registration</a>
+          <a href="/hostel-boarding/">Hostel & Boarding</a>
+        </div>
+        <div>
+          <h3>Contact</h3>
+          <p>{{ public_contact.address }}</p>
+          <a href="tel:{{ public_contact.phone_primary|cut:' ' }}">{{ public_contact.phone_primary }}</a>
+          <a href="tel:{{ public_contact.phone_secondary|cut:' ' }}">{{ public_contact.phone_secondary }}</a>
+          <a href="mailto:{{ public_contact.email }}">{{ public_contact.email }}</a>
+          <a href="{{ public_contact.maps_url }}" target="_blank" rel="noreferrer">Open Map</a>
+        </div>
+      </div>
+      <div class="public-container public-footer-bottom">
+        <p>Copyright &copy; {% now "Y" %} NDGA</p>
+        <div class="public-footer-socials">
+          <a href="{{ public_contact.facebook_url }}" target="_blank" rel="noreferrer" aria-label="Open Facebook">
+            <span>Facebook</span>
+          </a>
+          <a href="{{ public_contact.x_url }}" target="_blank" rel="noreferrer" aria-label="Open X">
+            <span>X</span>
+          </a>
+          <a href="{{ public_contact.tiktok_url }}" target="_blank" rel="noreferrer" aria-label="Open TikTok">
+            <span>TikTok</span>
+          </a>
+          <a href="{{ public_contact.maps_url }}" target="_blank" rel="noreferrer" aria-label="Open map">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5.13 5.7 11.57 6.35 12.29a.87.87 0 0 0 1.3 0C13.3 20.57 19 14.13 19 9a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5Z"/></svg>
+            <span>Map</span>
+          </a>
+          <a href="mailto:{{ public_contact.email }}" aria-label="Email the school">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5.5A2.5 2.5 0 0 1 5.5 3h13A2.5 2.5 0 0 1 21 5.5v13a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 18.5v-13Zm2.1-.4 6.56 5.1a.55.55 0 0 0 .68 0l6.55-5.1A1 1 0 0 0 18.5 5h-13a1 1 0 0 0-.4.1Zm13.8 2.1-5.93 4.61a2.05 2.05 0 0 1-2.52 0L4.5 7.2v11.3c0 .55.45 1 1 1h13c.55 0 1-.45 1-1V7.2Z"/></svg>
+            <span>Email</span>
+          </a>
+          <a href="{{ public_contact.whatsapp_url }}" target="_blank" rel="noreferrer" aria-label="Open WhatsApp">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.03 2.5A9.45 9.45 0 0 0 4 16.9L2.9 21l4.23-1.08A9.53 9.53 0 1 0 12.03 2.5Zm0 17.1a7.9 7.9 0 0 1-4.02-1.1l-.28-.17-2.5.64.67-2.42-.18-.29a7.93 7.93 0 1 1 6.3 3.34Zm4.34-5.98c-.24-.12-1.4-.7-1.61-.77-.21-.08-.37-.12-.52.12-.16.23-.6.77-.74.92-.14.16-.27.17-.5.06-.24-.12-1-.36-1.9-1.15-.7-.62-1.16-1.38-1.3-1.61-.13-.24-.02-.37.1-.49.11-.11.23-.28.35-.42.11-.14.15-.24.23-.4.08-.16.04-.3-.02-.42-.06-.12-.52-1.25-.71-1.71-.19-.45-.39-.39-.52-.39h-.45c-.16 0-.42.06-.64.3-.22.23-.84.82-.84 2 0 1.18.87 2.32.99 2.47.12.16 1.7 2.6 4.11 3.65.57.25 1.02.4 1.37.52.57.18 1.09.16 1.5.1.46-.07 1.4-.58 1.6-1.14.2-.56.2-1.04.14-1.14-.06-.1-.22-.16-.46-.28Z"/></svg>
+            <span>WhatsApp 1</span>
+          </a>
+          <a href="{{ public_contact.whatsapp_secondary_url }}" target="_blank" rel="noreferrer" aria-label="Open alternative WhatsApp">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.03 2.5A9.45 9.45 0 0 0 4 16.9L2.9 21l4.23-1.08A9.53 9.53 0 1 0 12.03 2.5Zm0 17.1a7.9 7.9 0 0 1-4.02-1.1l-.28-.17-2.5.64.67-2.42-.18-.29a7.93 7.93 0 1 1 6.3 3.34Zm4.34-5.98c-.24-.12-1.4-.7-1.61-.77-.21-.08-.37-.12-.52.12-.16.23-.6.77-.74.92-.14.16-.27.17-.5.06-.24-.12-1-.36-1.9-1.15-.7-.62-1.16-1.38-1.3-1.61-.13-.24-.02-.37.1-.49.11-.11.23-.28.35-.42.11-.14.15-.24.23-.4.08-.16.04-.3-.02-.42-.06-.12-.52-1.25-.71-1.71-.19-.45-.39-.39-.52-.39h-.45c-.16 0-.42.06-.64.3-.22.23-.84.82-.84 2 0 1.18.87 2.32.99 2.47.12.16 1.7 2.6 4.11 3.65.57.25 1.02.4 1.37.52.57.18 1.09.16 1.5.1.46-.07 1.4-.58 1.6-1.14.2-.56.2-1.04.14-1.14-.06-.1-.22-.16-.46-.28Z"/></svg>
+            <span>WhatsApp 2</span>
+          </a>
+          <a href="{{ public_portal_url }}" aria-label="Open school portal">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4.75A2.75 2.75 0 0 1 6.75 2h6.5A2.75 2.75 0 0 1 16 4.75v1.5h1.25A2.75 2.75 0 0 1 20 9v10.25A2.75 2.75 0 0 1 17.25 22H6.75A2.75 2.75 0 0 1 4 19.25V9A2.75 2.75 0 0 1 6.75 6.25H8V4.75c0-.69.56-1.25 1.25-1.25h4.5c.69 0 1.25.56 1.25 1.25V6.25H6.75c-1.52 0-2.75 1.23-2.75 2.75v10.25c0 1.52 1.23 2.75 2.75 2.75h10.5A2.75 2.75 0 0 0 20 19.25V9A2.75 2.75 0 0 0 17.25 6.25H16v-1.5ZM12 11a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z"/></svg>
+            <span>Portal</span>
+          </a>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <div class="public-search" data-search-modal>
+    <div class="public-search-dialog">
+      <div class="public-search-top">
+        <h2>Find a page</h2>
+        <button type="button" data-search-close>Close</button>
+      </div>
+      <input type="search" placeholder="Search admissions, boarding, academics, contact..." data-search-input>
+      <div class="public-search-results" data-search-results>
+        {% for link in public_search_links %}
+          <a href="{{ link.url }}" data-search-item>
+            <span>{{ link.label }}</span>
+            <small>{{ link.group }}</small>
+          </a>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="ndga-support-dock">
+    <button type="button" class="ndga-support-fab ndga-support-fab--chat" data-chatbot-open aria-label="Open Smart NDGA">
+      <img src="{% static public_images.logo %}" alt="NDGA chat">
+    </button>
+    <a href="{{ public_contact.whatsapp_url }}" class="ndga-support-fab ndga-support-fab--whatsapp" target="_blank" rel="noreferrer" aria-label="Open WhatsApp chat">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.03 2.5A9.45 9.45 0 0 0 4 16.9L2.9 21l4.23-1.08A9.53 9.53 0 1 0 12.03 2.5Zm0 17.1a7.9 7.9 0 0 1-4.02-1.1l-.28-.17-2.5.64.67-2.42-.18-.29a7.93 7.93 0 1 1 6.3 3.34Zm4.34-5.98c-.24-.12-1.4-.7-1.61-.77-.21-.08-.37-.12-.52.12-.16.23-.6.77-.74.92-.14.16-.27.17-.5.06-.24-.12-1-.36-1.9-1.15-.7-.62-1.16-1.38-1.3-1.61-.13-.24-.02-.37.1-.49.11-.11.23-.28.35-.42.11-.14.15-.24.23-.4.08-.16.04-.3-.02-.42-.06-.12-.52-1.25-.71-1.71-.19-.45-.39-.39-.52-.39h-.45c-.16 0-.42.06-.64.3-.22.23-.84.82-.84 2 0 1.18.87 2.32.99 2.47.12.16 1.7 2.6 4.11 3.65.57.25 1.02.4 1.37.52.57.18 1.09.16 1.5.1.46-.07 1.4-.58 1.6-1.14.2-.56.2-1.04.14-1.14-.06-.1-.22-.16-.46-.28Z"/></svg>
+    </a>
+  </div>
+
+  {{ public_chatbot_payload|json_script:"ndga-chatbot-payload" }}
+  <section
+    class="ndga-support-panel"
+    data-chatbot
+    data-chat-management-wait="{{ public_site_settings.chat_management_wait_text }}"
+    data-live-chat-url="{{ public_live_chat_url }}"
+    data-live-chat-csrf="{{ csrf_token }}"
+  >
+    <section class="ndga-support-screen ndga-support-screen-home is-active" data-chatbot-screen="home">
+      <header class="ndga-support-home-header">
+        <div class="ndga-support-home-top">
+          <div class="ndga-support-home-brand">
+            <div class="ndga-support-brand-mark">
+              <img src="{% static public_images.logo %}" alt="Smart NDGA">
+            </div>
+            <div class="ndga-support-brand-copy">
+              <strong>Smart NDGA</strong>
+              <span>School assistant - Online</span>
+            </div>
+          </div>
+          <button type="button" class="ndga-support-close" data-chatbot-close aria-label="Close support panel">&times;</button>
+        </div>
+        <div class="ndga-support-home-copy">
+          <h3>Ask anything about NDGA.</h3>
+        </div>
+      </header>
+
+      <div class="ndga-support-home-body">
+        <button type="button" class="ndga-support-home-primary" data-chatbot-open-messages>
+          <span>Start chat</span>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5l8 7-8 7v-4.8L13.2 12 8 9.8V5Z"/></svg>
+        </button>
+
+        <article class="ndga-support-home-card">
+          <strong>Quick Help</strong>
+          <div class="ndga-support-home-list">
+            <button type="button" data-chatbot-home-link="/admissions/registration/">Start Admission</button>
+            <button type="button" data-chatbot-home-action="focus">Ask a Question</button>
+            <button type="button" data-chatbot-home-action="lead">Talk to School</button>
+          </div>
+        </article>
+      </div>
+
+      <nav class="ndga-support-nav">
+        <button type="button" class="is-active" data-chatbot-nav="home">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.6 4 10v9.4h5.5v-6h5v6H20V10l-8-6.4Z"/></svg>
+          <span>Home</span>
+        </button>
+        <button type="button" data-chatbot-nav="messages">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.75 4.5h14.5A2.25 2.25 0 0 1 21.5 6.75v7.5a2.25 2.25 0 0 1-2.25 2.25H9.4l-4.34 3.46a.75.75 0 0 1-1.21-.59V6.75A2.25 2.25 0 0 1 4.75 4.5Z"/></svg>
+          <span>Messages</span>
+        </button>
+      </nav>
+    </section>
+
+    <section class="ndga-support-screen ndga-support-screen-messages" data-chatbot-screen="messages">
+      <header class="ndga-support-chat-header">
+        <button type="button" class="ndga-support-back" data-chatbot-back aria-label="Back to help">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.7 5.3 8 12l6.7 6.7 1.1-1.1L10.2 12l5.6-5.6-1.1-1.1Z"/></svg>
+        </button>
+        <div class="ndga-support-chat-brand">
+          <div class="ndga-support-brand-mark">
+            <img src="{% static public_images.logo %}" alt="Smart NDGA">
+          </div>
+          <div class="ndga-support-chat-copy">
+            <strong>Smart NDGA</strong>
+            <span>NDGA Assistant</span>
+          </div>
+        </div>
+        <button type="button" class="ndga-support-close ndga-support-close-dark" data-chatbot-close aria-label="Close support panel">&times;</button>
+      </header>
+
+        <div class="ndga-support-body">
+          <div class="ndga-support-thread" data-chatbot-log></div>
+
+          <div class="ndga-support-composer">
+            <form class="ndga-support-question-form" data-chatbot-form>
+              <input type="text" placeholder="Type your message" autocomplete="off">
+              <button type="submit" aria-label="Send question">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.75 11.25 19.5 4.5l-4.69 15-3.47-5.59-5.59-2.66Z"/></svg>
+              </button>
+            </form>
+            <p class="ndga-support-status" data-live-chat-status></p>
+          </div>
+        </div>
+    </section>
+  </section>
+
+  <script src="{% static 'js/public-website.js' %}?v=20260608a"></script>
+  {% block extra_js %}{% endblock %}
+</body>
+</html>

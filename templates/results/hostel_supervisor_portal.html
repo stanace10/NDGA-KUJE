@@ -1,0 +1,115 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Hostel Supervisor Portal{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Hostel Portal</p>
+          <h1 class="mt-2 text-2xl font-bold text-ndga-navy">Hostel Supervisor Comments</h1>
+          {% if session and term %}
+            <p class="mt-1 text-sm text-slate-600">{{ session.name }} | {{ term.get_name_display }}</p>
+          {% else %}
+            <p class="mt-1 text-sm font-semibold text-rose-700">Current session/term is not configured.</p>
+          {% endif %}
+        </div>
+        <a href="{% url 'dashboard:landing' %}" class="ndga-btn ndga-btn-secondary">Back</a>
+      </div>
+
+      <form method="get" class="mt-5 grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:grid-cols-5">
+        <div>
+          <label for="house" class="mb-1 block text-xs font-bold uppercase tracking-[0.14em] text-slate-500">House</label>
+          <select id="house" name="house" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900">
+            <option value="">All houses</option>
+            {% for house in houses %}
+              <option value="{{ house }}" {% if selected_house == house %}selected{% endif %}>{{ house }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="community" class="mb-1 block text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Community</label>
+          <select id="community" name="community" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900">
+            <option value="">All communities</option>
+            {% for community in communities %}
+              <option value="{{ community }}" {% if selected_community == community %}selected{% endif %}>{{ community }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="class_id" class="mb-1 block text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Class</label>
+          <select id="class_id" name="class_id" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900">
+            <option value="">All classes</option>
+            {% for class_row in classes %}
+              <option value="{{ class_row.id }}" {% if selected_class_id == class_row.id|stringformat:"s" %}selected{% endif %}>{{ class_row.display_name|default:class_row.code }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="q" class="mb-1 block text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Student</label>
+          <input id="q" name="q" value="{{ query }}" placeholder="Name or admission no." class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900">
+        </div>
+        <div class="flex items-end gap-2">
+          <button type="submit" class="ndga-btn ndga-btn-primary">Apply</button>
+          <a href="{% url 'results:hostel-supervisor' %}" class="ndga-btn ndga-btn-secondary">Clear</a>
+        </div>
+      </form>
+    </article>
+
+    <article class="mt-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 class="text-lg font-bold text-slate-900">Students</h2>
+          <p class="text-sm text-slate-600">{{ rows|length }} student{{ rows|length|pluralize }} shown. Comments saved here appear on the official result PDF.</p>
+        </div>
+        <span class="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">Current term records</span>
+      </div>
+
+      <div class="overflow-x-auto rounded-2xl border border-slate-200">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+          <thead class="bg-slate-50 text-left text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
+            <tr>
+              <th class="px-4 py-3">Student</th>
+              <th class="px-4 py-3">Class</th>
+              <th class="px-4 py-3">House</th>
+              <th class="px-4 py-3">Community</th>
+              <th class="px-4 py-3">Society</th>
+              <th class="px-4 py-3">Hostel Supervisor Comment</th>
+              <th class="px-4 py-3">Action</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 bg-white">
+            {% for row in rows %}
+              <tr>
+                <td class="px-4 py-3 align-top">
+                  <div class="font-semibold text-slate-900">{{ row.student.get_full_name|default:row.student.username }}</div>
+                  <div class="text-xs font-semibold text-slate-500">{{ row.profile.student_number|default:row.student.username }}</div>
+                </td>
+                <td class="px-4 py-3 align-top text-slate-700">{{ row.academic_class.display_name|default:row.academic_class.code }}</td>
+                <td class="px-4 py-3 align-top font-semibold text-slate-800">{{ row.house }}</td>
+                <td class="px-4 py-3 align-top text-slate-700">{{ row.community }}</td>
+                <td class="px-4 py-3 align-top text-slate-700">{{ row.society }}</td>
+                <td class="px-4 py-3 align-top">
+                  <textarea form="hostel-form-{{ row.student.id }}-{{ row.academic_class.id }}" name="hostel_supervisor_comment" rows="2" class="min-w-[360px] w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900" placeholder="Enter hostel supervisor comment">{{ row.comment }}</textarea>
+                </td>
+                <td class="px-4 py-3 align-top">
+                  <form id="hostel-form-{{ row.student.id }}-{{ row.academic_class.id }}" method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="student_id" value="{{ row.student.id }}">
+                    <input type="hidden" name="class_id" value="{{ row.academic_class.id }}">
+                    <button type="submit" class="ndga-btn ndga-btn-primary">Save</button>
+                  </form>
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="7" class="px-4 py-8 text-center text-sm text-slate-500">No students match this filter.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </section>
+{% endblock %}

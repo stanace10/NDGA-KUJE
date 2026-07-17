@@ -1,0 +1,45 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Student Documents{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-[75rem] px-4 py-6 sm:px-6 lg:px-8">
+    <section class="overflow-hidden rounded-[1.75rem] bg-white shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
+      <div class="border-b border-slate-200 px-5 py-5 sm:px-6">
+        <p class="text-sm font-medium text-slate-500">Documents</p>
+        <h1 class="mt-1 text-3xl font-bold tracking-tight text-slate-900">Official files</h1>
+      </div>
+      <div class="px-5 py-5 sm:px-6">
+        {% if document_rows %}
+          <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+              <thead class="border-b border-slate-200 text-left text-slate-500">
+                <tr>
+                  <th class="pb-4 pr-4 font-semibold">Name</th>
+                  <th class="pb-4 pr-4 font-semibold">Type</th>
+                  <th class="pb-4 pr-4 font-semibold">Date</th>
+                  <th class="pb-4 font-semibold">Download</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                {% for row in document_rows %}
+                  <tr>
+                    <td class="py-4 pr-4">
+                      <p class="font-semibold text-slate-900">{{ row.title }}</p>
+                      {% if row.notes %}<p class="mt-1 text-sm text-slate-500">{{ row.notes }}</p>{% endif %}
+                    </td>
+                    <td class="py-4 pr-4 text-slate-700">{{ row.get_category_display }}</td>
+                    <td class="py-4 pr-4 text-slate-700">{{ row.created_at|date:"d M Y" }}</td>
+                    <td class="py-4"><a href="{{ row.document_file.url }}" class="font-semibold text-ndga-navy hover:text-ndga-gold">Download</a></td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <p class="text-sm text-slate-600">No documents available yet.</p>
+        {% endif %}
+      </div>
+    </section>
+  </section>
+{% endblock %}

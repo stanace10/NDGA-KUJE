@@ -1,0 +1,206 @@
+{% extends "website/base_public.html" %}
+{% load static %}
+
+{% block extra_head %}
+  <style>
+    .admission-status-grid { display:grid; gap:1.5rem; grid-template-columns:minmax(0, 1.15fr) minmax(300px, .85fr); }
+    .admission-panel { background:#fffdf8; border:1px solid rgba(11,31,58,.08); border-radius:1.25rem; padding:1.5rem; box-shadow:0 18px 40px rgba(11,31,58,.06); }
+    .admission-kpi { display:grid; gap:1rem; grid-template-columns:repeat(3, minmax(0,1fr)); margin-top:1rem; }
+    .admission-kpi-card { border:1px solid rgba(11,31,58,.08); border-radius:1rem; padding:1rem 1.1rem; background:#fff; }
+    .admission-kpi-card span { display:block; font-size:.76rem; text-transform:uppercase; letter-spacing:.12em; color:#6b7280; }
+    .admission-kpi-card strong { display:block; margin-top:.35rem; font-size:1.05rem; color:#0b1f3a; }
+    .admission-badge { display:inline-flex; align-items:center; gap:.45rem; padding:.45rem .8rem; border-radius:999px; font-size:.82rem; font-weight:700; }
+    .admission-badge.is-paid { background:#ecfdf3; color:#166534; }
+    .admission-badge.is-unpaid { background:#fff7ed; color:#9a3412; }
+    .admission-badge.is-pending { background:#eff6ff; color:#1d4ed8; }
+    .status-callout { margin-top:1rem; padding:1rem 1.1rem; border-radius:1rem; background:#f8f6f2; border:1px solid rgba(11,31,58,.08); }
+    .status-callout h3 { margin:0 0 .35rem; font-size:1rem; color:#0b1f3a; }
+    .status-callout p { margin:0; color:#4b5563; }
+    .status-actions { display:flex; flex-wrap:wrap; gap:.85rem; margin-top:1.25rem; }
+    .status-inline-note { margin-top:.9rem; font-size:.92rem; color:#7c2d12; }
+    .admission-meta { display:grid; gap:.9rem; grid-template-columns:repeat(2, minmax(0,1fr)); margin-top:1.2rem; }
+    .admission-meta article { padding:.95rem 1rem; border-radius:1rem; border:1px solid rgba(11,31,58,.08); background:#fff; }
+    .admission-meta span { display:block; font-size:.78rem; text-transform:uppercase; letter-spacing:.12em; color:#6b7280; }
+    .admission-meta strong { display:block; margin-top:.4rem; color:#111827; }
+    .document-list { display:grid; gap:.75rem; margin-top:1rem; }
+    .document-list article { display:flex; align-items:center; justify-content:space-between; gap:1rem; border:1px solid rgba(11,31,58,.08); border-radius:1rem; background:#fff; padding:.9rem 1rem; }
+    .document-list strong { display:block; color:#0b1f3a; }
+    .document-list span { display:block; margin-top:.2rem; color:#6b7280; font-size:.9rem; }
+    @media (max-width: 920px) {
+      .admission-status-grid,
+      .admission-kpi,
+      .admission-meta { grid-template-columns:1fr; }
+    }
+    @media print {
+      .public-header, .public-footer-shell, .ndga-support-shell, .status-actions, .public-page-hero { display:none !important; }
+      .admission-panel { box-shadow:none; border-color:#d1d5db; }
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+<section class="public-page-hero" style="background-image:url('{% static public_images.hero_students %}')">
+  <div class="public-page-hero-overlay"></div>
+  <div class="public-container public-page-hero-content" data-reveal>
+    <span class="public-eyebrow">Admissions Acknowledgement</span>
+    <h1>Registration Received</h1>
+    <p>Your application code is ready. The uploaded admission payment receipt has been saved with the registration record.</p>
+  </div>
+</section>
+
+<section class="public-section">
+  <div class="public-container admission-status-grid" data-reveal>
+    <section class="admission-panel">
+      <span class="public-eyebrow">Applicant Record</span>
+      <h2 style="margin-top:.45rem;">{{ submission.applicant_name }}</h2>
+      <p style="margin:.45rem 0 0; color:#6b7280;">Keep this page with the printed admission form for bursary and admissions follow-up.</p>
+
+      <div class="admission-kpi">
+        <div class="admission-kpi-card">
+          <span>Application Code</span>
+          <strong>{{ submission.application_fee_reference }}</strong>
+        </div>
+        <div class="admission-kpi-card">
+          <span>Application Status</span>
+          <strong>{{ submission.get_admissions_status_display }}</strong>
+        </div>
+        <div class="admission-kpi-card">
+          <span>Payment Route</span>
+          <strong>{{ admission_snapshot.payment.mode_badge }}</strong>
+        </div>
+      </div>
+
+      <div style="margin-top:1rem;">
+        {% if submission.payment_status == "PAID" %}
+          <span class="admission-badge is-paid">Receipt uploaded</span>
+        {% elif payment_choice == "physical" %}
+          <span class="admission-badge is-pending">Awaiting physical payment at school</span>
+        {% else %}
+          <span class="admission-badge is-unpaid">Awaiting payment</span>
+        {% endif %}
+      </div>
+
+      {% if payment_status_flag == "success" %}
+        <div class="status-callout">
+          <h3>Receipt saved</h3>
+          <p>Your admission payment receipt has been saved successfully. Your admission PDF is available below.</p>
+        </div>
+      {% elif payment_error %}
+        <div class="status-callout">
+          <h3>Payment not confirmed yet</h3>
+          <p>{{ payment_error }}</p>
+        </div>
+      {% elif payment_choice == "physical" %}
+        <div class="status-callout">
+          <h3>Admission payment pending</h3>
+          <p>The admission record has been saved. Please pay into the admission account and keep the receipt with the application code above. The bursar will confirm payment before the PDF is released for records.</p>
+        </div>
+      {% endif %}
+
+      <div class="admission-meta">
+        <article>
+          <span>Intended Class</span>
+          <strong>{{ admission_snapshot.school_placement.intended_class|default:"-" }}</strong>
+        </article>
+        <article>
+          <span>Type of Place</span>
+          <strong>{{ admission_snapshot.school_placement.boarding_option|default:"-" }}</strong>
+        </article>
+        <article>
+          <span>Primary Guardian</span>
+          <strong>{{ admission_snapshot.parents.primary_guardian_name|default:"-" }}</strong>
+        </article>
+        <article>
+          <span>Guardian Phone</span>
+          <strong>{{ admission_snapshot.parents.primary_guardian_phone|default:"-" }}</strong>
+        </article>
+        <article>
+          <span>Present School</span>
+          <strong>{{ admission_snapshot.school_placement.present_school|default:"-" }}</strong>
+        </article>
+        <article>
+          <span>Submitted On</span>
+          <strong>{{ submission.created_at|date:"j M Y, g:i A" }}</strong>
+        </article>
+      </div>
+
+      {% if public_download_allowed %}
+        <div class="status-actions">
+          <a href="{{ download_url }}" class="public-cta" data-auto-download-url="{{ download_url }}">Download Admission PDF</a>
+          <a href="#" onclick="window.print(); return false;" class="public-secondary-cta">Print This Page</a>
+        </div>
+      {% else %}
+        <div class="status-actions">
+          <a href="{% url 'dashboard:public-registration' %}" class="public-secondary-cta">Register Another Applicant</a>
+          <a href="#" onclick="window.print(); return false;" class="public-cta">Print Acknowledgement</a>
+        </div>
+      {% endif %}
+
+      <div class="document-list">
+        {% for document in admission_snapshot.documents %}
+          <article>
+            <div>
+              <strong>{{ document.label }}</strong>
+              <span>{% if document.name %}{{ document.name }}{% else %}Not uploaded yet{% endif %}</span>
+            </div>
+            {% if document.url %}
+              <a href="{{ document.url }}" target="_blank" rel="noopener" class="public-text-link">Open</a>
+            {% endif %}
+          </article>
+        {% endfor %}
+      </div>
+    </section>
+
+    <aside class="admission-panel">
+      <span class="public-eyebrow">Next Step</span>
+      <h2 style="margin-top:.45rem;">Prospectus & Fee Guide</h2>
+      <p style="margin:.45rem 0 0; color:#6b7280;">Review the new intake prospectus for the selected class. School fees are paid through PixPay after admission onboarding.</p>
+
+      {% if init_error %}
+        <p class="status-inline-note">{{ init_error }}</p>
+      {% endif %}
+
+      {% if prospectus_fee_schedule.rows %}
+        <div class="status-callout">
+          <h3>{{ prospectus_fee_schedule.label }}</h3>
+          <div class="admission-meta" style="grid-template-columns:1fr;">
+            {% for row in prospectus_fee_schedule.rows %}
+              <article><span>{{ row.title }}</span><strong>NGN {{ row.amount }}</strong></article>
+            {% endfor %}
+            <article><span>Grand Total</span><strong>NGN {{ prospectus_fee_schedule.grand_total }}</strong></article>
+          </div>
+          {% if prospectus_fee_schedule.pixpay_url %}
+            <p style="margin:.9rem 0 0;"><a href="{{ prospectus_fee_schedule.pixpay_url }}" target="_blank" rel="noopener" class="public-text-link">Open PixPay school fees portal</a></p>
+          {% endif %}
+        </div>
+      {% endif %}
+
+      <div class="status-callout">
+        <h3>Admission receipt record</h3>
+        <p>Use the application code <strong>{{ submission.application_fee_reference }}</strong> for school follow-up. Bring the printed acknowledgement and payment evidence to the school when requested.</p>
+          <p style="margin-top:.7rem;"><strong>Phone:</strong> +234 902 940 5413, +234 813 341 3127<br><strong>Email:</strong> office@ndgakuje.org</p>
+      </div>
+
+      {% if latest_payment %}
+        <div class="status-callout">
+          <h3>Latest payment record</h3>
+          <p><strong>Reference:</strong> {{ latest_payment.reference }}</p>
+          <p><strong>Route:</strong> {{ latest_payment.get_provider_display }}</p>
+          <p><strong>Status:</strong> {{ latest_payment.get_status_display }}</p>
+        </div>
+      {% endif %}
+    </aside>
+  </div>
+</section>
+
+<script>
+  (() => {
+    const autoDownloadUrl = "{{ payment_status_flag }}" === "success" ? "{{ download_url|default:'' }}" : "";
+    if (autoDownloadUrl) {
+      window.setTimeout(() => {
+        window.location.href = autoDownloadUrl;
+      }, 900);
+    }
+  })();
+</script>
+{% endblock %}

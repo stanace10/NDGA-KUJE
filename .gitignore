@@ -1,0 +1,57 @@
+.env
+.env.lan
+.env.cloud
+.agents/
+.codex/
+.venv/
+.vscode/
+.postgres/
+.run/
+.tools/
+node_modules/
+staticfiles/
+media/
+__pycache__/
+*.py[cod]
+*.sqlite3
+SCHOOL/ndga_generated_credentials.txt
+backups/**
+!backups/.gitkeep
+!backups/README.md
+!backups/manifests/
+!backups/manifests/.gitkeep
+certs/
+AWS KEYS/
+TRANSFER_BACKUP_*/
+exports/
+*.pem
+*.pfx
+*.key
+*.crt
+
+README copy.md
+deploy_*.tar
+deploy_*.tar.gz
+ndga-deploy-bundle.tar.gz
+ndga-*.tar.gz
+sftp-upload.txt
+
+NDGA_result_preview.pdf
+NDGA_result_preview.png
+tmp_*.png
+tmp_*.pdf
+gradex format/
+ndga/
+SCHOOL FOLDER/
+
+# Local rollback/data bundles - never push to GitHub
+ops/rollback/
+*.dump
+*.bak
+*.sql
+*.tar.gz
+*.zip
+
+# Local/generated PDF documents
+docs/*.pdf
+

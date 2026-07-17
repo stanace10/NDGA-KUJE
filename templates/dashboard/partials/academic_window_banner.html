@@ -1,0 +1,18 @@
+{% if academic_window.is_open %}
+<div class="rounded-2xl border px-4 py-3 border-emerald-200 bg-emerald-50">
+  <div class="flex flex-wrap items-center justify-between gap-2">
+    <p class="text-sm font-semibold text-emerald-900">
+      {{ academic_window.label }}
+    </p>
+    <span class="rounded-full border px-2 py-0.5 text-[11px] font-semibold border-emerald-300 text-emerald-800">
+      {{ academic_window.status }}
+    </span>
+  </div>
+  <p class="mt-1 text-xs text-emerald-800">
+    {{ academic_window.summary }}
+  </p>
+  {% if academic_window.note %}
+    <p class="mt-1 text-xs text-slate-600">{{ academic_window.note }}</p>
+  {% endif %}
+</div>
+{% endif %}

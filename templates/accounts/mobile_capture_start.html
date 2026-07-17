@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NDGA Mobile Capture</title>
+  <style>
+    :root { color-scheme: light; }
+    body { margin: 0; font-family: Arial, sans-serif; background: #f3f4f6; color: #0f172a; }
+    .wrap { max-width: 560px; margin: 0 auto; padding: 18px; }
+    .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 16px; }
+    h1 { margin: 0 0 8px; font-size: 20px; color: #0b1f51; }
+    p { margin: 8px 0; font-size: 14px; color: #334155; }
+    .btn { display: inline-block; border: 0; border-radius: 12px; padding: 11px 14px; font-weight: 700; cursor: pointer; }
+    .btn-primary { background: #0b1f51; color: #fff; }
+    .btn-secondary { background: #e2e8f0; color: #0f172a; }
+    input[type=file] { width: 100%; margin: 12px 0; }
+    .preview { width: 100%; max-height: 340px; object-fit: contain; border: 1px solid #cbd5e1; border-radius: 12px; background: #f8fafc; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+    .status { margin-top: 10px; font-size: 13px; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>NDGA Phone Camera Capture</h1>
+      <p>Take a clear photo, upload it, then return to laptop. The registration page will fill automatically.</p>
+
+      <input id="photoInput" type="file" accept="image/*" capture="environment">
+      <img id="preview" class="preview" alt="Preview">
+
+      <div class="row">
+        <button id="uploadBtn" class="btn btn-primary" type="button">Upload Photo</button>
+        <button id="retakeBtn" class="btn btn-secondary" type="button">Retake</button>
+      </div>
+      <p id="status" class="status"></p>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const input = document.getElementById("photoInput");
+      const preview = document.getElementById("preview");
+      const uploadBtn = document.getElementById("uploadBtn");
+      const retakeBtn = document.getElementById("retakeBtn");
+      const statusNode = document.getElementById("status");
+      const submitUrl = "{{ submit_url }}";
+
+      function setStatus(text, isError) {
+        statusNode.textContent = text;
+        statusNode.style.color = isError ? "#be123c" : "#166534";
+      }
+
+      function getSelectedFile() {
+        return input.files && input.files.length ? input.files[0] : null;
+      }
+
+      function renderPreview(file) {
+        if (!file) {
+          preview.removeAttribute("src");
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = function (event) {
+          preview.src = event.target.result || "";
+        };
+        reader.readAsDataURL(file);
+      }
+
+      input.addEventListener("change", function () {
+        renderPreview(getSelectedFile());
+        setStatus("");
+      });
+
+      retakeBtn.addEventListener("click", function () {
+        input.value = "";
+        preview.removeAttribute("src");
+        setStatus("Select another photo.", false);
+      });
+
+      uploadBtn.addEventListener("click", async function () {
+        const file = getSelectedFile();
+        if (!file) {
+          setStatus("Choose a photo first.", true);
+          return;
+        }
+        uploadBtn.disabled = true;
+        uploadBtn.textContent = "Uploading...";
+        try {
+          const payload = new FormData();
+          payload.append("photo", file);
+          const response = await fetch(submitUrl, {
+            method: "POST",
+            body: payload,
+            credentials: "same-origin",
+          });
+          if (!response.ok) {
+            const text = await response.text();
+            throw new Error(text || "Upload failed.");
+          }
+          const data = await response.json();
+          if (!data.ok) {
+            throw new Error(data.error || "Upload failed.");
+          }
+          setStatus("Upload successful. Return to laptop now.", false);
+        } catch (error) {
+          setStatus(String(error && error.message ? error.message : error), true);
+        } finally {
+          uploadBtn.disabled = false;
+          uploadBtn.textContent = "Upload Photo";
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

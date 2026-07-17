@@ -1,0 +1,328 @@
+{% extends "layouts/base.html" %}
+{% load finance_tags %}
+
+{% block title %}Student Finance Detail{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+    <article class="animate-soft-reveal rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div class="flex items-start gap-4">
+          {% if student_profile and student_profile.profile_photo %}
+            <img src="{{ student_profile.profile_photo.url }}" alt="{{ student_user.username }}" class="h-20 w-20 rounded-2xl border border-slate-200 object-cover">
+          {% else %}
+            <div class="flex h-20 w-20 items-center justify-center rounded-2xl border border-slate-200 bg-slate-100 text-2xl font-semibold text-slate-500">
+              {{ student_user.username|slice:":1"|upper }}
+            </div>
+          {% endif %}
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Student Finance Page</p>
+            <h1 class="mt-2 text-2xl font-bold text-slate-900">{{ student_user.get_full_name|default:student_user.username }}</h1>
+            <div class="mt-2 flex flex-wrap gap-3 text-xs text-slate-600">
+              <span class="rounded-full border border-slate-200 bg-slate-50 px-2 py-1">Admission: {% if student_profile and student_profile.student_number %}{{ student_profile.student_number }}{% else %}-{% endif %}</span>
+              <span class="rounded-full border border-slate-200 bg-slate-50 px-2 py-1">Class: {{ class_code }}</span>
+              <span class="rounded-full border border-slate-200 bg-slate-50 px-2 py-1">Username: {{ student_user.username }}</span>
+            </div>
+          </div>
+        </div>
+        <a href="{% url 'finance:bursar-fees' %}" class="ndga-btn ndga-btn-secondary">Back To Fees</a>
+      </div>
+      {% if latest_receipt %}
+        <div class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+          <div>
+            <p class="font-semibold">Receipt Issued: {{ latest_receipt.receipt_number }}</p>
+            <p class="text-xs">Payment ID: {{ latest_receipt.payment_id }}</p>
+          </div>
+          <a href="{% url 'finance:receipt-download' latest_receipt.receipt_id %}" class="ndga-btn ndga-btn-primary">Download Receipt PDF</a>
+        </div>
+      {% endif %}
+      {% if not current_session %}
+        <div class="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Setup Wizard must define current session and term before student finance entry is allowed.
+        </div>
+      {% endif %}
+    </article>
+
+    <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Total Charged</p>
+        <p class="mt-2 text-2xl font-bold text-slate-900">{{ overview.total_charged }}</p>
+      </article>
+      <article class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700">Paid Applied</p>
+        <p class="mt-2 text-2xl font-bold text-emerald-900">{{ overview.total_paid_applied }}</p>
+      </article>
+      <article class="rounded-2xl border border-rose-200 bg-rose-50 p-4 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-[0.14em] text-rose-700">Outstanding</p>
+        <p class="mt-2 text-2xl font-bold text-rose-900">{{ overview.total_outstanding }}</p>
+      </article>
+      <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Total Payments</p>
+        <p class="mt-2 text-2xl font-bold text-slate-900">{{ overview.total_payments }}</p>
+      </article>
+      <article class="rounded-2xl border border-indigo-200 bg-indigo-50 p-4 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-[0.14em] text-indigo-700">Credit</p>
+        <p class="mt-2 text-2xl font-bold text-indigo-900">{{ overview.unallocated_credit }}</p>
+      </article>
+    </div>
+
+    <div class="mt-4 grid gap-4 xl:grid-cols-[0.85fr_1.15fr]">
+      <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 class="text-base font-semibold text-slate-900">Record Payment</h2>
+        <form method="post" class="mt-4 space-y-3">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="record_payment">
+          {{ payment_form.student }}
+
+          {% if payment_form.non_field_errors %}
+            <div class="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+              {{ payment_form.non_field_errors|striptags }}
+            </div>
+          {% endif %}
+
+          <div class="grid gap-3 sm:grid-cols-3">
+            <div>
+              <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ payment_form.amount.id_for_label }}">
+                {{ payment_form.amount.label }}
+              </label>
+              {{ payment_form.amount }}
+              {% if payment_form.amount.errors %}<p class="mt-1 text-xs text-rose-700">{{ payment_form.amount.errors|striptags }}</p>{% endif %}
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ payment_form.payment_method.id_for_label }}">
+                {{ payment_form.payment_method.label }}
+              </label>
+              {{ payment_form.payment_method }}
+              {% if payment_form.payment_method.errors %}<p class="mt-1 text-xs text-rose-700">{{ payment_form.payment_method.errors|striptags }}</p>{% endif %}
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ payment_form.payment_date.id_for_label }}">
+                {{ payment_form.payment_date.label }}
+              </label>
+              {{ payment_form.payment_date }}
+              {% if payment_form.payment_date.errors %}<p class="mt-1 text-xs text-rose-700">{{ payment_form.payment_date.errors|striptags }}</p>{% endif %}
+            </div>
+          </div>
+
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ payment_form.gateway_reference.id_for_label }}">
+              {{ payment_form.gateway_reference.label }}
+            </label>
+            {{ payment_form.gateway_reference }}
+            {% if payment_form.gateway_reference.errors %}<p class="mt-1 text-xs text-rose-700">{{ payment_form.gateway_reference.errors|striptags }}</p>{% endif %}
+          </div>
+
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ payment_form.note.id_for_label }}">
+              {{ payment_form.note.label }}
+            </label>
+            {{ payment_form.note }}
+            {% if payment_form.note.errors %}<p class="mt-1 text-xs text-rose-700">{{ payment_form.note.errors|striptags }}</p>{% endif %}
+          </div>
+
+          <button type="submit" class="ndga-btn ndga-btn-primary" {% if not current_session %}disabled{% endif %}>
+            Save Payment + Issue Receipt
+          </button>
+        </form>
+
+        <div class="mt-6 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          Record only confirmed PixPay or approved manual payments here. The student portal will show the updated balance after this record is saved and synced.
+        </div>
+      </article>
+
+    <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h2 class="text-base font-semibold text-slate-900">Payment History</h2>
+      <div class="mt-4 space-y-3 md:hidden">
+        {% for row in student_payments %}
+          <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <h3 class="text-sm font-semibold text-slate-900">{{ row.amount }}</h3>
+                <p class="mt-1 text-xs text-slate-500">{{ row.payment_date }} | {{ row.get_payment_method_display }}</p>
+              </div>
+              {% if row.is_void %}
+                <span class="rounded-full border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700">Voided</span>
+              {% else %}
+                <span class="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700">{{ row|payment_plan_label }}</span>
+              {% endif %}
+            </div>
+            <p class="mt-3 text-xs text-slate-500">{{ row|payment_plan_summary }}</p>
+            <div class="mt-3 flex flex-wrap gap-2">
+              {% if row.receipt %}
+                <a href="{% url 'finance:receipt-download' row.receipt.id %}" class="ndga-btn ndga-btn-secondary !rounded-lg !px-2.5 !py-1.5 !text-xs">{{ row.receipt.receipt_number }}</a>
+              {% else %}
+                <span class="rounded-full border border-slate-200 bg-white px-2 py-1 text-xs text-slate-500">Receipt pending</span>
+              {% endif %}
+              {% if not row.is_void and row.receipt %}
+                <form method="post">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="send_receipt_email">
+                  <input type="hidden" name="payment_id" value="{{ row.id }}">
+                  <button type="submit" class="ndga-btn ndga-btn-secondary !rounded-lg !px-2.5 !py-1.5 !text-xs">Send Email</button>
+                </form>
+              {% endif %}
+              {% if not row.is_void %}
+                <form method="post" data-confirm-message="Mark this payment as void?">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="void_payment">
+                  <input type="hidden" name="payment_id" value="{{ row.id }}">
+                  <button type="submit" class="ndga-btn !rounded-lg !bg-rose-600 !px-2.5 !py-1.5 !text-xs !text-white hover:!bg-rose-700">Void</button>
+                </form>
+              {% endif %}
+            </div>
+          </article>
+        {% empty %}
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">No payments recorded for this student yet.</div>
+        {% endfor %}
+      </div>
+      <div class="mt-4 hidden max-h-[29rem] overflow-auto rounded-2xl border border-slate-200 md:block">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+          <thead class="bg-slate-50">
+            <tr>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Date</th>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Amount</th>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Method</th>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Plan</th>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Receipt</th>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Actions</th>
+            </tr>
+          </thead>
+            <tbody class="divide-y divide-slate-100 bg-white">
+              {% for row in student_payments %}
+                <tr>
+                  <td class="px-3 py-2 text-slate-700">{{ row.payment_date }}</td>
+                  <td class="px-3 py-2 font-semibold text-slate-800">{{ row.amount }}</td>
+                  <td class="px-3 py-2 text-slate-700">{{ row.get_payment_method_display }}</td>
+                  <td class="px-3 py-2 text-slate-700">{{ row|payment_plan_label }}</td>
+                  <td class="px-3 py-2">
+                    {% if row.receipt %}
+                      <a href="{% url 'finance:receipt-download' row.receipt.id %}" class="text-sm font-semibold text-ndga-navy hover:text-ndga-gold">{{ row.receipt.receipt_number }}</a>
+                    {% else %}
+                      <span class="text-xs text-slate-500">Pending</span>
+                    {% endif %}
+                  </td>
+                  <td class="px-3 py-2">
+                    {% if row.is_void %}
+                      <span class="rounded-full border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700">Voided</span>
+                    {% else %}
+                      <div class="flex flex-wrap gap-2">
+                        {% if row.receipt %}
+                          <form method="post">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="send_receipt_email">
+                            <input type="hidden" name="payment_id" value="{{ row.id }}">
+                            <button type="submit" class="ndga-btn ndga-btn-secondary !rounded-lg !px-2.5 !py-1.5 !text-xs">Send Email</button>
+                          </form>
+                        {% endif %}
+                        <form method="post" data-confirm-message="Mark this payment as void?">
+                          {% csrf_token %}
+                          <input type="hidden" name="action" value="void_payment">
+                          <input type="hidden" name="payment_id" value="{{ row.id }}">
+                          <button type="submit" class="ndga-btn !rounded-lg !bg-rose-600 !px-2.5 !py-1.5 !text-xs !text-white hover:!bg-rose-700">Void</button>
+                        </form>
+                      </div>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="6" class="px-3 py-8 text-center text-slate-500">No payments recorded for this student yet.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </article>
+    </div>
+
+    <article class="mt-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+      <h2 class="text-base font-semibold text-slate-900">Fee Breakdown</h2>
+      <div class="mt-3 space-y-3 md:hidden">
+        {% for row in charge_rows %}
+          <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <h3 class="text-sm font-semibold text-slate-900">{{ row.item_name }}</h3>
+                <p class="mt-1 text-xs text-slate-500">{{ row.target_label }}</p>
+              </div>
+              {% if row.status == "PAID" %}
+                <span class="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800">Paid</span>
+              {% elif row.status == "PARTIAL" %}
+                <span class="rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800">Partial</span>
+              {% else %}
+                <span class="rounded-full border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-800">Owing</span>
+              {% endif %}
+            </div>
+            {% if row.description %}<p class="mt-2 text-sm text-slate-600">{{ row.description|truncatechars:70 }}</p>{% endif %}
+            <dl class="mt-3 grid grid-cols-2 gap-3 text-sm">
+              <div><dt class="text-xs uppercase tracking-[0.12em] text-slate-500">Due</dt><dd class="mt-1 text-slate-900">{% if row.due_date %}{{ row.due_date }}{% else %}-{% endif %}</dd></div>
+              <div><dt class="text-xs uppercase tracking-[0.12em] text-slate-500">Amount</dt><dd class="mt-1 font-semibold text-slate-900">{{ row.amount }}</dd></div>
+              <div><dt class="text-xs uppercase tracking-[0.12em] text-slate-500">Paid</dt><dd class="mt-1 text-slate-900">{{ row.paid_applied }}</dd></div>
+              <div><dt class="text-xs uppercase tracking-[0.12em] text-slate-500">Outstanding</dt><dd class="mt-1 font-semibold text-slate-900">{{ row.outstanding }}</dd></div>
+            </dl>
+          </article>
+        {% empty %}
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">No fee records found for this student.</div>
+        {% endfor %}
+      </div>
+      <div class="mt-3 hidden max-h-[28rem] overflow-auto rounded-2xl border border-slate-200 md:block">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+          <thead class="bg-slate-50">
+            <tr>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Item</th>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Target</th>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Due</th>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Amount</th>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Paid</th>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Outstanding</th>
+              <th class="px-3 py-2 text-left font-semibold text-slate-700">Status</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 bg-white">
+            {% for row in charge_rows %}
+              <tr>
+                <td class="px-3 py-2">
+                  <p class="font-semibold text-slate-900">{{ row.item_name }}</p>
+                  {% if row.description %}<p class="text-xs text-slate-500">{{ row.description|truncatechars:70 }}</p>{% endif %}
+                </td>
+                <td class="px-3 py-2 text-slate-700">{{ row.target_label }}</td>
+                <td class="px-3 py-2 text-slate-700">{% if row.due_date %}{{ row.due_date }}{% else %}-{% endif %}</td>
+                <td class="px-3 py-2 text-slate-700">{{ row.amount }}</td>
+                <td class="px-3 py-2 text-slate-700">{{ row.paid_applied }}</td>
+                <td class="px-3 py-2 text-slate-700">{{ row.outstanding }}</td>
+                <td class="px-3 py-2">
+                  {% if row.status == "PAID" %}
+                    <span class="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800">Paid</span>
+                  {% elif row.status == "PARTIAL" %}
+                    <span class="rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800">Partial</span>
+                  {% else %}
+                    <span class="rounded-full border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-800">Owing</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="7" class="px-3 py-8 text-center text-slate-500">No fee records found for this student.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </section>
+{% endblock %}
+
+{% block extra_scripts %}
+  <script>
+    (function () {
+      const amountField = document.getElementById("{{ gateway_form.amount.id_for_label }}");
+      const itemField = document.getElementById("{{ gateway_form.fee_item.id_for_label }}");
+
+      function updateGatewayAmount() {
+        if (!amountField) return;
+        const selected = itemField?.options[itemField.selectedIndex];
+        amountField.value = (parseFloat(selected?.dataset.outstanding || "0") || 0).toFixed(2);
+        amountField.readOnly = true;
+      }
+
+      if (itemField) itemField.addEventListener("change", updateGatewayAmount);
+      updateGatewayAmount();
+    })();
+  </script>
+{% endblock %}

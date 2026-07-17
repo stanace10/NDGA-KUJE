@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Redirecting...</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="refresh" content="1;url={{ target_url }}">
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background: #0f172a;
+      color: #e2e8f0;
+      font-family: Arial, sans-serif;
+    }
+    main {
+      width: min(32rem, calc(100vw - 2rem));
+      padding: 2rem;
+      border-radius: 1rem;
+      background: rgba(15, 23, 42, 0.92);
+      box-shadow: 0 20px 45px rgba(15, 23, 42, 0.35);
+    }
+    h1 {
+      margin: 0 0 0.75rem;
+      font-size: 1.25rem;
+    }
+    p {
+      margin: 0 0 1rem;
+      line-height: 1.5;
+    }
+    a {
+      color: #93c5fd;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Redirecting to your portal</h1>
+    <p>Your account belongs on <strong>{{ target_host }}</strong>. If the page does not move automatically, use the link below.</p>
+    <p><a href="{{ target_url }}">Continue</a></p>
+  </main>
+  {{ target_url|json_script:"portal-redirect-target" }}
+  <script>
+    (function () {
+      var node = document.getElementById("portal-redirect-target");
+      if (!node) {
+        return;
+      }
+      window.location.replace(JSON.parse(node.textContent));
+    })();
+  </script>
+</body>
+</html>

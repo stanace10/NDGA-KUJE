@@ -1,0 +1,29 @@
+<div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+  <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+    <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Session</p>
+    <p class="mt-2 text-lg font-bold text-slate-900">
+      {% if current_session %}{{ current_session.name }}{% else %}-{% endif %}
+    </p>
+    <p class="mt-1 text-xs text-slate-500">Current active academic session.</p>
+  </article>
+
+  <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+    <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Term</p>
+    <p class="mt-2 text-lg font-bold text-slate-900">
+      {% if current_term %}{{ current_term.get_name_display }}{% else %}-{% endif %}
+    </p>
+    <p class="mt-1 text-xs text-slate-500">Current governance window.</p>
+  </article>
+
+  <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+    <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Role Modules</p>
+    <p class="mt-2 text-lg font-bold text-slate-900">{{ role_panels|length }}</p>
+    <p class="mt-1 text-xs text-slate-500">Workflow panels available for your role mix.</p>
+  </article>
+
+  <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+    <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Unread Notifications</p>
+    <p class="mt-2 text-lg font-bold text-slate-900">{{ notification_unread_count }}</p>
+    <p class="mt-1 text-xs text-slate-500">Messages requiring your attention.</p>
+  </article>
+</div>

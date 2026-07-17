@@ -1,0 +1,243 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Staff Payments{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+    <article class="animate-soft-reveal rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Finance Operations</p>
+          <h1 class="mt-2 text-2xl font-bold text-slate-900">Staff Payments Management</h1>
+          <p class="mt-2 text-sm text-slate-600">
+            Manage all staff salary payment records here. Create entries, filter records, and update payment status.
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <a href="{% url 'finance:bursar-expenses' %}" class="ndga-btn ndga-btn-secondary">Expenses Page</a>
+          <a href="{% url 'finance:bursar-settings' %}" class="ndga-btn ndga-btn-secondary">Fee Settings</a>
+        </div>
+      </div>
+    </article>
+
+    <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <article class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Records (View)</p>
+        <p class="mt-2 text-2xl font-bold text-slate-900">{{ salary_row_count }}</p>
+      </article>
+      <article class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700">Paid Amount</p>
+        <p class="mt-2 text-2xl font-bold text-emerald-900">{{ salary_paid_amount }}</p>
+      </article>
+      <article class="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-[0.14em] text-amber-700">Pending Amount</p>
+        <p class="mt-2 text-2xl font-bold text-amber-900">{{ salary_pending_amount }}</p>
+      </article>
+      <article class="rounded-2xl border border-rose-200 bg-rose-50 p-4 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-[0.14em] text-rose-700">On Hold Amount</p>
+        <p class="mt-2 text-2xl font-bold text-rose-900">{{ salary_hold_amount }}</p>
+      </article>
+    </div>
+
+    <div class="mt-4 grid gap-4 xl:grid-cols-[0.92fr_1.08fr]">
+      <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 class="text-base font-semibold text-slate-900">Create Staff Payment Record</h2>
+        <form method="post" class="mt-4 space-y-3">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="create_salary">
+
+          {% if salary_form.non_field_errors %}
+            <div class="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+              {{ salary_form.non_field_errors|striptags }}
+            </div>
+          {% endif %}
+
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ salary_form.staff.id_for_label }}">
+              {{ salary_form.staff.label }}
+            </label>
+            {{ salary_form.staff }}
+            {% if salary_form.staff.errors %}<p class="mt-1 text-xs text-rose-700">{{ salary_form.staff.errors|striptags }}</p>{% endif %}
+          </div>
+
+          <div class="grid gap-3 sm:grid-cols-3">
+            <div>
+              <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ salary_form.month.id_for_label }}">
+                {{ salary_form.month.label }}
+              </label>
+              {{ salary_form.month }}
+              {% if salary_form.month.errors %}<p class="mt-1 text-xs text-rose-700">{{ salary_form.month.errors|striptags }}</p>{% endif %}
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ salary_form.amount.id_for_label }}">
+                {{ salary_form.amount.label }}
+              </label>
+              {{ salary_form.amount }}
+              {% if salary_form.amount.errors %}<p class="mt-1 text-xs text-rose-700">{{ salary_form.amount.errors|striptags }}</p>{% endif %}
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ salary_form.status.id_for_label }}">
+                {{ salary_form.status.label }}
+              </label>
+              {{ salary_form.status }}
+              {% if salary_form.status.errors %}<p class="mt-1 text-xs text-rose-700">{{ salary_form.status.errors|striptags }}</p>{% endif %}
+            </div>
+          </div>
+
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="{{ salary_form.payment_reference.id_for_label }}">
+              {{ salary_form.payment_reference.label }}
+            </label>
+            {{ salary_form.payment_reference }}
+            {% if salary_form.payment_reference.errors %}<p class="mt-1 text-xs text-rose-700">{{ salary_form.payment_reference.errors|striptags }}</p>{% endif %}
+          </div>
+
+          <label class="inline-flex items-center gap-2 text-sm text-slate-700">
+            {{ salary_form.is_active }}
+            <span>Include in outflow totals</span>
+          </label>
+
+          <button type="submit" class="ndga-btn ndga-btn-primary">Save Staff Payment</button>
+        </form>
+      </article>
+
+      <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <h2 class="text-base font-semibold text-slate-900">Staff Payment Records</h2>
+        <p class="mt-1 text-xs text-slate-500">Filters apply instantly while typing.</p>
+        <form id="staffPaymentFilterForm" method="get" class="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div class="sm:col-span-2">
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="q">Search Staff</label>
+            <input id="q" type="text" name="q" value="{{ search_query }}" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:border-ndga-navy/60 focus:ring-4 focus:ring-ndga-navy/10" placeholder="Staff name, username, or staff ID">
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="status">Status</label>
+            <select id="status" name="status" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:border-ndga-navy/60 focus:ring-4 focus:ring-ndga-navy/10">
+              <option value="" {% if not status_filter %}selected{% endif %}>All Status</option>
+              <option value="paid" {% if status_filter == "paid" %}selected{% endif %}>Paid</option>
+              <option value="pending" {% if status_filter == "pending" %}selected{% endif %}>Pending</option>
+              <option value="hold" {% if status_filter == "hold" %}selected{% endif %}>On Hold</option>
+            </select>
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.16em] text-slate-500" for="month">Month</label>
+            <input id="month" type="month" name="month" value="{{ month_filter }}" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm focus:border-ndga-navy/60 focus:ring-4 focus:ring-ndga-navy/10">
+          </div>
+        </form>
+
+        <div class="mt-4 max-h-[34rem] overflow-auto rounded-2xl border border-slate-200">
+          <table class="min-w-full divide-y divide-slate-200 text-sm">
+            <thead class="bg-slate-50">
+              <tr>
+                <th class="px-3 py-2 text-left font-semibold text-slate-700">Staff</th>
+                <th class="px-3 py-2 text-left font-semibold text-slate-700">Staff ID</th>
+                <th class="px-3 py-2 text-left font-semibold text-slate-700">Month</th>
+                <th class="px-3 py-2 text-left font-semibold text-slate-700">Amount</th>
+                <th class="px-3 py-2 text-left font-semibold text-slate-700">Status</th>
+                <th class="px-3 py-2 text-left font-semibold text-slate-700">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 bg-white">
+              {% for row in salary_rows %}
+                <tr>
+                  <td class="px-3 py-2">
+                    <p class="font-semibold text-slate-900">{{ row.staff.get_full_name|default:row.staff.username }}</p>
+                    <p class="text-xs text-slate-500">{{ row.staff.username }}</p>
+                  </td>
+                  <td class="px-3 py-2 text-slate-700">{% if row.staff.staff_profile %}{{ row.staff.staff_profile.staff_id }}{% else %}-{% endif %}</td>
+                  <td class="px-3 py-2 text-slate-700">{{ row.month|date:"M Y" }}</td>
+                  <td class="px-3 py-2 font-semibold text-slate-800">{{ row.amount }}</td>
+                  <td class="px-3 py-2">
+                    <span class="rounded-full border px-2 py-1 text-xs font-semibold
+                      {% if row.status == 'PAID' %}border-emerald-200 bg-emerald-50 text-emerald-800
+                      {% elif row.status == 'HOLD' %}border-rose-200 bg-rose-50 text-rose-700
+                      {% else %}border-amber-200 bg-amber-50 text-amber-800{% endif %}">
+                      {{ row.get_status_display }}
+                    </span>
+                  </td>
+                  <td class="px-3 py-2">
+                    <div class="flex flex-wrap gap-2">
+                      {% if row.status != "PAID" %}
+                        <form method="post">
+                          {% csrf_token %}
+                          <input type="hidden" name="action" value="mark_paid">
+                          <input type="hidden" name="salary_id" value="{{ row.id }}">
+                          <button type="submit" class="ndga-btn ndga-btn-secondary !rounded-lg !px-2.5 !py-1.5 !text-xs">Mark Paid</button>
+                        </form>
+                      {% endif %}
+                      {% if row.status != "PENDING" %}
+                        <form method="post">
+                          {% csrf_token %}
+                          <input type="hidden" name="action" value="mark_pending">
+                          <input type="hidden" name="salary_id" value="{{ row.id }}">
+                          <button type="submit" class="ndga-btn ndga-btn-secondary !rounded-lg !px-2.5 !py-1.5 !text-xs">Pending</button>
+                        </form>
+                      {% endif %}
+                      <form method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="toggle_salary">
+                        <input type="hidden" name="salary_id" value="{{ row.id }}">
+                        <button type="submit" class="ndga-btn ndga-btn-secondary !rounded-lg !px-2.5 !py-1.5 !text-xs">
+                          {% if row.is_active %}Deactivate{% else %}Activate{% endif %}
+                        </button>
+                      </form>
+                      <form method="post" data-confirm-message="Delete this staff payment record permanently?">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="delete_salary">
+                        <input type="hidden" name="salary_id" value="{{ row.id }}">
+                        <button type="submit" class="ndga-btn !rounded-lg !bg-slate-700 !px-2.5 !py-1.5 !text-xs !text-white hover:!bg-slate-800">
+                          Delete
+                        </button>
+                      </form>
+                    </div>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="6" class="px-3 py-8 text-center text-slate-500">No staff payment records yet.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </article>
+    </div>
+  </section>
+{% endblock %}
+
+{% block extra_scripts %}
+  <script>
+    (function () {
+      const form = document.getElementById("staffPaymentFilterForm");
+      if (!form) {
+        return;
+      }
+      const statusField = form.querySelector("select[name='status']");
+      const monthField = form.querySelector("input[name='month']");
+      const searchField = form.querySelector("input[name='q']");
+      let timer = null;
+
+      function submitNow() {
+        if (typeof form.requestSubmit === "function") {
+          form.requestSubmit();
+          return;
+        }
+        form.submit();
+      }
+
+      function submitDebounced() {
+        window.clearTimeout(timer);
+        timer = window.setTimeout(submitNow, 260);
+      }
+
+      if (statusField) {
+        statusField.addEventListener("change", submitNow);
+      }
+      if (monthField) {
+        monthField.addEventListener("change", submitNow);
+      }
+      if (searchField) {
+        searchField.addEventListener("input", submitDebounced);
+      }
+    })();
+  </script>
+{% endblock %}

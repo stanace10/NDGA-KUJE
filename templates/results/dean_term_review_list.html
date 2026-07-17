@@ -1,0 +1,95 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Dean Term Review{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-ndga-navy/70">Dean Workspace</p>
+          <h1 class="mt-1 text-2xl font-bold text-ndga-navy">Term Review Queue</h1>
+          <p class="mt-1 text-sm text-slate-700">
+            Review full class results after form teachers have completed comments and psychomotor ratings.
+          </p>
+          {% if current_session and current_term %}
+            <p class="mt-2 text-xs font-semibold text-slate-500">{{ current_session.name }} · {{ current_term.get_name_display }}</p>
+          {% endif %}
+        </div>
+        <a href="{% url 'results:grade-entry-home' %}" class="ndga-btn ndga-btn-secondary">Back</a>
+      </div>
+    </div>
+
+    <form method="get" class="mt-5 grid gap-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-[1fr_1fr_auto_auto]">
+      <div>
+        <label for="class_id" class="mb-1 block text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Class</label>
+        <select id="class_id" name="class_id" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800">
+          <option value="">All Classes</option>
+          {% for row in available_classes %}
+            <option value="{{ row.academic_class_id }}" {% if filter_class_id == row.academic_class_id|stringformat:'s' %}selected{% endif %}>{{ row.academic_class__code }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="status" class="mb-1 block text-xs font-bold uppercase tracking-[0.14em] text-slate-500">Status</label>
+        <select id="status" name="status" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800">
+          <option value="submitted" {% if filter_status == "submitted" %}selected{% endif %}>Pending Dean Review</option>
+          <option value="approved" {% if filter_status == "approved" %}selected{% endif %}>Approved</option>
+          <option value="rejected" {% if filter_status == "rejected" %}selected{% endif %}>Rejected</option>
+          <option value="all" {% if filter_status == "all" %}selected{% endif %}>All</option>
+        </select>
+      </div>
+      <div class="flex items-end">
+        <button type="submit" class="ndga-btn ndga-btn-primary">Apply</button>
+      </div>
+      <div class="flex items-end">
+        <a href="{% url 'results:dean-term-review-list' %}" class="ndga-btn ndga-btn-secondary">Reset</a>
+      </div>
+    </form>
+
+    <div class="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
+      Showing max 5 records for this filter{% if compilation_count > 5 %}; {{ compilation_count }} records match, narrow by class/status to see the exact class{% endif %}.
+    </div>
+
+    <div class="mt-6 overflow-x-auto rounded-3xl border border-slate-200 bg-white shadow-sm">
+      <table class="min-w-full divide-y divide-slate-200 text-sm">
+        <thead>
+          <tr class="bg-slate-50 text-left text-slate-600">
+            <th class="px-4 py-3">Class</th>
+            <th class="px-4 py-3">Session / Term</th>
+            <th class="px-4 py-3">Form Teacher</th>
+            <th class="px-4 py-3">Submitted</th>
+            <th class="px-4 py-3">Status</th>
+            <th class="px-4 py-3">Action</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          {% for row in compilations %}
+            <tr>
+              <td class="px-4 py-3 font-bold text-slate-900">{{ row.academic_class.code }}</td>
+              <td class="px-4 py-3 text-slate-700">{{ row.session.name }} · {{ row.term.get_name_display }}</td>
+              <td class="px-4 py-3 text-slate-700">
+                {% if row.form_teacher %}{{ row.form_teacher.get_full_name|default:row.form_teacher.username }}{% else %}-{% endif %}
+              </td>
+              <td class="px-4 py-3 text-slate-700">{{ row.submitted_to_vp_at|date:"d M Y H:i"|default:"-" }}</td>
+              <td class="px-4 py-3">
+                <span class="rounded-full border px-3 py-1 text-xs font-bold {% if row.status == 'APPROVED_BY_DEAN_FINAL' %}border-emerald-200 bg-emerald-50 text-emerald-800{% elif row.status == 'REJECTED_BY_DEAN_FINAL' %}border-rose-200 bg-rose-50 text-rose-800{% else %}border-blue-200 bg-blue-50 text-blue-800{% endif %}">
+                  {{ row.get_status_display }}
+                </span>
+              </td>
+              <td class="px-4 py-3">
+                <a href="{% url 'results:dean-term-review-detail' row.id %}" class="ndga-btn ndga-btn-primary !px-3 !py-1.5 !text-xs">
+                  Open Review
+                </a>
+              </td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="6" class="px-4 py-6 text-center text-slate-500">No class result is waiting for Dean term review.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endblock %}

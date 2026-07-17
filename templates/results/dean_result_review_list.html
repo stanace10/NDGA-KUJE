@@ -1,0 +1,282 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Dean Result Review{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-[0.2em] text-ndga-navy/70">Dean Workspace</p>
+          <h1 class="mt-2 text-2xl font-bold text-ndga-navy">Result Review</h1>
+          <p class="mt-1 text-sm text-slate-600">Approve or reject submitted class-subject result sheets.</p>
+          {% if current_session and current_term %}
+            <p class="mt-2 text-xs font-semibold text-slate-500">
+              Context: {{ current_session.name }} | {{ current_term.get_name_display }}
+            </p>
+          {% endif %}
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <a href="{% url 'results:dean-exam-review-list' %}" class="ndga-btn ndga-btn-secondary">Go To Exam Review</a>
+          <a href="{% url 'results:grade-entry-home' %}" class="ndga-btn ndga-btn-secondary">Back To Results Flow</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-5">
+      {% include "dashboard/partials/academic_window_banner.html" with academic_window=result_window %}
+    </div>
+
+    <div class="mt-6 grid gap-4 md:grid-cols-3">
+      <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Pending</p>
+        <p class="mt-2 text-2xl font-bold text-ndga-navy">{{ result_pending_count }}</p>
+      </article>
+      <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Approved</p>
+        <p class="mt-2 text-2xl font-bold text-emerald-700">{{ result_approved_count }}</p>
+      </article>
+      <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Rejected</p>
+        <p class="mt-2 text-2xl font-bold text-rose-700">{{ result_rejected_count }}</p>
+      </article>
+    </div>
+
+    <form method="get" class="mt-5 grid gap-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm xl:grid-cols-[1fr_1fr_1fr_1fr_auto_auto]">
+      <div>
+        <label for="class_id" class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Class</label>
+        <select id="class_id" name="class_id" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800">
+          <option value="">All Classes</option>
+          {% for row in available_classes %}
+            <option value="{{ row.academic_class_id }}" {% if filter_class_id == row.academic_class_id|stringformat:'s' %}selected{% endif %}>{{ row.academic_class__code }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="subject_id" class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Subject</label>
+        <select id="subject_id" name="subject_id" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800">
+          <option value="">All Subjects</option>
+          {% for row in available_subjects %}
+            <option value="{{ row.subject_id }}" {% if filter_subject_id == row.subject_id|stringformat:'s' %}selected{% endif %}>{{ row.subject__name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="teacher_id" class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Teacher</label>
+        <select id="teacher_id" name="teacher_id" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800">
+          <option value="">All Teachers</option>
+          {% for row in available_teachers %}
+            <option value="{{ row.teacher_id }}" {% if filter_teacher_id == row.teacher_id|stringformat:'s' %}selected{% endif %}>
+              {% if row.teacher__first_name or row.teacher__last_name %}{{ row.teacher__first_name }} {{ row.teacher__last_name }}{% else %}{{ row.teacher__username }}{% endif %}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="result_status" class="mb-1 block text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Queue Status</label>
+        <select id="result_status" name="result_status" class="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-800">
+          <option value="pending" {% if result_status_filter == "pending" %}selected{% endif %}>Pending Review</option>
+          <option value="approved" {% if result_status_filter == "approved" %}selected{% endif %}>Approved</option>
+          <option value="rejected" {% if result_status_filter == "rejected" %}selected{% endif %}>Rejected</option>
+          <option value="all" {% if result_status_filter == "all" %}selected{% endif %}>All Statuses</option>
+        </select>
+      </div>
+      <div class="flex items-end">
+        <button type="submit" class="ndga-btn ndga-btn-primary">Apply</button>
+      </div>
+      <div class="flex items-end">
+        <a href="{% url 'results:dean-result-review-list' %}" class="ndga-btn ndga-btn-secondary">Reset</a>
+      </div>
+    </form>
+
+    <div class="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <article class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4"><p class="text-xs font-semibold uppercase text-emerald-700">Finished</p><p class="mt-1 text-2xl font-black text-emerald-800">{{ entry_counts.finished }}</p></article>
+      <article class="rounded-2xl border border-blue-200 bg-blue-50 p-4"><p class="text-xs font-semibold uppercase text-blue-700">Awaiting Dean</p><p class="mt-1 text-2xl font-black text-blue-800">{{ entry_counts.awaiting }}</p></article>
+      <article class="rounded-2xl border border-amber-200 bg-amber-50 p-4"><p class="text-xs font-semibold uppercase text-amber-700">In Progress</p><p class="mt-1 text-2xl font-black text-amber-800">{{ entry_counts.in_progress }}</p></article>
+      <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4"><p class="text-xs font-semibold uppercase text-slate-600">Not Started</p><p class="mt-1 text-2xl font-black text-slate-800">{{ entry_counts.not_started }}</p></article>
+      <article class="rounded-2xl border border-rose-200 bg-rose-50 p-4"><p class="text-xs font-semibold uppercase text-rose-700">Late</p><p class="mt-1 text-2xl font-black text-rose-800">{{ entry_counts.late }}</p></article>
+    </div>
+
+    <article class="mt-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 class="text-base font-semibold text-ndga-navy">Staff Result Entry Monitor</h2>
+          <p class="mt-1 text-xs text-slate-500">Showing max 8 staff rows{% if staff_entry_row_count > 8 %}; use search/class filters to narrow {{ staff_entry_row_count }} matching assignments{% endif %}.</p>
+        </div>
+        <input id="staff-entry-filter" type="search" class="rounded-xl border border-slate-300 px-3 py-2 text-sm" placeholder="Filter teacher, class, subject">
+      </div>
+      <div class="mt-4 max-h-[34rem] overflow-auto rounded-2xl border border-slate-200">
+        <table class="min-w-full divide-y divide-slate-200 text-sm">
+          <thead class="sticky top-0 bg-slate-50"><tr class="text-left text-slate-500"><th class="px-3 py-2">Teacher</th><th class="px-3 py-2">Class / Subject</th><th class="px-3 py-2">Saved</th><th class="px-3 py-2">Stages</th></tr></thead>
+          <tbody class="divide-y divide-slate-100">
+            {% for row in staff_entry_rows %}
+              <tr data-staff-entry-row data-search="{{ row.assignment.teacher.get_full_name|default:row.assignment.teacher.username|lower }} {{ row.assignment.academic_class.code|lower }} {{ row.assignment.subject.name|lower }}">
+                <td class="px-3 py-2"><p class="font-semibold text-slate-800">{{ row.assignment.teacher.get_full_name|default:row.assignment.teacher.username }}</p></td>
+                <td class="px-3 py-2"><p class="font-semibold text-slate-800">{{ row.assignment.academic_class.code }}</p><p class="text-xs text-slate-500">{{ row.assignment.subject.name }}</p></td>
+                <td class="px-3 py-2 text-slate-700">{{ row.saved_count }} / {{ row.enrollment_count }}</td>
+                <td class="px-3 py-2">
+                  <div class="flex min-w-[28rem] flex-wrap gap-1.5">
+                    {% for component in row.components %}
+                      {% if component.review_url %}<a href="{{ component.review_url }}"{% else %}<span{% endif %} class="rounded-lg border px-2 py-1 text-xs font-semibold {% if component.state == 'finished' %}border-emerald-200 bg-emerald-50 text-emerald-800{% elif component.state == 'awaiting' %}border-blue-200 bg-blue-50 text-blue-800{% elif component.state == 'late' %}border-rose-200 bg-rose-50 text-rose-800{% elif component.state == 'not_started' %}border-slate-200 bg-slate-50 text-slate-700{% else %}border-amber-200 bg-amber-50 text-amber-800{% endif %}">
+                        {{ component.short_label }}: {{ component.status_label }}{% if component.missing_count %} ({{ component.missing_count }} missing){% endif %}
+                      {% if component.review_url %}</a>{% else %}</span>{% endif %}
+                    {% endfor %}
+                  </div>
+                </td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="4" class="px-3 py-4 text-slate-500">No teacher assignments match this filter.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if staff_page_obj.paginator.num_pages > 1 %}
+        <div class="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm">
+          <p class="font-semibold text-slate-600">Staff rows {{ staff_page_obj.start_index }}-{{ staff_page_obj.end_index }} of {{ staff_entry_row_count }}</p>
+          <div class="flex items-center gap-2">
+            {% if staff_page_obj.has_previous %}
+              <a href="?{% if staff_page_querystring %}{{ staff_page_querystring }}&{% endif %}staff_page={{ staff_page_obj.previous_page_number }}" class="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-ndga-navy hover:border-ndga-gold hover:bg-amber-50">Previous</a>
+            {% else %}
+              <span class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-400">Previous</span>
+            {% endif %}
+            <span class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700">{{ staff_page_obj.number }} / {{ staff_page_obj.paginator.num_pages }}</span>
+            {% if staff_page_obj.has_next %}
+              <a href="?{% if staff_page_querystring %}{{ staff_page_querystring }}&{% endif %}staff_page={{ staff_page_obj.next_page_number }}" class="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-ndga-navy hover:border-ndga-gold hover:bg-amber-50">Next</a>
+            {% else %}
+              <span class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-400">Next</span>
+            {% endif %}
+          </div>
+        </div>
+      {% endif %}
+    </article>
+
+    <article class="mt-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div class="mb-3 flex items-center justify-between gap-3">
+        <div>
+          <h2 class="text-base font-bold text-ndga-navy">Results Approval Queue</h2>
+          <p class="mt-1 text-xs font-semibold text-slate-500">
+            {{ component_row_count }} {{ result_status_filter|title }} record{{ component_row_count|pluralize }} found. Page {{ queue_page_obj.number }} of {{ queue_page_obj.paginator.num_pages }}.
+          </p>
+        </div>
+        <span class="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-800">
+          {{ result_pending_count }} pending
+        </span>
+      </div>
+      {% if result_class_rows %}
+        <div class="mb-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+          <p class="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Class Quick Actions</p>
+          <div class="space-y-2">
+            {% for row in result_class_rows %}
+              <form method="post" class="flex flex-wrap items-center gap-2">
+                {% csrf_token %}
+                <input type="hidden" name="class_id" value="{{ row.academic_class_id }}">
+                <input type="hidden" name="component" value="{{ row.component }}">
+                <span class="text-sm font-semibold text-slate-800">{{ row.academic_class__code }}</span>
+                <span class="text-xs text-slate-500">{{ row.component_label }} | {{ row.total }} pending</span>
+                <button type="submit" name="bulk_action" value="approve_class" class="ndga-btn ndga-btn-secondary !px-2.5 !py-1 !text-xs" {% if is_read_only or not row.window_open %}disabled{% endif %}>Approve Class</button>
+                <button type="submit" name="bulk_action" value="reject_class" class="ndga-btn !bg-rose-600 !text-white hover:!bg-rose-700 !px-2.5 !py-1 !text-xs" {% if is_read_only or not row.window_open %}disabled{% endif %}>Reject Class</button>
+                <input type="text" name="comment" placeholder="Reason (for reject)" class="min-w-[180px] rounded-lg border border-slate-300 px-2 py-1 text-xs">
+              </form>
+            {% endfor %}
+          </div>
+        </div>
+      {% endif %}
+      <form method="post">
+        {% csrf_token %}
+        <div class="overflow-x-auto rounded-2xl border border-slate-200">
+          <table class="min-w-full divide-y divide-slate-200 text-sm">
+            <thead>
+              <tr class="bg-slate-50 text-left text-slate-500">
+                <th class="px-3 py-2"><input type="checkbox" id="select-all-sheets"></th>
+                <th class="px-3 py-2">Class / Subject</th>
+                <th class="px-3 py-2">Status</th>
+                <th class="px-3 py-2">Action</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              {% for row in component_rows %}
+                {% with sheet=row.sheet %}
+                <tr class="{% if row.status == 'SUBMITTED_TO_DEAN' %}bg-amber-50/35{% endif %}">
+                  <td class="px-3 py-2">
+                    {% if row.status == 'SUBMITTED_TO_DEAN' %}
+                      <input type="checkbox" name="sheet_ids" value="{{ sheet.id }}:{{ row.component }}" class="sheet-select h-4 w-4 rounded border-slate-300 text-ndga-navy">
+                    {% endif %}
+                  </td>
+                  <td class="px-3 py-2 text-slate-700">
+                    <p class="font-semibold text-slate-800">{{ sheet.academic_class.code }}</p>
+                    <p class="text-xs">{{ sheet.subject.name }} | {{ row.component_label }}</p>
+                    <p class="text-[11px] font-semibold text-slate-500">
+                      Teacher:
+                      {% if row.teacher_assignment %}
+                        {{ row.teacher_assignment.teacher.get_full_name|default:row.teacher_assignment.teacher.username }}
+                      {% else %}
+                        Not assigned
+                      {% endif %}
+                    </p>
+                  </td>
+                  <td class="px-3 py-2">
+                    <span class="rounded-full border px-2.5 py-1 text-xs font-bold {% if row.status == 'SUBMITTED_TO_DEAN' %}border-amber-200 bg-amber-50 text-amber-800{% elif row.status == 'APPROVED_BY_DEAN' %}border-emerald-200 bg-emerald-50 text-emerald-800{% elif row.status == 'REJECTED_BY_DEAN' %}border-rose-200 bg-rose-50 text-rose-800{% else %}border-slate-200 bg-slate-50 text-slate-700{% endif %}">
+                      {{ row.status_label }}
+                    </span>
+                  </td>
+                  <td class="px-3 py-2">
+                    <a href="{% url 'results:dean-review-detail' sheet.id %}?component={{ row.component }}" class="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-ndga-navy shadow-sm hover:border-ndga-gold hover:bg-amber-50">Review</a>
+                  </td>
+                </tr>
+                {% endwith %}
+              {% empty %}
+                <tr>
+                  <td colspan="4" class="px-3 py-4 text-slate-500">No result sheets for this queue.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="mt-3 flex flex-wrap items-center gap-2">
+          <input type="text" name="comment" placeholder="Reason (for reject)" class="min-w-[200px] rounded-lg border border-slate-300 px-2 py-1 text-xs">
+          <button type="submit" name="bulk_action" value="approve_selected" class="ndga-btn ndga-btn-secondary !px-3 !py-1.5 !text-xs" {% if is_read_only %}disabled{% endif %}>Approve Selected</button>
+          <button type="submit" name="bulk_action" value="reject_selected" class="ndga-btn !bg-rose-600 !text-white hover:!bg-rose-700 !px-3 !py-1.5 !text-xs" {% if is_read_only %}disabled{% endif %}>Reject Selected</button>
+        </div>
+        {% if queue_page_obj.paginator.num_pages > 1 %}
+          <div class="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3 text-sm">
+            <p class="font-semibold text-slate-600">
+              Showing {{ queue_page_obj.start_index }}-{{ queue_page_obj.end_index }} of {{ component_row_count }}
+            </p>
+            <div class="flex items-center gap-2">
+              {% if queue_page_obj.has_previous %}
+                <a href="?{% if queue_page_querystring %}{{ queue_page_querystring }}&{% endif %}queue_page={{ queue_page_obj.previous_page_number }}" class="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-ndga-navy hover:border-ndga-gold hover:bg-amber-50">Previous</a>
+              {% else %}
+                <span class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-400">Previous</span>
+              {% endif %}
+              <span class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700">
+                {{ queue_page_obj.number }} / {{ queue_page_obj.paginator.num_pages }}
+              </span>
+              {% if queue_page_obj.has_next %}
+                <a href="?{% if queue_page_querystring %}{{ queue_page_querystring }}&{% endif %}queue_page={{ queue_page_obj.next_page_number }}" class="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-ndga-navy hover:border-ndga-gold hover:bg-amber-50">Next</a>
+              {% else %}
+                <span class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-400">Next</span>
+              {% endif %}
+            </div>
+          </div>
+        {% endif %}
+      </form>
+    </article>
+  </section>
+  <script>
+    (function () {
+      const master = document.getElementById("select-all-sheets");
+      if (!master) return;
+      master.addEventListener("change", function () {
+        document.querySelectorAll(".sheet-select").forEach((input) => {
+          input.checked = master.checked;
+        });
+      });
+      document.getElementById("staff-entry-filter")?.addEventListener("input", function () {
+        const query = this.value.trim().toLowerCase();
+        document.querySelectorAll("[data-staff-entry-row]").forEach(function (row) {
+          row.classList.toggle("hidden", query && !row.dataset.search.includes(query));
+        });
+      });
+    })();
+  </script>
+{% endblock %}

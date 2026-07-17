@@ -1,0 +1,37 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Exam Locked{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
+    <article class="rounded-3xl border border-rose-200 bg-rose-50 p-6 shadow-sm">
+      <p class="text-xs font-semibold uppercase tracking-[0.18em] text-rose-700">Lockdown Triggered</p>
+      <h1 class="mt-2 text-2xl font-bold text-rose-900">CBT Session Locked</h1>
+      <p class="mt-2 text-sm text-rose-900/90">
+        Your attempt for <span class="font-semibold">{{ exam.title }}</span> has been locked due to an exam policy violation.
+      </p>
+      <div class="mt-4 rounded-2xl border border-rose-200 bg-white px-4 py-3 text-sm text-slate-700">
+        <p><span class="font-semibold">Reason:</span> {{ attempt.lock_reason|default:"Policy Violation" }}</p>
+        {% if attempt.locked_at %}
+          <p class="mt-1"><span class="font-semibold">Time:</span> {{ attempt.locked_at|date:"d M Y H:i:s" }}</p>
+        {% endif %}
+      </div>
+      {% if appeal.status == "PENDING" %}
+        <div class="mt-5 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+          <p class="font-bold">Appeal pending IT review</p>
+          <p class="mt-1">{{ appeal.message }}</p>
+        </div>
+      {% else %}
+        <form method="post" class="mt-5 rounded-2xl border border-slate-200 bg-white p-4">
+          {% csrf_token %}
+          <label for="appealText" class="block text-sm font-bold text-slate-900">Appeal to IT Manager</label>
+          <textarea id="appealText" name="appeal_text" rows="3" maxlength="1000" required class="mt-2 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm" placeholder="Briefly explain what happened."></textarea>
+          <button type="submit" class="ndga-btn ndga-btn-primary mt-3">Send Appeal</button>
+        </form>
+      {% endif %}
+      <div class="mt-5 flex flex-wrap gap-2">
+        <a href="{% url 'cbt:student-exam-list' %}" class="ndga-btn ndga-btn-secondary">Back to Exam List</a>
+      </div>
+    </article>
+  </section>
+{% endblock %}

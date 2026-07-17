@@ -1,0 +1,65 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Confirm Vote - {{ election.title }}{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
+    {% if redirect_to_position_id %}
+      <article class="rounded-3xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900 shadow-sm">
+        Voting draft is incomplete. Continue with remaining positions.
+        <a href="{% url 'elections:vote-position' election.id redirect_to_position_id %}" class="ml-2 font-semibold underline">Continue now</a>
+      </article>
+    {% elif already_completed %}
+      <article class="rounded-3xl border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-900 shadow-sm">
+        You have already voted for all positions in this election.
+        <a href="{% url 'elections:home' %}" class="ml-2 font-semibold underline">Return to election home</a>
+      </article>
+    {% else %}
+      <article class="animate-soft-reveal rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Final Confirmation</p>
+        <h1 class="mt-2 text-2xl font-bold text-slate-900">{{ election.title }}</h1>
+        <p class="mt-1 text-sm text-slate-600">
+          Review your selections carefully. Submission is final per position and duplicate voting is blocked.
+        </p>
+
+        <div class="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
+          <table class="min-w-full divide-y divide-slate-200 text-sm">
+            <thead class="bg-slate-50">
+              <tr>
+                <th class="px-3 py-2 text-left font-semibold text-slate-700">Position</th>
+                <th class="px-3 py-2 text-left font-semibold text-slate-700">Selected Candidate</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 bg-white">
+              {% for row in confirmation_rows %}
+                <tr>
+                  <td class="px-3 py-2 font-semibold text-slate-900">{{ row.position.name }}</td>
+                  <td class="px-3 py-2 text-slate-700">{{ row.candidate_name }}</td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="2" class="px-3 py-6 text-center text-sm text-slate-500">
+                    No draft selections found.
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <form method="post" class="mt-5 flex flex-wrap items-center justify-between gap-3">
+          {% csrf_token %}
+          <input type="hidden" name="submission_token" value="{{ submission_token }}">
+          {% if confirmation_rows %}
+            <a href="{% url 'elections:vote-position' election.id confirmation_rows.0.position.id %}" class="ndga-btn ndga-btn-secondary">
+              Edit Selections
+            </a>
+          {% else %}
+            <a href="{% url 'elections:home' %}" class="ndga-btn ndga-btn-secondary">Back</a>
+          {% endif %}
+          <button type="submit" class="ndga-btn ndga-btn-primary">Submit Final Votes</button>
+        </form>
+      </article>
+    {% endif %}
+  </section>
+{% endblock %}

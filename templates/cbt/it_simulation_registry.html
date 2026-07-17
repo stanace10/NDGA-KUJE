@@ -1,0 +1,118 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Simulation Tools{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div class="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+      <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <p class="text-xs font-semibold uppercase tracking-[0.18em] text-ndga-navy/70">Simulation Management</p>
+        <h1 class="mt-2 text-2xl font-bold text-ndga-navy">Simulation Tools Library</h1>
+        <p class="mt-2 text-sm text-slate-600">
+          Register each simulation tool once. Upload HTML5 simulation ZIP bundles here so NDGA serves them locally
+          (offline + online). Teachers only see simulation cards; no URL/code fields are shown to teachers.
+          Dean approval is required before a tool becomes available for use.
+        </p>
+        <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+          <p class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Catalog Reference</p>
+          <div class="mt-2 flex flex-wrap gap-2">
+            {% for category, tools in catalog.items %}
+              <span class="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600">
+                {{ category }}: {{ tools|join:", " }}
+              </span>
+            {% endfor %}
+          </div>
+          <form method="post" class="mt-3">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="seed_free_library">
+            <button type="submit" class="ndga-btn ndga-btn-secondary !px-3 !py-2 !text-xs">
+              Sync Free Simulation Library (PhET/H5P/GeoGebra)
+            </button>
+          </form>
+        </div>
+
+        <form method="post" enctype="multipart/form-data" class="mt-5 space-y-3">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="create">
+          {% for field in form %}
+            <div>
+              <label class="mb-1 block text-sm font-semibold text-slate-700" for="{{ field.id_for_label }}">{{ field.label }}</label>
+              {{ field }}
+              {% if field.help_text %}
+                <p class="mt-1 text-xs text-slate-500">{{ field.help_text }}</p>
+              {% endif %}
+              {% if field.errors %}<p class="mt-1 text-xs text-rose-700">{{ field.errors|striptags }}</p>{% endif %}
+            </div>
+          {% endfor %}
+          {% if form.non_field_errors %}
+            <p class="text-xs text-rose-700">{{ form.non_field_errors|striptags }}</p>
+          {% endif %}
+          <button type="submit" class="ndga-btn ndga-btn-primary">Save Tool</button>
+        </form>
+      </article>
+
+      <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h2 class="text-lg font-semibold text-ndga-navy">Registered Tools</h2>
+        <div class="mt-3 overflow-x-auto rounded-2xl border border-slate-200">
+          <table class="min-w-full divide-y divide-slate-200 text-sm">
+            <thead>
+              <tr class="bg-slate-50 text-left text-slate-500">
+                <th class="px-3 py-2">Tool</th>
+                <th class="px-3 py-2">Provider</th>
+                <th class="px-3 py-2">Category</th>
+                <th class="px-3 py-2">Mode</th>
+                <th class="px-3 py-2">Status</th>
+                <th class="px-3 py-2">Action</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              {% for wrapper in wrappers %}
+                <tr>
+                  <td class="px-3 py-2 text-slate-800">
+                    <p class="font-semibold">{{ wrapper.tool_name }}</p>
+                    <p class="text-xs text-slate-500">{{ wrapper.tool_type|default:"-" }}</p>
+                  </td>
+                  <td class="px-3 py-2 text-slate-700">
+                    <p>{{ wrapper.get_source_provider_display }}</p>
+                    {% if wrapper.source_reference_url %}
+                      <a href="{{ wrapper.source_reference_url }}" target="_blank" rel="noopener" class="text-xs text-ndga-navy hover:text-ndga-gold">
+                        Source
+                      </a>
+                    {% else %}
+                      <span class="text-xs text-slate-500">-</span>
+                    {% endif %}
+                  </td>
+                  <td class="px-3 py-2 text-slate-700">{{ wrapper.get_tool_category_display }}</td>
+                  <td class="px-3 py-2 text-slate-700">{{ wrapper.get_score_mode_display }}</td>
+                  <td class="px-3 py-2 text-slate-700">{{ wrapper.get_status_display }}</td>
+                  <td class="px-3 py-2">
+                    {% if wrapper.status == "DRAFT" or wrapper.status == "REJECTED" %}
+                      <form method="post" class="space-y-1">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="submit_to_dean">
+                        <input type="hidden" name="wrapper_id" value="{{ wrapper.id }}">
+                        <input
+                          type="text"
+                          name="comment"
+                          placeholder="Optional note"
+                          class="w-44 rounded-lg border border-slate-300 px-2 py-1 text-xs"
+                        >
+                        <button type="submit" class="ndga-btn ndga-btn-secondary !px-3 !py-1.5 !text-xs">
+                          Submit To Dean
+                        </button>
+                      </form>
+                    {% else %}
+                      <span class="text-xs text-slate-500">Awaiting/Completed Review</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% empty %}
+                <tr><td colspan="6" class="px-3 py-4 text-slate-500">No simulation wrappers yet.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </article>
+    </div>
+  </section>
+{% endblock %}

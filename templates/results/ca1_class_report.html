@@ -1,0 +1,619 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% if selected_ca_component == "cumulative" %}Annual Cumulative{% else %}{{ selected_ca_label }}{% endif %} Score Sheet - {{ selected_class.display_name|default:selected_class.code }}</title>
+  <style>
+    :root {
+      --ink: #000;
+      --line: #111;
+      --muted: #475569;
+      --paper: #fff;
+      --panel: #f8fafc;
+      --accent: #0b1f3a;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #e5e7eb;
+      color: var(--ink);
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    .toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 16px;
+      border-bottom: 1px solid #cbd5e1;
+      background: rgba(255, 255, 255, 0.96);
+      box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+    }
+
+    .toolbar-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .toolbar-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid #cbd5e1;
+      border-radius: 7px;
+      background: #fff;
+      color: #0f172a;
+      padding: 8px 12px;
+      font-size: 13px;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .btn-primary {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .sheet-shell {
+      padding: 18px;
+    }
+
+    .sheet {
+      position: relative;
+      width: min(297mm, calc(100vw - 36px));
+      min-height: 210mm;
+      margin: 0 auto;
+      padding: 9mm;
+      background: var(--paper);
+      box-shadow: 0 10px 28px rgba(15, 23, 42, 0.18);
+      overflow: visible;
+    }
+
+    .watermark {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      opacity: 0.05;
+    }
+
+    .watermark img {
+      width: 150mm;
+      height: auto;
+    }
+
+    .sheet-content {
+      position: relative;
+      z-index: 1;
+    }
+
+    .school-header {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0 0 5px;
+      table-layout: auto;
+    }
+
+    .school-header td {
+      border: 0;
+      padding: 0;
+      vertical-align: top;
+      background: transparent;
+      text-align: left;
+    }
+
+    .logo-cell {
+      width: 18mm;
+    }
+
+    .logo {
+      width: 15mm;
+      height: 15mm;
+      object-fit: contain;
+    }
+
+    .school-title-main {
+      margin: 0;
+      color: #295b94;
+      font-size: 14px;
+      font-weight: 800;
+      line-height: 1.1;
+      text-transform: uppercase;
+    }
+
+    .school-address {
+      margin: 2px 0 0;
+      color: #c62828;
+      font-size: 9px;
+      font-weight: 800;
+    }
+
+    .school-subtext {
+      margin: 1px 0 0;
+      color: #333;
+      font-size: 8px;
+      font-weight: 600;
+    }
+
+    .contact-box {
+      width: 46mm;
+      border-left: 2px solid #7f9ab6 !important;
+      padding-left: 6px !important;
+      color: #111;
+      font-size: 7.4px;
+      line-height: 1.25;
+    }
+
+    .brand-rule {
+      border-top: 2px solid #295b94;
+      margin: 4px 0 5px;
+    }
+
+    .sheet-title {
+      text-align: center;
+      text-transform: uppercase;
+    }
+
+    .sheet-title h1 {
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.15;
+      font-weight: 800;
+    }
+
+    .sheet-title p {
+      margin: 2px 0 0;
+      font-size: 10px;
+      line-height: 1.15;
+      font-weight: 700;
+    }
+
+    .hint {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 9px;
+      text-align: center;
+    }
+
+    .top-heading {
+      margin-top: 7px;
+      text-align: center;
+      font-size: 8px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .top-three {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      margin-top: 7px;
+    }
+
+    .top-card {
+      border: 1px solid var(--line);
+      padding: 4px 5px;
+      min-height: 20mm;
+      background: #fff;
+    }
+
+    .top-card-label {
+      font-size: 7px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .top-card-name {
+      margin-top: 2px;
+      font-size: 8px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .top-card-meta {
+      margin-top: 1px;
+      font-size: 7px;
+    }
+
+    table {
+      width: 100%;
+      margin-top: 7px;
+      border-collapse: collapse;
+      table-layout: auto;
+      font-size: 8px;
+      line-height: 1.08;
+    }
+
+    th,
+    td {
+      border: 1px solid var(--line);
+      padding: 2px 3px;
+      vertical-align: middle;
+      text-align: center;
+      color: var(--ink);
+      background: #fff;
+    }
+
+    th {
+      font-weight: 800;
+      text-transform: uppercase;
+      overflow-wrap: anywhere;
+    }
+
+    .matrix-scroll {
+      margin-top: 7px;
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .score-matrix {
+      margin-top: 0;
+      min-width: max-content;
+      border: 0;
+    }
+
+    .score-matrix th,
+    .score-matrix td {
+      border-top: 0;
+    }
+
+    .score-matrix th:first-child,
+    .score-matrix td:first-child {
+      border-left: 0;
+    }
+
+    th.subject-header {
+      width: 34mm;
+      min-width: 34mm;
+      max-width: 42mm;
+      padding: 5px 6px;
+      vertical-align: middle;
+      overflow-wrap: break-word;
+      white-space: normal;
+      line-height: 1.12;
+    }
+
+    th.subject-header > span {
+      display: block;
+      font-size: 7.3pt;
+      line-height: 1.12;
+    }
+
+    .sn-col {
+      width: 7mm;
+      min-width: 7mm;
+    }
+
+    .student-col {
+      width: 34mm;
+      min-width: 42mm;
+      text-align: left;
+    }
+
+    .summary-col {
+      width: 10mm;
+      min-width: 18mm;
+    }
+
+    .position-col {
+      width: 11mm;
+      min-width: 15mm;
+    }
+
+    .name {
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .not-offered {
+      color: #64748b;
+    }
+
+    .sticky-sn {
+      position: sticky;
+      left: 0;
+      z-index: 3;
+      background: #fff;
+    }
+
+    .sticky-student {
+      position: sticky;
+      left: 7mm;
+      z-index: 3;
+      background: #fff;
+      box-shadow: 1px 0 0 var(--line);
+    }
+
+    thead .sticky-sn,
+    thead .sticky-student {
+      z-index: 4;
+      background: #fff;
+    }
+
+    .term-stack {
+      display: grid;
+      gap: 1px;
+      min-width: 30mm;
+      text-align: left;
+      font-size: 7.2pt;
+      line-height: 1.12;
+    }
+
+    .term-stack div {
+      display: flex;
+      justify-content: space-between;
+      gap: 5px;
+    }
+
+    .term-stack span {
+      color: #475569;
+      font-weight: 800;
+    }
+
+    .term-stack .avg-line {
+      margin-top: 1px;
+      border-top: 1px solid #cbd5e1;
+      padding-top: 1px;
+      color: #0b1f3a;
+      font-weight: 800;
+    }
+
+    .matrix-legend {
+      margin-top: 5px;
+      font-size: 8px;
+      color: #334155;
+      text-align: left;
+    }
+
+    @page {
+      size: A4 landscape;
+      margin: 0.35in;
+    }
+
+    @media print {
+      html,
+      body {
+        width: 297mm;
+        min-height: 210mm;
+        margin: 0;
+        background: #fff;
+      }
+
+      .toolbar {
+        display: none !important;
+      }
+
+      .sheet-shell {
+        padding: 0;
+      }
+
+      .sheet {
+        width: auto;
+        min-height: 0;
+        margin: 0;
+        padding: 0;
+        box-shadow: none;
+        overflow: visible;
+      }
+
+      .watermark {
+        opacity: 0.045;
+      }
+
+      .school-title-main {
+        font-size: 11pt;
+      }
+
+      .school-address {
+        font-size: 7pt;
+      }
+
+      .school-subtext,
+      .contact-box {
+        font-size: 5.8pt;
+      }
+
+      .sheet-title h1 {
+        font-size: 11pt;
+      }
+
+      .sheet-title p {
+        font-size: 8pt;
+      }
+
+      .hint {
+        display: none;
+      }
+
+      .top-heading {
+        margin-top: 5px;
+        font-size: 6.5pt;
+      }
+
+      .top-three {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 4px;
+        margin-top: 5px;
+      }
+
+      .top-card {
+        min-height: 16mm;
+        padding: 3px 4px;
+        break-inside: avoid;
+      }
+
+      .top-card-label,
+      .top-card-meta {
+        font-size: 5.6pt;
+      }
+
+      .top-card-name {
+        font-size: 6.3pt;
+      }
+
+      table {
+        font-size: 6.1pt;
+        page-break-inside: auto;
+      }
+
+      thead {
+        display: table-header-group;
+      }
+
+      tr {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+
+      th,
+      td {
+        padding: 2px 3px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <div class="toolbar-title">{% if selected_ca_component == "cumulative" %}Annual Cumulative{% else %}{{ selected_ca_label }}{% endif %} Score Sheet - {{ selected_class.display_name|default:selected_class.code }}</div>
+    <div class="toolbar-actions">
+      <a href="{% url 'results:academic-performance' %}?{{ selected_ca_query }}&class_id={{ selected_class.id }}" class="btn">Back</a>
+      <a href="{% url 'results:academic-performance-class-csv' selected_class.id %}?{{ selected_ca_query }}" class="btn">CSV</a>
+      <a href="{% url 'results:academic-performance-class-subject-best-csv' selected_class.id %}?{{ selected_ca_query }}" class="btn">Subject Best CSV</a>
+      <a href="{% url 'results:academic-performance-class-subject-best-pdf' selected_class.id %}?{{ selected_ca_query }}" class="btn">Subject Best PDF</a>
+      <a href="{% url 'results:academic-performance-class-excel' selected_class.id %}?{{ selected_ca_query }}" class="btn">Excel</a>
+      <a href="{% url 'results:academic-performance-class-pdf' selected_class.id %}?{{ selected_ca_query }}" class="btn">PDF</a>
+      <button type="button" onclick="window.print()" class="btn btn-primary">Print</button>
+    </div>
+  </div>
+
+  <main class="sheet-shell">
+    <section class="sheet">
+      <div class="watermark">
+        {% if watermark_data_uri %}<img src="{{ watermark_data_uri }}" alt="">{% endif %}
+      </div>
+      <div class="sheet-content">
+      <table class="school-header">
+        <tr>
+          <td class="logo-cell">
+            {% if logo_data_uri %}<img src="{{ logo_data_uri }}" alt="School logo" class="logo">{% endif %}
+          </td>
+          <td>
+            <p class="school-title-main">{{ school_profile.school_name|default:"Notre Dame Girls' Academy" }}</p>
+            <p class="school-address">{{ school_profile.address|default:"P.O.Box 46 Kuje Abuja" }}</p>
+            <p class="school-subtext">{{ school_profile.tagline|default:"(After SS Simon and Jude Minor Seminary, Kuchiyako, Kuje Abuja)" }}</p>
+            <p class="school-subtext">{{ school_profile.report_footer|default:"" }}</p>
+          </td>
+          <td class="contact-box">
+            Email: {{ school_profile.contact_email|default:"office@ndgakuje.org" }}<br>
+            Phone: {{ school_profile.contact_phone|default:"+234 902 940 5413" }}<br>
+            Website: {{ school_profile.website|default:"ndgakuje.org" }}
+          </td>
+        </tr>
+      </table>
+      <div class="brand-rule"></div>
+      <div class="sheet-title">
+        <h1>{% if selected_ca_component == "cumulative" %}Annual Cumulative Academic Performance Score Sheet{% else %}{{ selected_ca_label }} Academic Performance Score Sheet{% endif %}</h1>
+        <p>Class: {{ selected_class.display_name|default:selected_class.code }} &nbsp; {{ current_session.name }} {{ current_term.get_name_display }}</p>
+      </div>
+      <p class="hint">Average is calculated with each student's offered subjects only.</p>
+
+      <div class="top-heading">Top Three For Assembly</div>
+      <div class="top-three">
+        {% for row in matrix.top_three %}
+          <div class="top-card">
+            <div class="top-card-label">Position {{ row.position }}</div>
+            <div class="top-card-name">{{ row.student.get_full_name|default:row.student.username }}</div>
+            <div class="top-card-meta">{{ row.student_number }}</div>
+            <div class="top-card-meta">Average {{ row.average }} | Total {{ row.total }} | Subjects {{ row.offered_count }}</div>
+          </div>
+        {% endfor %}
+      </div>
+
+      <div class="matrix-scroll">
+      <table class="score-matrix">
+        <thead>
+          <tr>
+            <th class="sn-col sticky-sn">S/N</th>
+            <th class="student-col sticky-student">Names of Student</th>
+            {% for subject in matrix.subjects %}
+              <th class="subject-header"><span>{{ subject.name }}</span></th>
+            {% endfor %}
+            <th class="summary-col">Subjects</th>
+            <th class="summary-col">{{ selected_ca_label }} Total</th>
+            <th class="summary-col">Average</th>
+            <th class="position-col">Position</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in matrix.rows %}
+            <tr>
+              <td class="sn-col sticky-sn">{{ forloop.counter }}</td>
+              <td class="student-col sticky-student"><span class="name">{{ row.student.get_full_name|default:row.student.username }}</span></td>
+              {% for cell in row.subjects %}
+                <td>
+                  {% if selected_ca_component == "cumulative" %}
+                    {% if cell.offered %}
+                      <div class="term-stack">
+                        {% for line in cell.ca.lines %}
+                          <div class="{% if line.label == 'AVG' %}avg-line{% endif %}"><span>{{ line.label }}:</span><strong>{{ line.value }}</strong></div>
+                        {% endfor %}
+                      </div>
+                    {% else %}
+                      <span class="not-offered">N/O</span>
+                    {% endif %}
+                  {% else %}
+                    {% if cell.offered %}<strong>{{ cell.ca.total }}</strong>{% else %}<span class="not-offered">N/O</span>{% endif %}
+                    {% if selected_ca_component == "overall" and cell.offered %}
+                      <div class="term-stack">
+                        <div><span>CA1:</span><strong>{{ cell.ca.ca1_compact }}</strong></div>
+                        <div><span>CA2:</span><strong>{{ cell.ca.ca2_compact }}</strong></div>
+                        <div><span>CA3:</span><strong>{{ cell.ca.ca3_compact }}</strong></div>
+                        <div><span>EXAM:</span><strong>{{ cell.ca.exam_compact }}</strong></div>
+                        <div class="avg-line"><span>TOTAL:</span><strong>{{ cell.ca.total_compact }}</strong></div>
+                      </div>
+                    {% endif %}
+                  {% endif %}
+                </td>
+              {% endfor %}
+              <td class="summary-col"><strong>{{ row.offered_count }}</strong></td>
+              <td class="summary-col"><strong>{{ row.total }}</strong></td>
+              <td class="summary-col"><strong>{{ row.average }}</strong></td>
+              <td class="position-col"><strong>{{ row.position }}</strong></td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="6">No students found for this class.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      <p class="matrix-legend"><strong>Legend:</strong> N/O = Subject Not Offered or not applicable for that term. Annual averages ignore N/O cells.</p>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

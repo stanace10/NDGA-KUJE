@@ -1,0 +1,92 @@
+{% extends "layouts/base.html" %}
+
+{% block title %}Result Entry{% endblock %}
+
+{% block content %}
+  <section class="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+    <div class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 class="text-2xl font-bold text-ndga-navy">Result Entry</h1>
+          {% if current_session and current_term %}
+            <p class="mt-1 text-xs font-semibold text-slate-500">
+              {{ current_session.name }} | {{ current_term.get_name_display }}
+            </p>
+          {% endif %}
+        </div>
+        <form method="get" class="flex flex-wrap items-end gap-2">
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500" for="session_id">Session</label>
+            <select id="session_id" name="session_id" class="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm">
+              {% for session in available_sessions %}
+                <option value="{{ session.id }}" {% if selected_session and selected_session.id == session.id %}selected{% endif %}>
+                  {{ session.name }}
+                </option>
+              {% empty %}
+                <option value="">No Session</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500" for="term_id">Term</label>
+            <select id="term_id" name="term_id" class="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm">
+              {% for term in available_terms %}
+                <option value="{{ term.id }}" {% if selected_term and selected_term.id == term.id %}selected{% endif %}>
+                  {{ term.get_name_display }}
+                </option>
+              {% empty %}
+                <option value="">No Term</option>
+              {% endfor %}
+            </select>
+          </div>
+          <button type="submit" class="ndga-btn ndga-btn-secondary !px-3 !py-2 !text-xs">Apply</button>
+        </form>
+      </div>
+    </div>
+
+    {% if can_access_dean_term_review or can_access_vp_publish or can_access_performance_reports %}
+      <div class="mt-5 grid gap-3 md:grid-cols-3">
+        {% if can_access_dean_term_review %}
+          <a href="{% url 'results:dean-term-review-list' %}" class="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-4 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-400">
+            <p class="text-sm font-bold uppercase tracking-[0.14em] text-blue-800">Dean</p>
+            <p class="mt-1 text-base font-bold text-ndga-navy">Term Review</p>
+            <p class="mt-1 text-xs text-blue-800">Review full class results after form-teacher comments.</p>
+          </a>
+        {% endif %}
+        {% if can_access_vp_publish %}
+          <a href="{% url 'results:approval-class-list' %}" class="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-400">
+            <p class="text-sm font-bold uppercase tracking-[0.14em] text-emerald-800">Leadership</p>
+            <p class="mt-1 text-base font-bold text-ndga-navy">Principal Comments & Publish</p>
+            <p class="mt-1 text-xs text-emerald-800">VP enters principal comments; IT publishes after VP approval.</p>
+          </a>
+        {% endif %}
+        {% if can_access_performance_reports %}
+          <a href="{% url 'results:performance-report' %}" class="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm transition hover:-translate-y-0.5 hover:border-ndga-navy/40">
+            <p class="text-sm font-bold uppercase tracking-[0.14em] text-slate-500">Reports</p>
+            <p class="mt-1 text-base font-bold text-ndga-navy">Performance</p>
+            <p class="mt-1 text-xs text-slate-600">View term, CA, exam, and cumulative performance.</p>
+          </a>
+        {% endif %}
+      </div>
+    {% endif %}
+
+    <div class="mt-5 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      <h2 class="text-base font-semibold text-slate-900">Select Class</h2>
+      <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {% for class_row in class_rows %}
+          <a
+            href="{{ class_row.url }}"
+            class="rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm transition hover:-translate-y-0.5 hover:border-ndga-navy/40"
+          >
+            <p class="text-base font-semibold text-slate-900">{{ class_row.academic_class.code }}</p>
+            <p class="mt-1 text-xs text-slate-600">{{ class_row.subject_count }} subject{{ class_row.subject_count|pluralize }} available</p>
+          </a>
+        {% empty %}
+          <div class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 sm:col-span-2 xl:col-span-3">
+            No assigned classes found.
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+{% endblock %}

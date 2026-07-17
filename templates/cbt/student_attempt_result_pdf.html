@@ -1,0 +1,136 @@
+{% load cbt_text %}
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>{{ exam.title }} Result</title>
+  <style>
+    @page { size: A4; margin: 16mm; }
+    body { font-family: DejaVu Sans, Arial, sans-serif; color: #0b2545; font-size: 11px; line-height: 1.35; }
+    h1, h2, h3, p { margin: 0; }
+    .header { border-bottom: 3px solid #d4af37; padding-bottom: 10px; margin-bottom: 14px; }
+    .header-row { display: table; width: 100%; }
+    .header-main { display: table-cell; vertical-align: top; }
+    .photo-cell { display: table-cell; width: 82px; text-align: right; vertical-align: top; }
+    .student-photo { width: 70px; height: 70px; border-radius: 12px; border: 2px solid #d4af37; object-fit: cover; }
+    .school { font-size: 18px; font-weight: 800; color: #0b2545; }
+    .subtitle { color: #475569; margin-top: 2px; }
+    .title { margin-top: 10px; font-size: 15px; font-weight: 800; }
+    .grid { display: table; width: 100%; margin: 12px 0; border-collapse: collapse; }
+    .cell { display: table-cell; border: 1px solid #cbd5e1; padding: 8px; width: 25%; }
+    .label { color: #64748b; font-size: 9px; text-transform: uppercase; letter-spacing: .08em; }
+    .value { margin-top: 3px; font-size: 15px; font-weight: 800; color: #0b2545; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th { background: #0b2545; color: #fff; text-align: left; font-size: 9px; padding: 6px; }
+    td { border: 1px solid #dbe3ee; padding: 6px; vertical-align: top; }
+    .ok { color: #047857; font-weight: 700; }
+    .bad { color: #be123c; font-weight: 700; }
+    .muted { color: #64748b; }
+    .question { color: #111827; }
+    .section-title { margin-top: 14px; font-size: 13px; font-weight: 800; color: #0b2545; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-row">
+      <div class="header-main">
+        <div class="school">Notre Dame Girls' Academy, Kuje</div>
+        <div class="subtitle">Educating Girls for Life</div>
+        <div class="title">{{ exam.title }}</div>
+        <p class="subtitle">Generated {{ generated_at|date:"d M Y, g:i A" }}</p>
+      </div>
+      <div class="photo-cell">
+        {% if student_photo_data_uri %}
+          <img src="{{ student_photo_data_uri }}" alt="Student photo" class="student-photo">
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="cell">
+      <div class="label">Student</div>
+      <div class="value">{{ student.get_full_name|default:student.username }}</div>
+      <div class="muted">{{ student_profile.student_number }}</div>
+    </div>
+    <div class="cell">
+      <div class="label">Attempt</div>
+      <div class="value">{{ attempt.attempt_number }}</div>
+      <div class="muted">{{ attempt.get_status_display }}</div>
+    </div>
+    <div class="cell">
+      <div class="label">Objective Score</div>
+      <div class="value">{{ attempt.objective_score }}</div>
+      <div class="muted">Total: {{ attempt.total_score }}</div>
+    </div>
+    <div class="cell">
+      <div class="label">Questions</div>
+      <div class="value">{{ review_rows|length }}</div>
+      <div class="muted">{{ exam.subject.name }}</div>
+    </div>
+  </div>
+
+  <div class="section-title">Section Summary</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Subject</th>
+        <th>Correct</th>
+        <th>Total</th>
+        <th>Percent</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for section, row in section_scores.items %}
+        <tr>
+          <td>{{ section }}</td>
+          <td>{{ row.correct }}</td>
+          <td>{{ row.total }}</td>
+          <td>{% widthratio row.correct row.total 100 %}%</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="section-title">Answer Review</div>
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 7%;">No</th>
+        <th style="width: 14%;">Subject</th>
+        <th>Question</th>
+        <th style="width: 16%;">Selected</th>
+        <th style="width: 16%;">Correct</th>
+        <th style="width: 9%;">Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in review_rows %}
+        <tr>
+          <td>{{ row.number }}</td>
+          <td>{{ row.section }}</td>
+          <td class="question">
+            {% if row.question.rich_stem %}{{ row.question.rich_stem|safe|cbt_notation }}{% else %}{{ row.question.stem|cbt_notation }}{% endif %}
+          </td>
+          <td>
+            {% for option in row.selected_options %}
+              {{ option.label }}. {{ option.option.option_text|cbt_notation }}{% if not forloop.last %}<br>{% endif %}
+            {% empty %}
+              <span class="muted">Not answered</span>
+            {% endfor %}
+          </td>
+          <td>
+            {% for option in row.correct_options %}
+              {{ option.label }}. {{ option.option.option_text|cbt_notation }}{% if not forloop.last %}<br>{% endif %}
+            {% endfor %}
+            {% if row.explanation %}
+              <br><span class="muted">{{ row.explanation|cbt_notation }}</span>
+            {% endif %}
+          </td>
+          <td>{% if row.is_correct %}<span class="ok">Correct</span>{% else %}<span class="bad">Wrong</span>{% endif %}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>
