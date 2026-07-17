@@ -292,6 +292,10 @@ def _student_finance_hidden_on_cloud():
     return cloud_student_finance_disabled()
 
 
+def _student_fee_status_available():
+    return bool(getattr(settings, "STUDENT_FEE_STATUS_AVAILABLE", False))
+
+
 def _portal_file_url(file_field):
     if not file_field:
         return ""
@@ -746,7 +750,8 @@ def _student_dashboard_payload(request, user):
         "total_outstanding": 0,
         "unallocated_credit": 0,
     }
-    finance_hidden = _student_finance_hidden_on_cloud()
+    finance_available = _student_fee_status_available()
+    finance_hidden = _student_finance_hidden_on_cloud() or not finance_available
     finance_session = current_session or getattr(current_enrollment, "session", None)
     finance_term = current_term if current_session and finance_session and current_session.id == finance_session.id else None
     if finance_session and not finance_hidden:
@@ -1838,7 +1843,17 @@ class StudentPortalView(PortalPageView):
                 "tone": "text-slate-900",
             },
         ]
-        if not _student_finance_hidden_on_cloud():
+        if not _student_fee_status_available():
+            summary_cards.insert(
+                1,
+                {
+                    "label": "School Fees",
+                    "value": "Not Available",
+                    "meta": "Fee status is not currently published.",
+                    "tone": "text-slate-700",
+                },
+            )
+        elif not _student_finance_hidden_on_cloud():
             summary_cards.insert(
                 1,
                 {

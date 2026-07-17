@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.http import HttpResponse
@@ -85,6 +86,8 @@ def _student_result_pin_required(*, request, compilation):
 
 
 def _student_result_fee_lock(student, *, compilation):
+    if not getattr(settings, "STUDENT_FEE_STATUS_AVAILABLE", False):
+        return {"locked": False, "outstanding": Decimal("0.00"), "message": ""}
     charges_exist = StudentCharge.objects.filter(
         session=compilation.session,
         is_active=True,

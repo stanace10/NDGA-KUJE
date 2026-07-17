@@ -46,6 +46,15 @@
           </div>
         </form>
 
+        {% if fees_not_available %}
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-6 shadow-sm">
+            <p class="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">School Fees</p>
+            <h2 class="mt-2 text-2xl font-bold text-slate-900">Not Available</h2>
+            <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+              The school fee status is not currently published on the portal. Please contact the bursary if you need a confirmed statement.
+            </p>
+          </div>
+        {% else %}
         <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div class="ndga-metric-card px-4 py-4 sm:px-5">
             <p class="ndga-label">Outstanding Balance</p>
@@ -212,6 +221,7 @@
               </div>
             </details>
           </div>
+        {% endif %}
         {% endif %}
       </div>
     </section>

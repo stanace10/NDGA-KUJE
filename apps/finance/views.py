@@ -486,6 +486,7 @@ class StudentFinanceOverviewView(StudentFinanceAccessMixin, TemplateView):
         context = super().get_context_data(**kwargs)
         user = self.request.user
         current_session, current_term = current_academic_window()
+        fees_not_available = not bool(getattr(settings, "STUDENT_FEE_STATUS_AVAILABLE", False))
         _ensure_default_core_charges(session=current_session, term=current_term)
         student_profile = getattr(user, "student_profile", None)
 
@@ -658,6 +659,7 @@ class StudentFinanceOverviewView(StudentFinanceAccessMixin, TemplateView):
                 "gateway_enabled": gateway_any_enabled,
                 "gateway_provider_label": gateway_provider_label(),
                 "gateway_provider_cards": gateway_provider_cards,
+                "fees_not_available": fees_not_available,
             }
         )
         return context
