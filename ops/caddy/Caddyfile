@@ -10,7 +10,7 @@ ndgakuje.org, www.ndgakuje.org, student.ndgakuje.org {
 		-Server
 	}
 
-	@lan_only path /admin* /it* /staff* /dean* /form* /hostel* /bursar* /vp* /principal* /cbt* /election*
+	@lan_only path /admin* /it* /staff* /dean* /form* /hostel* /bursar* /vp* /principal* /cbt* /election* /portal/it* /portal/staff* /portal/dean* /portal/form* /portal/hostel* /portal/bursar* /portal/vp* /portal/principal* /portal/cbt* /portal/election* /results/dean* /results/form* /results/vp* /results/principal* /results/grade-entry* /attendance/form* /finance/bursar* /setup* /sync*
 	respond @lan_only "Not found" 404
 
 	reverse_proxy nginx:80 {

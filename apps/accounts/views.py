@@ -905,9 +905,25 @@ class PasswordResetRequestView(FormView):
     template_name = "accounts/password_reset_request.html"
     form_class = PasswordResetRequestForm
     session_key = "pending_password_reset_user_id"
+    student_session_key = "pending_student_password_reset_user_id"
+    student_challenge_session_key = "pending_student_password_reset_challenge"
+    student_attempts_session_key = "pending_student_password_reset_attempts"
+    office_reset_email = "office@ndgakuje.org"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        challenge = self.request.session.get(self.student_challenge_session_key)
+        user_id = self.request.session.get(self.student_session_key)
+        target_user = User.objects.filter(id=user_id).first() if user_id else None
+        context["student_challenge_active"] = bool(challenge and target_user)
+        context["student_challenge_label"] = self._challenge_label(challenge)
+        context["student_login_id"] = self._student_login_id(target_user)
+        return context
 
     def form_valid(self, form):
         target_user = form.get_user()
+        if target_user.has_role(ROLE_STUDENT):
+            return self._handle_student_office_reset_request(form, target_user)
         reset_code = target_user.set_login_code(ttl_hours=1)
         target_user.save(update_fields=["login_code_hash", "login_code_expires_at"])
         send_mail(
@@ -935,6 +951,119 @@ class PasswordResetRequestView(FormView):
             "Reset code sent to your recovery email.",
         )
         return redirect("accounts:password-reset-confirm")
+
+    def _student_login_id(self, user):
+        if not user:
+            return ""
+        profile = StudentProfile.objects.filter(user=user).first()
+        return profile.student_number if profile and profile.student_number else user.username
+
+    def _challenge_options(self, user, profile):
+        options = []
+        if user.first_name:
+            options.append(("first_name", "student first name", user.first_name))
+        if user.last_name:
+            options.append(("surname", "student surname", user.last_name))
+        if profile and profile.guardian_email:
+            options.append(("guardian_email", "parent/guardian email", profile.guardian_email))
+        return options
+
+    def _challenge_label(self, challenge_key):
+        return {
+            "first_name": "Student first name",
+            "surname": "Student surname",
+            "guardian_email": "Parent/guardian email",
+        }.get(challenge_key or "", "Security answer")
+
+    def _normalize_security_answer(self, value):
+        return " ".join((value or "").strip().lower().split())
+
+    def _clear_student_reset_session(self):
+        self.request.session.pop(self.student_session_key, None)
+        self.request.session.pop(self.student_challenge_session_key, None)
+        self.request.session.pop(self.student_attempts_session_key, None)
+
+    def _handle_student_office_reset_request(self, form, target_user):
+        profile = StudentProfile.objects.filter(user=target_user).first()
+        if not profile:
+            form.add_error(None, "Student profile not found. Contact the school office.")
+            return self.form_invalid(form)
+
+        options = self._challenge_options(target_user, profile)
+        if not options:
+            form.add_error(None, "No student security detail is available. Contact the school office.")
+            return self.form_invalid(form)
+
+        active_user_id = self.request.session.get(self.student_session_key)
+        challenge = self.request.session.get(self.student_challenge_session_key)
+        if str(active_user_id or "") != str(target_user.id) or challenge not in {key for key, _, _ in options}:
+            challenge, _, _ = secrets.choice(options)
+            self.request.session[self.student_session_key] = str(target_user.id)
+            self.request.session[self.student_challenge_session_key] = challenge
+            self.request.session[self.student_attempts_session_key] = 0
+            messages.info(
+                self.request,
+                "Security check required before the request is sent to the school office.",
+            )
+            return self.render_to_response(self.get_context_data(form=form))
+
+        answer = self._normalize_security_answer(form.cleaned_data.get("security_answer"))
+        expected = next((value for key, _, value in options if key == challenge), "")
+        if answer != self._normalize_security_answer(expected):
+            attempts = int(self.request.session.get(self.student_attempts_session_key, 0)) + 1
+            self.request.session[self.student_attempts_session_key] = attempts
+            if attempts >= 2:
+                self._clear_student_reset_session()
+                form.add_error(None, "Security check failed. Contact the school office for password help.")
+                log_event(
+                    category=AuditCategory.AUTH,
+                    event_type="STUDENT_PASSWORD_RESET_SECURITY_FAILED",
+                    status=AuditStatus.DENIED,
+                    actor=target_user,
+                    request=self.request,
+                    message="Student office password reset security check failed twice.",
+                    metadata={"student_number": profile.student_number, "challenge": challenge},
+                )
+            else:
+                form.add_error(
+                    None,
+                    "Security check did not match. One more wrong attempt will stop this request.",
+                )
+            return self.form_invalid(form)
+
+        send_mail(
+            subject="NDGA Student Password Reset Request",
+            message=(
+                "A parent/student requested a default-password reset from the cloud student portal.\n\n"
+                f"Student: {target_user.get_full_name() or target_user.username}\n"
+                f"Admission number: {profile.student_number or '-'}\n"
+                f"Class: {profile.current_class or '-'}\n"
+                f"Guardian email on record: {profile.guardian_email or '-'}\n\n"
+                "Please verify with school records before resetting this student password to the default."
+            ),
+            from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "no-reply@ndgakuje.org"),
+            recipient_list=[self.office_reset_email],
+            fail_silently=False,
+        )
+        log_event(
+            category=AuditCategory.AUTH,
+            event_type="STUDENT_PASSWORD_RESET_OFFICE_REQUESTED",
+            status=AuditStatus.SUCCESS,
+            actor=target_user,
+            request=self.request,
+            message="Student password reset request sent to school office.",
+            metadata={
+                "student_number": profile.student_number,
+                "office_email": self.office_reset_email,
+                "challenge": challenge,
+            },
+        )
+        self._clear_student_reset_session()
+        messages.success(
+            self.request,
+            "Password reset request sent to the school office. IT will verify before resetting it.",
+        )
+        return redirect("accounts:login")
 
     def form_invalid(self, form):
         login_id = form.data.get("login_id", "")

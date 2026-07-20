@@ -463,6 +463,11 @@ class PrivilegedTwoFactorForm(forms.Form):
 
 class PasswordResetRequestForm(forms.Form):
     login_id = forms.CharField(max_length=150, label="Login ID")
+    security_answer = forms.CharField(
+        max_length=254,
+        label="Security answer",
+        required=False,
+    )
 
     def __init__(self, *args, **kwargs):
         self.user_cache = None
@@ -474,6 +479,13 @@ class PasswordResetRequestForm(forms.Form):
                 "autocomplete": "username",
             }
         )
+        self.fields["security_answer"].widget.attrs.update(
+            {
+                "class": "w-full rounded-xl border border-slate-300 px-3 py-2 text-sm",
+                "placeholder": "Enter the requested answer",
+                "autocomplete": "off",
+            }
+        )
 
     def clean(self):
         cleaned_data = super().clean()
@@ -482,9 +494,8 @@ class PasswordResetRequestForm(forms.Form):
         if not user:
             raise forms.ValidationError("Account not found for the provided login ID.")
         if user.has_role(ROLE_STUDENT):
-            raise forms.ValidationError(
-                "Student password reset is managed by IT Manager only."
-            )
+            self.user_cache = user
+            return cleaned_data
         if not user.email:
             raise forms.ValidationError(
                 "No recovery email is set for this account. Contact IT Manager."

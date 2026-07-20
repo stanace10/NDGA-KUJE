@@ -638,21 +638,48 @@ class StageOneAccessTests(TestCase):
         self.subject_teacher.refresh_from_db()
         self.assertTrue(self.subject_teacher.check_password("NewPassword987!"))
 
-    def test_student_self_service_password_reset_is_blocked(self):
+    @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+    def test_student_password_reset_sends_office_request_after_security_check(self):
         student_profile = StudentProfile.objects.create(
             user=self.student,
             student_number="NDGAK/26/001",
             guardian_email="parent@example.com",
         )
+        self.student.first_name = "Ada"
+        self.student.last_name = "Okafor"
         self.student.email = student_profile.guardian_email
-        self.student.save(update_fields=["email"])
+        self.student.set_password("OriginalPass123!")
+        self.student.save(update_fields=["first_name", "last_name", "email", "password"])
         client = Client(HTTP_HOST="student.ndgakuje.org")
         response = client.post(
             reverse("accounts:password-reset-request"),
             {"login_id": student_profile.student_number},
         )
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Student password reset is managed by IT Manager only.")
+        self.assertContains(response, "Student security check")
+
+        challenge = client.session["pending_student_password_reset_challenge"]
+        answer = {
+            "first_name": self.student.first_name,
+            "surname": self.student.last_name,
+            "guardian_email": student_profile.guardian_email,
+        }[challenge]
+        response = client.post(
+            reverse("accounts:password-reset-request"),
+            {
+                "login_id": student_profile.student_number,
+                "security_answer": answer,
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse("accounts:login"))
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["office@ndgakuje.org"])
+        self.assertIn(student_profile.student_number, mail.outbox[0].body)
+        self.assertNotIn("password reset code is", mail.outbox[0].body.lower())
+        self.student.refresh_from_db()
+        self.assertTrue(self.student.check_password("OriginalPass123!"))
 
     def test_it_can_change_password_for_selected_student_from_management_page(self):
         StudentProfile.objects.create(
