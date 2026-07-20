@@ -88,6 +88,7 @@ CLOUD_STUDENT_PORTAL_ALLOWED_PREFIXES = (
     "/portal/student/lms/",
     "/portal/student/weekly-challenge/",
     "/portal/student/id-card/",
+    "/portal/student/settings/",
     "/pdfs/student/reports/",
     "/pdfs/student/transcript/",
     "/notifications/",
@@ -98,7 +99,6 @@ CLOUD_STUDENT_PORTAL_CONTROLLED_PREFIXES = (
     "/finance/student/overview/",
     "/portal/student/learning-hub/",
     "/portal/student/documents/",
-    "/portal/student/settings/",
 )
 
 CLOUD_STUDENT_FINANCE_PREFIXES = (

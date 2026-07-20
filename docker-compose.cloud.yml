@@ -2,6 +2,29 @@ services:
   db:
     image: postgres:16
     restart: always
+    shm_size: 1gb
+    command:
+      - postgres
+      - -c
+      - max_connections=80
+      - -c
+      - shared_buffers=1GB
+      - -c
+      - effective_cache_size=4GB
+      - -c
+      - work_mem=8MB
+      - -c
+      - maintenance_work_mem=256MB
+      - -c
+      - checkpoint_timeout=15min
+      - -c
+      - checkpoint_completion_target=0.9
+      - -c
+      - max_wal_size=2GB
+      - -c
+      - min_wal_size=512MB
+      - -c
+      - idle_in_transaction_session_timeout=30s
     environment:
       POSTGRES_DB: ${DB_NAME:-ndga}
       POSTGRES_USER: ${DB_USER:-ndga}
@@ -12,6 +35,36 @@ services:
       - "5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-ndga} -d ${DB_NAME:-ndga}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  pgbouncer:
+    build:
+      context: ./ops/pgbouncer
+      dockerfile: Dockerfile
+    image: ndga-pgbouncer:cloud
+    restart: always
+    environment:
+      DB_NAME: ${DB_NAME:-ndga}
+      DB_USER: ${DB_USER:-ndga}
+      DB_PASSWORD: ${DB_PASSWORD:-ndga}
+      DB_HOST: db
+      DB_PORT: "5432"
+      PGBOUNCER_POOL_MODE: transaction
+      PGBOUNCER_MAX_CLIENT_CONN: "600"
+      PGBOUNCER_DEFAULT_POOL_SIZE: "35"
+      PGBOUNCER_MIN_POOL_SIZE: "8"
+      PGBOUNCER_RESERVE_POOL_SIZE: "10"
+      PGBOUNCER_RESERVE_POOL_TIMEOUT: "5"
+      PGBOUNCER_MAX_DB_CONNECTIONS: "55"
+    depends_on:
+      db:
+        condition: service_healthy
+    expose:
+      - "6432"
+    healthcheck:
+      test: ["CMD-SHELL", "PGPASSWORD=$$DB_PASSWORD pg_isready -h 127.0.0.1 -p 6432 -U $$DB_USER -d $$DB_NAME"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -52,9 +105,14 @@ services:
     restart: always
     env_file:
       - ./.env.cloud
+    environment:
+      DB_HOST: pgbouncer
+      DB_PORT: "6432"
+      DATABASE_CONN_MAX_AGE: "0"
+      CONN_MAX_AGE: "0"
     command: ["/app/entrypoint.sh"]
     depends_on:
-      db:
+      pgbouncer:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -78,6 +136,11 @@ services:
     restart: always
     env_file:
       - ./.env.cloud
+    environment:
+      DB_HOST: pgbouncer
+      DB_PORT: "6432"
+      DATABASE_CONN_MAX_AGE: "0"
+      CONN_MAX_AGE: "0"
     command:
       [
         "celery",
@@ -90,7 +153,7 @@ services:
         "--max-tasks-per-child=${CELERY_WORKER_MAX_TASKS_PER_CHILD:-500}"
       ]
     depends_on:
-      db:
+      pgbouncer:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -107,9 +170,14 @@ services:
     restart: always
     env_file:
       - ./.env.cloud
+    environment:
+      DB_HOST: pgbouncer
+      DB_PORT: "6432"
+      DATABASE_CONN_MAX_AGE: "0"
+      CONN_MAX_AGE: "0"
     command: ["celery", "-A", "core", "beat", "--loglevel=INFO"]
     depends_on:
-      db:
+      pgbouncer:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -137,10 +205,31 @@ services:
       timeout: 5s
       retries: 5
 
+  caddy:
+    image: caddy:2-alpine
+    restart: always
+    depends_on:
+      nginx:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./ops/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ndga_caddy_data:/data
+      - ndga_caddy_config:/config
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/healthz/live || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
 volumes:
   ndga_postgres_data:
   ndga_redis_data:
   ndga_static_data:
   ndga_media_data:
   ndga_backup_data:
+  ndga_caddy_data:
+  ndga_caddy_config:
 

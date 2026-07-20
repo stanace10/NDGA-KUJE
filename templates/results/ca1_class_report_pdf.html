@@ -327,19 +327,19 @@
       width: 100%;
       min-width: 0;
       font-size: var(--annual-score-font);
-      line-height: 1.03;
+      line-height: 1.02;
       font-weight: 800;
     }
 
     .annual-labelled-lines > span {
-      display: flex;
+      display: grid;
+      grid-template-columns: 3.05mm minmax(0, 1fr);
       align-items: center;
-      justify-content: space-between;
-      gap: .25mm;
+      column-gap: .12mm;
       min-width: 0;
       white-space: nowrap;
       line-height: 1;
-      padding: .16mm .15mm;
+      padding: .12mm .08mm;
       border-bottom: .12mm solid #cbd5e1;
       font-variant-numeric: tabular-nums;
     }
@@ -349,17 +349,23 @@
     }
 
     .annual-labelled-lines b {
-      min-width: 4.3mm;
       color: #405268;
+      font-size: var(--annual-key-font);
       font-weight: 900;
       text-align: left;
+      letter-spacing: -.03em;
+      overflow: hidden;
     }
 
     .annual-labelled-lines em {
       color: #0f172a;
+      font-size: var(--annual-score-font);
       font-style: normal;
       font-weight: 800;
       text-align: right;
+      letter-spacing: -.02em;
+      overflow: hidden;
+      text-overflow: clip;
     }
 
     .annual-subject-cell {
@@ -498,16 +504,16 @@
             {% for subject in matrix.print_subjects %}
               {% if selected_ca_component == "cumulative" or selected_ca_component == "overall" %}
                 <th class="annual-subject-heading">
-                  <span class="annual-subject-name">{{ subject.name }}</span>
+                  <span class="annual-subject-name">{{ subject.code }}</span>
                 </th>
               {% else %}
                 <th><span class="subject-code">{{ subject.code }}</span></th>
               {% endif %}
             {% endfor %}
-            <th class="summary-col">Subj.</th>
-            <th class="summary-col">Total</th>
-            <th class="summary-col">Avg.</th>
-            <th class="position-col">Pos.</th>
+            <th class="summary-col">SUB</th>
+            <th class="summary-col">TOT</th>
+            <th class="summary-col">AVG</th>
+            <th class="position-col">POS</th>
           </tr>
         </thead>
         <tbody>
@@ -539,8 +545,8 @@
                         <span><b>CA1</b><em>{{ cell.ca.ca1_compact }}</em></span>
                         <span><b>CA2</b><em>{{ cell.ca.ca2_compact }}</em></span>
                         <span><b>CA3</b><em>{{ cell.ca.ca3_compact }}</em></span>
-                        <span><b>EXAM</b><em>{{ cell.ca.exam_compact }}</em></span>
-                        <span class="annual-average"><b>TOTAL</b><em>{{ cell.ca.total_compact }}</em></span>
+                        <span><b>EX</b><em>{{ cell.ca.exam_compact }}</em></span>
+                        <span class="annual-average"><b>TOT</b><em>{{ cell.ca.total_compact }}</em></span>
                       </span>
                     {% else %}
                       <span class="annual-not-offered">N/O</span>
@@ -567,7 +573,8 @@
 
       <section class="legend">
         {% if selected_ca_component == "cumulative" or selected_ca_component == "overall" %}
-          <strong>Subject headers use full subject names.</strong>
+          <strong>Subject code legend:</strong>
+          {% for subject in matrix.print_subjects %}{{ subject.code }} = {{ subject.name }}{% if not forloop.last %}; {% endif %}{% endfor %}.
         {% else %}
           <strong>Subject code legend:</strong>
           {% for subject in matrix.print_subjects %}{{ subject.code }} = {{ subject.name }}{% if not forloop.last %}; {% endif %}{% endfor %}.

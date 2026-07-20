@@ -856,7 +856,7 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                         section="Academic",
                     ),
                     _nav_item(
-                        label="LMS Classroom",
+                        label="Classroom",
                         url="/portal/student/lms/",
                         request_path=request_path,
                         matches=("/portal/student/lms/",),
@@ -881,6 +881,13 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                         url="/notifications/center/",
                         request_path=request_path,
                         matches=("/notifications/",),
+                        section="Other",
+                    ),
+                    _nav_item(
+                        label="Settings",
+                        url="/portal/student/settings/",
+                        request_path=request_path,
+                        matches=("/portal/student/settings/",),
                         section="Other",
                     ),
                     _nav_item(
@@ -953,6 +960,13 @@ def build_portal_navigation(*, portal_key: str, role_codes: set[str], request_pa
                     url="/portal/student/learning-hub/",
                     request_path=request_path,
                     matches=("/portal/student/learning-hub/", "/portal/student/lms/", "/portal/student/weekly-challenge/"),
+                    section="Academic",
+                ),
+                _nav_item(
+                    label="Settings",
+                    url="/portal/student/settings/",
+                    request_path=request_path,
+                    matches=("/portal/student/settings/",),
                     section="Academic",
                 ),
                 _nav_item(

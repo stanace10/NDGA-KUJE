@@ -151,12 +151,13 @@ def fallback_school_stamp_data_uri(*, profile=None):
     school_name = getattr(profile, "school_name", "") or "Notre Dame Girls' Academy"
     svg = f"""
     <svg xmlns="http://www.w3.org/2000/svg" width="260" height="260" viewBox="0 0 260 260">
-      <circle cx="130" cy="130" r="112" fill="none" stroke="#295b94" stroke-width="9"/>
-      <circle cx="130" cy="130" r="88" fill="none" stroke="#c62828" stroke-width="4"/>
-      <text x="130" y="96" text-anchor="middle" font-family="Georgia, serif" font-size="24" font-weight="700" fill="#295b94">NDGA</text>
-      <text x="130" y="128" text-anchor="middle" font-family="Georgia, serif" font-size="13" font-weight="700" fill="#111111">{school_name[:28]}</text>
-      <text x="130" y="154" text-anchor="middle" font-family="Georgia, serif" font-size="15" font-weight="700" fill="#c62828">OFFICIAL RESULT</text>
-      <text x="130" y="181" text-anchor="middle" font-family="Georgia, serif" font-size="13" font-weight="700" fill="#111111">SCHOOL STAMP</text>
+      <circle cx="130" cy="130" r="116" fill="none" stroke="#082449" stroke-width="9"/>
+      <circle cx="130" cy="130" r="101" fill="none" stroke="#D6A21E" stroke-width="5"/>
+      <circle cx="130" cy="130" r="86" fill="none" stroke="#C62828" stroke-width="4"/>
+      <text x="130" y="91" text-anchor="middle" font-family="Georgia, serif" font-size="25" font-weight="700" fill="#082449">NDGA</text>
+      <text x="130" y="123" text-anchor="middle" font-family="Georgia, serif" font-size="13" font-weight="700" fill="#111111">{school_name[:28]}</text>
+      <text x="130" y="151" text-anchor="middle" font-family="Georgia, serif" font-size="15" font-weight="700" fill="#C62828">OFFICIAL RESULT</text>
+      <text x="130" y="179" text-anchor="middle" font-family="Georgia, serif" font-size="13" font-weight="700" fill="#082449">SCHOOL SEAL</text>
     </svg>
     """
     return _svg_data_uri(svg)
@@ -198,16 +199,7 @@ def principal_signature_data_uri(*, preferred_user=None):
 
 
 def fallback_principal_signature_data_uri():
-    profile = school_profile()
-    name = (getattr(profile, "principal_name", "") or "Principal").strip()
-    svg = f"""
-    <svg xmlns="http://www.w3.org/2000/svg" width="420" height="120" viewBox="0 0 420 120">
-      <path d="M24 78 C62 18, 92 20, 77 69 C68 99, 127 31, 145 54 C162 76, 181 72, 203 45 C194 91, 237 78, 261 51 C253 89, 304 76, 338 48 C357 32, 371 39, 397 31"
-        fill="none" stroke="#111827" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-      <text x="210" y="108" text-anchor="middle" font-family="Georgia, serif" font-size="18" fill="#111827">{name}</text>
-    </svg>
-    """
-    return _svg_data_uri(svg)
+    return ""
 
 
 def student_profile_photo_data_uri(student):

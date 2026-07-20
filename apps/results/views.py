@@ -5516,8 +5516,8 @@ def _annual_cell_display(term_values, annual_value):
 def _matrix_print_layout(subject_count):
     subject_count = max(1, int(subject_count or 1))
     effective_count = min(max(subject_count, 13), 18)
-    student_width = 40 if effective_count <= 14 else 38 if effective_count <= 16 else 36
-    fixed_width = 6 + student_width + 8 + 13 + 12 + 7
+    student_width = 39 if effective_count <= 14 else 37 if effective_count <= 16 else 35
+    fixed_width = 5 + student_width + 7 + 11 + 10 + 6
     subject_width = (Decimal("289") - Decimal(str(fixed_width))) / Decimal(subject_count)
 
     if effective_count <= 14:
@@ -5526,8 +5526,8 @@ def _matrix_print_layout(subject_count):
             "score_font": "6.2pt",
             "student_font": "6.8pt",
             "annual_code_font": "5.0pt",
-            "annual_key_font": "4.7pt",
-            "annual_score_font": "4.9pt",
+            "annual_key_font": "4.15pt",
+            "annual_score_font": "4.7pt",
             "annual_student_font": "6.6pt",
             "annual_row_min": "10.4mm",
         }
@@ -5537,8 +5537,8 @@ def _matrix_print_layout(subject_count):
             "score_font": "5.8pt",
             "student_font": "6.4pt",
             "annual_code_font": "4.7pt",
-            "annual_key_font": "4.4pt",
-            "annual_score_font": "4.6pt",
+            "annual_key_font": "3.95pt",
+            "annual_score_font": "4.45pt",
             "annual_student_font": "6.2pt",
             "annual_row_min": "10.0mm",
         }
@@ -5548,20 +5548,20 @@ def _matrix_print_layout(subject_count):
             "score_font": "5.3pt",
             "student_font": "6.0pt",
             "annual_code_font": "4.25pt",
-            "annual_key_font": "4.1pt",
-            "annual_score_font": "4.25pt",
+            "annual_key_font": "3.7pt",
+            "annual_score_font": "4.05pt",
             "annual_student_font": "5.9pt",
             "annual_row_min": "9.6mm",
         }
 
     return {
-        "sn": "6",
+        "sn": "5",
         "student": str(student_width),
         "subject": f"{subject_width.quantize(Decimal('0.001'))}",
-        "subjects_offered": "8",
-        "total": "13",
-        "average": "12",
-        "position": "7",
+        "subjects_offered": "7",
+        "total": "11",
+        "average": "10",
+        "position": "6",
         "typography": typography,
     }
 

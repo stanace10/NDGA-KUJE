@@ -306,6 +306,10 @@ class StudentLMSView(StudentPortalBaseView):
         return context
 
     def post(self, request, *args, **kwargs):
+        messages.info(request, "Classroom LMS is currently in development. Student actions are disabled for now.")
+        return redirect("dashboard:student-lms")
+
+    def _post_enabled_after_development(self, request, *args, **kwargs):
         payload = _student_dashboard_payload(self.request, self.request.user)
         classroom_qs = _student_lms_classroom_queryset(payload=payload)
         selected_classroom = self._selected_classroom(classroom_qs)

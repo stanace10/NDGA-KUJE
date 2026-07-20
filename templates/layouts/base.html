@@ -794,7 +794,11 @@
             {% if current_portal_key == "it" %}
               <span class="portal-topbar-chip hidden text-emerald-700 xl:inline-flex"><span class="h-2 w-2 rounded-full bg-emerald-600"></span>{% if lan_runtime_restricted %}LAN Online{% else %}Cloud Online{% endif %}</span>
             {% endif %}
-            <a href="/portal/account/security/" class="portal-user-pill" title="Profile and account security">
+            <a
+              href="{% if current_portal_key == 'cbt' %}/portal/cbt/{% elif current_portal_key == 'student' %}/portal/student/settings/{% elif current_portal_key == 'staff' %}/portal/staff/settings/{% else %}/portal/account/security/{% endif %}"
+              class="portal-user-pill"
+              title="{% if current_portal_key == 'cbt' %}CBT candidate console{% elif current_portal_key == 'student' %}Student account settings{% elif current_portal_key == 'staff' %}Staff account settings{% else %}Profile and account security{% endif %}"
+            >
               {% if portal_profile_photo_url %}
                 <img src="{{ portal_profile_photo_url }}" alt="{{ user_display_name }}" class="portal-user-pill-photo">
               {% else %}
