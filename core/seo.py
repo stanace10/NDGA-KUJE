@@ -125,7 +125,7 @@ def _public_meta(request):
 def build_seo_context(request):
     landing_url = _landing_url(request, "/")
     share_image_url = _landing_url(request, static("ndga-share.png"))
-    logo_url = _landing_url(request, static("images/ndga/logo.png"))
+    logo_url = _landing_url(request, static("branding/school/ndga-logo.png"))
     public_meta = _public_meta(request)
     site_name = public_meta["site_name"] if public_meta else getattr(settings, "SEO_SITE_NAME", DEFAULT_SITE_NAME)
     organization_name = getattr(settings, "SEO_ORGANIZATION_NAME", DEFAULT_ORGANIZATION_NAME)
