@@ -9,6 +9,10 @@ ndgakuje.org, www.ndgakuje.org, student.ndgakuje.org {
 		Referrer-Policy strict-origin-when-cross-origin
 		-Server
 	}
+
+	@lan_only path /admin* /it* /staff* /dean* /form* /hostel* /bursar* /vp* /principal* /cbt* /election*
+	respond @lan_only "Not found" 404
+
 	reverse_proxy nginx:80 {
 		header_up X-Forwarded-Proto https
 		header_up X-Forwarded-Host {host}
