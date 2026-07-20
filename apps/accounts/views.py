@@ -958,6 +958,19 @@ class PasswordResetRequestView(FormView):
         profile = StudentProfile.objects.filter(user=user).first()
         return profile.student_number if profile and profile.student_number else user.username
 
+    def _student_class_label(self, user):
+        if not user:
+            return "-"
+        enrollment = (
+            user.class_enrollments.filter(is_active=True)
+            .select_related("academic_class", "session")
+            .order_by("-session__name", "-updated_at", "-id")
+            .first()
+        )
+        if not enrollment or not enrollment.academic_class_id:
+            return "-"
+        return enrollment.academic_class.display_name or enrollment.academic_class.code or str(enrollment.academic_class)
+
     def _challenge_options(self, user, profile):
         options = []
         if user.first_name:
@@ -1037,7 +1050,7 @@ class PasswordResetRequestView(FormView):
                 "A parent/student requested a default-password reset from the cloud student portal.\n\n"
                 f"Student: {target_user.get_full_name() or target_user.username}\n"
                 f"Admission number: {profile.student_number or '-'}\n"
-                f"Class: {profile.current_class or '-'}\n"
+                f"Class: {self._student_class_label(target_user)}\n"
                 f"Guardian email on record: {profile.guardian_email or '-'}\n\n"
                 "Please verify with school records before resetting this student password to the default."
             ),
