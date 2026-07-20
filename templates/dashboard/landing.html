@@ -7,6 +7,9 @@
 {% block og_description %}Portal access for students, staff, academic records, finance, CBT, and school operations at Notre Dame Girls' Academy, Kuje Abuja.{% endblock %}
 {% block twitter_title %}Notre Dame Girls' Academy | NDGA Portal{% endblock %}
 {% block twitter_description %}Portal access for students, staff, academic records, finance, CBT, and school operations at Notre Dame Girls' Academy, Kuje Abuja.{% endblock %}
+{% block extra_head %}
+  <link rel="preload" as="image" href="{% static 'images/ndga/hero-main.jpg' %}" fetchpriority="high">
+{% endblock %}
 
 {% block body_class %}landing-shell{% endblock %}
 
@@ -64,6 +67,8 @@
             src="{% static 'images/ndga/logo.png' %}"
             alt="Notre Dame Girls' Academy logo"
             class="h-14 w-14 rounded-full border border-white/45 bg-white/90 p-1 shadow-[0_8px_24px_rgba(6,12,34,0.45)]"
+            loading="eager"
+            decoding="async"
           >
           <div>
             <p class="text-xs font-semibold uppercase tracking-[0.24em] text-ndga-gold">Notre Dame Girls' Academy</p>
