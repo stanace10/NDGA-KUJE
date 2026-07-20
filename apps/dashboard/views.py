@@ -2461,6 +2461,9 @@ class StudentSettingsView(StudentPortalBaseView):
         context.update(_student_dashboard_payload(self.request, self.request.user))
         context["display_form"] = kwargs.get("display_form") or self._display_form()
         context["password_form"] = kwargs.get("password_form") or self._password_form()
+        context["password_change_success"] = bool(
+            self.request.session.pop("student_password_change_success", False)
+        )
         return context
 
     def post(self, request, *args, **kwargs):
@@ -2487,7 +2490,8 @@ class StudentSettingsView(StudentPortalBaseView):
                 )
                 update_session_auth_hash(request, request.user)
                 log_password_change(actor=request.user, request=request)
-                messages.success(request, "Password updated successfully.")
+                request.session["student_password_change_success"] = True
+                request.session.modified = True
                 return redirect("dashboard:student-settings")
             if password_form.non_field_errors():
                 log_password_change_denied(

@@ -32,9 +32,9 @@
       <article class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <h2 class="text-xl font-bold text-slate-900">Password</h2>
         <p class="mt-1 text-sm text-slate-600">
-          Update your account password using NDGA policy rules.
+          Change your password. Use at least 5 characters; stronger passwords are better.
         </p>
-        <form method="post" class="mt-4 space-y-3">
+        <form method="post" class="mt-4 space-y-3" id="studentPasswordForm" novalidate>
           {% csrf_token %}
           <input type="hidden" name="action" value="change_password">
           {% if password_form.non_field_errors %}
@@ -45,18 +45,147 @@
           <div>
             <label class="mb-1 block text-sm font-medium text-slate-700" for="{{ password_form.old_password.id_for_label }}">Current Password</label>
             {{ password_form.old_password }}
+            {% if password_form.old_password.errors %}
+              <p class="mt-1 text-xs text-rose-700">{{ password_form.old_password.errors|striptags }}</p>
+            {% endif %}
           </div>
           <div>
             <label class="mb-1 block text-sm font-medium text-slate-700" for="{{ password_form.new_password1.id_for_label }}">New Password</label>
             {{ password_form.new_password1 }}
+            <div class="mt-2 rounded-2xl border border-slate-200 bg-slate-50 p-3" id="studentPasswordStrength">
+              <div class="h-2 overflow-hidden rounded-full bg-slate-200">
+                <span id="studentPasswordStrengthBar" style="display:block;height:100%;width:0%;border-radius:999px;background:#dc2626;transition:width .2s ease,background-color .2s ease;"></span>
+              </div>
+              <div class="mt-2 flex items-center justify-between gap-3 text-xs">
+                <span id="studentPasswordStrengthLabel" class="font-bold text-slate-700">Enter at least 5 characters</span>
+                <span id="studentPasswordLengthLabel" class="font-semibold text-slate-500">0 / 5 min</span>
+              </div>
+            </div>
+            {% if password_form.new_password1.help_text %}
+              <p class="mt-1 text-xs text-slate-500">{{ password_form.new_password1.help_text }}</p>
+            {% endif %}
+            {% if password_form.new_password1.errors %}
+              <p class="mt-1 text-xs text-rose-700">{{ password_form.new_password1.errors|striptags }}</p>
+            {% endif %}
           </div>
           <div>
             <label class="mb-1 block text-sm font-medium text-slate-700" for="{{ password_form.new_password2.id_for_label }}">Confirm New Password</label>
             {{ password_form.new_password2 }}
+            <p id="studentPasswordMatchLabel" class="mt-1 text-xs font-semibold text-slate-500">Confirm the new password.</p>
+            {% if password_form.new_password2.errors %}
+              <p class="mt-1 text-xs text-rose-700">{{ password_form.new_password2.errors|striptags }}</p>
+            {% endif %}
           </div>
-          <button type="submit" class="ndga-btn ndga-btn-primary">Update Password</button>
+          <button type="submit" class="ndga-btn ndga-btn-primary" id="studentPasswordSubmit">Update Password</button>
         </form>
       </article>
     </div>
   </section>
+
+  {% if password_change_success %}
+    <div class="fixed inset-0 z-50 grid place-items-center bg-slate-950/60 p-4 backdrop-blur-sm" id="passwordSuccessModal">
+      <article class="w-full max-w-md rounded-[1.75rem] border border-emerald-200 bg-white p-6 text-center shadow-2xl">
+        <div class="mx-auto grid h-14 w-14 place-items-center rounded-full bg-emerald-100 text-emerald-700">
+          <svg viewBox="0 0 24 24" class="h-7 w-7" fill="none" aria-hidden="true">
+            <path d="M5 12.5l4.2 4.2L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <p class="mt-4 text-xs font-black uppercase tracking-[0.2em] text-emerald-700">Password Updated</p>
+        <h2 class="mt-2 text-2xl font-black text-[#082449]">Password successfully changed</h2>
+        <p class="mt-2 text-sm leading-6 text-slate-600">
+          Click Done to log out. Then sign in again with your new password.
+        </p>
+        <form method="post" action="{% url 'accounts:logout' %}" class="mt-5">
+          {% csrf_token %}
+          <button
+            type="submit"
+            style="display:inline-flex;align-items:center;justify-content:center;border-radius:0.9rem;background:#082449;color:#ffffff!important;padding:0.8rem 1.6rem;font-size:0.9rem;font-weight:900;text-decoration:none;box-shadow:0 12px 28px rgba(8,36,73,0.2);"
+          >
+            Done
+          </button>
+        </form>
+      </article>
+    </div>
+  {% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+  {{ block.super }}
+  <script>
+    (function () {
+      const passwordInput = document.getElementById("id_new_password1");
+      const confirmInput = document.getElementById("id_new_password2");
+      const oldInput = document.getElementById("id_old_password");
+      const bar = document.getElementById("studentPasswordStrengthBar");
+      const label = document.getElementById("studentPasswordStrengthLabel");
+      const lengthLabel = document.getElementById("studentPasswordLengthLabel");
+      const matchLabel = document.getElementById("studentPasswordMatchLabel");
+      const submit = document.getElementById("studentPasswordSubmit");
+      if (!passwordInput || !confirmInput || !bar || !label || !lengthLabel || !matchLabel || !submit) {
+        return;
+      }
+
+      function passwordScore(value) {
+        let score = 0;
+        if (value.length >= 5) score += 1;
+        if (value.length >= 8) score += 1;
+        if (/[A-Z]/.test(value) && /[a-z]/.test(value)) score += 1;
+        if (/\d/.test(value)) score += 1;
+        if (/[^A-Za-z0-9]/.test(value)) score += 1;
+        return score;
+      }
+
+      function updateStrength() {
+        const value = passwordInput.value || "";
+        const confirmValue = confirmInput.value || "";
+        const score = passwordScore(value);
+        const percent = Math.min(100, Math.max(8, score * 20));
+        let color = "#dc2626";
+        let text = "Weak";
+        if (value.length < 5) {
+          color = "#dc2626";
+          text = "Too short";
+        } else if (score >= 4) {
+          color = "#16a34a";
+          text = "Strong";
+        } else if (score >= 3) {
+          color = "#d6a21e";
+          text = "Good";
+        } else {
+          color = "#f59e0b";
+          text = "Fair";
+        }
+        bar.style.width = value.length ? percent + "%" : "0%";
+        bar.style.backgroundColor = color;
+        label.textContent = value.length ? text : "Enter at least 5 characters";
+        label.style.color = color;
+        lengthLabel.textContent = value.length + " / 5 min";
+
+        if (!confirmValue) {
+          matchLabel.textContent = "Confirm the new password.";
+          matchLabel.style.color = "#64748b";
+        } else if (confirmValue === value) {
+          matchLabel.textContent = "Passwords match.";
+          matchLabel.style.color = "#16a34a";
+        } else {
+          matchLabel.textContent = "Passwords do not match.";
+          matchLabel.style.color = "#dc2626";
+        }
+
+        const ready = Boolean(oldInput && oldInput.value.trim()) && value.length >= 5 && confirmValue === value;
+        submit.disabled = !ready;
+        submit.style.opacity = ready ? "1" : ".55";
+        submit.style.cursor = ready ? "pointer" : "not-allowed";
+      }
+
+      ["input", "change"].forEach(function (eventName) {
+        passwordInput.addEventListener(eventName, updateStrength);
+        confirmInput.addEventListener(eventName, updateStrength);
+        if (oldInput) {
+          oldInput.addEventListener(eventName, updateStrength);
+        }
+      });
+      updateStrength();
+    })();
+  </script>
 {% endblock %}

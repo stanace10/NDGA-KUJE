@@ -564,12 +564,46 @@ class PasswordResetCodeForm(forms.Form):
 
 
 class PolicyPasswordChangeForm(PasswordChangeForm):
+    MIN_PASSWORD_LENGTH = 5
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         for field_name in ("old_password", "new_password1", "new_password2"):
             self.fields[field_name].widget.attrs["class"] = (
                 "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
             )
+            self.fields[field_name].widget.attrs["autocomplete"] = (
+                "current-password" if field_name == "old_password" else "new-password"
+            )
+        self.fields["new_password1"].widget.attrs["minlength"] = str(self.MIN_PASSWORD_LENGTH)
+        self.fields["new_password2"].widget.attrs["minlength"] = str(self.MIN_PASSWORD_LENGTH)
+        self.fields["new_password1"].help_text = (
+            "Use at least 5 characters. A stronger password should mix letters, numbers, or symbols."
+        )
+
+    def clean_new_password2(self):
+        password1 = self.cleaned_data.get("new_password1")
+        password2 = self.cleaned_data.get("new_password2")
+        if password1 and password2 and password1 != password2:
+            raise forms.ValidationError("The two password fields did not match.")
+        if password2 and len(password2) < self.MIN_PASSWORD_LENGTH:
+            raise forms.ValidationError(
+                f"Password must be at least {self.MIN_PASSWORD_LENGTH} characters."
+            )
+        return password2
+
+    def _post_clean(self):
+        # The school policy intentionally allows a short minimum of 5 characters
+        # for student self-service changes. Keep the form-level old-password and
+        # confirmation checks, but do not re-apply Django's global password
+        # validators here because they may require a longer length.
+        forms.Form._post_clean(self)
+
+    def validate_password_for_user(self, user, password_field_name="new_password2"):
+        # PasswordChangeForm calls Django's project-wide password validators after
+        # field cleaning. The student portal has a school-approved 5-character
+        # minimum, so validation is handled in clean_new_password2() instead.
+        return None
 
     def clean(self):
         cleaned_data = super().clean()

@@ -566,7 +566,7 @@
     {% if show_portal_shell %}
       <aside class="portal-sidebar hidden lg:flex">
         <div class="portal-brand">
-          <img src="{% static 'images/ndga/logo.png' %}" alt="Notre Dame Girls' Academy" class="portal-brand-logo">
+          <img src="{% static 'images/ndga/logo.png' %}" alt="Notre Dame Girls' Academy" class="portal-brand-logo" loading="eager" decoding="async">
           <div>
             <p class="portal-brand-title">Notre Dame Girls' Academy</p>
             <p class="portal-brand-subtitle">{{ portal_shell_title }}</p>
@@ -659,7 +659,7 @@
         class="portal-sidebar-mobile lg:hidden"
       >
         <div class="portal-brand">
-          <img src="{% static 'images/ndga/logo.png' %}" alt="Notre Dame Girls' Academy" class="portal-brand-logo">
+          <img src="{% static 'images/ndga/logo.png' %}" alt="Notre Dame Girls' Academy" class="portal-brand-logo" loading="eager" decoding="async">
           <div>
             <p class="portal-brand-title">Notre Dame Girls' Academy</p>
             <p class="portal-brand-subtitle">{{ portal_shell_title }}</p>
@@ -800,7 +800,7 @@
               title="{% if current_portal_key == 'cbt' %}CBT candidate console{% elif current_portal_key == 'student' %}Student account settings{% elif current_portal_key == 'staff' %}Staff account settings{% else %}Profile and account security{% endif %}"
             >
               {% if portal_profile_photo_url %}
-                <img src="{{ portal_profile_photo_url }}" alt="{{ user_display_name }}" class="portal-user-pill-photo">
+                <img src="{{ portal_profile_photo_url }}" alt="{{ user_display_name }}" class="portal-user-pill-photo" loading="eager" decoding="async">
               {% else %}
                 <span class="portal-user-pill-fallback">{{ user_display_name|slice:":1"|upper }}</span>
               {% endif %}
